@@ -327,7 +327,7 @@ void RBN_prevAudioProcessorEditor::drawGem(juce::Graphics& g, uint gemColumn, ui
     }
 
     // Create rectangle
-    float curve = 0.25; // Makes placement a bit more exponential
+    float curve = 0.333; // Makes placement a bit more exponential
 
     int pY1 = normY1 * getHeight();
     int pY2 = normY2 * getHeight();
