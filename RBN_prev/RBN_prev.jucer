@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="SvXbwJ" name="RBN_prev" projectType="audioplug" useAppConfig="0"
+              addUsingNamespaceToJuceHeader="0" displaySplashScreen="1" jucerFormatVersion="1"
+              companyName="Dichotic Studios" pluginVST3Category="Analyzer"
+              pluginCharacteristicsValue="pluginWantsMidiIn" cppLanguageStandard="17">
+  <MAINGROUP id="vNZlKl" name="RBN_prev">
+    <GROUP id="{A87F74BB-BA5C-8155-543F-2CB0BFD5611F}" name="Assets">
+      <FILE id="gILYVI" name="beat_marker.png" compile="0" resource="1" file="Assets/beat_marker.png"/>
+      <FILE id="UUo9Z5" name="gem_blue.png" compile="0" resource="1" file="Assets/gem_blue.png"/>
+      <FILE id="Vmq0Ef" name="gem_cym_blue.png" compile="0" resource="1"
+            file="Assets/gem_cym_blue.png"/>
+      <FILE id="gDkCvv" name="gem_cym_green.png" compile="0" resource="1"
+            file="Assets/gem_cym_green.png"/>
+      <FILE id="OsDBDi" name="gem_cym_style.png" compile="0" resource="1"
+            file="Assets/gem_cym_style.png"/>
+      <FILE id="rPzBo4" name="gem_cym_yellow.png" compile="0" resource="1"
+            file="Assets/gem_cym_yellow.png"/>
+      <FILE id="tjfLW5" name="gem_green.png" compile="0" resource="1" file="Assets/gem_green.png"/>
+      <FILE id="nAgylM" name="gem_hopo_blue.png" compile="0" resource="1"
+            file="Assets/gem_hopo_blue.png"/>
+      <FILE id="citcho" name="gem_hopo_green.png" compile="0" resource="1"
+            file="Assets/gem_hopo_green.png"/>
+      <FILE id="Kg8NNU" name="gem_hopo_orange.png" compile="0" resource="1"
+            file="Assets/gem_hopo_orange.png"/>
+      <FILE id="RVTQAS" name="gem_hopo_red.png" compile="0" resource="1"
+            file="Assets/gem_hopo_red.png"/>
+      <FILE id="HIIIG5" name="gem_hopo_style.png" compile="0" resource="1"
+            file="Assets/gem_hopo_style.png"/>
+      <FILE id="M5o17E" name="gem_hopo_yellow.png" compile="0" resource="1"
+            file="Assets/gem_hopo_yellow.png"/>
+      <FILE id="awTH7X" name="gem_kick.png" compile="0" resource="1" file="Assets/gem_kick.png"/>
+      <FILE id="gItVGV" name="gem_kick_style.png" compile="0" resource="1"
+            file="Assets/gem_kick_style.png"/>
+      <FILE id="ML2OfB" name="gem_orange.png" compile="0" resource="1" file="Assets/gem_orange.png"/>
+      <FILE id="REpFU4" name="gem_red.png" compile="0" resource="1" file="Assets/gem_red.png"/>
+      <FILE id="eB3EVp" name="gem_style.png" compile="0" resource="1" file="Assets/gem_style.png"/>
+      <FILE id="tQ7yC1" name="gem_yellow.png" compile="0" resource="1" file="Assets/gem_yellow.png"/>
+      <FILE id="R1FKka" name="half_beat_marker.png" compile="0" resource="1"
+            file="Assets/half_beat_marker.png"/>
+      <FILE id="Uwr9ww" name="kick_flash_1.png" compile="0" resource="1"
+            file="Assets/kick_flash_1.png"/>
+      <FILE id="b6p7bx" name="kick_flash_2.png" compile="0" resource="1"
+            file="Assets/kick_flash_2.png"/>
+      <FILE id="s0IEVu" name="kick_flash_3.png" compile="0" resource="1"
+            file="Assets/kick_flash_3.png"/>
+      <FILE id="psSb2Z" name="kick_flash_4.png" compile="0" resource="1"
+            file="Assets/kick_flash_4.png"/>
+      <FILE id="g6cWYN" name="kick_flash_5.png" compile="0" resource="1"
+            file="Assets/kick_flash_5.png"/>
+      <FILE id="J3B7QU" name="kick_flash_6.png" compile="0" resource="1"
+            file="Assets/kick_flash_6.png"/>
+      <FILE id="YmZkzJ" name="kick_flash_7.png" compile="0" resource="1"
+            file="Assets/kick_flash_7.png"/>
+      <FILE id="I7oGL4" name="measure.png" compile="0" resource="1" file="Assets/measure.png"/>
+      <FILE id="zVSo1L" name="RBN_background1.png" compile="0" resource="1"
+            file="Assets/RBN_background1.png"/>
+      <FILE id="rovzc5" name="smash_1.png" compile="0" resource="1" file="Assets/smash_1.png"/>
+      <FILE id="hLVtBk" name="smash_2.png" compile="0" resource="1" file="Assets/smash_2.png"/>
+      <FILE id="y1vRW1" name="smash_3.png" compile="0" resource="1" file="Assets/smash_3.png"/>
+      <FILE id="IFApzk" name="smash_4.png" compile="0" resource="1" file="Assets/smash_4.png"/>
+      <FILE id="HL6v6z" name="smash_5.png" compile="0" resource="1" file="Assets/smash_5.png"/>
+      <FILE id="yvgNqY" name="smash_6.png" compile="0" resource="1" file="Assets/smash_6.png"/>
+      <FILE id="nE809H" name="smash_7.png" compile="0" resource="1" file="Assets/smash_7.png"/>
+      <FILE id="YDGfQv" name="smash_8.png" compile="0" resource="1" file="Assets/smash_8.png"/>
+      <FILE id="ELfNrM" name="smash_9.png" compile="0" resource="1" file="Assets/smash_9.png"/>
+      <FILE id="hZDhD4" name="smash_10.png" compile="0" resource="1" file="Assets/smash_10.png"/>
+      <FILE id="EzFeG3" name="smash_flare_blue.png" compile="0" resource="1"
+            file="Assets/smash_flare_blue.png"/>
+      <FILE id="E9VgHU" name="smash_flare_green.png" compile="0" resource="1"
+            file="Assets/smash_flare_green.png"/>
+      <FILE id="EDSJ8t" name="smash_flare_orange.png" compile="0" resource="1"
+            file="Assets/smash_flare_orange.png"/>
+      <FILE id="YfkvEn" name="smash_flare_red.png" compile="0" resource="1"
+            file="Assets/smash_flare_red.png"/>
+      <FILE id="Z1KZfJ" name="smash_flare_style.png" compile="0" resource="1"
+            file="Assets/smash_flare_style.png"/>
+      <FILE id="EUbFgn" name="smash_flare_yellow.png" compile="0" resource="1"
+            file="Assets/smash_flare_yellow.png"/>
+      <FILE id="pgNNis" name="sustain_blue.png" compile="0" resource="1"
+            file="Assets/sustain_blue.png"/>
+      <FILE id="vtdnmV" name="sustain_blue_hi.png" compile="0" resource="1"
+            file="Assets/sustain_blue_hi.png"/>
+      <FILE id="bpHMbR" name="sustain_green.png" compile="0" resource="1"
+            file="Assets/sustain_green.png"/>
+      <FILE id="bIG2xG" name="sustain_green_hi.png" compile="0" resource="1"
+            file="Assets/sustain_green_hi.png"/>
+      <FILE id="tTJw0N" name="sustain_orange.png" compile="0" resource="1"
+            file="Assets/sustain_orange.png"/>
+      <FILE id="EXFbuB" name="sustain_orange_hi.png" compile="0" resource="1"
+            file="Assets/sustain_orange_hi.png"/>
+      <FILE id="Zy1eJN" name="sustain_red.png" compile="0" resource="1" file="Assets/sustain_red.png"/>
+      <FILE id="CdERh0" name="sustain_red_hi.png" compile="0" resource="1"
+            file="Assets/sustain_red_hi.png"/>
+      <FILE id="hBvxJM" name="sustain_style.png" compile="0" resource="1"
+            file="Assets/sustain_style.png"/>
+      <FILE id="s0fMLR" name="sustain_style_hi.png" compile="0" resource="1"
+            file="Assets/sustain_style_hi.png"/>
+      <FILE id="PgbMsY" name="sustain_yellow.png" compile="0" resource="1"
+            file="Assets/sustain_yellow.png"/>
+      <FILE id="haRRbz" name="sustain_yellow_hi.png" compile="0" resource="1"
+            file="Assets/sustain_yellow_hi.png"/>
+      <FILE id="hJ1sOr" name="track_drum.png" compile="0" resource="1" file="Assets/track_drum.png"/>
+      <FILE id="Ncb5IR" name="track_guitar.png" compile="0" resource="1"
+            file="Assets/track_guitar.png"/>
+    </GROUP>
+    <GROUP id="{577BFFED-2E98-5329-03C4-711F74395056}" name="Source">
+      <FILE id="fyQvaj" name="MidiProcessor.cpp" compile="1" resource="0"
+            file="Source/MidiProcessor.cpp"/>
+      <FILE id="FuGPzg" name="MidiProcessor.h" compile="0" resource="0" file="Source/MidiProcessor.h"/>
+      <FILE id="PZm7UN" name="PluginProcessor.cpp" compile="1" resource="0"
+            file="Source/PluginProcessor.cpp"/>
+      <FILE id="GADCKX" name="PluginProcessor.h" compile="0" resource="0"
+            file="Source/PluginProcessor.h"/>
+      <FILE id="Fw3asZ" name="PluginEditor.cpp" compile="1" resource="0"
+            file="Source/PluginEditor.cpp"/>
+      <FILE id="Mxww5q" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+    </GROUP>
+  </MAINGROUP>
+  <MODULES>
+    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_plugin_client" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_midi_ci" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+  </MODULES>
+  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"/>
+  <EXPORTFORMATS>
+    <XCODE_MAC targetFolder="Builds/MacOSX">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="RBN_prev"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="RBN_prev"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_audio_basics" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_midi_ci" path="../../../../../../Applications/JUCE/modules"/>
+      </MODULEPATHS>
+    </XCODE_MAC>
+  </EXPORTFORMATS>
+</JUCERPROJECT>
