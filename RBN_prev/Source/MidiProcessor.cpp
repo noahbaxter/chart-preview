@@ -1,24 +1,28 @@
 #include "MidiProcessor.h"
 
-void MidiProcessor::process(juce::MidiBuffer& midiMessages, int globalPlayheadPositionInSamples, int blockSizeInSamples)
+void MidiProcessor::process(juce::MidiBuffer& midiMessages, uint startPositionInSamples, uint blockSizeInSamples)
 {
-    // Reset all map indices within the block
-    auto lower = midiMap.lower_bound(globalPlayheadPositionInSamples);
-    auto upper = midiMap.upper_bound(globalPlayheadPositionInSamples + blockSizeInSamples);
-    midiMap.erase(lower, upper);
+    uint endPositionInSamples = startPositionInSamples + blockSizeInSamples;
 
-    // Store all events in the map
-    juce::MidiBuffer::Iterator iter(midiMessages);
-    juce::MidiMessage message;
-    int localMessagePositionInSamples; // The sample position in the buffer where this event happens
-
-    while (iter.getNextEvent(message, localMessagePositionInSamples))
+    // Erase all events in the map within the range of the current block so changes are reflected
+    // The problem is the buffer can shift unexpectedly, so we handle that by tracking the last processed sample
+    if (endPositionInSamples >= lastProcessedSample)
     {
-        int globalMessagePositionInSamples = globalPlayheadPositionInSamples + localMessagePositionInSamples;
-        if (message.isNoteOn())
-        {
-            midiMap[globalMessagePositionInSamples].push_back(message);
-        }
-        
+        auto lower = midiMap.lower_bound(std::max(startPositionInSamples, lastProcessedSample));
+        auto upper = midiMap.lower_bound(endPositionInSamples);
+        midiMap.erase(lower, upper);
     }
+
+
+    for (const auto &message : midiMessages)
+    {
+        int localMessagePositionInSamples = message.samplePosition;
+        int globalMessagePositionInSamples = startPositionInSamples + localMessagePositionInSamples;
+        if (message.getMessage().isNoteOn())
+        {
+            midiMap[globalMessagePositionInSamples].push_back(message.getMessage());
+        }
+    }
+
+    lastProcessedSample = std::max(endPositionInSamples, lastProcessedSample);
 }
