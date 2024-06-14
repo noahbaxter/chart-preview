@@ -31,21 +31,7 @@ public:
       debugText += line + "\n";
     }
 
-    // std::map<int, juce::MidiMessage> midiMessages()
-    // {
-    //   return midiProcessor.midiMessages;
-    // }
-
-    int getCurrentPlayheadPositionInSamples()
-    {
-      juce::AudioPlayHead::CurrentPositionInfo positionInfo;
-      if (getPlayHead() != nullptr && getPlayHead()->getCurrentPosition(positionInfo))
-      {
-        return positionInfo.timeInSamples;
-      }
-
-      return 0;
-    }
+    uint playheadPositionInSamples = 0;
 
     std::map<int, std::vector<juce::MidiMessage>> getMidiMap()
     {
@@ -92,7 +78,6 @@ public:
 private:
   //==============================================================================
   MidiProcessor midiProcessor;
-
 
   // juce::MidiBuffer lookaheadBuffer;
   // int lookaheadSamples = 88200;
