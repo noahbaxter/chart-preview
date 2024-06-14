@@ -148,6 +148,9 @@ void RBN_prevAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     {
         midiProcessor.process(midiMessages, playheadPositionInSamples, blockSizeInSamples);
     }
+    else {
+        midiProcessor.lastProcessedSample = playheadPositionInSamples;
+    }
 }
 
 //==============================================================================

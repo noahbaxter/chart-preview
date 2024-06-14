@@ -6,11 +6,12 @@ class MidiProcessor
 {
 
     public:
-        void process(juce::MidiBuffer& midiMessages, 
-                     int globalPlayheadPositionInSamples,
-                     int blockSizeInSamples);
+        void process(juce::MidiBuffer& midiMessages,
+                     uint startPositionInSamples,
+                     uint blockSizeInSamples);
 
         std::map<int, std::vector<juce::MidiMessage>> midiMap;
+        uint lastProcessedSample = 0;
 
-    // private:
+    private:
 };
