@@ -22,8 +22,6 @@ RBN_prevAudioProcessor::RBN_prevAudioProcessor()
                        )
 #endif
 {
-    print("START");
-    // setAcceptsMidi(true);
 }
 
 RBN_prevAudioProcessor::~RBN_prevAudioProcessor()
@@ -136,70 +134,20 @@ int currentLoop = 0;
 
 void RBN_prevAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-    midiProcessor.process(midiMessages, 
-                          getCurrentPlayheadPositionInSamples(),
-                          buffer.getNumSamples());
-
-    
-
-    // Read in current position
     juce::AudioPlayHead::CurrentPositionInfo positionInfo;
-    if (getPlayHead() != nullptr && getPlayHead()->getCurrentPosition(positionInfo))
+    if (getPlayHead() == nullptr || !getPlayHead()->getCurrentPosition(positionInfo))
     {
-        double measureStart = positionInfo.ppqPosition - fmod(positionInfo.ppqPosition, positionInfo.timeSigDenominator);
-
-        // print("Measure start: " + juce::String(measureStart) + " PPQ: " + juce::String(positionInfo.ppqPosition) + " time sig: " + juce::String(positionInfo.timeSigNumerator) + "/" + juce::String(positionInfo.timeSigDenominator));
-
-        // double ppqPosition = positionInfo.ppqPosition;
-
-        // number of measures we're displaying
-
-        // DBG("Current position: "
-        //     + juce::String(positionInfo.timeInSamples) + " samples, "
-        //     + juce::String(positionInfo.timeInSeconds) + " seconds, "
-        //     + juce::String(positionInfo.ppqPosition) + " PPQ, "
-        //     + juce::String(positionInfo.bpm) + " BPM, "
-        //     + juce::String(positionInfo.timeSigNumerator) + "/"
-        //     + juce::String(positionInfo.timeSigDenominator) + " time signature, "
-        //     + juce::String(positionInfo.ppqPositionOfLastBarStart) + " PPQ of last bar start");
+        return;
     }
 
-    // if (!midiMessages.isEmpty())
-    // {
-    //     DBG("Received MIDI data");
-    // }
+    playheadPositionInSamples = positionInfo.timeInSamples;
+    uint blockSizeInSamples = buffer.getNumSamples();
 
-    // // juce::MidiBuffer processedMidi;
-    // juce::MidiMessage message;
-    // int samplePosition;
-    // // Iterate over the MIDI buffer
-    // for (juce::MidiBuffer::Iterator i(midiMessages); i.getNextEvent(message, samplePosition);)
-    // {
-    //     DBG("MIDI message: " << message.getDescription() << " at sample " << samplePosition);
-
-    //     // If the event is in the future (relative to the lookahead), add it to the lookahead buffer
-    //     // if (samplePosition >= lookaheadSamples)
-    //     // {
-    //     //     lookaheadBuffer.addEvent(message, samplePosition - lookaheadSamples);
-    //     // }
-    //     // else // Otherwise, add it to the processed MIDI buffer
-    //     // {
-    //     //     processedMidi.addEvent(message, samplePosition);
-    //     // }
-    // }
-
-    // // Add events from the lookahead buffer to the processed MIDI buffer
-    // for (juce::MidiBuffer::Iterator i(lookaheadBuffer); i.getNextEvent(message, samplePosition);)
-    // {
-    //     processedMidi.addEvent(message, samplePosition);
-    // }
-
-    // // Clear the lookahead buffer and swap it with the MIDI messages for the next block
-    // lookaheadBuffer.clear();
-    // lookaheadBuffer.swapWith(midiMessages);
-
-    // // Swap the processed MIDI buffer with the MIDI messages for this block
-    // midiMessages.swapWith(processedMidi);
+    // Prevents events being erased while scrubbing through timeline while playback is stopped
+    if (positionInfo.isPlaying)
+    {
+        midiProcessor.process(midiMessages, playheadPositionInSamples, blockSizeInSamples);
+    }
 }
 
 //==============================================================================
