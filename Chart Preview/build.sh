@@ -11,31 +11,31 @@ config_type="Debug"
 # Navigate to the project directory
 cd Builds/MacOSX
 
-# xcodebuild clean -project RBN_prev.xcodeproj
+# xcodebuild clean -project ChartPreview.xcodeproj
 
 # Check the build type
 if [ "$build_type" == "standalone" ]; then
-    osascript -e 'quit app "RBN_prev"'
+    osascript -e 'quit app "ChartPreview"'
 
-    xcodebuild -quiet -project RBN_prev.xcodeproj -target "RBN_prev - Standalone Plugin" -configuration $config_type
+    xcodebuild -quiet -project ChartPreview.xcodeproj -target "ChartPreview - Standalone Plugin" -configuration $config_type
     if [ $? -eq 0 ]; then
         echo "SUCCESS"
-        open build/$config_type/RBN_prev.app
+        open build/$config_type/ChartPreview.app
     fi
 elif [ "$build_type" == "vst" ]; then
     osascript -e 'quit app "Ableton Live 12 Suite"'
 
-    xcodebuild -quiet -project RBN_prev.xcodeproj -configuration $config_type
+    xcodebuild -quiet -project ChartPreview.xcodeproj -configuration $config_type
     if [ $? -eq 0 ]; then
         echo "SUCCESS"
-        cp -R build/$config_type/RBN_prev.vst3 ~/Library/Audio/Plug-Ins/VST3/
+        cp -R build/$config_type/ChartPreview.vst3 ~/Library/Audio/Plug-Ins/VST3/
 
         open -a "Ableton Live 12 Suite" "/Users/noahbaxter/Code/personal/chart-preview/ableton-test Project/ableton-test.als"
     fi
 elif [ "$build_type" == "au" ]; then
-    xcodebuild -quiet -project RBN_prev.xcodeproj -configuration $config_type
+    xcodebuild -quiet -project ChartPreview.xcodeproj -configuration $config_type
     if [ $? -eq 0 ]; then
         echo "SUCCESS"
-        cp -R build/$config_type/RBN_prev.component ~/Library/Audio/Plug-Ins/Components/
+        cp -R build/$config_type/ChartPreview.component ~/Library/Audio/Plug-Ins/Components/
     fi
 fi
