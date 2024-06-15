@@ -106,9 +106,21 @@
             file="Assets/track_guitar.png"/>
     </GROUP>
     <GROUP id="{577BFFED-2E98-5329-03C4-711F74395056}" name="Source">
-      <FILE id="fyQvaj" name="MidiProcessor.cpp" compile="1" resource="0"
-            file="Source/MidiProcessor.cpp"/>
-      <FILE id="FuGPzg" name="MidiProcessor.h" compile="0" resource="0" file="Source/MidiProcessor.h"/>
+      <GROUP id="{DE1AE764-3F26-9AE7-E8D2-54A14F69655C}" name="Midi">
+        <FILE id="xf1EYZ" name="MidiInterpreter.cpp" compile="1" resource="0"
+              file="Source/Midi/MidiInterpreter.cpp"/>
+        <FILE id="QmLbIt" name="MidiInterpreter.h" compile="0" resource="0"
+              file="Source/Midi/MidiInterpreter.h"/>
+        <FILE id="NRFvjU" name="MidiProcessor.cpp" compile="1" resource="0"
+              file="Source/Midi/MidiProcessor.cpp"/>
+        <FILE id="pIB2gC" name="MidiProcessor.h" compile="0" resource="0" file="Source/Midi/MidiProcessor.h"/>
+      </GROUP>
+      <GROUP id="{EFFC1A57-AA5E-2DEE-307B-5E9D2B4CE97B}" name="Renderers">
+        <FILE id="FUkCrf" name="HighwayRenderer.cpp" compile="1" resource="0"
+              file="Source/Renderers/HighwayRenderer.cpp"/>
+        <FILE id="DZ7Hvw" name="HighwayRenderer.h" compile="0" resource="0"
+              file="Source/Renderers/HighwayRenderer.h"/>
+      </GROUP>
       <FILE id="PZm7UN" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
       <FILE id="GADCKX" name="PluginProcessor.h" compile="0" resource="0"
@@ -157,5 +169,26 @@
         <MODULEPATH id="juce_midi_ci" path="../../../../../../Applications/JUCE/modules"/>
       </MODULEPATHS>
     </XCODE_MAC>
+    <VS2022 targetFolder="Builds/VisualStudio2022">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug"/>
+        <CONFIGURATION isDebug="0" name="Release"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_audio_basics" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_midi_ci" path="/Applications/JUCE/modules"/>
+      </MODULEPATHS>
+    </VS2022>
   </EXPORTFORMATS>
 </JUCERPROJECT>
