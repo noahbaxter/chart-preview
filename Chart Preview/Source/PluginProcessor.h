@@ -14,15 +14,15 @@
 //==============================================================================
 /**
 */
-class RBN_prevAudioProcessor  : public juce::AudioProcessor
+class ChartPreviewAudioProcessor  : public juce::AudioProcessor
                             #if JucePlugin_Enable_ARA
                              , public juce::AudioProcessorARAExtension
                             #endif
 {
 public:
     //==============================================================================
-    RBN_prevAudioProcessor();
-    ~RBN_prevAudioProcessor() override;
+    ChartPreviewAudioProcessor();
+    ~ChartPreviewAudioProcessor() override;
 
     
     juce::String debugText;
@@ -85,5 +85,5 @@ private:
   int beatsToDraw = 8;
 
   //==============================================================================
-  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RBN_prevAudioProcessor)
+  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChartPreviewAudioProcessor)
 };

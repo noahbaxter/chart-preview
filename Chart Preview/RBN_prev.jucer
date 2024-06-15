@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<JUCERPROJECT id="SvXbwJ" name="RBN_prev" projectType="audioplug" useAppConfig="0"
+<JUCERPROJECT id="SvXbwJ" name="ChartPreview" projectType="audioplug" useAppConfig="0"
               addUsingNamespaceToJuceHeader="0" displaySplashScreen="1" jucerFormatVersion="1"
               companyName="Dichotic Studios" pluginVST3Category="Analyzer"
-              pluginCharacteristicsValue="pluginWantsMidiIn" cppLanguageStandard="17">
-  <MAINGROUP id="vNZlKl" name="RBN_prev">
+              pluginCharacteristicsValue="pluginWantsMidiIn" cppLanguageStandard="17"
+              pluginName="Chart Preview" pluginDesc="A tool for visualizing midi as guitar/drum game charts">
+  <MAINGROUP id="vNZlKl" name="ChartPreview">
     <GROUP id="{A87F74BB-BA5C-8155-543F-2CB0BFD5611F}" name="Assets">
       <FILE id="gILYVI" name="beat_marker.png" compile="0" resource="1" file="Assets/beat_marker.png"/>
       <FILE id="UUo9Z5" name="gem_blue.png" compile="0" resource="1" file="Assets/gem_blue.png"/>
@@ -137,8 +138,8 @@
   <EXPORTFORMATS>
     <XCODE_MAC targetFolder="Builds/MacOSX">
       <CONFIGURATIONS>
-        <CONFIGURATION isDebug="1" name="Debug" targetName="RBN_prev"/>
-        <CONFIGURATION isDebug="0" name="Release" targetName="RBN_prev"/>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="ChartPreview"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="ChartPreview"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_audio_basics" path="../../../../../../Applications/JUCE/modules"/>

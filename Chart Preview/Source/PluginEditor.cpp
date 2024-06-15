@@ -10,7 +10,7 @@
 #include "PluginEditor.h"
 
 //==============================================================================
-RBN_prevAudioProcessorEditor::RBN_prevAudioProcessorEditor (RBN_prevAudioProcessor& p)
+ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor (ChartPreviewAudioProcessor& p)
     : AudioProcessorEditor (&p), audioProcessor (p)
 {
     startTimerHz(60);
@@ -57,11 +57,11 @@ RBN_prevAudioProcessorEditor::RBN_prevAudioProcessorEditor (RBN_prevAudioProcess
     addAndMakeVisible(consoleOutput);
 }
 
-RBN_prevAudioProcessorEditor::~RBN_prevAudioProcessorEditor()
+ChartPreviewAudioProcessorEditor::~ChartPreviewAudioProcessorEditor()
 {
 }
 
-void RBN_prevAudioProcessorEditor::instantiateFakeMidiMap()
+void ChartPreviewAudioProcessorEditor::instantiateFakeMidiMap()
 {
     int density = 8;
     for (int i = 0; i <= density; i++)
@@ -84,7 +84,7 @@ void RBN_prevAudioProcessorEditor::instantiateFakeMidiMap()
     }
 }
 //==============================================================================
-void RBN_prevAudioProcessorEditor::paint (juce::Graphics& g)
+void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.drawImage(backgroundImage, getLocalBounds().toFloat());
 
@@ -137,7 +137,7 @@ void RBN_prevAudioProcessorEditor::paint (juce::Graphics& g)
     }
 }
 
-std::vector<uint> RBN_prevAudioProcessorEditor::interpretMidiMessages(const std::vector<juce::MidiMessage>& messages)
+std::vector<uint> ChartPreviewAudioProcessorEditor::interpretMidiMessages(const std::vector<juce::MidiMessage>& messages)
 {
     // Guitar/Bass  [green, red, yellow, blue, orange]
     // Drums        [kick, red, yellow, blue, green]
@@ -247,7 +247,7 @@ std::vector<uint> RBN_prevAudioProcessorEditor::interpretMidiMessages(const std:
     return gems;
 }
 
-void RBN_prevAudioProcessorEditor::resized()
+void ChartPreviewAudioProcessorEditor::resized()
 {
     skillMenu.setBounds(10, 10, 100, 20);
     partMenu.setBounds(120, 10, 100, 20);
@@ -259,7 +259,7 @@ void RBN_prevAudioProcessorEditor::resized()
 // Draw Functions
 //==============================================================================
 
-void RBN_prevAudioProcessorEditor::drawGemGroup(juce::Graphics &g, const std::vector<uint> &gems, float position)
+void ChartPreviewAudioProcessorEditor::drawGemGroup(juce::Graphics &g, const std::vector<uint> &gems, float position)
 {
     for(int i = 0; i < gems.size(); i++)
     {
@@ -270,7 +270,7 @@ void RBN_prevAudioProcessorEditor::drawGemGroup(juce::Graphics &g, const std::ve
     }
 }
 
-void RBN_prevAudioProcessorEditor::drawGem(juce::Graphics& g, uint gemColumn, uint gemType, float position)
+void ChartPreviewAudioProcessorEditor::drawGem(juce::Graphics& g, uint gemColumn, uint gemType, float position)
 {
     int instrument = partMenu.getSelectedId();
 
@@ -458,7 +458,7 @@ void RBN_prevAudioProcessorEditor::drawGem(juce::Graphics& g, uint gemColumn, ui
 // TODO: make this actually good
 // Draw measure line
 // this function will create an instance of an image of a measure line, scale it (smaller as the position gets larger) and place it between the bottom and top of the window (higher up as the position gets larger) given a position between 0 and a given maximum
-void RBN_prevAudioProcessorEditor::drawMeasureLine(juce::Graphics& g, float position, bool measure)
+void ChartPreviewAudioProcessorEditor::drawMeasureLine(juce::Graphics& g, float position, bool measure)
 {
     float marginTop = 0.3;
     float marginBottom = 0.25;

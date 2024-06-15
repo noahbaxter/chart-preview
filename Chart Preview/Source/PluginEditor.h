@@ -14,14 +14,14 @@
 //==============================================================================
 /**
 */
-class RBN_prevAudioProcessorEditor  : 
+class ChartPreviewAudioProcessorEditor  : 
     public juce::AudioProcessorEditor,
     private juce::Timer
     // public juce::ComboBox::Listener
 {
 public:
-    RBN_prevAudioProcessorEditor (RBN_prevAudioProcessor&);
-    ~RBN_prevAudioProcessorEditor() override;
+    ChartPreviewAudioProcessorEditor (ChartPreviewAudioProcessor&);
+    ~ChartPreviewAudioProcessorEditor() override;
 
     void timerCallback() override
     {
@@ -78,7 +78,7 @@ public:
 private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
-    RBN_prevAudioProcessor& audioProcessor;
+    ChartPreviewAudioProcessor& audioProcessor;
 
     int defaultWidth = 800, defaultHeight = 600;
     // juce::Image getGlyph(const juce::MidiMessage& midiMessage) const;
@@ -142,5 +142,5 @@ private:
 
     void drawMeasureLine(juce::Graphics& g, float x, bool measure);
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RBN_prevAudioProcessorEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
 };

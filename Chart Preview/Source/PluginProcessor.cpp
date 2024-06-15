@@ -10,7 +10,7 @@
 #include "PluginEditor.h"
 
 //==============================================================================
-RBN_prevAudioProcessor::RBN_prevAudioProcessor()
+ChartPreviewAudioProcessor::ChartPreviewAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
                      #if ! JucePlugin_IsMidiEffect
@@ -24,17 +24,17 @@ RBN_prevAudioProcessor::RBN_prevAudioProcessor()
 {
 }
 
-RBN_prevAudioProcessor::~RBN_prevAudioProcessor()
+ChartPreviewAudioProcessor::~ChartPreviewAudioProcessor()
 {
 }
 
 //==============================================================================
-const juce::String RBN_prevAudioProcessor::getName() const
+const juce::String ChartPreviewAudioProcessor::getName() const
 {
     return JucePlugin_Name;
 }
 
-bool RBN_prevAudioProcessor::acceptsMidi() const
+bool ChartPreviewAudioProcessor::acceptsMidi() const
 {
    #if JucePlugin_WantsMidiInput
     return true;
@@ -43,7 +43,7 @@ bool RBN_prevAudioProcessor::acceptsMidi() const
    #endif
 }
 
-bool RBN_prevAudioProcessor::producesMidi() const
+bool ChartPreviewAudioProcessor::producesMidi() const
 {
    #if JucePlugin_ProducesMidiOutput
     return true;
@@ -52,7 +52,7 @@ bool RBN_prevAudioProcessor::producesMidi() const
    #endif
 }
 
-bool RBN_prevAudioProcessor::isMidiEffect() const
+bool ChartPreviewAudioProcessor::isMidiEffect() const
 {
    #if JucePlugin_IsMidiEffect
     return true;
@@ -61,50 +61,50 @@ bool RBN_prevAudioProcessor::isMidiEffect() const
    #endif
 }
 
-double RBN_prevAudioProcessor::getTailLengthSeconds() const
+double ChartPreviewAudioProcessor::getTailLengthSeconds() const
 {
     return 0.0;
 }
 
-int RBN_prevAudioProcessor::getNumPrograms()
+int ChartPreviewAudioProcessor::getNumPrograms()
 {
     return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
                 // so this should be at least 1, even if you're not really implementing programs.
 }
 
-int RBN_prevAudioProcessor::getCurrentProgram()
+int ChartPreviewAudioProcessor::getCurrentProgram()
 {
     return 0;
 }
 
-void RBN_prevAudioProcessor::setCurrentProgram (int index)
+void ChartPreviewAudioProcessor::setCurrentProgram (int index)
 {
 }
 
-const juce::String RBN_prevAudioProcessor::getProgramName (int index)
+const juce::String ChartPreviewAudioProcessor::getProgramName (int index)
 {
     return {};
 }
 
-void RBN_prevAudioProcessor::changeProgramName (int index, const juce::String& newName)
+void ChartPreviewAudioProcessor::changeProgramName (int index, const juce::String& newName)
 {
 }
 
 //==============================================================================
-void RBN_prevAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+void ChartPreviewAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
 }
 
-void RBN_prevAudioProcessor::releaseResources()
+void ChartPreviewAudioProcessor::releaseResources()
 {
     // When playback stops, you can use this as an opportunity to free up any
     // spare memory, etc.
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
-bool RBN_prevAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+bool ChartPreviewAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
   #if JucePlugin_IsMidiEffect
     juce::ignoreUnused (layouts);
@@ -132,7 +132,7 @@ bool RBN_prevAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts)
 int maxLoops = 5;
 int currentLoop = 0;
 
-void RBN_prevAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+void ChartPreviewAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::AudioPlayHead::CurrentPositionInfo positionInfo;
     if (getPlayHead() == nullptr || !getPlayHead()->getCurrentPosition(positionInfo))
@@ -169,25 +169,25 @@ void RBN_prevAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
 }
 
 //==============================================================================
-bool RBN_prevAudioProcessor::hasEditor() const
+bool ChartPreviewAudioProcessor::hasEditor() const
 {
     return true; // (change this to false if you choose to not supply an editor)
 }
 
-juce::AudioProcessorEditor* RBN_prevAudioProcessor::createEditor()
+juce::AudioProcessorEditor* ChartPreviewAudioProcessor::createEditor()
 {
-    return new RBN_prevAudioProcessorEditor (*this);
+    return new ChartPreviewAudioProcessorEditor (*this);
 }
 
 //==============================================================================
-void RBN_prevAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+void ChartPreviewAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
 }
 
-void RBN_prevAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+void ChartPreviewAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
@@ -197,5 +197,5 @@ void RBN_prevAudioProcessor::setStateInformation (const void* data, int sizeInBy
 // This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new RBN_prevAudioProcessor();
+    return new ChartPreviewAudioProcessor();
 }
