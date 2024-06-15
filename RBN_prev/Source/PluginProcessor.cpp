@@ -147,6 +147,21 @@ void RBN_prevAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     if (positionInfo.isPlaying)
     {
         midiProcessor.process(midiMessages, playheadPositionInSamples, blockSizeInSamples);
+
+        // if (true)
+        // {
+        //     print(std::to_string(blockSizeInSamples) + ": " + std::to_string(playheadPositionInSamples) + " --- " + std::to_string(playheadPositionInSamples + blockSizeInSamples));
+
+        //     juce::MidiBuffer::Iterator it(midiMessages);
+
+        //     int positionInSamples;
+        //     juce::MidiMessage message;
+        //     while (it.getNextEvent(message, positionInSamples))
+        //     {
+        //         print("*****   " + std::to_string(playheadPositionInSamples + positionInSamples));
+        //     }
+
+        // }
     }
     else {
         midiProcessor.lastProcessedSample = playheadPositionInSamples;

@@ -62,8 +62,8 @@ public:
     int i = 0;
     void printCallback()
     {
-        consoleOutput.clear();
-        consoleOutput.moveCaretToEnd();
+        // consoleOutput.clear();
+        // consoleOutput.moveCaretToEnd();
         
         consoleOutput.insertTextAtCaret(audioProcessor.debugText);
         audioProcessor.debugText.clear();
@@ -99,23 +99,25 @@ private:
                 gemCymGreenImage;
 
     juce::ComboBox skillMenu, partMenu;
+    juce::ToggleButton debugToggle;
 
     juce::TextEditor consoleOutput;
 
     int currentPlayheadPositionInSamples()
     {
-        return audioProcessor.getCurrentPlayheadPositionInSamples();
+        return audioProcessor.playheadPositionInSamples;
     }
 
     std::vector<uint> interpretMidiMessages(const std::vector<juce::MidiMessage> &messages);
 
-    float displaySizeInSeconds = 0.8;
+    float displaySizeInSeconds = 0.5;
     int displaySizeInSamples = int(displaySizeInSeconds * audioProcessor.getSampleRate());
 
     // Notes
     void drawGemGroup(juce::Graphics& g, const std::vector<uint>& gems, float position);
     void drawGem(juce::Graphics &g, uint gemColumn, uint gemType, float position);
 
+    void instantiateFakeMidiMap();
     std::map<int, std::vector<juce::MidiMessage>> fakeMidiMap;
 
     // Beat Lines
