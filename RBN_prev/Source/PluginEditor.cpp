@@ -13,27 +13,6 @@
 RBN_prevAudioProcessorEditor::RBN_prevAudioProcessorEditor (RBN_prevAudioProcessor& p)
     : AudioProcessorEditor (&p), audioProcessor (p)
 {
-    // TODO: remove
-
-    // int density = 8;
-    // for (int i = 0; i <= density; i++)
-    // {
-    //     int vel = (i < density/4) ? 1 : (i >= 3*density/4) ? 127 : 64;
-
-    //     fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 96, static_cast<float>(vel) / 127.f));
-        
-    //     fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 97, static_cast<float>(vel) / 127.f));
-        
-    //     fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 110, static_cast<float>(vel) / 127.f));
-    //     fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 98, static_cast<float>(vel) / 127.f));
-        
-    //     // fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 111, static_cast<float>(vel) / 127.f));
-    //     fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 99, static_cast<float>(vel) / 127.f));
-
-    //     fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 100, static_cast<float>(vel) / 127.f));
-    //     fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 112, static_cast<float>(vel) / 127.f));
-    // }
-    
     startTimerHz(60);
 
     setSize(defaultWidth, defaultHeight);
@@ -68,16 +47,42 @@ RBN_prevAudioProcessorEditor::RBN_prevAudioProcessorEditor (RBN_prevAudioProcess
     partMenu.setSelectedId(2);
     addAndMakeVisible(partMenu);
 
+    // Debug toggle
+    debugToggle.setButtonText("Debug");
+    addAndMakeVisible(debugToggle);
+
     // Create console output
     consoleOutput.setMultiLine(true);
     consoleOutput.setReadOnly(true);
-    // addAndMakeVisible(consoleOutput);
+    addAndMakeVisible(consoleOutput);
 }
 
 RBN_prevAudioProcessorEditor::~RBN_prevAudioProcessorEditor()
 {
 }
 
+void RBN_prevAudioProcessorEditor::instantiateFakeMidiMap()
+{
+    int density = 8;
+    for (int i = 0; i <= density; i++)
+    {
+        int vel = (i < density / 4) ? 1 : (i >= 3 * density / 4) ? 127
+                                                                 : 64;
+
+        fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 96, static_cast<float>(vel) / 127.f));
+
+        fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 97, static_cast<float>(vel) / 127.f));
+
+        fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 110, static_cast<float>(vel) / 127.f));
+        fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 98, static_cast<float>(vel) / 127.f));
+
+        // fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 111, static_cast<float>(vel) / 127.f));
+        fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 99, static_cast<float>(vel) / 127.f));
+
+        fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 100, static_cast<float>(vel) / 127.f));
+        fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 112, static_cast<float>(vel) / 127.f));
+    }
+}
 //==============================================================================
 void RBN_prevAudioProcessorEditor::paint (juce::Graphics& g)
 {
@@ -93,7 +98,15 @@ void RBN_prevAudioProcessorEditor::paint (juce::Graphics& g)
         g.drawImage(guitarTrackImage, juce::Rectangle<float>(0, 0, getWidth(), getHeight()), juce::RectanglePlacement::centred);
     }
 
-
+    // Draw debug if enabled
+    if (debugToggle.getToggleState())
+    {
+        consoleOutput.setVisible(true);
+    }
+    else
+    {
+        consoleOutput.setVisible(false);
+    }
 
     // // Draw lines
     // for (int i = 0; i < beatLines.size(); i++)
@@ -115,12 +128,12 @@ void RBN_prevAudioProcessorEditor::paint (juce::Graphics& g)
 
         drawGemGroup(g, gems, normalizedPosition);
 
-        print(juce::String(normalizedPosition) + ": [" +
-              juce::String(gems[0]) + ", " +
-              juce::String(gems[1]) + ", " +
-              juce::String(gems[2]) + ", " +
-              juce::String(gems[3]) + ", " +
-              juce::String(gems[4]) + "]");
+        // print(juce::String(normalizedPosition) + ": [" +
+        //       juce::String(gems[0]) + ", " +
+        //       juce::String(gems[1]) + ", " +
+        //       juce::String(gems[2]) + ", " +
+        //       juce::String(gems[3]) + ", " +
+        //       juce::String(gems[4]) + "]");
     }
 }
 
@@ -153,6 +166,11 @@ std::vector<uint> RBN_prevAudioProcessorEditor::interpretMidiMessages(const std:
     std::vector<uint> dyns = { 0, 0, 0, 0, 0 };
     for (const auto &message : messages)
     {
+        if(!message.isNoteOn())
+        {
+            continue;
+        }
+
         uint note = message.getNoteNumber();
 
         // Base note
@@ -233,6 +251,8 @@ void RBN_prevAudioProcessorEditor::resized()
 {
     skillMenu.setBounds(10, 10, 100, 20);
     partMenu.setBounds(120, 10, 100, 20);
+    debugToggle.setBounds(230, 10, 100, 20);
+
     consoleOutput.setBounds(10, 40, getWidth() - 20, getHeight() - 50);
 }
 
