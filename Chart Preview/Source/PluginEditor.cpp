@@ -11,7 +11,9 @@
 
 //==============================================================================
 ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor (ChartPreviewAudioProcessor& p)
-    : AudioProcessorEditor (&p), audioProcessor (p)
+    : AudioProcessorEditor (&p), 
+      audioProcessor (p), 
+      midiInterpreter(partMenu, skillMenu)
 {
     startTimerHz(60);
 
@@ -61,28 +63,6 @@ ChartPreviewAudioProcessorEditor::~ChartPreviewAudioProcessorEditor()
 {
 }
 
-void ChartPreviewAudioProcessorEditor::instantiateFakeMidiMap()
-{
-    int density = 8;
-    for (int i = 0; i <= density; i++)
-    {
-        int vel = (i < density / 4) ? 1 : (i >= 3 * density / 4) ? 127
-                                                                 : 64;
-
-        fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 96, static_cast<float>(vel) / 127.f));
-
-        fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 97, static_cast<float>(vel) / 127.f));
-
-        fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 110, static_cast<float>(vel) / 127.f));
-        fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 98, static_cast<float>(vel) / 127.f));
-
-        // fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 111, static_cast<float>(vel) / 127.f));
-        fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 99, static_cast<float>(vel) / 127.f));
-
-        fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 100, static_cast<float>(vel) / 127.f));
-        fakeMidiMap[i * displaySizeInSamples / density].push_back(juce::MidiMessage::noteOn(1, 112, static_cast<float>(vel) / 127.f));
-    }
-}
 //==============================================================================
 void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 {
@@ -117,14 +97,14 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 
     // Draw Gems
     auto midiMap = audioProcessor.getMidiMap();
-    // auto midiMap = fakeMidiMap;
+    // auto midiMap = midiInterpreter.getFakeMidiMap();
     auto lowerBound = midiMap.lower_bound(std::max(0, currentPlayheadPositionInSamples() - 1));
     auto upperBound = midiMap.upper_bound(currentPlayheadPositionInSamples() + displaySizeInSamples);
     for (auto it = lowerBound; it != upperBound; ++it)
     {
         const int positionInSamples = it->first;
         float normalizedPosition = (positionInSamples - currentPlayheadPositionInSamples()) / (float)displaySizeInSamples;
-        std::vector<uint> gems = interpretMidiMessages(it->second);
+        std::vector<uint> gems = midiInterpreter.interpretMidiMessages(it->second);
 
         drawGemGroup(g, gems, normalizedPosition);
 
@@ -137,115 +117,6 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     }
 }
 
-std::vector<uint> ChartPreviewAudioProcessorEditor::interpretMidiMessages(const std::vector<juce::MidiMessage>& messages)
-{
-    // Guitar/Bass  [green, red, yellow, blue, orange]
-    // Drums        [kick, red, yellow, blue, green]
-
-    // 0 - none
-    // 1 - normal
-    // 2 - hopo
-    // 3 - tap
-    // 4 - strum
-
-    // Drums
-    // [kick, red, yellow, blue, green]
-    // 0 - none
-    // 1 - drum ghost
-    // 2 - drum normal
-    // 3 - drum accent
-    // 4 - cymbal ghost
-    // 5 - cymbal normal
-    // 6 - cymbal accent
-
-    int instrument = partMenu.getSelectedId();
-    int difficulty = skillMenu.getSelectedId();
-
-    std::vector<uint> gems = { 0, 0, 0, 0, 0 };
-    std::vector<uint> mods = { 0, 0, 0, 0, 0 };
-    std::vector<uint> dyns = { 0, 0, 0, 0, 0 };
-    for (const auto &message : messages)
-    {
-        if(!message.isNoteOn())
-        {
-            continue;
-        }
-
-        uint note = message.getNoteNumber();
-
-        // Base note
-        if (note >= 60 && note <= 100)
-        {
-            uint velocity = message.getVelocity();
-            uint dynamic = (velocity == 1) ? 0 : (velocity == 127) ? 2 : 1;
-            if (note == 60 && difficulty == 1 ||
-                note == 72 && difficulty == 2 ||
-                note == 84 && difficulty == 3 ||
-                note == 96 && difficulty == 4)
-            {
-                gems[0] = 1;
-            }
-            else if (note == 61 && difficulty == 1 ||
-                     note == 73 && difficulty == 2 ||
-                     note == 85 && difficulty == 3 ||
-                     note == 97 && difficulty == 4)
-            {
-                gems[1] = 1;
-                dyns[1] = dynamic;
-            }
-            else if (note == 62 && difficulty == 1 ||
-                     note == 74 && difficulty == 2 ||
-                     note == 86 && difficulty == 3 ||
-                     note == 98 && difficulty == 4)
-            {
-                gems[2] = 1;
-                dyns[2] = dynamic;
-            }
-            else if (note == 63 && difficulty == 1 ||
-                     note == 75 && difficulty == 2 ||
-                     note == 87 && difficulty == 3 ||
-                     note == 99 && difficulty == 4)
-            {
-                gems[3] = 1;
-                dyns[3] = dynamic;
-            }
-            else if (note == 64 && difficulty == 1 ||
-                     note == 76 && difficulty == 2 ||
-                     note == 88 && difficulty == 3 ||
-                     note == 100 && difficulty == 4)
-            {
-                gems[4] = 1;
-                dyns[4] = dynamic;
-            }
-        }
-
-        // Drum modifiers
-        if (instrument == 2)
-        {
-            if (note == 110) { mods[2] = 1; }
-            else if (note == 111) { mods[3] = 1; }
-            else if (note == 112) { mods[4] = 1; }
-        }
-
-    }
-
-    // TODO: overdrive, fills, rolls, etc.
-    for (int i = 0; i < gems.size(); i++)
-    {
-        if (gems[i] > 0 )
-        {
-            gems[i] += dyns[i];
-
-            // yellow, blue, green only can be cymbals
-            if (i > 1 && mods[i] == 0)
-            {
-                gems[i] += 3;
-            }
-        }
-    }
-
-    return gems;
-}
 
 void ChartPreviewAudioProcessorEditor::resized()
 {

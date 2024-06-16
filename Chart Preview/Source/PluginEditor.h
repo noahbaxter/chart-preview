@@ -10,6 +10,7 @@
 
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
+#include "Midi/MidiInterpreter.h"
 
 //==============================================================================
 /**
@@ -79,6 +80,7 @@ private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     ChartPreviewAudioProcessor& audioProcessor;
+    MidiInterpreter midiInterpreter;
 
     int defaultWidth = 800, defaultHeight = 600;
     // juce::Image getGlyph(const juce::MidiMessage& midiMessage) const;
@@ -108,17 +110,12 @@ private:
         return audioProcessor.playheadPositionInSamples;
     }
 
-    std::vector<uint> interpretMidiMessages(const std::vector<juce::MidiMessage> &messages);
-
     float displaySizeInSeconds = 0.5;
     int displaySizeInSamples = int(displaySizeInSeconds * audioProcessor.getSampleRate());
 
     // Notes
     void drawGemGroup(juce::Graphics& g, const std::vector<uint>& gems, float position);
     void drawGem(juce::Graphics &g, uint gemColumn, uint gemType, float position);
-
-    void instantiateFakeMidiMap();
-    std::map<int, std::vector<juce::MidiMessage>> fakeMidiMap;
 
     // Beat Lines
 
