@@ -19,8 +19,7 @@ MidiInterpreter::~MidiInterpreter()
 {
 }
 
-
-std::vector<uint> MidiInterpreter::interpretMidiMessages(const std::vector<juce::MidiMessage>& messages)
+std::vector<uint> MidiInterpreter::interpretMidiFrameOLD(const std::vector<juce::MidiMessage> &messages)
 {
     // Guitar/Bass  [green, red, yellow, blue, orange]
     // Drums        [kick, red, yellow, blue, green]
@@ -61,41 +60,41 @@ std::vector<uint> MidiInterpreter::interpretMidiMessages(const std::vector<juce:
         {
             uint velocity = message.getVelocity();
             uint dynamic = (velocity == 1) ? 0 : (velocity == 127) ? 2 : 1;
-            if (note == 60 && difficulty == 1 ||
-                note == 72 && difficulty == 2 ||
-                note == 84 && difficulty == 3 ||
-                note == 96 && difficulty == 4)
+            if ((note == 60 && difficulty == 1) ||
+                (note == 72 && difficulty == 2) ||
+                (note == 84 && difficulty == 3) ||
+                (note == 96 && difficulty == 4))
             {
                 gems[0] = 1;
             }
-            else if (note == 61 && difficulty == 1 ||
-                     note == 73 && difficulty == 2 ||
-                     note == 85 && difficulty == 3 ||
-                     note == 97 && difficulty == 4)
+            else if ((note == 61 && difficulty == 1) ||
+                     (note == 73 && difficulty == 2) ||
+                     (note == 85 && difficulty == 3) ||
+                     (note == 97 && difficulty == 4))
             {
                 gems[1] = 1;
                 dyns[1] = dynamic;
             }
-            else if (note == 62 && difficulty == 1 ||
-                     note == 74 && difficulty == 2 ||
-                     note == 86 && difficulty == 3 ||
-                     note == 98 && difficulty == 4)
+            else if ((note == 62 && difficulty == 1) ||
+                     (note == 74 && difficulty == 2) ||
+                     (note == 86 && difficulty == 3) ||
+                     (note == 98 && difficulty == 4))
             {
                 gems[2] = 1;
                 dyns[2] = dynamic;
             }
-            else if (note == 63 && difficulty == 1 ||
-                     note == 75 && difficulty == 2 ||
-                     note == 87 && difficulty == 3 ||
-                     note == 99 && difficulty == 4)
+            else if ((note == 63 && difficulty == 1) ||
+                     (note == 75 && difficulty == 2) ||
+                     (note == 87 && difficulty == 3) ||
+                     (note == 99 && difficulty == 4))
             {
                 gems[3] = 1;
                 dyns[3] = dynamic;
             }
-            else if (note == 64 && difficulty == 1 ||
-                     note == 76 && difficulty == 2 ||
-                     note == 88 && difficulty == 3 ||
-                     note == 100 && difficulty == 4)
+            else if ((note == 64 && difficulty == 1) ||
+                     (note == 76 && difficulty == 2) ||
+                     (note == 88 && difficulty == 3) ||
+                     (note == 100 && difficulty == 4))
             {
                 gems[4] = 1;
                 dyns[4] = dynamic;
@@ -128,6 +127,20 @@ std::vector<uint> MidiInterpreter::interpretMidiMessages(const std::vector<juce:
     }
 
     return gems;
+}
+
+std::vector<ChartEvents> MidiInterpreter::interpretMidiFrame(const std::vector<juce::MidiMessage> &messages)
+{
+    for (const auto &message : messages)
+    {
+        if (message.isNoteOn())
+        {
+            int note = message.getNoteNumber();
+            int velocity = message.getVelocity();
+            int channel = message.getChannel();
+            int time = message.getTimeStamp();
+        }
+    }
 }
 
 std::map<int, std::vector<juce::MidiMessage>> MidiInterpreter::getFakeMidiMap()

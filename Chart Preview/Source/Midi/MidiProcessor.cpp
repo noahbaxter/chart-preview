@@ -18,7 +18,7 @@ void MidiProcessor::process(juce::MidiBuffer& midiMessages, uint startPositionIn
     {
         int localMessagePositionInSamples = message.samplePosition;
         int globalMessagePositionInSamples = startPositionInSamples + localMessagePositionInSamples;
-        if (message.getMessage().isNoteOn())
+        if (message.getMessage().isNoteOn() || message.getMessage().isNoteOff())
         {
             midiMap[globalMessagePositionInSamples].push_back(message.getMessage());
         }
