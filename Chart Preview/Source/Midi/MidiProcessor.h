@@ -10,7 +10,8 @@ class MidiProcessor
                      uint startPositionInSamples,
                      uint blockSizeInSamples);
 
-        std::map<int, std::vector<juce::MidiMessage>> midiMap;
+        std::map<uint, std::vector<juce::MidiMessage>> midiEventMap;
+        std::map<uint, std::array<bool, 128>> noteStateMap;
         uint lastProcessedSample = 0;
 
     private:

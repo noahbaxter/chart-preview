@@ -118,61 +118,13 @@ struct MidiPitchDefinitions
 //==============================================================================
 // CHART EVENTS
 
-enum class ChartEvents
+enum class Gem
 {
-    NOTE_GREEN,
-    NOTE_RED,
-    NOTE_YELLOW,
-    NOTE_BLUE,
-    NOTE_ORANGE,
-    NOTE_OPEN,
-
-    NOTE_GREEN_OFF,
-    NOTE_RED_OFF,
-    NOTE_YELLOW_OFF,
-    NOTE_BLUE_OFF,
-    NOTE_ORANGE_OFF,
-    NOTE_OPEN_OFF,
-
-    NOTE_HOPO_GREEN,
-    NOTE_HOPO_RED,
-    NOTE_HOPO_YELLOW,
-    NOTE_HOPO_BLUE,
-    NOTE_HOPO_ORANGE,
-    NOTE_HOPO_OPEN,
-
-    NOTE_TAP_GREEN,
-    NOTE_TAP_RED,
-    NOTE_TAP_YELLOW,
-    NOTE_TAP_BLUE,
-    NOTE_TAP_ORANGE,
-
-    NOTE_KICK,
-    NOTE_KICK_2X,
-    NOTE_CYM_YELLOW,
-    NOTE_CYM_BLUE,
-    NOTE_CYM_GREEN,
-
-    NOTE_RED_GHOST,
-    NOTE_YELLOW_GHOST,
-    NOTE_BLUE_GHOST,
-    NOTE_GREEN_GHOST,
-    NOTE_CYM_YELLOW_GHOST,
-    NOTE_CYM_BLUE_GHOST,
-    NOTE_CYM_GREEN_GHOST,
-
-    NOTE_RED_ACCENT,
-    NOTE_YELLOW_ACCENT,
-    NOTE_BLUE_ACCENT,
-    NOTE_GREEN_ACCENT,
-    NOTE_CYM_YELLOW_ACCENT,
-    NOTE_CYM_BLUE_ACCENT,
-    NOTE_CYM_GREEN_ACCENT,
-
-    SP_START,
-    SP_END,
-    LANE_1_START,
-    LANE_1_END,
-    LANE_2_START,
-    LANE_2_END,
+    NONE,
+    HOPO_GHOST,
+    NOTE,
+    TAP_ACCENT,
+    CYM_GHOST,
+    CYM,
+    CYM_ACCENT,
 };

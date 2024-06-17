@@ -136,6 +136,8 @@ private:
     // Notes
     void drawGemGroup(juce::Graphics& g, const std::vector<uint>& gems, float position);
     void drawGem(juce::Graphics &g, uint gemColumn, uint gemType, float position);
+    void drawDrumGem(juce::Graphics &g, uint gemColumn, uint gemType, float position);
+    void drawGuitarGem(juce::Graphics &g, uint gemColumn, uint gemType, float position);
 
     // Beat Lines
 
@@ -180,8 +182,8 @@ private:
 
     void printMidiMessages()
     {
-        auto midiMap = audioProcessor.getMidiMap();
-        for (const auto &item : midiMap)
+        auto midiEventMap = audioProcessor.getMidiEventMap();
+        for (const auto &item : midiEventMap)
         {
             int index = item.first;
             const std::vector<juce::MidiMessage> &messages = item.second;

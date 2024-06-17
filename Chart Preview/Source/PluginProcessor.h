@@ -33,9 +33,14 @@ public:
 
     uint playheadPositionInSamples = 0;
 
-    std::map<int, std::vector<juce::MidiMessage>> getMidiMap()
+    std::map<uint, std::vector<juce::MidiMessage>> getMidiEventMap()
     {
-      return midiProcessor.midiMap;
+      return midiProcessor.midiEventMap;
+    }
+
+    std::map<uint, std::array<bool,128>> getNoteStateMap()
+    {
+      return midiProcessor.noteStateMap;
     }
 
     //==============================================================================

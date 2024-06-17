@@ -16,19 +16,19 @@
 class MidiInterpreter
 {
 	public:
-		MidiInterpreter(juce::ComboBox& partMenu, juce::ComboBox& skillMenu);
+		MidiInterpreter(juce::ValueTree &state);
 		~MidiInterpreter();
 
+		std::array<Gem,7> interpretMidiFrame(const std::vector<juce::MidiMessage> &messages, std::array<bool,128> &noteStateMap);
 		std::vector<uint> interpretMidiFrameOLD(const std::vector<juce::MidiMessage> &messages);
-		std::vector<ChartEvents> interpretMidiFrame(const std::vector<juce::MidiMessage> &messages);
+		
 
 		// TODO: should this go here?
-		std::map<int, std::vector<juce::MidiMessage>> getFakeMidiMap();
+		std::map<int, std::vector<juce::MidiMessage>> getFakeMidiEventMap();
 
 	private:
-		juce::ComboBox &partMenu, &skillMenu;
+		juce::ValueTree &state;
 
-		std::vector<uint> interpretGuitar(const std::vector<juce::MidiMessage> &messages);
-		std::vector<uint> interpretDrum(const std::vector<juce::MidiMessage> &messages);
-
+		std::array<Gem,7> interpretGuitarFrame(const std::vector<juce::MidiMessage> &messages, std::array<bool,128> &noteStateMap, std::array<Gem,7> &gems);
+		std::array<Gem,7> interpretDrumFrame(const std::vector<juce::MidiMessage> &messages, std::array<Gem,7> &gems);
 };
