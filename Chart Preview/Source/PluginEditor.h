@@ -11,99 +11,119 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "Midi/MidiInterpreter.h"
+#include "Utils.h"
 
 //==============================================================================
 /**
 */
 class ChartPreviewAudioProcessorEditor  : 
     public juce::AudioProcessorEditor,
+    private juce::ComboBox::Listener,
+    private juce::ToggleButton::Listener,
     private juce::Timer
-    // public juce::ComboBox::Listener
 {
 public:
     ChartPreviewAudioProcessorEditor (ChartPreviewAudioProcessor&);
     ~ChartPreviewAudioProcessorEditor() override;
 
+    //==============================================================================
     void timerCallback() override
     {
-        // printMidiMessages();
-        
         printCallback();
         repaint();
-
-        // audioProcessor.getCurrentPlayheadPositionInSamples();
     }
 
-    void printMidiMessages()
-    {
-        auto midiMap = audioProcessor.getMidiMap();
-        for (const auto &item : midiMap)
-        {
-            int index = item.first;
-            const std::vector<juce::MidiMessage> &messages = item.second;
-
-            std::string str = std::to_string(index) + ": " + midiMessagesToString(messages);
-            print(str);
-        }
-    }
-
-    std::string midiMessagesToString(const std::vector<juce::MidiMessage> &messages)
-    {
-        std::string str = "";
-        for (const auto &message : messages)
-        {
-            str += message.getDescription().toStdString() + " ";
-        }
-        return str;
-    }
-
-    //==============================================================================
     void paint (juce::Graphics&) override;
     void resized() override;
-    int i = 0;
-    void printCallback()
-    {
-        // consoleOutput.clear();
-        // consoleOutput.moveCaretToEnd();
-        
-        consoleOutput.insertTextAtCaret(audioProcessor.debugText);
-        audioProcessor.debugText.clear();
 
+    //==============================================================================
+    // ValueTree
+
+    void updateValueTreeState(const juce::String &property, int value)
+    {
+        state.setProperty(property, value, nullptr);
     }
 
-    void print(const juce::String &line)
+    void comboBoxChanged(juce::ComboBox *comboBoxThatHasChanged) override
     {
-        audioProcessor.debugText += line + "\n";
+        if (comboBoxThatHasChanged == &skillMenu)
+        {
+            // Update ValueTree state for skillMenu
+            auto skillValue = skillMenu.getSelectedId();
+            // Assuming you have a ValueTree named state and a method to update it
+            updateValueTreeState("skillLevel", skillValue);
+        }
+        else if (comboBoxThatHasChanged == &partMenu)
+        {
+            // Update ValueTree state for partMenu
+            auto partValue = partMenu.getSelectedId();
+            updateValueTreeState("part", partValue);
+        }
+        else if (comboBoxThatHasChanged == &drumTypeMenu)
+        {
+            // Update ValueTree state for drumTypeMenu
+            auto drumTypeValue = drumTypeMenu.getSelectedId();
+            updateValueTreeState("drumType", drumTypeValue);
+        }
+    }
+
+    void buttonClicked(juce::Button * button) override
+    {
+        if (button == &starPowerToggle)
+        {
+            bool buttonState = button->getToggleState();
+            updateValueTreeState("starPower", buttonState ? 1 : 0);
+        }
+        else if (button == &kick2xToggle)
+        {
+            bool buttonState = button->getToggleState();
+            updateValueTreeState("kick2x", buttonState ? 1 : 0);
+        }
+        else if (button == &dynamicsToggle)
+        {
+            bool buttonState = button->getToggleState();
+            updateValueTreeState("dynamics", buttonState ? 1 : 0);
+        }
     }
 
 private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
+    juce::ValueTree state;
+
     ChartPreviewAudioProcessor& audioProcessor;
     MidiInterpreter midiInterpreter;
 
+    //==============================================================================
+    // UI Elements
     int defaultWidth = 800, defaultHeight = 600;
-    // juce::Image getGlyph(const juce::MidiMessage& midiMessage) const;
 
-    juce::Image backgroundImage;
-    juce::Image drumTrackImage, guitarTrackImage;
-    juce::Image halfBeatImage, measureImage;
+    juce::Image backgroundImage,
+                drumTrackImage, guitarTrackImage,
+                halfBeatImage, measureImage,
 
-    juce::Image gemKickImage, 
+                gemKickImage, 
                 gemGreenImage, 
                 gemRedImage, 
                 gemYellowImage, 
                 gemBlueImage, 
-                gemOrangeImage;
+                gemOrangeImage,
 
-    juce::Image gemCymYellowImage, 
+                gemCymYellowImage, 
                 gemCymBlueImage, 
                 gemCymGreenImage;
 
-    juce::ComboBox skillMenu, partMenu;
-    juce::ToggleButton debugToggle;
+    juce::ComboBox skillMenu, partMenu, drumTypeMenu;
+    juce::ToggleButton starPowerToggle, kick2xToggle, dynamicsToggle;
 
     juce::TextEditor consoleOutput;
+    juce::ToggleButton debugToggle;
+
+    //==============================================================================
+
+    void initState();
+    void initAssets();
+    void initMenus();
 
     int currentPlayheadPositionInSamples()
     {
@@ -140,4 +160,44 @@ private:
     void drawMeasureLine(juce::Graphics& g, float x, bool measure);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
+
+    //==============================================================================
+    // Prints
+
+    void print(const juce::String &line)
+    {
+        audioProcessor.debugText += line + "\n";
+    }
+
+    void printCallback()
+    {
+        // consoleOutput.clear();
+        // consoleOutput.moveCaretToEnd();
+
+        consoleOutput.insertTextAtCaret(audioProcessor.debugText);
+        audioProcessor.debugText.clear();
+    }
+
+    void printMidiMessages()
+    {
+        auto midiMap = audioProcessor.getMidiMap();
+        for (const auto &item : midiMap)
+        {
+            int index = item.first;
+            const std::vector<juce::MidiMessage> &messages = item.second;
+
+            std::string str = std::to_string(index) + ": " + midiMessagesToString(messages);
+            print(str);
+        }
+    }
+
+    std::string midiMessagesToString(const std::vector<juce::MidiMessage> &messages)
+    {
+        std::string str = "";
+        for (const auto &message : messages)
+        {
+            str += message.getDescription().toStdString() + " ";
+        }
+        return str;
+    }
 };

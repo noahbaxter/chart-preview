@@ -19,15 +19,33 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor (ChartPreview
 
     setSize(defaultWidth, defaultHeight);
 
-    // Load images
+    initState();
+    initAssets();
+    initMenus();
+    
+}
+
+ChartPreviewAudioProcessorEditor::~ChartPreviewAudioProcessorEditor()
+{
+}
+
+void ChartPreviewAudioProcessorEditor::initState()
+{
+    state = juce::ValueTree("state");
+    state.setProperty("skill", 4, nullptr);
+    state.setProperty("part", 2, nullptr);
+    state.setProperty("debug", false, nullptr);
+}
+
+void ChartPreviewAudioProcessorEditor::initAssets()
+{
     backgroundImage = juce::ImageCache::getFromMemory(BinaryData::RBN_background1_png, BinaryData::RBN_background1_pngSize);
     drumTrackImage = juce::ImageCache::getFromMemory(BinaryData::track_drum_png, BinaryData::track_drum_pngSize);
     guitarTrackImage = juce::ImageCache::getFromMemory(BinaryData::track_guitar_png, BinaryData::track_guitar_pngSize);
-    
+
     halfBeatImage = juce::ImageCache::getFromMemory(BinaryData::half_beat_marker_png, BinaryData::half_beat_marker_pngSize);
     measureImage = juce::ImageCache::getFromMemory(BinaryData::measure_png, BinaryData::measure_pngSize);
 
-    // Gem images
     gemKickImage = juce::ImageCache::getFromMemory(BinaryData::gem_kick_png, BinaryData::gem_kick_pngSize);
     gemGreenImage = juce::ImageCache::getFromMemory(BinaryData::gem_green_png, BinaryData::gem_green_pngSize);
     gemRedImage = juce::ImageCache::getFromMemory(BinaryData::gem_red_png, BinaryData::gem_red_pngSize);
@@ -38,16 +56,41 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor (ChartPreview
     gemCymYellowImage = juce::ImageCache::getFromMemory(BinaryData::gem_cym_yellow_png, BinaryData::gem_cym_yellow_pngSize);
     gemCymBlueImage = juce::ImageCache::getFromMemory(BinaryData::gem_cym_blue_png, BinaryData::gem_cym_blue_pngSize);
     gemCymGreenImage = juce::ImageCache::getFromMemory(BinaryData::gem_cym_green_png, BinaryData::gem_cym_green_pngSize);
+}
 
-    // Create skill menu
-    skillMenu.addItemList({"Easy", "Medium", "Hard", "Expert"}, 1);
-    skillMenu.setSelectedId(4);
+void ChartPreviewAudioProcessorEditor::initMenus()
+{
+    // Create menus
+    skillMenu.addItemList(skillLevelLabels, 1);
+    skillMenu.setSelectedId((int)SkillLevel::EXPERT, juce::NotificationType::dontSendNotification);
+    skillMenu.addListener(this);
     addAndMakeVisible(skillMenu);
 
-    // Create part menu
-    partMenu.addItemList({"Guitar/Bass", "Drums"}, 1);
-    partMenu.setSelectedId(2);
+    partMenu.addItemList(partLabels, 1);
+    partMenu.setSelectedId((int)Part::DRUMS, juce::NotificationType::dontSendNotification);
+    partMenu.addListener(this);
     addAndMakeVisible(partMenu);
+
+    drumTypeMenu.addItemList(drumTypeLabels, 1);
+    drumTypeMenu.setSelectedId((int)DrumType::NORMAL, juce::NotificationType::dontSendNotification);
+    drumTypeMenu.addListener(this);
+    addAndMakeVisible(drumTypeMenu);
+
+    // Create toggles
+    starPowerToggle.setButtonText("Star Power");
+    starPowerToggle.setToggleState(true, juce::NotificationType::dontSendNotification);
+    starPowerToggle.addListener(this);
+    addAndMakeVisible(starPowerToggle);
+    
+    kick2xToggle.setButtonText("Kick 2x");
+    kick2xToggle.setToggleState(true, juce::NotificationType::dontSendNotification);
+    kick2xToggle.addListener(this);
+    addAndMakeVisible(kick2xToggle);
+    
+    dynamicsToggle.setButtonText("Dynamics");
+    dynamicsToggle.setToggleState(true, juce::NotificationType::dontSendNotification);
+    dynamicsToggle.addListener(this);
+    addAndMakeVisible(dynamicsToggle);
 
     // Debug toggle
     debugToggle.setButtonText("Debug");
@@ -59,34 +102,26 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor (ChartPreview
     addAndMakeVisible(consoleOutput);
 }
 
-ChartPreviewAudioProcessorEditor::~ChartPreviewAudioProcessorEditor()
-{
-}
-
 //==============================================================================
 void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.drawImage(backgroundImage, getLocalBounds().toFloat());
 
     // Draw the track
-    if (partMenu.getText() == "Drums")
+    if ((int)state.getProperty("part") == (int)Part::DRUMS)
     {
         g.drawImage(drumTrackImage, juce::Rectangle<float>(0, 0, getWidth(), getHeight()), juce::RectanglePlacement::centred);
     }
-    else if (partMenu.getText() == "Guitar/Bass")
+    else if ((int)state.getProperty("part") == (int)Part::GUITAR)
     {
         g.drawImage(guitarTrackImage, juce::Rectangle<float>(0, 0, getWidth(), getHeight()), juce::RectanglePlacement::centred);
     }
 
-    // Draw debug if enabled
-    if (debugToggle.getToggleState())
-    {
-        consoleOutput.setVisible(true);
-    }
-    else
-    {
-        consoleOutput.setVisible(false);
-    }
+    drumTypeMenu.setVisible((int)state.getProperty("part") == (int)Part::DRUMS);
+    kick2xToggle.setVisible((int)state.getProperty("part") == (int)Part::DRUMS);
+    dynamicsToggle.setVisible((int)state.getProperty("part") == (int)Part::DRUMS);
+    
+    consoleOutput.setVisible(debugToggle.getToggleState());
 
     // // Draw lines
     // for (int i = 0; i < beatLines.size(); i++)
@@ -104,7 +139,7 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     {
         const int positionInSamples = it->first;
         float normalizedPosition = (positionInSamples - currentPlayheadPositionInSamples()) / (float)displaySizeInSamples;
-        std::vector<uint> gems = midiInterpreter.interpretMidiMessages(it->second);
+        std::vector<uint> gems = midiInterpreter.interpretMidiFrameOLD(it->second);
 
         drawGemGroup(g, gems, normalizedPosition);
 
@@ -122,7 +157,13 @@ void ChartPreviewAudioProcessorEditor::resized()
 {
     skillMenu.setBounds(10, 10, 100, 20);
     partMenu.setBounds(120, 10, 100, 20);
-    debugToggle.setBounds(230, 10, 100, 20);
+    drumTypeMenu.setBounds(230, 10, 100, 20);
+
+    starPowerToggle.setBounds(getWidth() - 120, 10, 100, 20);
+    kick2xToggle.setBounds(getWidth() - 120, 30, 100, 20);
+    dynamicsToggle.setBounds(getWidth() - 120, 50, 100, 20);
+
+    // debugToggle.setBounds(340, 10, 100, 20);
 
     consoleOutput.setBounds(10, 40, getWidth() - 20, getHeight() - 50);
 }
