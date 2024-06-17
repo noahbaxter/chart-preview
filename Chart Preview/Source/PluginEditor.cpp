@@ -13,7 +13,7 @@
 ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor (ChartPreviewAudioProcessor& p)
     : AudioProcessorEditor (&p), 
       audioProcessor (p), 
-      midiInterpreter(partMenu, skillMenu)
+      midiInterpreter(state)
 {
     startTimerHz(60);
 
@@ -129,26 +129,27 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     //     drawMeasureLine(g, beatLines[i].position, beatLines[i].measure);
     // }
 
+    // Draw Buffer
+    auto midiEventMap = audioProcessor.getMidiEventMap();
+    auto noteStateMap = audioProcessor.getNoteStateMap();
+    // auto midiEventMap = midiInterpreter.getFakeMidiEventMap();
 
-    // Draw Gems
-    auto midiMap = audioProcessor.getMidiMap();
-    // auto midiMap = midiInterpreter.getFakeMidiMap();
-    auto lowerBound = midiMap.lower_bound(std::max(0, currentPlayheadPositionInSamples() - 1));
-    auto upperBound = midiMap.upper_bound(currentPlayheadPositionInSamples() + displaySizeInSamples);
-    for (auto it = lowerBound; it != upperBound; ++it)
+    int lower = std::max(0, currentPlayheadPositionInSamples() - 1);
+    int upper = currentPlayheadPositionInSamples() + displaySizeInSamples;
+    auto lowerMEM = midiEventMap.lower_bound(lower);
+    auto upperMEM = midiEventMap.upper_bound(upper);
+    for (auto it = lowerMEM; it != upperMEM; ++it)
     {
         const int positionInSamples = it->first;
         float normalizedPosition = (positionInSamples - currentPlayheadPositionInSamples()) / (float)displaySizeInSamples;
         std::vector<uint> gems = midiInterpreter.interpretMidiFrameOLD(it->second);
+        std::array<Gem,7> gemsToRender = midiInterpreter.interpretMidiFrame(it->second, noteStateMap[positionInSamples]);
+
+        // TODO: Find distance from previous note to see if auto HOPO
+
+        // TODO: Find distance to next note off to see if sustain
 
         drawGemGroup(g, gems, normalizedPosition);
-
-        // print(juce::String(normalizedPosition) + ": [" +
-        //       juce::String(gems[0]) + ", " +
-        //       juce::String(gems[1]) + ", " +
-        //       juce::String(gems[2]) + ", " +
-        //       juce::String(gems[3]) + ", " +
-        //       juce::String(gems[4]) + "]");
     }
 }
 
@@ -366,6 +367,11 @@ void ChartPreviewAudioProcessorEditor::drawGem(juce::Graphics& g, uint gemColumn
 
     g.drawImage(glyphImage, glyphRect);
 }
+
+// void ChartPreviewAudioProcessorEditor::drawDrumGem(juce::Graphics &g, uint gemColumn, uint gemType, float position)
+// {
+//     repaint();
+// }
 
 // TODO: make this actually good
 // Draw measure line
