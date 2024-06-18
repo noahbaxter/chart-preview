@@ -19,118 +19,9 @@ MidiInterpreter::~MidiInterpreter()
 {
 }
 
-std::vector<uint> MidiInterpreter::interpretMidiFrameOLD(const std::vector<juce::MidiMessage> &messages)
+std::array<Gem, 7> MidiInterpreter::interpretMidiFrame(const std::vector<juce::MidiMessage> &messages)
 {
-    // Guitar/Bass  [green, red, yellow, blue, orange]
-    // Drums        [kick, red, yellow, blue, green]
-
-    // 0 - none
-    // 1 - normal
-    // 2 - hopo
-    // 3 - tap
-    // 4 - strum
-
-    // Drums
-    // [kick, red, yellow, blue, green]
-    // 0 - none
-    // 1 - drum ghost
-    // 2 - drum normal
-    // 3 - drum accent
-    // 4 - cymbal ghost
-    // 5 - cymbal normal
-    // 6 - cymbal accent
-
-    int instrument = (int)state.getProperty("part");
-    int difficulty = (int)state.getProperty("skillLevel");
-
-    std::vector<uint> gems = { 0, 0, 0, 0, 0 };
-    std::vector<uint> mods = { 0, 0, 0, 0, 0 };
-    std::vector<uint> dyns = { 0, 0, 0, 0, 0 };
-    for (const auto &message : messages)
-    {
-        if(!message.isNoteOn())
-        {
-            continue;
-        }
-
-        uint note = message.getNoteNumber();
-
-        // Base note
-        if (note >= 60 && note <= 100)
-        {
-            uint velocity = message.getVelocity();
-            uint dynamic = (velocity == 1) ? 0 : (velocity == 127) ? 2 : 1;
-            if ((note == 60 && difficulty == 1) ||
-                (note == 72 && difficulty == 2) ||
-                (note == 84 && difficulty == 3) ||
-                (note == 96 && difficulty == 4))
-            {
-                gems[0] = 1;
-            }
-            else if ((note == 61 && difficulty == 1) ||
-                     (note == 73 && difficulty == 2) ||
-                     (note == 85 && difficulty == 3) ||
-                     (note == 97 && difficulty == 4))
-            {
-                gems[1] = 1;
-                dyns[1] = dynamic;
-            }
-            else if ((note == 62 && difficulty == 1) ||
-                     (note == 74 && difficulty == 2) ||
-                     (note == 86 && difficulty == 3) ||
-                     (note == 98 && difficulty == 4))
-            {
-                gems[2] = 1;
-                dyns[2] = dynamic;
-            }
-            else if ((note == 63 && difficulty == 1) ||
-                     (note == 75 && difficulty == 2) ||
-                     (note == 87 && difficulty == 3) ||
-                     (note == 99 && difficulty == 4))
-            {
-                gems[3] = 1;
-                dyns[3] = dynamic;
-            }
-            else if ((note == 64 && difficulty == 1) ||
-                     (note == 76 && difficulty == 2) ||
-                     (note == 88 && difficulty == 3) ||
-                     (note == 100 && difficulty == 4))
-            {
-                gems[4] = 1;
-                dyns[4] = dynamic;
-            }
-        }
-
-        // Drum modifiers
-        if (instrument == 2)
-        {
-            if (note == 110) { mods[2] = 1; }
-            else if (note == 111) { mods[3] = 1; }
-            else if (note == 112) { mods[4] = 1; }
-        }
-
-    }
-
-    // TODO: overdrive, fills, rolls, etc.
-    for (int i = 0; i < gems.size(); i++)
-    {
-        if (gems[i] > 0 )
-        {
-            gems[i] += dyns[i];
-
-            // yellow, blue, green only can be cymbals
-            if (i > 1 && mods[i] == 0)
-            {
-                gems[i] += 3;
-            }
-        }
-    }
-
-    return gems;
-}
-std::array<Gem,7> MidiInterpreter::interpretMidiFrame(const std::vector<juce::MidiMessage> &messages, std::array<bool,128> &noteStateMap)
-{
-    std::array<Gem,7> gems = {
+    std::array<Gem, 7> gems = {
                     //| Guitar  |   Drums   |   Real Drums
                     //| -------------------------------------
         Gem::NONE,  //| Open    |   Kick    |
@@ -145,26 +36,26 @@ std::array<Gem,7> MidiInterpreter::interpretMidiFrame(const std::vector<juce::Mi
     Part part = (Part)((int)state.getProperty("part"));
     if (part == Part::GUITAR)
     {
-        interpretGuitarFrame(messages, noteStateMap, gems);
+        interpretGuitarFrame(gems, messages);
     }
     else if (part == Part::DRUMS)
     {
-        interpretDrumFrame(messages, gems);
+        interpretDrumFrame(gems, messages);
     }
 
     return gems;
 }
-std::array<Gem,7> MidiInterpreter::interpretGuitarFrame(const std::vector<juce::MidiMessage> &messages, std::array<bool,128> &noteStateMap, std::array<Gem,7> &gems)
+std::array<Gem, 7> MidiInterpreter::interpretGuitarFrame(std::array<Gem, 7> &gems, const std::vector<juce::MidiMessage> &messages)
 {
     using Guitar = MidiPitchDefinitions::Guitar;
 
     SkillLevel skill = (SkillLevel)((int)state.getProperty("skillLevel"));
 
     Gem gem = Gem::NOTE;    
-    if ((noteStateMap[(int)Guitar::EASY_HOPO] && skill == SkillLevel::EASY) ||
-        (noteStateMap[(int)Guitar::MEDIUM_HOPO] && skill == SkillLevel::MEDIUM) ||
-        (noteStateMap[(int)Guitar::HARD_HOPO] && skill == SkillLevel::HARD) ||
-        (noteStateMap[(int)Guitar::EXPERT_HOPO] && skill == SkillLevel::EXPERT))
+    if ((isNoteHeld((int)Guitar::EASY_HOPO) && skill == SkillLevel::EASY) ||
+        (isNoteHeld((int)Guitar::MEDIUM_HOPO) && skill == SkillLevel::MEDIUM) ||
+        (isNoteHeld((int)Guitar::HARD_HOPO) && skill == SkillLevel::HARD) ||
+        (isNoteHeld((int)Guitar::EXPERT_HOPO) && skill == SkillLevel::EXPERT))
     {
         gem = Gem::HOPO_GHOST;
     }
@@ -218,11 +109,13 @@ std::array<Gem,7> MidiInterpreter::interpretGuitarFrame(const std::vector<juce::
     }
 }
 
-std::array<Gem,7> MidiInterpreter::interpretDrumFrame(const std::vector<juce::MidiMessage> &messages, std::array<Gem,7> &gems)
+std::array<Gem, 7> MidiInterpreter::interpretDrumFrame(std::array<Gem, 7> &gems, const std::vector<juce::MidiMessage> &messages)
 {
     using Drums = MidiPitchDefinitions::Drums;
 
     SkillLevel skill = (SkillLevel)((int)state.getProperty("skillLevel"));
+    bool dynamicsEnabled = (bool)state.getProperty("dynamics");
+    bool kick2xEnabled = (bool)state.getProperty("kick2x");
     bool isProDrums = (DrumType)((int)state.getProperty("drumType")) == DrumType::PRO;
 
     std::array<int, 7> modifier = {0, 0, 0, 0, 0, 0, 0};
@@ -241,38 +134,38 @@ std::array<Gem,7> MidiInterpreter::interpretDrumFrame(const std::vector<juce::Mi
             gems[0] = Gem::NOTE;
         }
         else if ((note == Drums::EASY_RED && skill == SkillLevel::EASY) ||
-                    (note == Drums::MEDIUM_RED && skill == SkillLevel::MEDIUM) ||
-                    (note == Drums::HARD_RED && skill == SkillLevel::HARD) ||
-                    (note == Drums::EXPERT_RED && skill == SkillLevel::EXPERT))
+                 (note == Drums::MEDIUM_RED && skill == SkillLevel::MEDIUM) ||
+                 (note == Drums::HARD_RED && skill == SkillLevel::HARD) ||
+                 (note == Drums::EXPERT_RED && skill == SkillLevel::EXPERT))
         {
             gems[1] = Gem::NOTE;
             dynamics[1] = dynamic;
         }
         else if ((note == Drums::EASY_YELLOW && skill == SkillLevel::EASY) ||
-                    (note == Drums::MEDIUM_YELLOW && skill == SkillLevel::MEDIUM) ||
-                    (note == Drums::HARD_YELLOW && skill == SkillLevel::HARD) ||
-                    (note == Drums::EXPERT_YELLOW && skill == SkillLevel::EXPERT))
+                 (note == Drums::MEDIUM_YELLOW && skill == SkillLevel::MEDIUM) ||
+                 (note == Drums::HARD_YELLOW && skill == SkillLevel::HARD) ||
+                 (note == Drums::EXPERT_YELLOW && skill == SkillLevel::EXPERT))
         {
             gems[2] = Gem::NOTE;
             dynamics[2] = dynamic;
         }
         else if ((note == Drums::EASY_BLUE && skill == SkillLevel::EASY) ||
-                    (note == Drums::MEDIUM_BLUE && skill == SkillLevel::MEDIUM) ||
-                    (note == Drums::HARD_BLUE && skill == SkillLevel::HARD) ||
-                    (note == Drums::EXPERT_BLUE && skill == SkillLevel::EXPERT))
+                 (note == Drums::MEDIUM_BLUE && skill == SkillLevel::MEDIUM) ||
+                 (note == Drums::HARD_BLUE && skill == SkillLevel::HARD) ||
+                 (note == Drums::EXPERT_BLUE && skill == SkillLevel::EXPERT))
         {
             gems[3] = Gem::NOTE;
             dynamics[3] = dynamic;
         }
         else if ((note == Drums::EASY_GREEN && skill == SkillLevel::EASY) ||
-                    (note == Drums::MEDIUM_GREEN && skill == SkillLevel::MEDIUM) ||
-                    (note == Drums::HARD_GREEN && skill == SkillLevel::HARD) ||
-                    (note == Drums::EXPERT_GREEN && skill == SkillLevel::EXPERT))
+                 (note == Drums::MEDIUM_GREEN && skill == SkillLevel::MEDIUM) ||
+                 (note == Drums::HARD_GREEN && skill == SkillLevel::HARD) ||
+                 (note == Drums::EXPERT_GREEN && skill == SkillLevel::EXPERT))
         {
             gems[4] = Gem::NOTE;
             dynamics[4] = dynamic;
         }
-        else if (note == Drums::EXPERT_KICK_2X && skill == SkillLevel::EXPERT)
+        else if (kick2xEnabled && note == Drums::EXPERT_KICK_2X && skill == SkillLevel::EXPERT)
         {
             gems[6] = Gem::NOTE;
         }
@@ -298,10 +191,18 @@ std::array<Gem,7> MidiInterpreter::interpretDrumFrame(const std::vector<juce::Mi
     // Adjust gems based on modifiers
     for (int i = 1; i <= 4; i++)
     {
-        gems[i] = (Gem)((int)gems[i] + dynamics[i]);
+        if (gems[i] == Gem::NONE)
+        {
+            continue;
+        }
+
+        if (dynamicsEnabled)
+        {
+            gems[i] = (Gem)((int)gems[i] + dynamics[i]);
+        }
 
         // only yellow, blue, and green can be cymbals
-        if (i > 1 && modifier[i] == 0)
+        if (isProDrums && i > 1 && modifier[i] == 0)
         {
             gems[i] = (Gem)((int)gems[i] + 3);
         }

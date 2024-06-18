@@ -99,19 +99,29 @@ private:
     int defaultWidth = 800, defaultHeight = 600;
 
     juce::Image backgroundImage,
-                drumTrackImage, guitarTrackImage,
-                halfBeatImage, measureImage,
+        drumTrackImage, guitarTrackImage,
+        halfBeatImage, measureImage,
 
-                gemKickImage, 
-                gemGreenImage, 
-                gemRedImage, 
-                gemYellowImage, 
-                gemBlueImage, 
-                gemOrangeImage,
+        gemKickImage,
+        gemGreenImage,
+        gemRedImage,
+        gemYellowImage,
+        gemBlueImage,
+        gemOrangeImage,
+        gemKickStyleImage,
+        gemStyleImage,
 
-                gemCymYellowImage, 
-                gemCymBlueImage, 
-                gemCymGreenImage;
+        gemHOPOGreenImage,
+        gemHOPORedImage,
+        gemHOPOYellowImage,
+        gemHOPOBlueImage,
+        gemHOPOOrangeImage,
+        gemHOPOStyleImage,
+
+        gemCymYellowImage,
+        gemCymBlueImage,
+        gemCymGreenImage,
+        gemCymStyleImage;
 
     juce::ComboBox skillMenu, partMenu, drumTypeMenu;
     juce::ToggleButton starPowerToggle, kick2xToggle, dynamicsToggle;
@@ -133,11 +143,40 @@ private:
     float displaySizeInSeconds = 0.5;
     int displaySizeInSamples = int(displaySizeInSeconds * audioProcessor.getSampleRate());
 
+    bool isPart(Part part)
+    {
+        return (int)state.getProperty("part") == (int)part;
+    }
+
+    int noteHeldPosition = 0;
+    bool isNoteHeld(int note)
+    {
+        auto noteStateMap = audioProcessor.getNoteStateMaps()[note];
+        auto it = noteStateMap.upper_bound(noteHeldPosition);
+        if (it == noteStateMap.begin())
+        {
+            return false;
+        }
+        else
+        {
+            --it;
+            return it->second;
+        }
+    }
+
     // Notes
-    void drawGemGroup(juce::Graphics& g, const std::vector<uint>& gems, float position);
-    void drawGem(juce::Graphics &g, uint gemColumn, uint gemType, float position);
-    void drawDrumGem(juce::Graphics &g, uint gemColumn, uint gemType, float position);
-    void drawGuitarGem(juce::Graphics &g, uint gemColumn, uint gemType, float position);
+    void drawFrame(juce::Graphics &g, const std::array<Gem,7> &gems, float position);
+    void drawGuitarGem(juce::Graphics &g, uint gemColumn, Gem gem, float position);
+    void drawDrumGem(juce::Graphics &g, uint gemColumn, Gem gem, float position);
+
+    juce::Rectangle<float> getGuitarGlyphRect(uint gemColumn, float position);
+    juce::Rectangle<float> getDrumGlyphRect(uint gemColumn, float position);
+    juce::Rectangle<float> createGlyphRect(float position, float normY1, float normY2, float normX1, float normX2, float normWidth1, float normWidth2, bool isBarNote);
+
+    juce::Image getGuitarGlyphImage(Gem gem, uint gemColumn);
+    juce::Image getDrumGlyphImage(Gem gem, uint gemColumn);
+
+    void fadeInImage(juce::Image &image, float position);
 
     // Beat Lines
 
@@ -171,9 +210,20 @@ private:
         audioProcessor.debugText += line + "\n";
     }
 
+    std::string gemsToString(std::array<Gem, 7> gems)
+    {
+        std::string str = "(";
+        for (const auto &gem : gems)
+        {
+            str += std::to_string((int)gem) + ",";
+        }
+        str += ")";
+        return str;
+    }
+
     void printCallback()
     {
-        // consoleOutput.clear();
+        consoleOutput.clear();
         // consoleOutput.moveCaretToEnd();
 
         consoleOutput.insertTextAtCaret(audioProcessor.debugText);

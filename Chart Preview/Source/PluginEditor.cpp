@@ -22,7 +22,11 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor (ChartPreview
     initState();
     initAssets();
     initMenus();
-    
+
+    midiInterpreter.isNoteHeld = [this](int note) -> bool
+    {
+        return this->isNoteHeld(note);
+    };
 }
 
 ChartPreviewAudioProcessorEditor::~ChartPreviewAudioProcessorEditor()
@@ -32,9 +36,13 @@ ChartPreviewAudioProcessorEditor::~ChartPreviewAudioProcessorEditor()
 void ChartPreviewAudioProcessorEditor::initState()
 {
     state = juce::ValueTree("state");
-    state.setProperty("skill", 4, nullptr);
-    state.setProperty("part", 2, nullptr);
-    state.setProperty("debug", false, nullptr);
+    state.setProperty("skillLevel", (int)SkillLevel::EXPERT, nullptr);
+    state.setProperty("part", (int)Part::DRUMS, nullptr);
+    state.setProperty("drumType", (int)DrumType::PRO, nullptr);
+
+    state.setProperty("starPower", true, nullptr);
+    state.setProperty("kick2x", true, nullptr);
+    state.setProperty("dynamics", true, nullptr);
 }
 
 void ChartPreviewAudioProcessorEditor::initAssets()
@@ -52,27 +60,37 @@ void ChartPreviewAudioProcessorEditor::initAssets()
     gemYellowImage = juce::ImageCache::getFromMemory(BinaryData::gem_yellow_png, BinaryData::gem_yellow_pngSize);
     gemBlueImage = juce::ImageCache::getFromMemory(BinaryData::gem_blue_png, BinaryData::gem_blue_pngSize);
     gemOrangeImage = juce::ImageCache::getFromMemory(BinaryData::gem_orange_png, BinaryData::gem_orange_pngSize);
+    gemKickStyleImage = juce::ImageCache::getFromMemory(BinaryData::gem_kick_style_png, BinaryData::gem_kick_style_pngSize);
+    gemStyleImage = juce::ImageCache::getFromMemory(BinaryData::gem_style_png, BinaryData::gem_style_pngSize);
+
+    gemHOPOGreenImage = juce::ImageCache::getFromMemory(BinaryData::gem_hopo_green_png, BinaryData::gem_hopo_green_pngSize);
+    gemHOPORedImage = juce::ImageCache::getFromMemory(BinaryData::gem_hopo_red_png, BinaryData::gem_hopo_red_pngSize);
+    gemHOPOYellowImage = juce::ImageCache::getFromMemory(BinaryData::gem_hopo_yellow_png, BinaryData::gem_hopo_yellow_pngSize);
+    gemHOPOBlueImage = juce::ImageCache::getFromMemory(BinaryData::gem_hopo_blue_png, BinaryData::gem_hopo_blue_pngSize);
+    gemHOPOOrangeImage = juce::ImageCache::getFromMemory(BinaryData::gem_hopo_orange_png, BinaryData::gem_hopo_orange_pngSize);
+    gemHOPOStyleImage = juce::ImageCache::getFromMemory(BinaryData::gem_hopo_style_png, BinaryData::gem_hopo_style_pngSize);
 
     gemCymYellowImage = juce::ImageCache::getFromMemory(BinaryData::gem_cym_yellow_png, BinaryData::gem_cym_yellow_pngSize);
     gemCymBlueImage = juce::ImageCache::getFromMemory(BinaryData::gem_cym_blue_png, BinaryData::gem_cym_blue_pngSize);
     gemCymGreenImage = juce::ImageCache::getFromMemory(BinaryData::gem_cym_green_png, BinaryData::gem_cym_green_pngSize);
+    gemCymStyleImage = juce::ImageCache::getFromMemory(BinaryData::gem_cym_style_png, BinaryData::gem_cym_style_pngSize);
 }
 
 void ChartPreviewAudioProcessorEditor::initMenus()
 {
     // Create menus
     skillMenu.addItemList(skillLevelLabels, 1);
-    skillMenu.setSelectedId((int)SkillLevel::EXPERT, juce::NotificationType::dontSendNotification);
+    skillMenu.setSelectedId(state.getProperty("skillLevel"), juce::NotificationType::dontSendNotification);
     skillMenu.addListener(this);
     addAndMakeVisible(skillMenu);
 
     partMenu.addItemList(partLabels, 1);
-    partMenu.setSelectedId((int)Part::DRUMS, juce::NotificationType::dontSendNotification);
+    partMenu.setSelectedId(state.getProperty("part"), juce::NotificationType::dontSendNotification);
     partMenu.addListener(this);
     addAndMakeVisible(partMenu);
 
     drumTypeMenu.addItemList(drumTypeLabels, 1);
-    drumTypeMenu.setSelectedId((int)DrumType::NORMAL, juce::NotificationType::dontSendNotification);
+    drumTypeMenu.setSelectedId(state.getProperty("drumType"), juce::NotificationType::dontSendNotification);
     drumTypeMenu.addListener(this);
     addAndMakeVisible(drumTypeMenu);
 
@@ -108,18 +126,18 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     g.drawImage(backgroundImage, getLocalBounds().toFloat());
 
     // Draw the track
-    if ((int)state.getProperty("part") == (int)Part::DRUMS)
+    if (isPart(Part::DRUMS))
     {
         g.drawImage(drumTrackImage, juce::Rectangle<float>(0, 0, getWidth(), getHeight()), juce::RectanglePlacement::centred);
     }
-    else if ((int)state.getProperty("part") == (int)Part::GUITAR)
+    else if (isPart(Part::GUITAR))
     {
         g.drawImage(guitarTrackImage, juce::Rectangle<float>(0, 0, getWidth(), getHeight()), juce::RectanglePlacement::centred);
     }
 
-    drumTypeMenu.setVisible((int)state.getProperty("part") == (int)Part::DRUMS);
-    kick2xToggle.setVisible((int)state.getProperty("part") == (int)Part::DRUMS);
-    dynamicsToggle.setVisible((int)state.getProperty("part") == (int)Part::DRUMS);
+    drumTypeMenu.setVisible(isPart(Part::DRUMS));
+    kick2xToggle.setVisible(isPart(Part::DRUMS));
+    dynamicsToggle.setVisible(isPart(Part::DRUMS));
     
     consoleOutput.setVisible(debugToggle.getToggleState());
 
@@ -131,8 +149,6 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 
     // Draw Buffer
     auto midiEventMap = audioProcessor.getMidiEventMap();
-    auto noteStateMap = audioProcessor.getNoteStateMap();
-    // auto midiEventMap = midiInterpreter.getFakeMidiEventMap();
 
     int lower = std::max(0, currentPlayheadPositionInSamples() - 1);
     int upper = currentPlayheadPositionInSamples() + displaySizeInSamples;
@@ -140,17 +156,38 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     auto upperMEM = midiEventMap.upper_bound(upper);
     for (auto it = lowerMEM; it != upperMEM; ++it)
     {
-        const int positionInSamples = it->first;
-        float normalizedPosition = (positionInSamples - currentPlayheadPositionInSamples()) / (float)displaySizeInSamples;
-        std::vector<uint> gems = midiInterpreter.interpretMidiFrameOLD(it->second);
-        std::array<Gem,7> gemsToRender = midiInterpreter.interpretMidiFrame(it->second, noteStateMap[positionInSamples]);
+        noteHeldPosition = it->first;
+        float normalizedPosition = (noteHeldPosition - currentPlayheadPositionInSamples()) / (float)displaySizeInSamples;
+
+        std::array<Gem, 7> gems = midiInterpreter.interpretMidiFrame(it->second);
 
         // TODO: Find distance from previous note to see if auto HOPO
 
         // TODO: Find distance to next note off to see if sustain
 
-        drawGemGroup(g, gems, normalizedPosition);
+        drawFrame(g, gems, normalizedPosition);
+
+        // std::string str = std::to_string(round(normalizedPosition * 1000) / 1000) + ": " + 
+        //     gemsToString(gems) + " SP; " + std::to_string(noteStates[(int)MidiPitchDefinitions::Drums::SP]);
+        // print(str);
+
+        
     }
+
+    // using Drums = MidiPitchDefinitions::Drums;
+    // noteHeldPosition = currentPlayheadPositionInSamples();
+    // std::string str = "<" +
+    //     std::to_string(isNoteHeld((int)Drums::EXPERT_KICK)) + ", " +
+    //     std::to_string(isNoteHeld((int)Drums::EXPERT_RED)) + ", " +
+    //     std::to_string(isNoteHeld((int)Drums::EXPERT_YELLOW)) + ", " +
+    //     std::to_string(isNoteHeld((int)Drums::EXPERT_BLUE)) + ", " +
+    //     std::to_string(isNoteHeld((int)Drums::EXPERT_GREEN)) + ", " +
+    //     std::to_string(isNoteHeld((int)Drums::EXPERT_KICK_2X)) + "> <" +
+    //     std::to_string(isNoteHeld((int)Drums::TOM_YELLOW)) + ", " +
+    //     std::to_string(isNoteHeld((int)Drums::TOM_BLUE)) + ", " +
+    //     std::to_string(isNoteHeld((int)Drums::TOM_GREEN)) + "> SP: " +
+    //     std::to_string(isNoteHeld((int)Drums::SP));
+    // print(str);
 }
 
 
@@ -164,7 +201,7 @@ void ChartPreviewAudioProcessorEditor::resized()
     kick2xToggle.setBounds(getWidth() - 120, 30, 100, 20);
     dynamicsToggle.setBounds(getWidth() - 120, 50, 100, 20);
 
-    // debugToggle.setBounds(340, 10, 100, 20);
+    debugToggle.setBounds(340, 10, 100, 20);
 
     consoleOutput.setBounds(10, 40, getWidth() - 20, getHeight() - 50);
 }
@@ -172,93 +209,152 @@ void ChartPreviewAudioProcessorEditor::resized()
 // Draw Functions
 //==============================================================================
 
-void ChartPreviewAudioProcessorEditor::drawGemGroup(juce::Graphics &g, const std::vector<uint> &gems, float position)
+void ChartPreviewAudioProcessorEditor::drawFrame(juce::Graphics &g, const std::array<Gem,7> &gems, float position)
 {
-    for(int i = 0; i < gems.size(); i++)
+    for (int gemColumn = 0; gemColumn < gems.size(); gemColumn++)
     {
-        if (gems[i] > 0)
+        if (gems[gemColumn] != Gem::NONE)
         {
-            drawGem(g, i, gems[i], position);
+            if (isPart(Part::DRUMS))
+            {
+                drawDrumGem(g, gemColumn, gems[gemColumn], position);
+            }
+            else if (isPart(Part::GUITAR))
+            {
+                drawGuitarGem(g, gemColumn, gems[gemColumn], position);
+            }
         }
     }
 }
 
-void ChartPreviewAudioProcessorEditor::drawGem(juce::Graphics& g, uint gemColumn, uint gemType, float position)
+void ChartPreviewAudioProcessorEditor::drawGuitarGem(juce::Graphics &g, uint gemColumn, Gem gem, float position)
 {
-    int instrument = partMenu.getSelectedId();
+    juce::Rectangle<float> glyphRect = getGuitarGlyphRect(gemColumn, position);
+    juce::Image glyphImage = getGuitarGlyphImage(gem, gemColumn);
+    fadeInImage(glyphImage, position);
 
-    // Relative placement and sizes of gems from position 0.0 to 1.0
+    g.drawImage(glyphImage, glyphRect);
+}
+
+
+void ChartPreviewAudioProcessorEditor::drawDrumGem(juce::Graphics &g, uint gemColumn, Gem gem, float position)
+{
+    juce::Rectangle<float> glyphRect = getDrumGlyphRect(gemColumn, position);
+    juce::Image glyphImage = getDrumGlyphImage(gem, gemColumn);
+    fadeInImage(glyphImage, position);
+
+    g.drawImage(glyphImage, glyphRect);
+}
+
+void ChartPreviewAudioProcessorEditor::fadeInImage(juce::Image &image, float position)
+{
+    // Make the gem fade out as it gets closer to the end
+    float opacity;
+    float opacityStart = 0.9;
+    if (position >= opacityStart)
+    {
+        float opacity = 1.0 - ((position - opacityStart) / (1.0 - opacityStart));
+        image.multiplyAllAlphas(opacity);
+    }
+}
+
+juce::Rectangle<float> ChartPreviewAudioProcessorEditor::getGuitarGlyphRect(uint gemColumn, float position)
+{
     float normY1, normY2, normX1, normX2, normWidth1, normWidth2;
 
-    if (instrument == 1)
+    // If the gem is an open note
+    bool isOpen = (gemColumn == 0);
+    if (isOpen)
     {
+        normY1 = 0.73;
+        normY2 = 0.234;
+        normX1 = 0.16;
+        normX2 = 0.34;
+        normWidth1 = 0.68;
+        normWidth2 = 0.32;
+    }
+    else
+    {
+
         normWidth1 = 0.10, normWidth2 = 0.050;
         normY1 = 0.71, normY2 = 0.22;
-        if (gemColumn == 0)
+        if (gemColumn == 1)
         {
             normX1 = 0.22;
             normX2 = 0.365;
         }
-        else if (gemColumn == 1)
+        else if (gemColumn == 2)
         {
             normX1 = 0.332;
             normX2 = 0.420;
         }
-        else if (gemColumn == 2)
+        else if (gemColumn == 3)
         {
             normX1 = 0.450;
             normX2 = 0.475;
         }
-        else if (gemColumn == 3)
+        else if (gemColumn == 4)
         {
             normX1 = 0.568;
             normX2 = 0.532;
         }
-        else if (gemColumn == 4)
+        else if (gemColumn == 5)
         {
             normX1 = 0.680;
             normX2 = 0.590;
         }
     }
-    else if (instrument == 2)
-    {
-        if (gemColumn == 0)
-        {
-            normY1 = 0.73;
-            normY2 = 0.234;
-            normX1 = 0.16;
-            normX2 = 0.34;
-            normWidth1 = 0.68;
-            normWidth2 = 0.32;
-        }
-        else
-        {
 
-            normWidth1 = 0.13, normWidth2 = 0.060;
-            normY1 = 0.70, normY2 = 0.22;
-            if (gemColumn == 1)
-            {
-                normX1 = 0.22;
-                normX2 = 0.365;
-            }
-            else if (gemColumn == 2)
-            {
-                normX1 = 0.362;
-                normX2 = 0.434;
-            }
-            else if (gemColumn == 3)
-            {
-                normX1 = 0.507;
-                normX2 = 0.504;
-            }
-            else if (gemColumn == 4)
-            {
-                normX1 = 0.650;
-                normX2 = 0.570;
-            }
+    return createGlyphRect(position, normY1, normY2, normX1, normX2, normWidth1, normWidth2, isOpen);
+}
+
+juce::Rectangle<float> ChartPreviewAudioProcessorEditor::getDrumGlyphRect(uint gemColumn, float position)
+{
+    float normY1, normY2, normX1, normX2, normWidth1, normWidth2;
+
+    // If the gem is a kick
+    bool isKick = (gemColumn == 0 || gemColumn == 6);
+    if (isKick)
+    {
+        normY1 = 0.73;
+        normY2 = 0.234;
+        normX1 = 0.16;
+        normX2 = 0.34;
+        normWidth1 = 0.68;
+        normWidth2 = 0.32;
+    }
+    else
+    {
+
+        normWidth1 = 0.13, normWidth2 = 0.060;
+        normY1 = 0.70, normY2 = 0.22;
+        if (gemColumn == 1)
+        {
+            normX1 = 0.22;
+            normX2 = 0.365;
+        }
+        else if (gemColumn == 2)
+        {
+            normX1 = 0.362;
+            normX2 = 0.434;
+        }
+        else if (gemColumn == 3)
+        {
+            normX1 = 0.507;
+            normX2 = 0.504;
+        }
+        else if (gemColumn == 4)
+        {
+            normX1 = 0.650;
+            normX2 = 0.570;
         }
     }
 
+    return createGlyphRect(position, normY1, normY2, normX1, normX2, normWidth1, normWidth2, isKick);
+}
+
+juce::Rectangle<float> ChartPreviewAudioProcessorEditor::createGlyphRect(float position, float normY1, float normY2, float normX1, float normX2, float normWidth1, float normWidth2, bool isBarNote)
+{
     // Create rectangle
     float curve = 0.333; // Makes placement a bit more exponential
 
@@ -275,103 +371,150 @@ void ChartPreviewAudioProcessorEditor::drawGem(juce::Graphics& g, uint gemColumn
     int width = pW2 - (int)((std::pow(10, curve * (1 - position)) - 1) / (std::pow(10, curve) - 1) * (pW2 - pW1));
 
     int height;
-    if (instrument == 2 && gemColumn == 0)
+    if (isBarNote)
     {
-        height = (int) width / 16.f;
+        height = (int)width / 16.f;
     }
     else
     {
-        height = (int) width / 2.f;   
+        height = (int)width / 2.f;
     }
 
-    juce::Rectangle<float> glyphRect = juce::Rectangle<float>(xPos, yPos, width, height);
-
-    // Get proper glyph
-    juce::Image glyphImage;
-
-
-    if (instrument == 1)
-    {
-        if (gemColumn == 0){ glyphImage = gemGreenImage.createCopy(); }
-        else if (gemColumn == 1){ glyphImage = gemRedImage.createCopy(); }
-        else if (gemColumn == 2){ glyphImage = gemYellowImage.createCopy(); }
-        else if (gemColumn == 3){ glyphImage = gemBlueImage.createCopy(); }
-        else if (gemColumn == 4){ glyphImage = gemOrangeImage.createCopy(); }
-    }
-
-    if (instrument == 2)
-    {
-        if (gemColumn == 0) { 
-            glyphImage = gemKickImage.createCopy(); 
-        }
-        else
-        {
-            // Ghost drum
-            if (gemType == 1)
-            {
-                if (gemColumn == 1){ glyphImage = gemRedImage.createCopy(); }
-                else if (gemColumn == 2){ glyphImage = gemYellowImage.createCopy(); }
-                else if (gemColumn == 3){ glyphImage = gemBlueImage.createCopy(); }
-                else if (gemColumn == 4){ glyphImage = gemGreenImage.createCopy(); }
-                glyphImage.multiplyAllAlphas(0.5);
-            }
-            // Normal drum
-            else if (gemType == 2)
-            {
-                if (gemColumn == 1){ glyphImage = gemRedImage.createCopy(); }
-                else if (gemColumn == 2){ glyphImage = gemYellowImage.createCopy(); }
-                else if (gemColumn == 3){ glyphImage = gemBlueImage.createCopy(); }
-                else if (gemColumn == 4){ glyphImage = gemGreenImage.createCopy(); }
-            }
-            // Accent drum
-            else if (gemType == 3)
-            {
-                if (gemColumn == 1){ glyphImage = gemRedImage.createCopy(); }
-                else if (gemColumn == 2){ glyphImage = gemYellowImage.createCopy(); }
-                else if (gemColumn == 3){ glyphImage = gemBlueImage.createCopy(); }
-                else if (gemColumn == 4){ glyphImage = gemGreenImage.createCopy(); }
-            }
-            // Ghost cymbal
-            else if (gemType == 4)
-            {
-                if (gemColumn == 2){ glyphImage = gemCymYellowImage.createCopy(); }
-                else if (gemColumn == 3){ glyphImage = gemCymBlueImage.createCopy(); }
-                else if (gemColumn == 4){ glyphImage = gemCymGreenImage.createCopy(); }
-                glyphImage.multiplyAllAlphas(0.5);
-            }
-            // Normal cymbal
-            else if (gemType == 5)
-            {
-                if (gemColumn == 2){ glyphImage = gemCymYellowImage.createCopy(); }
-                else if (gemColumn == 3){ glyphImage = gemCymBlueImage.createCopy(); }
-                else if (gemColumn == 4){ glyphImage = gemCymGreenImage.createCopy(); }
-            }
-            // Accent cymbal
-            else if (gemType == 6)
-            {
-                if (gemColumn == 2){ glyphImage = gemCymYellowImage.createCopy(); }
-                else if (gemColumn == 3){ glyphImage = gemCymBlueImage.createCopy(); }
-                else if (gemColumn == 4){ glyphImage = gemCymGreenImage.createCopy(); }
-            }
-        }
-    }
-
-    // Opacity
-    float opacity;
-    float opacityStart = 0.9;
-    if (position >= opacityStart)
-    {
-        float opacity = 1.0 - ((position - opacityStart) / (1.0 - opacityStart));
-        glyphImage.multiplyAllAlphas(opacity);
-    }
-
-    g.drawImage(glyphImage, glyphRect);
+    return juce::Rectangle<float>(xPos, yPos, width, height);
 }
 
-// void ChartPreviewAudioProcessorEditor::drawDrumGem(juce::Graphics &g, uint gemColumn, uint gemType, float position)
-// {
-//     repaint();
-// }
+juce::Image ChartPreviewAudioProcessorEditor::getDrumGlyphImage(Gem gem, uint gemColumn)
+{
+    using Drums = MidiPitchDefinitions::Drums;
+    juce::Image gemImage;
+
+    if (state.getProperty("starPower") && isNoteHeld((int)Drums::SP))
+    {
+        switch (gem)
+        {
+        case Gem::HOPO_GHOST:
+        case Gem::NOTE:
+        case Gem::TAP_ACCENT:
+            switch (gemColumn)
+            {
+            case 0: gemImage = gemKickStyleImage.createCopy(); break;
+            case 1:
+            case 2:
+            case 3:
+            case 4: gemImage = gemStyleImage.createCopy(); break;
+            case 6: gemImage = gemKickStyleImage.createCopy(); break;
+            } break;
+        case Gem::CYM_GHOST:
+        case Gem::CYM:
+        case Gem::CYM_ACCENT:
+            switch (gemColumn)
+            {
+            case 2:
+            case 3:
+            case 4: gemImage = gemCymStyleImage.createCopy(); break;
+            } break;
+        }
+    } 
+    else
+    {
+        switch (gem)
+        {
+        case Gem::HOPO_GHOST:
+        case Gem::NOTE:
+        case Gem::TAP_ACCENT:
+            switch (gemColumn)
+            {
+            case 0: gemImage = gemKickImage.createCopy(); break;
+            case 1: gemImage = gemRedImage.createCopy(); break;
+            case 2: gemImage = gemYellowImage.createCopy(); break;
+            case 3: gemImage = gemBlueImage.createCopy(); break;
+            case 4: gemImage = gemGreenImage.createCopy(); break;
+            case 6: gemImage = gemKickImage.createCopy(); break;
+            } break;
+        case Gem::CYM_GHOST:
+        case Gem::CYM:
+        case Gem::CYM_ACCENT:
+            switch (gemColumn)
+            {
+            case 2: gemImage = gemCymYellowImage.createCopy(); break;
+            case 3: gemImage = gemCymBlueImage.createCopy(); break;
+            case 4: gemImage = gemCymGreenImage.createCopy(); break;
+            } break;
+        }
+    }
+
+    bool isGhost = (gem == Gem::HOPO_GHOST || gem == Gem::CYM_GHOST);
+    if (isGhost)
+    {
+        gemImage.multiplyAllAlphas(0.5f);
+    }
+
+    return gemImage;
+}
+
+juce::Image ChartPreviewAudioProcessorEditor::getGuitarGlyphImage(Gem gem, uint gemColumn)
+{
+    using Guitar = MidiPitchDefinitions::Guitar;
+    juce::Image gemImage;
+
+    if (state.getProperty("starPower") && isNoteHeld((int)Guitar::SP))
+    {
+        switch (gem)
+        {
+        case Gem::HOPO_GHOST:
+            switch (gemColumn)
+            {
+            case 0: gemImage = gemKickStyleImage.createCopy(); break;
+            case 1:
+            case 2:
+            case 3:
+            case 4:
+            case 5: gemImage = gemHOPOStyleImage.createCopy(); break;
+            } break;
+        case Gem::NOTE:
+        case Gem::TAP_ACCENT:
+            switch (gemColumn)
+            {
+            case 0: gemImage = gemKickStyleImage.createCopy(); break;
+            case 1:
+            case 2:
+            case 3:
+            case 4:
+            case 5: gemImage = gemStyleImage.createCopy(); break;
+            } break;
+        }
+    }
+    else
+    {
+        switch (gem)
+        {
+        case Gem::HOPO_GHOST:
+            switch (gemColumn)
+            {
+            case 0: gemImage = gemKickImage.createCopy(); break;
+            case 1: gemImage = gemHOPOGreenImage.createCopy(); break;
+            case 2: gemImage = gemHOPORedImage.createCopy(); break;
+            case 3: gemImage = gemHOPOYellowImage.createCopy(); break;
+            case 4: gemImage = gemHOPOBlueImage.createCopy(); break;
+            case 5: gemImage = gemHOPOOrangeImage.createCopy(); break;
+            } break;
+        case Gem::NOTE:
+        case Gem::TAP_ACCENT:
+            switch (gemColumn)
+            {
+            case 0: gemImage = gemKickImage.createCopy(); break;
+            case 1: gemImage = gemGreenImage.createCopy(); break;
+            case 2: gemImage = gemRedImage.createCopy(); break;
+            case 3: gemImage = gemYellowImage.createCopy(); break;
+            case 4: gemImage = gemBlueImage.createCopy(); break;
+            case 5: gemImage = gemOrangeImage.createCopy(); break;
+            } break;
+        }
+    }
+
+    return gemImage;
+}
+
 
 // TODO: make this actually good
 // Draw measure line
