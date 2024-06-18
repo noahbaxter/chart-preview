@@ -38,9 +38,9 @@ public:
       return midiProcessor.midiEventMap;
     }
 
-    std::map<uint, std::array<bool,128>> getNoteStateMap()
+    std::array<std::map<uint, bool>, 128> getNoteStateMaps()
     {
-      return midiProcessor.noteStateMap;
+      return midiProcessor.noteStateMaps;
     }
 
     //==============================================================================

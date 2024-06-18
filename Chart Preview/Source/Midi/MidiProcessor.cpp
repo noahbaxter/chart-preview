@@ -8,13 +8,17 @@ void MidiProcessor::process(juce::MidiBuffer& midiMessages, uint startPositionIn
     // The problem is the buffer can shift unexpectedly, so we handle that by tracking the last processed sample
     if (endPositionInSamples >= lastProcessedSample)
     {
+        // TODO: check if these lower_bounds work as expected
         auto lowerMEM = midiEventMap.lower_bound(std::max(startPositionInSamples, lastProcessedSample));
         auto upperMEM = midiEventMap.lower_bound(endPositionInSamples);
         midiEventMap.erase(lowerMEM, upperMEM);
 
-        auto lowerNSM = noteStateMap.lower_bound(std::max(startPositionInSamples, lastProcessedSample));
-        auto upperNSM = noteStateMap.lower_bound(endPositionInSamples);
-        noteStateMap.erase(lowerNSM, upperNSM);
+        for (auto &noteStateMap : noteStateMaps)
+        {
+            auto lowerNSM = noteStateMap.lower_bound(std::max(startPositionInSamples, lastProcessedSample));
+            auto upperNSM = noteStateMap.lower_bound(endPositionInSamples);
+            noteStateMap.erase(lowerNSM, upperNSM);
+        }
     }
 
 
@@ -26,11 +30,11 @@ void MidiProcessor::process(juce::MidiBuffer& midiMessages, uint startPositionIn
         if (midiMessage.isNoteOn())
         {
             midiEventMap[globalMessagePositionInSamples].push_back(midiMessage);
-            noteStateMap[globalMessagePositionInSamples][midiMessage.getNoteNumber()] = true;
+            noteStateMaps[midiMessage.getNoteNumber()][globalMessagePositionInSamples] = true;
         }
         else if (midiMessage.isNoteOff())
         {
-            noteStateMap[globalMessagePositionInSamples][midiMessage.getNoteNumber()] = false;
+            noteStateMaps[midiMessage.getNoteNumber()][globalMessagePositionInSamples] = false;
         }
     }
 
