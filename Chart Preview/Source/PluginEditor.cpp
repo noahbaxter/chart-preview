@@ -174,7 +174,7 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     auto upperMEM = midiEventMap.upper_bound(drawEnd);
     for (auto it = lowerMEM; it != upperMEM; ++it)
     {
-        noteStart = it->first;
+        int noteStart = it->first;
         float normalizedPosition = (noteStart - drawStart) / (float)displaySizeInSamples;
 
         std::array<Gem, 7> gems = midiInterpreter.interpretMidiFrame(it->second);
@@ -185,7 +185,7 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 
         drawFrame(g, gems, normalizedPosition);
     }
-
+}
 
 void ChartPreviewAudioProcessorEditor::resized()
 {
