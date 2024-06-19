@@ -15,10 +15,9 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor (ChartPreview
       audioProcessor (p), 
       midiInterpreter(state)
 {
-    startTimerHz(60);
-
     setSize(defaultWidth, defaultHeight);
 
+    latencyInSeconds = audioProcessor.latencyInSeconds;
     initState();
     initAssets();
     initMenus();
@@ -27,6 +26,8 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor (ChartPreview
     {
         return this->isNoteHeld(note);
     };
+
+    startTimerHz(60);
 }
 
 ChartPreviewAudioProcessorEditor::~ChartPreviewAudioProcessorEditor()
@@ -43,6 +44,8 @@ void ChartPreviewAudioProcessorEditor::initState()
     state.setProperty("starPower", true, nullptr);
     state.setProperty("kick2x", true, nullptr);
     state.setProperty("dynamics", true, nullptr);
+
+    state.setProperty("framerate", 3, nullptr);
 }
 
 void ChartPreviewAudioProcessorEditor::initAssets()
@@ -94,6 +97,21 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     drumTypeMenu.addListener(this);
     addAndMakeVisible(drumTypeMenu);
 
+    framerateMenu.addItemList({"15 fps", "30 fps", "60 fps"}, 1);
+    framerateMenu.setSelectedId(state.getProperty("framerate"), juce::NotificationType::dontSendNotification);
+    framerateMenu.addListener(this);
+    addAndMakeVisible(framerateMenu);
+    
+    chartZoomSlider.setRange(0.40, 1.2, 0.05);
+    chartZoomSlider.setValue(0.60);
+    chartZoomSlider.setSliderStyle(juce::Slider::LinearVertical);
+    chartZoomSlider.setTextBoxStyle(juce::Slider::TextBoxAbove, false, 50, 20);
+    chartZoomSlider.addListener(this);
+    addAndMakeVisible(chartZoomSlider);
+
+    chartZoomLabel.setText("Zoom", juce::dontSendNotification);
+    addAndMakeVisible(chartZoomLabel);
+
     // Create toggles
     starPowerToggle.setButtonText("Star Power");
     starPowerToggle.setToggleState(true, juce::NotificationType::dontSendNotification);
@@ -141,23 +159,23 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     
     consoleOutput.setVisible(debugToggle.getToggleState());
 
-    // // Draw lines
-    // for (int i = 0; i < beatLines.size(); i++)
-    // {
-    //     drawMeasureLine(g, beatLines[i].position, beatLines[i].measure);
-    // }
-
-    // Draw Buffer
+    // Draw chart
     auto midiEventMap = audioProcessor.getMidiEventMap();
 
-    int lower = std::max(0, currentPlayheadPositionInSamples() - 1);
-    int upper = currentPlayheadPositionInSamples() + displaySizeInSamples;
-    auto lowerMEM = midiEventMap.lower_bound(lower);
-    auto upperMEM = midiEventMap.upper_bound(upper);
+    int drawStart = currentPlayheadPositionInSamples();
+    // Shift the start position back by the latency to account for the delay
+    if (audioProcessor.isPlaying)
+    {
+        drawStart = std::max(0, drawStart - int(latencyInSeconds * audioProcessor.getSampleRate()));
+    }
+    int drawEnd = drawStart + displaySizeInSamples;
+
+    auto lowerMEM = midiEventMap.lower_bound(drawStart);
+    auto upperMEM = midiEventMap.upper_bound(drawEnd);
     for (auto it = lowerMEM; it != upperMEM; ++it)
     {
-        noteHeldPosition = it->first;
-        float normalizedPosition = (noteHeldPosition - currentPlayheadPositionInSamples()) / (float)displaySizeInSamples;
+        noteStart = it->first;
+        float normalizedPosition = (noteStart - drawStart) / (float)displaySizeInSamples;
 
         std::array<Gem, 7> gems = midiInterpreter.interpretMidiFrame(it->second);
 
@@ -166,29 +184,7 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
         // TODO: Find distance to next note off to see if sustain
 
         drawFrame(g, gems, normalizedPosition);
-
-        // std::string str = std::to_string(round(normalizedPosition * 1000) / 1000) + ": " + 
-        //     gemsToString(gems) + " SP; " + std::to_string(noteStates[(int)MidiPitchDefinitions::Drums::SP]);
-        // print(str);
-
-        
     }
-
-    // using Drums = MidiPitchDefinitions::Drums;
-    // noteHeldPosition = currentPlayheadPositionInSamples();
-    // std::string str = "<" +
-    //     std::to_string(isNoteHeld((int)Drums::EXPERT_KICK)) + ", " +
-    //     std::to_string(isNoteHeld((int)Drums::EXPERT_RED)) + ", " +
-    //     std::to_string(isNoteHeld((int)Drums::EXPERT_YELLOW)) + ", " +
-    //     std::to_string(isNoteHeld((int)Drums::EXPERT_BLUE)) + ", " +
-    //     std::to_string(isNoteHeld((int)Drums::EXPERT_GREEN)) + ", " +
-    //     std::to_string(isNoteHeld((int)Drums::EXPERT_KICK_2X)) + "> <" +
-    //     std::to_string(isNoteHeld((int)Drums::TOM_YELLOW)) + ", " +
-    //     std::to_string(isNoteHeld((int)Drums::TOM_BLUE)) + ", " +
-    //     std::to_string(isNoteHeld((int)Drums::TOM_GREEN)) + "> SP: " +
-    //     std::to_string(isNoteHeld((int)Drums::SP));
-    // print(str);
-}
 
 
 void ChartPreviewAudioProcessorEditor::resized()
@@ -200,6 +196,11 @@ void ChartPreviewAudioProcessorEditor::resized()
     starPowerToggle.setBounds(getWidth() - 120, 10, 100, 20);
     kick2xToggle.setBounds(getWidth() - 120, 30, 100, 20);
     dynamicsToggle.setBounds(getWidth() - 120, 50, 100, 20);
+
+    framerateMenu.setBounds(getWidth() - 120, getHeight() - 30, 100, 20);
+    
+    chartZoomLabel.setBounds(getWidth() - 90, getHeight() - 230, 40, 20);
+    chartZoomSlider.setBounds(getWidth() - 120, getHeight() - 200, 100, 150);
 
     debugToggle.setBounds(340, 10, 100, 20);
 
@@ -514,105 +515,3 @@ juce::Image ChartPreviewAudioProcessorEditor::getGuitarGlyphImage(Gem gem, uint 
 
     return gemImage;
 }
-
-
-// TODO: make this actually good
-// Draw measure line
-// this function will create an instance of an image of a measure line, scale it (smaller as the position gets larger) and place it between the bottom and top of the window (higher up as the position gets larger) given a position between 0 and a given maximum
-void ChartPreviewAudioProcessorEditor::drawMeasureLine(juce::Graphics& g, float position, bool measure)
-{
-    float marginTop = 0.3;
-    float marginBottom = 0.25;
-    float xMarginMax = 0.225;
-    float xMarginMin = 0.3625;
-
-    float yTop = getHeight() * marginTop;
-    float yBottom = getHeight() * (1 - marginBottom);
-
-    float xLeft = xMarginMax * getWidth();
-    float xRight = getWidth() - xMarginMax * getWidth();
-
-
-
-
-    // Position 1 Rectangle<float> (180, 450, 440, 10)
-
-    // Position 4 Rectangle<float> (290, 180, 220, 10)
-    // Henerate a rectangle based on the position and the maximum position
-    juce::Rectangle<float> measureRect = juce::Rectangle<float>(
-        xMarginMax * getWidth(),
-        getWidth() - xMarginMax * getWidth(),
-        getHeight() * (1 - marginBottom),
-        10);
-    // x1 = 
-    // x2 = ;
-    // y1 = ;
-    // y2 = getHeight() * (1 - marginBottom);
-
-    
-
-
-    // float x = position / beatLines.size() * getWidth();
-
-    // x contains the horizontal position of the line, starting at the wideLineInset and ending at the ThinLineInset from position 1 to displayedBeats
-    // int xStart = (int)(xMarginMax * getWidth());
-    // int xEnd = (int)(getWidth() - xMarginMax * getWidth());
-
-    // y contains the position of the line, closer to the top up as the position gets larger. Top should be equal to displayedBeats
-    // int y = (int)(position / displayedBeats * getHeight() * 0.75f);
-
-    // float x = position / beatLines.size() * getWidth();
-    // float y = measure ? 0 : getHeight() / 2;
-    // float scale = measure ? 0.5f : 0.25f;
-
-    // float y = (position / maxPosition) * (yBottom - yTop) + yTop;
-    // y but
-
-    if(measure)
-    {
-        g.drawImage(measureImage, measureRect);
-    }
-    else
-    {
-        g.drawImage(halfBeatImage, measureRect);
-    }
-
-    // g.drawImageAt(measureImage, juce::Rectangle<float>(xStart, y, xEnd - xStart, 10), juce::RectanglePlacement::centred);
-    // g.drawImageTransformed(measureImage, juce::AffineTransform::scale(scale), juce::RectanglePlacement::centred, x, y, measureImage.getWidth(), measureImage.getHeight());
-}
-
-// // Draw beat line
-// void drawBeatLine(juce::Graphics& g, int x, int y, int width, int height, int measure, int totalMeasures, int beatsPerMeasure, int beat)
-// {
-//     int measureWidth = width / totalMeasures;
-//     int beatWidth = measureWidth / beatsPerMeasure;
-
-//     g.setColour(juce::Colours::white);
-//     g.drawLine(x + measureWidth * measure + beatWidth * beat, y, x + measureWidth * measure + beatWidth * beat, y + height, 1);
-// }
-
-
-// Utils
-//==============================================================================
-// int pWidth(int percent, int parent = 0)
-// {
-//     if (parent != 0)
-//     {
-//         return (int)(parent * (percent / 100.0));
-//     }
-//     else
-//     {
-//         return (int)(width * (percent / 100.0));
-//     }
-// }
-// int pHeight(int percent, int parent = 0)
-// {
-//     if (parent != 0)
-//     {
-//         return (int)(parent * (percent / 100.0));
-//     }
-//     else
-//     {
-//         return (int)(height * (percent / 100.0));
-//     }
-// }
