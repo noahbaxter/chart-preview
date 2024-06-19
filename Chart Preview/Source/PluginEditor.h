@@ -19,6 +19,7 @@
 class ChartPreviewAudioProcessorEditor  : 
     public juce::AudioProcessorEditor,
     private juce::ComboBox::Listener,
+    private juce::Slider::Listener,
     private juce::ToggleButton::Listener,
     private juce::Timer
 {
@@ -48,22 +49,47 @@ public:
     {
         if (comboBoxThatHasChanged == &skillMenu)
         {
-            // Update ValueTree state for skillMenu
             auto skillValue = skillMenu.getSelectedId();
-            // Assuming you have a ValueTree named state and a method to update it
             updateValueTreeState("skillLevel", skillValue);
         }
         else if (comboBoxThatHasChanged == &partMenu)
         {
-            // Update ValueTree state for partMenu
             auto partValue = partMenu.getSelectedId();
             updateValueTreeState("part", partValue);
         }
         else if (comboBoxThatHasChanged == &drumTypeMenu)
         {
-            // Update ValueTree state for drumTypeMenu
             auto drumTypeValue = drumTypeMenu.getSelectedId();
             updateValueTreeState("drumType", drumTypeValue);
+        }
+        else if (comboBoxThatHasChanged == &framerateMenu)
+        {
+            auto framerateValue = framerateMenu.getSelectedId();
+            updateValueTreeState("framerate", framerateValue);
+            int frameRate;
+            switch (framerateValue)
+            {
+            case 1:
+                frameRate = 15;
+                break;
+            case 2:
+                frameRate = 30;
+                break;
+            case 3:
+                frameRate = 60;
+                break;
+            }
+            startTimerHz(frameRate);
+        }
+    }
+
+    void sliderValueChanged(juce::Slider *slider) override
+    {
+        if (slider == &chartZoomSlider)
+        {
+            
+            displaySizeInSeconds = slider->getValue();
+            displaySizeInSamples = int(displaySizeInSeconds * audioProcessor.getSampleRate());
         }
     }
 
@@ -123,8 +149,10 @@ private:
         gemCymGreenImage,
         gemCymStyleImage;
 
-    juce::ComboBox skillMenu, partMenu, drumTypeMenu;
+    juce::Label chartZoomLabel;
+    juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu;
     juce::ToggleButton starPowerToggle, kick2xToggle, dynamicsToggle;
+    juce::Slider chartZoomSlider;
 
     juce::TextEditor consoleOutput;
     juce::ToggleButton debugToggle;
@@ -140,6 +168,8 @@ private:
         return audioProcessor.playheadPositionInSamples;
     }
 
+    float latencyInSeconds = 0.0;
+
     float displaySizeInSeconds = 0.5;
     int displaySizeInSamples = int(displaySizeInSeconds * audioProcessor.getSampleRate());
 
@@ -151,8 +181,13 @@ private:
     int noteHeldPosition = 0;
     bool isNoteHeld(int note)
     {
+        return isNoteHeld(note, noteHeldPosition);
+    }
+
+    bool isNoteHeld(int note, int position)
+    {
         auto noteStateMap = audioProcessor.getNoteStateMaps()[note];
-        auto it = noteStateMap.upper_bound(noteHeldPosition);
+        auto it = noteStateMap.upper_bound(position);
         if (it == noteStateMap.begin())
         {
             return false;
@@ -177,28 +212,6 @@ private:
     juce::Image getDrumGlyphImage(Gem gem, uint gemColumn);
 
     void fadeInImage(juce::Image &image, float position);
-
-    // Beat Lines
-
-    int maxPosition = 4;
-    struct beatLine
-    {
-        float position;
-        bool measure;
-    };
-
-    std::vector<beatLine> beatLines = {
-        {0.0f, true},
-        {1.f, false},
-        {2.f, false},
-        {3.f, false},
-        {4.f, true},
-        {5.f, false},
-        {6.f, false},
-        {7.f, false},
-        {8.0f, true}};
-
-    void drawMeasureLine(juce::Graphics& g, float x, bool measure);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
 

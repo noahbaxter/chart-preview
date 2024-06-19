@@ -43,6 +43,9 @@ public:
       return midiProcessor.noteStateMaps;
     }
 
+    bool isPlaying = false;
+    float latencyInSeconds = 0.8;
+
     //==============================================================================
 
     

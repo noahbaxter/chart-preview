@@ -93,8 +93,8 @@ void ChartPreviewAudioProcessor::changeProgramName (int index, const juce::Strin
 //==============================================================================
 void ChartPreviewAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
+    int displaySizeInSamples = int(latencyInSeconds * getSampleRate());
+    setLatencySamples(displaySizeInSamples);
 }
 
 void ChartPreviewAudioProcessor::releaseResources()
@@ -144,24 +144,10 @@ void ChartPreviewAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     uint blockSizeInSamples = buffer.getNumSamples();
 
     // Prevents events being erased while scrubbing through timeline while playback is stopped
-    if (positionInfo.isPlaying)
+    isPlaying = positionInfo.isPlaying;
+    if (isPlaying)
     {
         midiProcessor.process(midiMessages, playheadPositionInSamples, blockSizeInSamples);
-
-        // if (true)
-        // {
-        //     print(std::to_string(blockSizeInSamples) + ": " + std::to_string(playheadPositionInSamples) + " --- " + std::to_string(playheadPositionInSamples + blockSizeInSamples));
-
-        //     juce::MidiBuffer::Iterator it(midiMessages);
-
-        //     int positionInSamples;
-        //     juce::MidiMessage message;
-        //     while (it.getNextEvent(message, positionInSamples))
-        //     {
-        //         print("*****   " + std::to_string(playheadPositionInSamples + positionInSamples));
-        //     }
-
-        // }
     }
     else {
         midiProcessor.lastProcessedSample = playheadPositionInSamples;
