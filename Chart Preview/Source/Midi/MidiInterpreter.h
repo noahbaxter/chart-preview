@@ -16,18 +16,54 @@
 class MidiInterpreter
 {
 	public:
-		MidiInterpreter(juce::ValueTree &state);
+		MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &noteStateMapArray);
 		~MidiInterpreter();
 
-		std::array<Gem, 7>interpretMidiFrame(const std::vector<juce::MidiMessage> &messages);
-		std::function<bool(int)> isNoteHeld;
+		NoteStateMapArray &noteStateMapArray;
+		bool isNoteHeld(uint pitch, uint position)
+		{
+			auto &noteStateMap = noteStateMapArray[pitch];
+			auto it = noteStateMap.upper_bound(position);
+			if (it == noteStateMap.begin())
+			{
+				return false;
+			}
+			else
+			{
+				--it;
+				return it->second;
+			}
+		}
 
-		// TODO: should this go here?
-		std::map<int, std::vector<juce::MidiMessage>> getFakeMidiEventMap();
+		TrackWindow generateTrackWindow(uint trackWindowStart, uint trackWindowEnd);
+		TrackFrame generateEmptyTrackFrame();
+		
+		static Gem getDrumGlyph(bool cymbal, bool dynamicsEnabled, Dynamic dynamic)
+		{
+			if (dynamicsEnabled)
+			{
+				switch (dynamic)
+				{
+				case Dynamic::GHOST:
+					return cymbal ? Gem::CYM_GHOST : Gem::HOPO_GHOST;
+					break;
+				case Dynamic::ACCENT:
+					return cymbal ? Gem::CYM_ACCENT : Gem::TAP_ACCENT;
+					break;
+				default:
+					return cymbal ? Gem::CYM : Gem::NOTE;
+					break;
+				}
+			}
+			else
+			{
+				return cymbal ? Gem::CYM : Gem::NOTE;
+			}
+		}
 
 	private:
 		juce::ValueTree &state;
 
-		std::array<Gem, 7> interpretGuitarFrame(std::array<Gem, 7> &gems, const std::vector<juce::MidiMessage> &messages);
-		std::array<Gem, 7> interpretDrumFrame(std::array<Gem, 7> &gems, const std::vector<juce::MidiMessage> &messages);
+		void addGuitarEventToFrame(TrackFrame &frame, uint position, uint pitch);
+		void addDrumEventToFrame(TrackFrame &frame, uint position, uint pitch, Dynamic dynamic);
 };

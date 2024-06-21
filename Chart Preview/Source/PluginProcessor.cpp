@@ -135,6 +135,7 @@ int currentLoop = 0;
 void ChartPreviewAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::AudioPlayHead::CurrentPositionInfo positionInfo;
+    // Can't process if there is no playhead
     if (getPlayHead() == nullptr || !getPlayHead()->getCurrentPosition(positionInfo))
     {
         return;

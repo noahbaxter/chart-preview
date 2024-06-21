@@ -116,7 +116,7 @@ private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     juce::ValueTree state;
-
+    
     ChartPreviewAudioProcessor& audioProcessor;
     MidiInterpreter midiInterpreter;
 
@@ -179,25 +179,8 @@ private:
     }
 
     int noteHeldPosition = 0;
-    bool isNoteHeld(int note)
-    {
-        return isNoteHeld(note, noteHeldPosition);
-    }
 
-    bool isNoteHeld(int note, int position)
-    {
-        auto noteStateMap = audioProcessor.getNoteStateMaps()[note];
-        auto it = noteStateMap.upper_bound(position);
-        if (it == noteStateMap.begin())
-        {
-            return false;
-        }
-        else
-        {
-            --it;
-            return it->second;
-        }
-    }
+
 
     // Notes
     void drawFrame(juce::Graphics &g, const std::array<Gem,7> &gems, float position);
@@ -243,18 +226,18 @@ private:
         audioProcessor.debugText.clear();
     }
 
-    void printMidiMessages()
-    {
-        auto midiEventMap = audioProcessor.getMidiEventMap();
-        for (const auto &item : midiEventMap)
-        {
-            int index = item.first;
-            const std::vector<juce::MidiMessage> &messages = item.second;
+    // void printMidiMessages()
+    // {
+    //     auto midiEventMap = audioProcessor.getMidiEventMap();
+    //     for (const auto &item : midiEventMap)
+    //     {
+    //         int index = item.first;
+    //         const std::vector<juce::MidiMessage> &messages = item.second;
 
-            std::string str = std::to_string(index) + ": " + midiMessagesToString(messages);
-            print(str);
-        }
-    }
+    //         std::string str = std::to_string(index) + ": " + midiMessagesToString(messages);
+    //         print(str);
+    //     }
+    // }
 
     std::string midiMessagesToString(const std::vector<juce::MidiMessage> &messages)
     {
