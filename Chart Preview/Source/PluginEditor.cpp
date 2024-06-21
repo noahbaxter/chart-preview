@@ -10,10 +10,10 @@
 #include "PluginEditor.h"
 
 //==============================================================================
-ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor (ChartPreviewAudioProcessor& p)
-    : AudioProcessorEditor (&p), 
-      audioProcessor (p), 
-      midiInterpreter(state)
+ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewAudioProcessor &p)
+    : AudioProcessorEditor(&p),
+      audioProcessor(p),
+      midiInterpreter(state, audioProcessor.getNoteStateMapArray())
 {
     setSize(defaultWidth, defaultHeight);
 
@@ -21,11 +21,6 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor (ChartPreview
     initState();
     initAssets();
     initMenus();
-
-    midiInterpreter.isNoteHeld = [this](int note) -> bool
-    {
-        return this->isNoteHeld(note);
-    };
 
     startTimerHz(60);
 }
@@ -159,31 +154,22 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     
     consoleOutput.setVisible(debugToggle.getToggleState());
 
-    // Draw chart
-    auto midiEventMap = audioProcessor.getMidiEventMap();
-
-    int drawStart = currentPlayheadPositionInSamples();
-    // Shift the start position back by the latency to account for the delay
+    //==============================================================================
+    // Draw track window
+    uint trackWindowStart = currentPlayheadPositionInSamples();
     if (audioProcessor.isPlaying)
     {
-        drawStart = std::max(0, drawStart - int(latencyInSeconds * audioProcessor.getSampleRate()));
+        // Shift the start position back by the latency to account for the delay
+        trackWindowStart = std::max(0, (int)trackWindowStart - int(latencyInSeconds * audioProcessor.getSampleRate()));
     }
-    int drawEnd = drawStart + displaySizeInSamples;
+    uint trackWindowEnd = trackWindowStart + displaySizeInSamples;
 
-    auto lowerMEM = midiEventMap.lower_bound(drawStart);
-    auto upperMEM = midiEventMap.upper_bound(drawEnd);
-    for (auto it = lowerMEM; it != upperMEM; ++it)
+    TrackWindow trackWindow = midiInterpreter.generateTrackWindow(trackWindowStart, trackWindowEnd);
+
+    for (auto &frameItem : trackWindow)
     {
-        int noteStart = it->first;
-        float normalizedPosition = (noteStart - drawStart) / (float)displaySizeInSamples;
-
-        std::array<Gem, 7> gems = midiInterpreter.interpretMidiFrame(it->second);
-
-        // TODO: Find distance from previous note to see if auto HOPO
-
-        // TODO: Find distance to next note off to see if sustain
-
-        drawFrame(g, gems, normalizedPosition);
+        float normalizedPosition = (frameItem.first - trackWindowStart) / (float)displaySizeInSamples;
+        drawFrame(g, frameItem.second, normalizedPosition);
     }
 }
 
@@ -389,7 +375,8 @@ juce::Image ChartPreviewAudioProcessorEditor::getDrumGlyphImage(Gem gem, uint ge
     using Drums = MidiPitchDefinitions::Drums;
     juce::Image gemImage;
 
-    if (state.getProperty("starPower") && isNoteHeld((int)Drums::SP))
+    if (state.getProperty("starPower"))
+    // if (state.getProperty("starPower") && isNoteHeld((int)Drums::SP))
     {
         switch (gem)
         {
@@ -458,7 +445,8 @@ juce::Image ChartPreviewAudioProcessorEditor::getGuitarGlyphImage(Gem gem, uint 
     using Guitar = MidiPitchDefinitions::Guitar;
     juce::Image gemImage;
 
-    if (state.getProperty("starPower") && isNoteHeld((int)Guitar::SP))
+    if (state.getProperty("starPower"))
+    // if (state.getProperty("starPower") && isNoteHeld((int)Guitar::SP))
     {
         switch (gem)
         {

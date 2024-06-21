@@ -6,35 +6,26 @@ void MidiProcessor::process(juce::MidiBuffer& midiMessages, uint startPositionIn
 
     // Erase all events in the map within the range of the current block so changes are reflected
     // The problem is the buffer can shift unexpectedly, so we handle that by tracking the last processed sample
+    // Ableton be leik :/
     if (endPositionInSamples >= lastProcessedSample)
     {
-        // TODO: check if these lower_bounds work as expected
-        auto lowerMEM = midiEventMap.lower_bound(std::max(startPositionInSamples, lastProcessedSample));
-        auto upperMEM = midiEventMap.lower_bound(endPositionInSamples);
-        midiEventMap.erase(lowerMEM, upperMEM);
-
-        for (auto &noteStateMap : noteStateMaps)
+        for (auto &noteStateMap : noteStateMapArray)
         {
-            auto lowerNSM = noteStateMap.lower_bound(std::max(startPositionInSamples, lastProcessedSample));
-            auto upperNSM = noteStateMap.lower_bound(endPositionInSamples);
-            noteStateMap.erase(lowerNSM, upperNSM);
+            auto lower = noteStateMap.lower_bound(std::max(startPositionInSamples, lastProcessedSample));
+            auto upper = noteStateMap.lower_bound(endPositionInSamples);
+            noteStateMap.erase(lower, upper);
         }
     }
 
-
     for (const auto &message : midiMessages)
     {
-        int localMessagePositionInSamples = message.samplePosition;
-        int globalMessagePositionInSamples = startPositionInSamples + localMessagePositionInSamples;
+        uint localMessagePositionInSamples = message.samplePosition;
+        uint globalMessagePositionInSamples = startPositionInSamples + localMessagePositionInSamples;
         auto midiMessage = message.getMessage();
-        if (midiMessage.isNoteOn())
+
+        if (midiMessage.isNoteOn() || midiMessage.isNoteOff())
         {
-            midiEventMap[globalMessagePositionInSamples].push_back(midiMessage);
-            noteStateMaps[midiMessage.getNoteNumber()][globalMessagePositionInSamples] = true;
-        }
-        else if (midiMessage.isNoteOff())
-        {
-            noteStateMaps[midiMessage.getNoteNumber()][globalMessagePositionInSamples] = false;
+            noteStateMapArray[midiMessage.getNoteNumber()][globalMessagePositionInSamples] = midiMessage.getVelocity();
         }
     }
 

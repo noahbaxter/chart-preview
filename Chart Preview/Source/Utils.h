@@ -18,6 +18,37 @@ const juce::StringArray skillLevelLabels = {"Easy", "Medium", "Hard", "Expert"};
 const juce::StringArray viewToggleLabels = {"Star Power", "Kick 2x", "Dynamics"};
 
 //==============================================================================
+// CHART EVENTS
+
+enum class Gem
+{
+    NONE,
+    HOPO_GHOST,
+    NOTE,
+    TAP_ACCENT,
+    CYM_GHOST,
+    CYM,
+    CYM_ACCENT,
+};
+
+enum class Dynamic
+{
+    NONE=0,
+    GHOST=1,
+    ACCENT=127,
+};
+
+//==============================================================================
+// TYPES
+
+using NoteStateMap = std::map<uint, uint8_t>;
+using NoteStateMapArray = std::array<NoteStateMap, 128>;
+
+// Represents all the note lanes at a moment in time
+using TrackFrame = std::array<Gem, 7>;
+using TrackWindow = std::map<uint, TrackFrame>;
+
+//==============================================================================
 // MIDI MAPPINGS
 
 struct MidiPitchDefinitions
@@ -78,7 +109,7 @@ struct MidiPitchDefinitions
         SP = 116,
         // PHRASE_2 = 106,
         // PHRASE_1 = 105,
-        // TAP = 104,
+        TAP = 104,
         // SOLO = 103,
         EXPERT_STRUM = 102,
         EXPERT_HOPO = 101,
@@ -113,18 +144,4 @@ struct MidiPitchDefinitions
         EASY_GREEN = 60,
         EASY_OPEN = 59
     };
-};
-
-//==============================================================================
-// CHART EVENTS
-
-enum class Gem
-{
-    NONE,
-    HOPO_GHOST,
-    NOTE,
-    TAP_ACCENT,
-    CYM_GHOST,
-    CYM,
-    CYM_ACCENT,
 };

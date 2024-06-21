@@ -1,18 +1,15 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "../Utils.h"
 
 class MidiProcessor
 {
-
     public:
         void process(juce::MidiBuffer& midiMessages,
                      uint startPositionInSamples,
                      uint blockSizeInSamples);
 
-        std::map<uint, std::vector<juce::MidiMessage>> midiEventMap;
-        std::array<std::map<uint, bool>, 128> noteStateMaps;
+        NoteStateMapArray noteStateMapArray;
         uint lastProcessedSample = 0;
-
-    private:
 };

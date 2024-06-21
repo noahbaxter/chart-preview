@@ -31,18 +31,12 @@ public:
       debugText += line + "\n";
     }
 
+    NoteStateMapArray& getNoteStateMapArray()
+    {
+      return midiProcessor.noteStateMapArray;
+    }
+
     uint playheadPositionInSamples = 0;
-
-    std::map<uint, std::vector<juce::MidiMessage>> getMidiEventMap()
-    {
-      return midiProcessor.midiEventMap;
-    }
-
-    std::array<std::map<uint, bool>, 128> getNoteStateMaps()
-    {
-      return midiProcessor.noteStateMaps;
-    }
-
     bool isPlaying = false;
     float latencyInSeconds = 0.8;
 

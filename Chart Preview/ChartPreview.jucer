@@ -128,6 +128,7 @@
       <FILE id="Fw3asZ" name="PluginEditor.cpp" compile="1" resource="0"
             file="Source/PluginEditor.cpp"/>
       <FILE id="Mxww5q" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+      <FILE id="InYDKt" name="Utils.h" compile="0" resource="0" file="Source/Utils.h"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>
