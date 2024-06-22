@@ -93,8 +93,7 @@ void ChartPreviewAudioProcessor::changeProgramName (int index, const juce::Strin
 //==============================================================================
 void ChartPreviewAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    int displaySizeInSamples = int(latencyInSeconds * getSampleRate());
-    setLatencySamples(displaySizeInSamples);
+    setLatencyInSeconds(latencyInSeconds);
 }
 
 void ChartPreviewAudioProcessor::releaseResources()
@@ -148,7 +147,7 @@ void ChartPreviewAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     isPlaying = positionInfo.isPlaying;
     if (isPlaying)
     {
-        midiProcessor.process(midiMessages, playheadPositionInSamples, blockSizeInSamples);
+        midiProcessor.process(midiMessages, playheadPositionInSamples, blockSizeInSamples, latencyInSamples);
     }
     else {
         midiProcessor.lastProcessedSample = playheadPositionInSamples;

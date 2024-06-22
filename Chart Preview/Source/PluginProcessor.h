@@ -38,7 +38,15 @@ public:
 
     uint playheadPositionInSamples = 0;
     bool isPlaying = false;
+
     float latencyInSeconds = 0.8;
+    uint latencyInSamples = 0;
+    void setLatencyInSeconds(float latencyInSeconds)
+    {
+      this->latencyInSeconds = latencyInSeconds;
+      this->latencyInSamples = (uint)(latencyInSeconds * getSampleRate());
+      setLatencySamples(latencyInSamples);
+    }
 
     //==============================================================================
 
