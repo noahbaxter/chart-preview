@@ -46,14 +46,13 @@ TrackWindow MidiInterpreter::generateTrackWindow(uint trackWindowStart, uint tra
                 trackWindow[position] = generateEmptyTrackFrame();
             }
 
-            switch (part)
+            if (part == Part::GUITAR)
             {
-            case Part::GUITAR:
                 addGuitarEventToFrame(trackWindow[position], position, pitch);
-                break;
-            case Part::DRUMS:
+            }
+            else if (part == Part::DRUMS)
+            {
                 addDrumEventToFrame(trackWindow[position], position, pitch, dynamic);
-                break;
             }
             ++it;
         }
@@ -84,17 +83,32 @@ void MidiInterpreter::addGuitarEventToFrame(TrackFrame &frame, uint position, ui
     using Guitar = MidiPitchDefinitions::Guitar;
     SkillLevel skill = (SkillLevel)((int)state.getProperty("skillLevel"));
 
-    Gem gem = Gem::NOTE;
-    if (isNoteHeld((int)Guitar::TAP, position))
+    bool modStrum = (isNoteHeld((int)Guitar::EASY_STRUM, position) && skill == SkillLevel::EASY) ||
+                    (isNoteHeld((int)Guitar::MEDIUM_STRUM, position) && skill == SkillLevel::MEDIUM) ||
+                    (isNoteHeld((int)Guitar::HARD_STRUM, position) && skill == SkillLevel::HARD) ||
+                    (isNoteHeld((int)Guitar::EXPERT_STRUM, position) && skill == SkillLevel::EXPERT);
+    bool modTap = isNoteHeld((int)Guitar::TAP, position);
+    bool modHOPO = (isNoteHeld((int)Guitar::EASY_HOPO, position) && skill == SkillLevel::EASY) ||
+                   (isNoteHeld((int)Guitar::MEDIUM_HOPO, position) && skill == SkillLevel::MEDIUM) ||
+                   (isNoteHeld((int)Guitar::HARD_HOPO, position) && skill == SkillLevel::HARD) ||
+                   (isNoteHeld((int)Guitar::EXPERT_HOPO, position) && skill == SkillLevel::EXPERT);
+
+    Gem gem;
+    if(modStrum)
+    {
+        gem = Gem::NOTE;
+    }
+    else if(modTap)
     {
         gem = Gem::TAP_ACCENT;
     }
-    else if ((isNoteHeld((int)Guitar::EASY_HOPO, position) && skill == SkillLevel::EASY) ||
-             (isNoteHeld((int)Guitar::MEDIUM_HOPO, position) && skill == SkillLevel::MEDIUM) ||
-             (isNoteHeld((int)Guitar::HARD_HOPO, position) && skill == SkillLevel::HARD) ||
-             (isNoteHeld((int)Guitar::EXPERT_HOPO, position) && skill == SkillLevel::EXPERT))
+    else if(modHOPO)
     {
         gem = Gem::HOPO_GHOST;
+    }
+    else
+    {
+        gem = Gem::NOTE;
     }
 
     Guitar note = (Guitar)pitch;
