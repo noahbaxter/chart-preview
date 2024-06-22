@@ -178,9 +178,7 @@ private:
         return (int)state.getProperty("part") == (int)part;
     }
 
-    int noteHeldPosition = 0;
-
-
+    uint framePosition = 0;
 
     // Notes
     void drawFrame(juce::Graphics &g, const std::array<Gem,7> &gems, float position);

@@ -168,7 +168,8 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 
     for (auto &frameItem : trackWindow)
     {
-        float normalizedPosition = (frameItem.first - trackWindowStart) / (float)displaySizeInSamples;
+        framePosition = frameItem.first;
+        float normalizedPosition = (framePosition - trackWindowStart) / (float)displaySizeInSamples;
         drawFrame(g, frameItem.second, normalizedPosition);
     }
 }
@@ -375,8 +376,7 @@ juce::Image ChartPreviewAudioProcessorEditor::getDrumGlyphImage(Gem gem, uint ge
     using Drums = MidiPitchDefinitions::Drums;
     juce::Image gemImage;
 
-    if (state.getProperty("starPower"))
-    // if (state.getProperty("starPower") && isNoteHeld((int)Drums::SP))
+    if (state.getProperty("starPower") && midiInterpreter.isNoteHeld((int)Drums::SP, framePosition))
     {
         switch (gem)
         {
@@ -445,8 +445,7 @@ juce::Image ChartPreviewAudioProcessorEditor::getGuitarGlyphImage(Gem gem, uint 
     using Guitar = MidiPitchDefinitions::Guitar;
     juce::Image gemImage;
 
-    if (state.getProperty("starPower"))
-    // if (state.getProperty("starPower") && isNoteHeld((int)Guitar::SP))
+    if (state.getProperty("starPower") && midiInterpreter.isNoteHeld((int)Guitar::SP, framePosition))
     {
         switch (gem)
         {

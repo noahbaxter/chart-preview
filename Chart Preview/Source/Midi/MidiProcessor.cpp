@@ -1,6 +1,6 @@
 #include "MidiProcessor.h"
 
-void MidiProcessor::process(juce::MidiBuffer& midiMessages, uint startPositionInSamples, uint blockSizeInSamples)
+void MidiProcessor::process(juce::MidiBuffer& midiMessages, uint startPositionInSamples, uint blockSizeInSamples, uint latencyInSamples)
 {
     uint endPositionInSamples = startPositionInSamples + blockSizeInSamples;
 
@@ -11,12 +11,25 @@ void MidiProcessor::process(juce::MidiBuffer& midiMessages, uint startPositionIn
     {
         for (auto &noteStateMap : noteStateMapArray)
         {
-            auto lower = noteStateMap.lower_bound(std::max(startPositionInSamples, lastProcessedSample));
-            auto upper = noteStateMap.lower_bound(endPositionInSamples);
-            noteStateMap.erase(lower, upper);
+            // OLD - build and maintain all midi events for the project
+            // auto lower = noteStateMap.lower_bound(std::max(startPositionInSamples, lastProcessedSample));
+            // auto upper = noteStateMap.lower_bound(endPositionInSamples);
+            // noteStateMap.erase(lower, upper);
+
+            // NEW - build and maintain only the midi events for the current block + adjascent events for each note
+            auto lower = noteStateMap.upper_bound(std::max((int)(startPositionInSamples - latencyInSamples), 0));
+            if (lower != noteStateMap.begin())
+            {
+                --lower;    // Keep last event of this note
+                noteStateMap.erase(noteStateMap.begin(), lower);
+            }
+            // Remove all events after the end of the chart window, represented by the amount of latency
+            auto upper = noteStateMap.upper_bound((int)(startPositionInSamples + latencyInSamples));
+            noteStateMap.erase(upper, noteStateMap.end());
         }
     }
 
+    uint numMessages = 0;
     for (const auto &message : midiMessages)
     {
         uint localMessagePositionInSamples = message.samplePosition;
@@ -26,6 +39,12 @@ void MidiProcessor::process(juce::MidiBuffer& midiMessages, uint startPositionIn
         if (midiMessage.isNoteOn() || midiMessage.isNoteOff())
         {
             noteStateMapArray[midiMessage.getNoteNumber()][globalMessagePositionInSamples] = midiMessage.getVelocity();
+        }
+
+        numMessages++;
+        if (numMessages >= maxNumMessages)
+        {
+            break;
         }
     }
 
