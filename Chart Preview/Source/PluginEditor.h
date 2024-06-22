@@ -144,6 +144,7 @@ private:
         gemHOPOOrangeImage,
         gemHOPOStyleImage,
 
+        gemAccentImage,
         gemCymYellowImage,
         gemCymBlueImage,
         gemCymGreenImage,

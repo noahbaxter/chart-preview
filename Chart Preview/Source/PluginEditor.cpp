@@ -49,8 +49,8 @@ void ChartPreviewAudioProcessorEditor::initAssets()
     drumTrackImage = juce::ImageCache::getFromMemory(BinaryData::track_drum_png, BinaryData::track_drum_pngSize);
     guitarTrackImage = juce::ImageCache::getFromMemory(BinaryData::track_guitar_png, BinaryData::track_guitar_pngSize);
 
-    halfBeatImage = juce::ImageCache::getFromMemory(BinaryData::half_beat_marker_png, BinaryData::half_beat_marker_pngSize);
-    measureImage = juce::ImageCache::getFromMemory(BinaryData::measure_png, BinaryData::measure_pngSize);
+    // halfBeatImage = juce::ImageCache::getFromMemory(BinaryData::half_beat_marker_png, BinaryData::half_beat_marker_pngSize);
+    // measureImage = juce::ImageCache::getFromMemory(BinaryData::measure_png, BinaryData::measure_pngSize);
 
     gemKickImage = juce::ImageCache::getFromMemory(BinaryData::gem_kick_png, BinaryData::gem_kick_pngSize);
     gemGreenImage = juce::ImageCache::getFromMemory(BinaryData::gem_green_png, BinaryData::gem_green_pngSize);
@@ -68,6 +68,7 @@ void ChartPreviewAudioProcessorEditor::initAssets()
     gemHOPOOrangeImage = juce::ImageCache::getFromMemory(BinaryData::gem_hopo_orange_png, BinaryData::gem_hopo_orange_pngSize);
     gemHOPOStyleImage = juce::ImageCache::getFromMemory(BinaryData::gem_hopo_style_png, BinaryData::gem_hopo_style_pngSize);
 
+    gemAccentImage = juce::ImageCache::getFromMemory(BinaryData::gem_accent_png, BinaryData::gem_accent_pngSize);
     gemCymYellowImage = juce::ImageCache::getFromMemory(BinaryData::gem_cym_yellow_png, BinaryData::gem_cym_yellow_pngSize);
     gemCymBlueImage = juce::ImageCache::getFromMemory(BinaryData::gem_cym_blue_png, BinaryData::gem_cym_blue_pngSize);
     gemCymGreenImage = juce::ImageCache::getFromMemory(BinaryData::gem_cym_green_png, BinaryData::gem_cym_green_pngSize);
@@ -166,6 +167,15 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 
     TrackWindow trackWindow = midiInterpreter.generateTrackWindow(trackWindowStart, trackWindowEnd);
 
+    // // FAKE DATA
+    // TrackWindow trackWindow;
+    // trackWindow[trackWindowStart + 1] = {Gem::NOTE, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::NONE, Gem::NONE};
+    // trackWindow[trackWindowStart + (int)(1*displaySizeInSamples / 6)] = {Gem::NONE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE, Gem::NONE};
+    // trackWindow[trackWindowStart + (int)(2*displaySizeInSamples / 6)] = {Gem::NONE, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::NONE, Gem::NONE};
+    // trackWindow[trackWindowStart + (int)(3*displaySizeInSamples / 6)] = {Gem::NONE, Gem::NONE, Gem::CYM_GHOST, Gem::CYM_GHOST, Gem::CYM_GHOST, Gem::NONE, Gem::NONE};
+    // trackWindow[trackWindowStart + (int)(4*displaySizeInSamples / 6)] = {Gem::NONE, Gem::NONE, Gem::CYM, Gem::CYM, Gem::CYM, Gem::NONE, Gem::NONE};
+    // trackWindow[trackWindowStart + (int)(5*displaySizeInSamples / 6)] = {Gem::NONE, Gem::NONE, Gem::CYM_ACCENT, Gem::CYM_ACCENT, Gem::CYM_ACCENT, Gem::NONE, Gem::NONE};
+
     for (auto &frameItem : trackWindow)
     {
         framePosition = frameItem.first;
@@ -230,8 +240,27 @@ void ChartPreviewAudioProcessorEditor::drawDrumGem(juce::Graphics &g, uint gemCo
     juce::Rectangle<float> glyphRect = getDrumGlyphRect(gemColumn, position);
     juce::Image glyphImage = getDrumGlyphImage(gem, gemColumn);
     fadeInImage(glyphImage, position);
-
     g.drawImage(glyphImage, glyphRect);
+
+    if (gem == Gem::TAP_ACCENT)
+    {
+        // Adjust accent flair scale/position
+        float scaleFactor = 1.1232876712; // 12.32876712% larger
+        float newWidth = glyphRect.getWidth() * scaleFactor;
+        float newHeight = glyphRect.getHeight() * scaleFactor;
+        float widthIncrease = newWidth - glyphRect.getWidth();
+        float heightIncrease = newHeight - glyphRect.getHeight();
+
+        juce::Rectangle<float> accentRect = glyphRect.withWidth(newWidth)
+                                                     .withHeight(newHeight)
+                                                     .withX(glyphRect.getX() - widthIncrease / 2)
+                                                     .withY(glyphRect.getY() - heightIncrease / 2);
+        g.drawImage(gemAccentImage, accentRect);
+    }
+    else if (gem == Gem::CYM_ACCENT)
+    {
+        // g.drawImage(glyphImage, glyphRect);
+    }
 }
 
 void ChartPreviewAudioProcessorEditor::fadeInImage(juce::Image &image, float position)
