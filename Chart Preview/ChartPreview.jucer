@@ -7,7 +7,7 @@
               pluginName="Chart Preview" pluginDesc="A tool for visualizing midi as guitar/drum game charts">
   <MAINGROUP id="vNZlKl" name="ChartPreview">
     <GROUP id="{A87F74BB-BA5C-8155-543F-2CB0BFD5611F}" name="Assets">
-      <FILE id="gILYVI" name="beat_marker.png" compile="0" resource="1" file="Assets/beat_marker.png"/>
+      <FILE id="xDi0Mj" name="gem_accent.png" compile="0" resource="1" file="Assets/gem_accent.png"/>
       <FILE id="UUo9Z5" name="gem_blue.png" compile="0" resource="1" file="Assets/gem_blue.png"/>
       <FILE id="Vmq0Ef" name="gem_cym_blue.png" compile="0" resource="1"
             file="Assets/gem_cym_blue.png"/>
@@ -37,70 +37,8 @@
       <FILE id="REpFU4" name="gem_red.png" compile="0" resource="1" file="Assets/gem_red.png"/>
       <FILE id="eB3EVp" name="gem_style.png" compile="0" resource="1" file="Assets/gem_style.png"/>
       <FILE id="tQ7yC1" name="gem_yellow.png" compile="0" resource="1" file="Assets/gem_yellow.png"/>
-      <FILE id="R1FKka" name="half_beat_marker.png" compile="0" resource="1"
-            file="Assets/half_beat_marker.png"/>
-      <FILE id="Uwr9ww" name="kick_flash_1.png" compile="0" resource="1"
-            file="Assets/kick_flash_1.png"/>
-      <FILE id="b6p7bx" name="kick_flash_2.png" compile="0" resource="1"
-            file="Assets/kick_flash_2.png"/>
-      <FILE id="s0IEVu" name="kick_flash_3.png" compile="0" resource="1"
-            file="Assets/kick_flash_3.png"/>
-      <FILE id="psSb2Z" name="kick_flash_4.png" compile="0" resource="1"
-            file="Assets/kick_flash_4.png"/>
-      <FILE id="g6cWYN" name="kick_flash_5.png" compile="0" resource="1"
-            file="Assets/kick_flash_5.png"/>
-      <FILE id="J3B7QU" name="kick_flash_6.png" compile="0" resource="1"
-            file="Assets/kick_flash_6.png"/>
-      <FILE id="YmZkzJ" name="kick_flash_7.png" compile="0" resource="1"
-            file="Assets/kick_flash_7.png"/>
-      <FILE id="I7oGL4" name="measure.png" compile="0" resource="1" file="Assets/measure.png"/>
       <FILE id="zVSo1L" name="RBN_background1.png" compile="0" resource="1"
             file="Assets/RBN_background1.png"/>
-      <FILE id="rovzc5" name="smash_1.png" compile="0" resource="1" file="Assets/smash_1.png"/>
-      <FILE id="hLVtBk" name="smash_2.png" compile="0" resource="1" file="Assets/smash_2.png"/>
-      <FILE id="y1vRW1" name="smash_3.png" compile="0" resource="1" file="Assets/smash_3.png"/>
-      <FILE id="IFApzk" name="smash_4.png" compile="0" resource="1" file="Assets/smash_4.png"/>
-      <FILE id="HL6v6z" name="smash_5.png" compile="0" resource="1" file="Assets/smash_5.png"/>
-      <FILE id="yvgNqY" name="smash_6.png" compile="0" resource="1" file="Assets/smash_6.png"/>
-      <FILE id="nE809H" name="smash_7.png" compile="0" resource="1" file="Assets/smash_7.png"/>
-      <FILE id="YDGfQv" name="smash_8.png" compile="0" resource="1" file="Assets/smash_8.png"/>
-      <FILE id="ELfNrM" name="smash_9.png" compile="0" resource="1" file="Assets/smash_9.png"/>
-      <FILE id="hZDhD4" name="smash_10.png" compile="0" resource="1" file="Assets/smash_10.png"/>
-      <FILE id="EzFeG3" name="smash_flare_blue.png" compile="0" resource="1"
-            file="Assets/smash_flare_blue.png"/>
-      <FILE id="E9VgHU" name="smash_flare_green.png" compile="0" resource="1"
-            file="Assets/smash_flare_green.png"/>
-      <FILE id="EDSJ8t" name="smash_flare_orange.png" compile="0" resource="1"
-            file="Assets/smash_flare_orange.png"/>
-      <FILE id="YfkvEn" name="smash_flare_red.png" compile="0" resource="1"
-            file="Assets/smash_flare_red.png"/>
-      <FILE id="Z1KZfJ" name="smash_flare_style.png" compile="0" resource="1"
-            file="Assets/smash_flare_style.png"/>
-      <FILE id="EUbFgn" name="smash_flare_yellow.png" compile="0" resource="1"
-            file="Assets/smash_flare_yellow.png"/>
-      <FILE id="pgNNis" name="sustain_blue.png" compile="0" resource="1"
-            file="Assets/sustain_blue.png"/>
-      <FILE id="vtdnmV" name="sustain_blue_hi.png" compile="0" resource="1"
-            file="Assets/sustain_blue_hi.png"/>
-      <FILE id="bpHMbR" name="sustain_green.png" compile="0" resource="1"
-            file="Assets/sustain_green.png"/>
-      <FILE id="bIG2xG" name="sustain_green_hi.png" compile="0" resource="1"
-            file="Assets/sustain_green_hi.png"/>
-      <FILE id="tTJw0N" name="sustain_orange.png" compile="0" resource="1"
-            file="Assets/sustain_orange.png"/>
-      <FILE id="EXFbuB" name="sustain_orange_hi.png" compile="0" resource="1"
-            file="Assets/sustain_orange_hi.png"/>
-      <FILE id="Zy1eJN" name="sustain_red.png" compile="0" resource="1" file="Assets/sustain_red.png"/>
-      <FILE id="CdERh0" name="sustain_red_hi.png" compile="0" resource="1"
-            file="Assets/sustain_red_hi.png"/>
-      <FILE id="hBvxJM" name="sustain_style.png" compile="0" resource="1"
-            file="Assets/sustain_style.png"/>
-      <FILE id="s0fMLR" name="sustain_style_hi.png" compile="0" resource="1"
-            file="Assets/sustain_style_hi.png"/>
-      <FILE id="PgbMsY" name="sustain_yellow.png" compile="0" resource="1"
-            file="Assets/sustain_yellow.png"/>
-      <FILE id="haRRbz" name="sustain_yellow_hi.png" compile="0" resource="1"
-            file="Assets/sustain_yellow_hi.png"/>
       <FILE id="hJ1sOr" name="track_drum.png" compile="0" resource="1" file="Assets/track_drum.png"/>
       <FILE id="Ncb5IR" name="track_guitar.png" compile="0" resource="1"
             file="Assets/track_guitar.png"/>
