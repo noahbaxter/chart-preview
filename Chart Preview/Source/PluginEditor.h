@@ -148,7 +148,11 @@ private:
         gemCymYellowImage,
         gemCymBlueImage,
         gemCymGreenImage,
-        gemCymStyleImage;
+        gemCymStyleImage,
+
+        gemBarKickImage,
+        gemBarOpenImage,
+        gemBarStyleImage;
 
     juce::Label chartZoomLabel;
     juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu;
