@@ -52,13 +52,15 @@ void ChartPreviewAudioProcessorEditor::initAssets()
     // halfBeatImage = juce::ImageCache::getFromMemory(BinaryData::half_beat_marker_png, BinaryData::half_beat_marker_pngSize);
     // measureImage = juce::ImageCache::getFromMemory(BinaryData::measure_png, BinaryData::measure_pngSize);
 
-    gemKickImage = juce::ImageCache::getFromMemory(BinaryData::gem_kick_png, BinaryData::gem_kick_pngSize);
+    gemBarOpenImage = juce::ImageCache::getFromMemory(BinaryData::gem_bar_open_png, BinaryData::gem_bar_open_pngSize);
+    gemBarKickImage = juce::ImageCache::getFromMemory(BinaryData::gem_bar_kick_png, BinaryData::gem_bar_kick_pngSize);
+    gemBarStyleImage = juce::ImageCache::getFromMemory(BinaryData::gem_bar_style_png, BinaryData::gem_bar_style_pngSize);
+
     gemGreenImage = juce::ImageCache::getFromMemory(BinaryData::gem_green_png, BinaryData::gem_green_pngSize);
     gemRedImage = juce::ImageCache::getFromMemory(BinaryData::gem_red_png, BinaryData::gem_red_pngSize);
     gemYellowImage = juce::ImageCache::getFromMemory(BinaryData::gem_yellow_png, BinaryData::gem_yellow_pngSize);
     gemBlueImage = juce::ImageCache::getFromMemory(BinaryData::gem_blue_png, BinaryData::gem_blue_pngSize);
     gemOrangeImage = juce::ImageCache::getFromMemory(BinaryData::gem_orange_png, BinaryData::gem_orange_pngSize);
-    gemKickStyleImage = juce::ImageCache::getFromMemory(BinaryData::gem_kick_style_png, BinaryData::gem_kick_style_pngSize);
     gemStyleImage = juce::ImageCache::getFromMemory(BinaryData::gem_style_png, BinaryData::gem_style_pngSize);
 
     gemHOPOGreenImage = juce::ImageCache::getFromMemory(BinaryData::gem_hopo_green_png, BinaryData::gem_hopo_green_pngSize);
@@ -73,6 +75,7 @@ void ChartPreviewAudioProcessorEditor::initAssets()
     gemCymBlueImage = juce::ImageCache::getFromMemory(BinaryData::gem_cym_blue_png, BinaryData::gem_cym_blue_pngSize);
     gemCymGreenImage = juce::ImageCache::getFromMemory(BinaryData::gem_cym_green_png, BinaryData::gem_cym_green_pngSize);
     gemCymStyleImage = juce::ImageCache::getFromMemory(BinaryData::gem_cym_style_png, BinaryData::gem_cym_style_pngSize);
+
 }
 
 void ChartPreviewAudioProcessorEditor::initMenus()
@@ -414,12 +417,12 @@ juce::Image ChartPreviewAudioProcessorEditor::getDrumGlyphImage(Gem gem, uint ge
         case Gem::TAP_ACCENT:
             switch (gemColumn)
             {
-            case 0: gemImage = gemKickStyleImage.createCopy(); break;
+            case 0: gemImage = gemBarStyleImage.createCopy(); break;
             case 1:
             case 2:
             case 3:
             case 4: gemImage = gemStyleImage.createCopy(); break;
-            case 6: gemImage = gemKickStyleImage.createCopy(); break;
+            case 6: gemImage = gemBarStyleImage.createCopy(); break;
             } break;
         case Gem::CYM_GHOST:
         case Gem::CYM:
@@ -441,12 +444,12 @@ juce::Image ChartPreviewAudioProcessorEditor::getDrumGlyphImage(Gem gem, uint ge
         case Gem::TAP_ACCENT:
             switch (gemColumn)
             {
-            case 0: gemImage = gemKickImage.createCopy(); break;
+            case 0: gemImage = gemBarKickImage.createCopy(); break;
             case 1: gemImage = gemRedImage.createCopy(); break;
             case 2: gemImage = gemYellowImage.createCopy(); break;
             case 3: gemImage = gemBlueImage.createCopy(); break;
             case 4: gemImage = gemGreenImage.createCopy(); break;
-            case 6: gemImage = gemKickImage.createCopy(); break;
+            case 6: gemImage = gemBarKickImage.createCopy(); break;
             } break;
         case Gem::CYM_GHOST:
         case Gem::CYM:
@@ -481,7 +484,7 @@ juce::Image ChartPreviewAudioProcessorEditor::getGuitarGlyphImage(Gem gem, uint 
         case Gem::HOPO_GHOST:
             switch (gemColumn)
             {
-            case 0: gemImage = gemKickStyleImage.createCopy(); break;
+            case 0: gemImage = gemBarStyleImage.createCopy(); break;
             case 1:
             case 2:
             case 3:
@@ -492,7 +495,7 @@ juce::Image ChartPreviewAudioProcessorEditor::getGuitarGlyphImage(Gem gem, uint 
         case Gem::TAP_ACCENT:
             switch (gemColumn)
             {
-            case 0: gemImage = gemKickStyleImage.createCopy(); break;
+            case 0: gemImage = gemBarStyleImage.createCopy(); break;
             case 1:
             case 2:
             case 3:
@@ -508,7 +511,7 @@ juce::Image ChartPreviewAudioProcessorEditor::getGuitarGlyphImage(Gem gem, uint 
         case Gem::HOPO_GHOST:
             switch (gemColumn)
             {
-            case 0: gemImage = gemKickImage.createCopy(); break;
+            case 0: gemImage = gemBarOpenImage.createCopy(); break;
             case 1: gemImage = gemHOPOGreenImage.createCopy(); break;
             case 2: gemImage = gemHOPORedImage.createCopy(); break;
             case 3: gemImage = gemHOPOYellowImage.createCopy(); break;
@@ -519,7 +522,7 @@ juce::Image ChartPreviewAudioProcessorEditor::getGuitarGlyphImage(Gem gem, uint 
         case Gem::TAP_ACCENT:
             switch (gemColumn)
             {
-            case 0: gemImage = gemKickImage.createCopy(); break;
+            case 0: gemImage = gemBarOpenImage.createCopy(); break;
             case 1: gemImage = gemGreenImage.createCopy(); break;
             case 2: gemImage = gemRedImage.createCopy(); break;
             case 3: gemImage = gemYellowImage.createCopy(); break;
