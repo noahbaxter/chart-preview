@@ -10,8 +10,9 @@
 #include "PluginEditor.h"
 
 //==============================================================================
-ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewAudioProcessor &p)
+ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewAudioProcessor &p, juce::ValueTree &state)
     : AudioProcessorEditor(&p),
+      state(state),
       audioProcessor(p),
       midiInterpreter(state, audioProcessor.getNoteStateMapArray()),
       highwayRenderer(state, midiInterpreter)
@@ -32,16 +33,19 @@ ChartPreviewAudioProcessorEditor::~ChartPreviewAudioProcessorEditor()
 
 void ChartPreviewAudioProcessorEditor::initState()
 {
-    state = juce::ValueTree("state");
-    state.setProperty("skillLevel", (int)SkillLevel::EXPERT, nullptr);
-    state.setProperty("part", (int)Part::DRUMS, nullptr);
-    state.setProperty("drumType", (int)DrumType::PRO, nullptr);
+    if (!state.isValid())
+    {
+        state = juce::ValueTree("state");
+        state.setProperty("skillLevel", (int)SkillLevel::EXPERT, nullptr);
+        state.setProperty("part", (int)Part::DRUMS, nullptr);
+        state.setProperty("drumType", (int)DrumType::PRO, nullptr);
 
-    state.setProperty("starPower", true, nullptr);
-    state.setProperty("kick2x", true, nullptr);
-    state.setProperty("dynamics", true, nullptr);
+        state.setProperty("starPower", true, nullptr);
+        state.setProperty("kick2x", true, nullptr);
+        state.setProperty("dynamics", true, nullptr);
 
-    state.setProperty("framerate", 3, nullptr);
+        state.setProperty("framerate", 3, nullptr);
+    }
 }
 
 void ChartPreviewAudioProcessorEditor::initAssets()

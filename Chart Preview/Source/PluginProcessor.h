@@ -86,14 +86,8 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
 private:
-  //==============================================================================
+  juce::ValueTree state;
   MidiProcessor midiProcessor;
 
-  // juce::MidiBuffer lookaheadBuffer;
-  // int lookaheadSamples = 88200;
-
-  int beatsToDraw = 8;
-
-  //==============================================================================
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChartPreviewAudioProcessor)
 };
