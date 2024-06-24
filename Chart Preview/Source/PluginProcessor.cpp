@@ -162,21 +162,27 @@ bool ChartPreviewAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* ChartPreviewAudioProcessor::createEditor()
 {
-    return new ChartPreviewAudioProcessorEditor (*this);
+    return new ChartPreviewAudioProcessorEditor (*this, state);
 }
 
 //==============================================================================
 void ChartPreviewAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
+    std::unique_ptr<juce::XmlElement> xml(state.createXml());
+
+    if (xml != nullptr)
+    {
+        copyXmlToBinary(*xml, destData);
+    }
 }
 
 void ChartPreviewAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+    std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(data, sizeInBytes));
+    if (xml != nullptr)
+    {
+        state = juce::ValueTree::fromXml(*xml);
+    }
 }
 
 //==============================================================================

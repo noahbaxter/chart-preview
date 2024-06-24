@@ -25,7 +25,7 @@ class ChartPreviewAudioProcessorEditor  :
     private juce::Timer
 {
 public:
-    ChartPreviewAudioProcessorEditor (ChartPreviewAudioProcessor&);
+    ChartPreviewAudioProcessorEditor (ChartPreviewAudioProcessor&, juce::ValueTree &state);
     ~ChartPreviewAudioProcessorEditor() override;
 
     //==============================================================================
@@ -41,32 +41,27 @@ public:
     //==============================================================================
     // ValueTree
 
-    void updateValueTreeState(const juce::String &property, int value)
-    {
-        state.setProperty(property, value, nullptr);
-    }
-
     void comboBoxChanged(juce::ComboBox *comboBoxThatHasChanged) override
     {
         if (comboBoxThatHasChanged == &skillMenu)
         {
             auto skillValue = skillMenu.getSelectedId();
-            updateValueTreeState("skillLevel", skillValue);
+            state.setProperty("skillLevel", skillValue, nullptr);
         }
         else if (comboBoxThatHasChanged == &partMenu)
         {
             auto partValue = partMenu.getSelectedId();
-            updateValueTreeState("part", partValue);
+            state.setProperty("part", partValue, nullptr);
         }
         else if (comboBoxThatHasChanged == &drumTypeMenu)
         {
             auto drumTypeValue = drumTypeMenu.getSelectedId();
-            updateValueTreeState("drumType", drumTypeValue);
+            state.setProperty("drumType", drumTypeValue, nullptr);
         }
         else if (comboBoxThatHasChanged == &framerateMenu)
         {
             auto framerateValue = framerateMenu.getSelectedId();
-            updateValueTreeState("framerate", framerateValue);
+            state.setProperty("framerate", framerateValue, nullptr);
             int frameRate;
             switch (framerateValue)
             {
@@ -99,25 +94,23 @@ public:
         if (button == &starPowerToggle)
         {
             bool buttonState = button->getToggleState();
-            updateValueTreeState("starPower", buttonState ? 1 : 0);
+            state.setProperty("starPower", buttonState ? 1 : 0, nullptr);
         }
         else if (button == &kick2xToggle)
         {
             bool buttonState = button->getToggleState();
-            updateValueTreeState("kick2x", buttonState ? 1 : 0);
+            state.setProperty("kick2x", buttonState ? 1 : 0, nullptr);
         }
         else if (button == &dynamicsToggle)
         {
             bool buttonState = button->getToggleState();
-            updateValueTreeState("dynamics", buttonState ? 1 : 0);
+            state.setProperty("dynamics", buttonState ? 1 : 0, nullptr);
         }
     }
 
 private:
-    // This reference is provided as a quick way for your editor to
-    // access the processor object that created it.
-    juce::ValueTree state;
-    
+    juce::ValueTree& state;
+
     ChartPreviewAudioProcessor& audioProcessor;
     MidiInterpreter midiInterpreter;
     HighwayRenderer highwayRenderer;
