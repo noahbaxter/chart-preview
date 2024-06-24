@@ -125,34 +125,55 @@ private:
     int defaultWidth = 800, defaultHeight = 600;
 
     juce::Image backgroundImage,
-        drumTrackImage, guitarTrackImage,
-        halfBeatImage, measureImage,
 
-        gemKickImage,
-        gemGreenImage,
-        gemRedImage,
-        gemYellowImage,
-        gemBlueImage,
-        gemOrangeImage,
-        gemKickStyleImage,
-        gemStyleImage,
-
-        gemHOPOGreenImage,
-        gemHOPORedImage,
-        gemHOPOYellowImage,
-        gemHOPOBlueImage,
-        gemHOPOOrangeImage,
-        gemHOPOStyleImage,
-
-        gemAccentImage,
-        gemCymYellowImage,
-        gemCymBlueImage,
-        gemCymGreenImage,
-        gemCymStyleImage,
-
-        gemBarKickImage,
-        gemBarOpenImage,
-        gemBarStyleImage;
+                barKickImage,
+                barKick2xImage,
+                barOpenImage,
+                barWhiteImage,
+                
+                cymBlueImage,
+                cymGreenImage,
+                cymRedImage,
+                cymWhiteImage,
+                cymYellowImage,
+                
+                hopoBlueImage,
+                hopoGreenImage,
+                hopoOrangeImage,
+                hopoRedImage,
+                hopoWhiteImage,
+                hopoYellowImage,
+                
+                laneEndImage,
+                laneMidImage,
+                laneStartImage,
+                
+                noteBlueImage,
+                noteGreenImage,
+                noteOrangeImage,
+                noteRedImage,
+                noteWhiteImage,
+                noteYellowImage,
+                
+                overlayCymAccentImage,
+                overlayCymGhost80scaleImage,
+                overlayCymGhostImage,
+                overlayNoteAccentImage,
+                overlayNoteGhostImage,
+                overlayNoteTapImage,
+                
+                sustainBlueImage,
+                sustainGreenImage,
+                sustainOpenWhiteImage,
+                sustainOpenImage,
+                sustainOrangeImage,
+                sustainRedImage,
+                sustainWhiteImage,
+                sustainYellowImage,
+                
+                trackDrumImage,
+                trackGuitarImage
+    ;
 
     juce::Label chartZoomLabel;
     juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu;

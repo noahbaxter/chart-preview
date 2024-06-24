@@ -209,6 +209,6 @@ void MidiInterpreter::addDrumEventToFrame(TrackFrame &frame, uint position, uint
     else if (kick2xEnabled && note == Drums::EXPERT_KICK_2X && skill == SkillLevel::EXPERT)
     {
         // Kicks can't be cymbals, and can't have dynamics
-        frame[0] = getDrumGlyph(false, false, dynamic);
+        frame[6] = getDrumGlyph(false, false, dynamic);
     }
 }
