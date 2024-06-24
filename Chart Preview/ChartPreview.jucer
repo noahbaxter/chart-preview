@@ -7,38 +7,58 @@
               pluginName="Chart Preview" pluginDesc="A tool for visualizing midi as guitar/drum game charts">
   <MAINGROUP id="vNZlKl" name="ChartPreview">
     <GROUP id="{A87F74BB-BA5C-8155-543F-2CB0BFD5611F}" name="Assets">
-      <FILE id="xDi0Mj" name="gem_accent.png" compile="0" resource="1" file="Assets/gem_accent.png"/>
-      <FILE id="UUo9Z5" name="gem_blue.png" compile="0" resource="1" file="Assets/gem_blue.png"/>
-      <FILE id="Vmq0Ef" name="gem_cym_blue.png" compile="0" resource="1"
-            file="Assets/gem_cym_blue.png"/>
-      <FILE id="gDkCvv" name="gem_cym_green.png" compile="0" resource="1"
-            file="Assets/gem_cym_green.png"/>
-      <FILE id="OsDBDi" name="gem_cym_style.png" compile="0" resource="1"
-            file="Assets/gem_cym_style.png"/>
-      <FILE id="rPzBo4" name="gem_cym_yellow.png" compile="0" resource="1"
-            file="Assets/gem_cym_yellow.png"/>
-      <FILE id="tjfLW5" name="gem_green.png" compile="0" resource="1" file="Assets/gem_green.png"/>
-      <FILE id="nAgylM" name="gem_hopo_blue.png" compile="0" resource="1"
-            file="Assets/gem_hopo_blue.png"/>
-      <FILE id="citcho" name="gem_hopo_green.png" compile="0" resource="1"
-            file="Assets/gem_hopo_green.png"/>
-      <FILE id="Kg8NNU" name="gem_hopo_orange.png" compile="0" resource="1"
-            file="Assets/gem_hopo_orange.png"/>
-      <FILE id="RVTQAS" name="gem_hopo_red.png" compile="0" resource="1"
-            file="Assets/gem_hopo_red.png"/>
-      <FILE id="HIIIG5" name="gem_hopo_style.png" compile="0" resource="1"
-            file="Assets/gem_hopo_style.png"/>
-      <FILE id="M5o17E" name="gem_hopo_yellow.png" compile="0" resource="1"
-            file="Assets/gem_hopo_yellow.png"/>
-      <FILE id="awTH7X" name="gem_kick.png" compile="0" resource="1" file="Assets/gem_kick.png"/>
-      <FILE id="gItVGV" name="gem_kick_style.png" compile="0" resource="1"
-            file="Assets/gem_kick_style.png"/>
-      <FILE id="ML2OfB" name="gem_orange.png" compile="0" resource="1" file="Assets/gem_orange.png"/>
-      <FILE id="REpFU4" name="gem_red.png" compile="0" resource="1" file="Assets/gem_red.png"/>
-      <FILE id="eB3EVp" name="gem_style.png" compile="0" resource="1" file="Assets/gem_style.png"/>
-      <FILE id="tQ7yC1" name="gem_yellow.png" compile="0" resource="1" file="Assets/gem_yellow.png"/>
-      <FILE id="zVSo1L" name="RBN_background1.png" compile="0" resource="1"
-            file="Assets/RBN_background1.png"/>
+      <FILE id="plgKQb" name="background.png" compile="0" resource="1" file="Assets/background.png"/>
+      <FILE id="Dj2hQK" name="bar_kick.png" compile="0" resource="1" file="Assets/bar_kick.png"/>
+      <FILE id="vcQ5az" name="bar_kick_2x.png" compile="0" resource="1" file="Assets/bar_kick_2x.png"/>
+      <FILE id="i7j9mh" name="bar_open.png" compile="0" resource="1" file="Assets/bar_open.png"/>
+      <FILE id="klat2Z" name="bar_white.png" compile="0" resource="1" file="Assets/bar_white.png"/>
+      <FILE id="RqL1u4" name="cym_blue.png" compile="0" resource="1" file="Assets/cym_blue.png"/>
+      <FILE id="zHMCRd" name="cym_green.png" compile="0" resource="1" file="Assets/cym_green.png"/>
+      <FILE id="pOcd2k" name="cym_red.png" compile="0" resource="1" file="Assets/cym_red.png"/>
+      <FILE id="VtT36Z" name="cym_white.png" compile="0" resource="1" file="Assets/cym_white.png"/>
+      <FILE id="WNkpxp" name="cym_yellow.png" compile="0" resource="1" file="Assets/cym_yellow.png"/>
+      <FILE id="MSEaUP" name="hopo_blue.png" compile="0" resource="1" file="Assets/hopo_blue.png"/>
+      <FILE id="YglgxK" name="hopo_green.png" compile="0" resource="1" file="Assets/hopo_green.png"/>
+      <FILE id="zFlBJp" name="hopo_orange.png" compile="0" resource="1" file="Assets/hopo_orange.png"/>
+      <FILE id="TdAYdV" name="hopo_red.png" compile="0" resource="1" file="Assets/hopo_red.png"/>
+      <FILE id="n2riNP" name="hopo_white.png" compile="0" resource="1" file="Assets/hopo_white.png"/>
+      <FILE id="ArpRNH" name="hopo_yellow.png" compile="0" resource="1" file="Assets/hopo_yellow.png"/>
+      <FILE id="PJ49Wi" name="lane_end.png" compile="0" resource="1" file="Assets/lane_end.png"/>
+      <FILE id="lzLZ9M" name="lane_mid.png" compile="0" resource="1" file="Assets/lane_mid.png"/>
+      <FILE id="vHHDZq" name="lane_start.png" compile="0" resource="1" file="Assets/lane_start.png"/>
+      <FILE id="qHhxEl" name="note_blue.png" compile="0" resource="1" file="Assets/note_blue.png"/>
+      <FILE id="UABfS5" name="note_green.png" compile="0" resource="1" file="Assets/note_green.png"/>
+      <FILE id="cRA40m" name="note_orange.png" compile="0" resource="1" file="Assets/note_orange.png"/>
+      <FILE id="p30jex" name="note_red.png" compile="0" resource="1" file="Assets/note_red.png"/>
+      <FILE id="LXpIGv" name="note_white.png" compile="0" resource="1" file="Assets/note_white.png"/>
+      <FILE id="GEyYXS" name="note_yellow.png" compile="0" resource="1" file="Assets/note_yellow.png"/>
+      <FILE id="qEgdE8" name="overlay_cym_accent.png" compile="0" resource="1"
+            file="Assets/overlay_cym_accent.png"/>
+      <FILE id="Wq1XKG" name="overlay_cym_ghost.png" compile="0" resource="1"
+            file="Assets/overlay_cym_ghost.png"/>
+      <FILE id="CMCjAX" name="overlay_cym_ghost_80scale.png" compile="0"
+            resource="1" file="Assets/overlay_cym_ghost_80scale.png"/>
+      <FILE id="aU2IBQ" name="overlay_note_accent.png" compile="0" resource="1"
+            file="Assets/overlay_note_accent.png"/>
+      <FILE id="HSRbO7" name="overlay_note_ghost.png" compile="0" resource="1"
+            file="Assets/overlay_note_ghost.png"/>
+      <FILE id="Hg3afF" name="overlay_note_tap.png" compile="0" resource="1"
+            file="Assets/overlay_note_tap.png"/>
+      <FILE id="TU2ULs" name="sustain_blue.png" compile="0" resource="1"
+            file="Assets/sustain_blue.png"/>
+      <FILE id="i0rBzV" name="sustain_green.png" compile="0" resource="1"
+            file="Assets/sustain_green.png"/>
+      <FILE id="wdDB4q" name="sustain_open.png" compile="0" resource="1"
+            file="Assets/sustain_open.png"/>
+      <FILE id="RKW9Ys" name="sustain_open_white.png" compile="0" resource="1"
+            file="Assets/sustain_open_white.png"/>
+      <FILE id="X62uYi" name="sustain_orange.png" compile="0" resource="1"
+            file="Assets/sustain_orange.png"/>
+      <FILE id="eG9aGN" name="sustain_red.png" compile="0" resource="1" file="Assets/sustain_red.png"/>
+      <FILE id="Tmn4le" name="sustain_white.png" compile="0" resource="1"
+            file="Assets/sustain_white.png"/>
+      <FILE id="jp3huJ" name="sustain_yellow.png" compile="0" resource="1"
+            file="Assets/sustain_yellow.png"/>
       <FILE id="hJ1sOr" name="track_drum.png" compile="0" resource="1" file="Assets/track_drum.png"/>
       <FILE id="Ncb5IR" name="track_guitar.png" compile="0" resource="1"
             file="Assets/track_guitar.png"/>
