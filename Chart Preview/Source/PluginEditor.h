@@ -11,6 +11,7 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "Midi/MidiInterpreter.h"
+#include "Renderers/HighwayRenderer.h"
 #include "Utils.h"
 
 //==============================================================================
@@ -119,61 +120,16 @@ private:
     
     ChartPreviewAudioProcessor& audioProcessor;
     MidiInterpreter midiInterpreter;
+    HighwayRenderer highwayRenderer;
 
     //==============================================================================
     // UI Elements
     int defaultWidth = 800, defaultHeight = 600;
 
-    juce::Image backgroundImage,
-
-                barKickImage,
-                barKick2xImage,
-                barOpenImage,
-                barWhiteImage,
-                
-                cymBlueImage,
-                cymGreenImage,
-                cymRedImage,
-                cymWhiteImage,
-                cymYellowImage,
-                
-                hopoBlueImage,
-                hopoGreenImage,
-                hopoOrangeImage,
-                hopoRedImage,
-                hopoWhiteImage,
-                hopoYellowImage,
-                
-                laneEndImage,
-                laneMidImage,
-                laneStartImage,
-                
-                noteBlueImage,
-                noteGreenImage,
-                noteOrangeImage,
-                noteRedImage,
-                noteWhiteImage,
-                noteYellowImage,
-                
-                overlayCymAccentImage,
-                overlayCymGhost80scaleImage,
-                overlayCymGhostImage,
-                overlayNoteAccentImage,
-                overlayNoteGhostImage,
-                overlayNoteTapImage,
-                
-                sustainBlueImage,
-                sustainGreenImage,
-                sustainOpenWhiteImage,
-                sustainOpenImage,
-                sustainOrangeImage,
-                sustainRedImage,
-                sustainWhiteImage,
-                sustainYellowImage,
-                
-                trackDrumImage,
-                trackGuitarImage
-    ;
+    // Background Assets
+    juce::Image backgroundImage;
+    juce::Image trackDrumImage;
+    juce::Image trackGuitarImage;
 
     juce::Label chartZoomLabel;
     juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu;
@@ -198,27 +154,6 @@ private:
 
     float displaySizeInSeconds = 0.5;
     int displaySizeInSamples = int(displaySizeInSeconds * audioProcessor.getSampleRate());
-
-    bool isPart(Part part)
-    {
-        return (int)state.getProperty("part") == (int)part;
-    }
-
-    uint framePosition = 0;
-
-    // Notes
-    void drawFrame(juce::Graphics &g, const std::array<Gem,7> &gems, float position);
-    void drawGuitarGem(juce::Graphics &g, uint gemColumn, Gem gem, float position);
-    void drawDrumGem(juce::Graphics &g, uint gemColumn, Gem gem, float position);
-
-    juce::Rectangle<float> getGuitarGlyphRect(uint gemColumn, float position);
-    juce::Rectangle<float> getDrumGlyphRect(uint gemColumn, float position);
-    juce::Rectangle<float> createGlyphRect(float position, float normY1, float normY2, float normX1, float normX2, float normWidth1, float normWidth2, bool isBarNote);
-
-    juce::Image getGuitarGlyphImage(Gem gem, uint gemColumn);
-    juce::Image getDrumGlyphImage(Gem gem, uint gemColumn);
-
-    void fadeInImage(juce::Image &image, float position);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
 

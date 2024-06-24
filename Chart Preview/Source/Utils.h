@@ -18,6 +18,14 @@ const juce::StringArray skillLevelLabels = {"Easy", "Medium", "Hard", "Expert"};
 const juce::StringArray viewToggleLabels = {"Star Power", "Kick 2x", "Dynamics"};
 
 //==============================================================================
+// State helpers
+
+inline bool isPart(juce::ValueTree &state, Part part)
+{
+    return (int)state.getProperty("part") == (int)part;
+}
+
+//==============================================================================
 // CHART EVENTS
 
 enum class Gem
