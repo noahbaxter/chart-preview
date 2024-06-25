@@ -16,6 +16,9 @@ Chart Preview is in active development and currently only released in beta. At t
 ##### MacOS
 Place `ChartPreview.vst3` in `/Library/Audio/Plug-Ins/VST3` and `ChartPreview.component` in `/Library/Audio/Plug-Ins/Components`.
 
+##### Windows
+Place `ChartPreview.vst3` into `C:\Program Files (x86)\Steinberg\VstPlugins`.
+
 ### Why is this better than RBN Preview?
 Aside from being able to run on macs and outside of 32bit compatability layers, here's some unique features you may appreciate.
 * Guitar
