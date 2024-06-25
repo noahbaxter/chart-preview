@@ -39,7 +39,7 @@ public:
     void resized() override;
 
     //==============================================================================
-    // ValueTree
+    // UI Callbacks
 
     void comboBoxChanged(juce::ComboBox *comboBoxThatHasChanged) override
     {

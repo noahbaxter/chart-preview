@@ -81,15 +81,20 @@ class HighwayRenderer
         juce::Image sustainYellowImage;
 
         void drawFrame(juce::Graphics &g, const std::array<Gem, 7> &gems, float position);
-        void drawGuitarGem(juce::Graphics &g, uint gemColumn, Gem gem, float position);
-        void drawDrumGem(juce::Graphics &g, uint gemColumn, Gem gem, float position);
+        void drawGem(juce::Graphics &g, uint gemColumn, Gem gem, float position);
 
+        juce::Rectangle<float> createGlyphRect(float position, 
+                                               float normY1, float normY2, 
+                                               float normX1, float normX2, 
+                                               float normWidth1, float normWidth2, 
+                                               bool isBarNote);
         juce::Rectangle<float> getGuitarGlyphRect(uint gemColumn, float position);
         juce::Rectangle<float> getDrumGlyphRect(uint gemColumn, float position);
-        juce::Rectangle<float> createGlyphRect(float position, float normY1, float normY2, float normX1, float normX2, float normWidth1, float normWidth2, bool isBarNote);
+        juce::Rectangle<float> getOverlayGlyphRect(Gem gem, juce::Rectangle<float> glyphRect);
 
         juce::Image getGuitarGlyphImage(Gem gem, uint gemColumn);
         juce::Image getDrumGlyphImage(Gem gem, uint gemColumn);
+        juce::Image getOverlayImage(Gem gem);
 
         void fadeInImage(juce::Image &image, float position);
 };
