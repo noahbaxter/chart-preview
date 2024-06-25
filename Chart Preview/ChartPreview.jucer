@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="SvXbwJ" name="ChartPreview" projectType="audioplug" useAppConfig="0"
+              addUsingNamespaceToJuceHeader="0" displaySplashScreen="1" jucerFormatVersion="1"
+              companyName="Dichotic Studios" pluginVST3Category="Analyzer"
+              pluginCharacteristicsValue="pluginWantsMidiIn" cppLanguageStandard="17"
+              pluginName="Chart Preview" pluginDesc="A tool for visualizing midi as guitar/drum game charts">
+  <MAINGROUP id="vNZlKl" name="ChartPreview">
+    <GROUP id="{A87F74BB-BA5C-8155-543F-2CB0BFD5611F}" name="Assets">
+      <FILE id="plgKQb" name="background.png" compile="0" resource="1" file="Assets/background.png"/>
+      <FILE id="Dj2hQK" name="bar_kick.png" compile="0" resource="1" file="Assets/bar_kick.png"/>
+      <FILE id="vcQ5az" name="bar_kick_2x.png" compile="0" resource="1" file="Assets/bar_kick_2x.png"/>
+      <FILE id="i7j9mh" name="bar_open.png" compile="0" resource="1" file="Assets/bar_open.png"/>
+      <FILE id="klat2Z" name="bar_white.png" compile="0" resource="1" file="Assets/bar_white.png"/>
+      <FILE id="RqL1u4" name="cym_blue.png" compile="0" resource="1" file="Assets/cym_blue.png"/>
+      <FILE id="zHMCRd" name="cym_green.png" compile="0" resource="1" file="Assets/cym_green.png"/>
+      <FILE id="pOcd2k" name="cym_red.png" compile="0" resource="1" file="Assets/cym_red.png"/>
+      <FILE id="VtT36Z" name="cym_white.png" compile="0" resource="1" file="Assets/cym_white.png"/>
+      <FILE id="WNkpxp" name="cym_yellow.png" compile="0" resource="1" file="Assets/cym_yellow.png"/>
+      <FILE id="MSEaUP" name="hopo_blue.png" compile="0" resource="1" file="Assets/hopo_blue.png"/>
+      <FILE id="YglgxK" name="hopo_green.png" compile="0" resource="1" file="Assets/hopo_green.png"/>
+      <FILE id="zFlBJp" name="hopo_orange.png" compile="0" resource="1" file="Assets/hopo_orange.png"/>
+      <FILE id="TdAYdV" name="hopo_red.png" compile="0" resource="1" file="Assets/hopo_red.png"/>
+      <FILE id="n2riNP" name="hopo_white.png" compile="0" resource="1" file="Assets/hopo_white.png"/>
+      <FILE id="ArpRNH" name="hopo_yellow.png" compile="0" resource="1" file="Assets/hopo_yellow.png"/>
+      <FILE id="PJ49Wi" name="lane_end.png" compile="0" resource="1" file="Assets/lane_end.png"/>
+      <FILE id="lzLZ9M" name="lane_mid.png" compile="0" resource="1" file="Assets/lane_mid.png"/>
+      <FILE id="vHHDZq" name="lane_start.png" compile="0" resource="1" file="Assets/lane_start.png"/>
+      <FILE id="qHhxEl" name="note_blue.png" compile="0" resource="1" file="Assets/note_blue.png"/>
+      <FILE id="UABfS5" name="note_green.png" compile="0" resource="1" file="Assets/note_green.png"/>
+      <FILE id="cRA40m" name="note_orange.png" compile="0" resource="1" file="Assets/note_orange.png"/>
+      <FILE id="p30jex" name="note_red.png" compile="0" resource="1" file="Assets/note_red.png"/>
+      <FILE id="LXpIGv" name="note_white.png" compile="0" resource="1" file="Assets/note_white.png"/>
+      <FILE id="GEyYXS" name="note_yellow.png" compile="0" resource="1" file="Assets/note_yellow.png"/>
+      <FILE id="qEgdE8" name="overlay_cym_accent.png" compile="0" resource="1"
+            file="Assets/overlay_cym_accent.png"/>
+      <FILE id="Wq1XKG" name="overlay_cym_ghost.png" compile="0" resource="1"
+            file="Assets/overlay_cym_ghost.png"/>
+      <FILE id="CMCjAX" name="overlay_cym_ghost_80scale.png" compile="0"
+            resource="1" file="Assets/overlay_cym_ghost_80scale.png"/>
+      <FILE id="aU2IBQ" name="overlay_note_accent.png" compile="0" resource="1"
+            file="Assets/overlay_note_accent.png"/>
+      <FILE id="HSRbO7" name="overlay_note_ghost.png" compile="0" resource="1"
+            file="Assets/overlay_note_ghost.png"/>
+      <FILE id="Hg3afF" name="overlay_note_tap.png" compile="0" resource="1"
+            file="Assets/overlay_note_tap.png"/>
+      <FILE id="TU2ULs" name="sustain_blue.png" compile="0" resource="1"
+            file="Assets/sustain_blue.png"/>
+      <FILE id="i0rBzV" name="sustain_green.png" compile="0" resource="1"
+            file="Assets/sustain_green.png"/>
+      <FILE id="wdDB4q" name="sustain_open.png" compile="0" resource="1"
+            file="Assets/sustain_open.png"/>
+      <FILE id="RKW9Ys" name="sustain_open_white.png" compile="0" resource="1"
+            file="Assets/sustain_open_white.png"/>
+      <FILE id="X62uYi" name="sustain_orange.png" compile="0" resource="1"
+            file="Assets/sustain_orange.png"/>
+      <FILE id="eG9aGN" name="sustain_red.png" compile="0" resource="1" file="Assets/sustain_red.png"/>
+      <FILE id="Tmn4le" name="sustain_white.png" compile="0" resource="1"
+            file="Assets/sustain_white.png"/>
+      <FILE id="jp3huJ" name="sustain_yellow.png" compile="0" resource="1"
+            file="Assets/sustain_yellow.png"/>
+      <FILE id="hJ1sOr" name="track_drum.png" compile="0" resource="1" file="Assets/track_drum.png"/>
+      <FILE id="Ncb5IR" name="track_guitar.png" compile="0" resource="1"
+            file="Assets/track_guitar.png"/>
+    </GROUP>
+    <GROUP id="{577BFFED-2E98-5329-03C4-711F74395056}" name="Source">
+      <GROUP id="{DE1AE764-3F26-9AE7-E8D2-54A14F69655C}" name="Midi">
+        <FILE id="xf1EYZ" name="MidiInterpreter.cpp" compile="1" resource="0"
+              file="Source/Midi/MidiInterpreter.cpp"/>
+        <FILE id="QmLbIt" name="MidiInterpreter.h" compile="0" resource="0"
+              file="Source/Midi/MidiInterpreter.h"/>
+        <FILE id="NRFvjU" name="MidiProcessor.cpp" compile="1" resource="0"
+              file="Source/Midi/MidiProcessor.cpp"/>
+        <FILE id="pIB2gC" name="MidiProcessor.h" compile="0" resource="0" file="Source/Midi/MidiProcessor.h"/>
+      </GROUP>
+      <GROUP id="{EFFC1A57-AA5E-2DEE-307B-5E9D2B4CE97B}" name="Renderers">
+        <FILE id="FUkCrf" name="HighwayRenderer.cpp" compile="1" resource="0"
+              file="Source/Renderers/HighwayRenderer.cpp"/>
+        <FILE id="DZ7Hvw" name="HighwayRenderer.h" compile="0" resource="0"
+              file="Source/Renderers/HighwayRenderer.h"/>
+      </GROUP>
+      <FILE id="PZm7UN" name="PluginProcessor.cpp" compile="1" resource="0"
+            file="Source/PluginProcessor.cpp"/>
+      <FILE id="GADCKX" name="PluginProcessor.h" compile="0" resource="0"
+            file="Source/PluginProcessor.h"/>
+      <FILE id="Fw3asZ" name="PluginEditor.cpp" compile="1" resource="0"
+            file="Source/PluginEditor.cpp"/>
+      <FILE id="Mxww5q" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+      <FILE id="InYDKt" name="Utils.h" compile="0" resource="0" file="Source/Utils.h"/>
+    </GROUP>
+  </MAINGROUP>
+  <MODULES>
+    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_plugin_client" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_midi_ci" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+  </MODULES>
+  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"/>
+  <EXPORTFORMATS>
+    <XCODE_MAC targetFolder="Builds/MacOSX">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="ChartPreview"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="ChartPreview"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_audio_basics" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="../../../../../../Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_midi_ci" path="../../../../../../Applications/JUCE/modules"/>
+      </MODULEPATHS>
+    </XCODE_MAC>
+    <VS2022 targetFolder="Builds/VisualStudio2022">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug"/>
+        <CONFIGURATION isDebug="0" name="Release"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_audio_basics" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_midi_ci" path="/Applications/JUCE/modules"/>
+      </MODULEPATHS>
+    </VS2022>
+  </EXPORTFORMATS>
+</JUCERPROJECT>
