@@ -11,6 +11,11 @@ Big massive thank you Invontor for the lovely custom art assets.
 
 Chart Preview is in active development and currently only released in beta. At the moment drums are *(mostly)* feature complete, but guitar is not so don't expect things like sustained notes for the moment. Please feel free to leave bug reports and feature requests as part of testing this tool.
 
+### Install
+
+##### MacOS
+Place `ChartPreview.vst3` in `/Library/Audio/Plug-Ins/VST3` and `ChartPreview.component` in `/Library/Audio/Plug-Ins/Components`.
+
 ### Why is this better than RBN Preview?
 Aside from being able to run on macs and outside of 32bit compatability layers, here's some unique features you may appreciate.
 * Guitar
