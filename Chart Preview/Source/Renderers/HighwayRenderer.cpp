@@ -75,14 +75,14 @@ void HighwayRenderer::paint(juce::Graphics &g, uint trackWindowStart, uint track
 
 	// // FAKE DATA
 	// TrackWindow trackWindow;
-	// trackWindow[trackWindowStart + 1] = {Gem::NOTE, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStart + (int)(1*displaySizeInSamples / 6)] = {Gem::NONE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStart + (int)(2*displaySizeInSamples / 6)] = {Gem::NONE, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStart + (int)(3*displaySizeInSamples / 6)] = {Gem::NONE, Gem::NONE, Gem::CYM_GHOST, Gem::CYM_GHOST, Gem::CYM_GHOST, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStart + (int)(4*displaySizeInSamples / 6)] = {Gem::NONE, Gem::NONE, Gem::CYM, Gem::CYM, Gem::CYM, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStart + (int)(5*displaySizeInSamples / 6)] = {Gem::NONE, Gem::NONE, Gem::CYM_ACCENT, Gem::CYM_ACCENT, Gem::CYM_ACCENT, Gem::NONE, Gem::NONE};
+    // trackWindow[trackWindowStart + (int)(1*displaySizeInSamples / 7)] = {Gem::NOTE, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::NONE, Gem::NONE};
+	// trackWindow[trackWindowStart + (int)(2*displaySizeInSamples / 7)] = {Gem::NONE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE, Gem::NONE};
+	// trackWindow[trackWindowStart + (int)(3*displaySizeInSamples / 7)] = {Gem::NONE, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::NONE, Gem::NONE};
+	// trackWindow[trackWindowStart + (int)(4*displaySizeInSamples / 7)] = {Gem::NONE, Gem::NONE, Gem::CYM_GHOST, Gem::CYM_GHOST, Gem::CYM_GHOST, Gem::NONE, Gem::NONE};
+	// trackWindow[trackWindowStart + (int)(5*displaySizeInSamples / 7)] = {Gem::NONE, Gem::NONE, Gem::CYM, Gem::CYM, Gem::CYM, Gem::NONE, Gem::NONE};
+	// trackWindow[trackWindowStart + (int)(6*displaySizeInSamples / 7)] = {Gem::NONE, Gem::NONE, Gem::CYM_ACCENT, Gem::CYM_ACCENT, Gem::CYM_ACCENT, Gem::NONE, Gem::NONE};
 
-	for (auto &frameItem : trackWindow)
+    for (auto &frameItem : trackWindow)
 	{
 		framePosition = frameItem.first;
 		float normalizedPosition = (framePosition - trackWindowStart) / (float)displaySizeInSamples;
@@ -97,53 +97,37 @@ void HighwayRenderer::drawFrame(juce::Graphics &g, const std::array<Gem,7> &gems
     {
         if (gems[gemColumn] != Gem::NONE)
         {
-            if (isPart(state, Part::DRUMS))
-            {
-                drawDrumGem(g, gemColumn, gems[gemColumn], position);
-            }
-            else if (isPart(state, Part::GUITAR))
-            {
-                drawGuitarGem(g, gemColumn, gems[gemColumn], position);
-            }
+            drawGem(g, gemColumn, gems[gemColumn], position);
         }
     }
 }
 
-void HighwayRenderer::drawGuitarGem(juce::Graphics &g, uint gemColumn, Gem gem, float position)
+void HighwayRenderer::drawGem(juce::Graphics &g, uint gemColumn, Gem gem, float position)
 {
-    juce::Rectangle<float> glyphRect = getGuitarGlyphRect(gemColumn, position);
-    juce::Image glyphImage = getGuitarGlyphImage(gem, gemColumn);
-    fadeInImage(glyphImage, position);
+    juce::Rectangle<float> glyphRect;
+    juce::Image glyphImage;
 
-    g.drawImage(glyphImage, glyphRect);
-}
-
-
-void HighwayRenderer::drawDrumGem(juce::Graphics &g, uint gemColumn, Gem gem, float position)
-{
-    juce::Rectangle<float> glyphRect = getDrumGlyphRect(gemColumn, position);
-    juce::Image glyphImage = getDrumGlyphImage(gem, gemColumn);
-    fadeInImage(glyphImage, position);
-    g.drawImage(glyphImage, glyphRect);
-
-    if (gem == Gem::TAP_ACCENT)
+    if (isPart(state, Part::GUITAR))
     {
-        // Adjust accent flair scale/position
-        float scaleFactor = 1.1232876712; // 12.32876712% larger
-        float newWidth = glyphRect.getWidth() * scaleFactor;
-        float newHeight = glyphRect.getHeight() * scaleFactor;
-        float widthIncrease = newWidth - glyphRect.getWidth();
-        float heightIncrease = newHeight - glyphRect.getHeight();
-
-        juce::Rectangle<float> accentRect = glyphRect.withWidth(newWidth)
-                                                     .withHeight(newHeight)
-                                                     .withX(glyphRect.getX() - widthIncrease / 2)
-                                                     .withY(glyphRect.getY() - heightIncrease / 2);
-        g.drawImage(overlayNoteAccentImage, accentRect);
+        glyphRect = getGuitarGlyphRect(gemColumn, position);
+        glyphImage = getGuitarGlyphImage(gem, gemColumn);
     }
-    else if (gem == Gem::CYM_ACCENT)
+    else // if (isPart(state, Part::DRUMS))
     {
-        // g.drawImage(glyphImage, glyphRect);
+        glyphRect = getDrumGlyphRect(gemColumn, position);
+        glyphImage = getDrumGlyphImage(gem, gemColumn);
+    }
+
+    fadeInImage(glyphImage, position);
+    g.drawImage(glyphImage, glyphRect);
+
+    // Draw overlay if needed
+    juce::Image overlayImage = getOverlayImage(gem);
+    if (!overlayImage.isNull())
+    {
+        juce::Rectangle<float> overlayRect = getOverlayGlyphRect(gem, glyphRect);
+        fadeInImage(overlayImage, position);
+        g.drawImage(overlayImage, overlayRect);
     }
 }
 
@@ -157,6 +141,39 @@ void HighwayRenderer::fadeInImage(juce::Image &image, float position)
         float opacity = 1.0 - ((position - opacityStart) / (1.0 - opacityStart));
         image.multiplyAllAlphas(opacity);
     }
+}
+
+//==============================================================================
+// Glyph positioning
+
+juce::Rectangle<float> HighwayRenderer::createGlyphRect(float position, float normY1, float normY2, float normX1, float normX2, float normWidth1, float normWidth2, bool isBarNote)
+{
+    // Create rectangle
+    float curve = 0.333; // Makes placement a bit more exponential
+
+    int pY1 = normY1 * height;
+    int pY2 = normY2 * height;
+    int yPos = pY2 - (int)((std::pow(10, curve * (1 - position)) - 1) / (std::pow(10, curve) - 1) * (pY2 - pY1));
+
+    int pX1 = normX1 * width;
+    int pX2 = normX2 * width;
+    int xPos = pX2 - (int)((std::pow(10, curve * (1 - position)) - 1) / (std::pow(10, curve) - 1) * (pX2 - pX1));
+
+    int pW1 = normWidth1 * width;
+    int pW2 = normWidth2 * width;
+    int width = pW2 - (int)((std::pow(10, curve * (1 - position)) - 1) / (std::pow(10, curve) - 1) * (pW2 - pW1));
+
+    int height;
+    if (isBarNote)
+    {
+        height = (int)width / 16.f;
+    }
+    else
+    {
+        height = (int)width / 2.f;
+    }
+
+    return juce::Rectangle<float>(xPos, yPos, width, height);
 }
 
 juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float position)
@@ -254,34 +271,114 @@ juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float p
     return createGlyphRect(position, normY1, normY2, normX1, normX2, normWidth1, normWidth2, isKick);
 }
 
-juce::Rectangle<float> HighwayRenderer::createGlyphRect(float position, float normY1, float normY2, float normX1, float normX2, float normWidth1, float normWidth2, bool isBarNote)
+juce::Rectangle<float> HighwayRenderer::getOverlayGlyphRect(Gem gem, juce::Rectangle<float> glyphRect)
 {
-    // Create rectangle
-    float curve = 0.333; // Makes placement a bit more exponential
-
-    int pY1 = normY1 * height;
-    int pY2 = normY2 * height;
-    int yPos = pY2 - (int)((std::pow(10, curve * (1 - position)) - 1) / (std::pow(10, curve) - 1) * (pY2 - pY1));
-
-    int pX1 = normX1 * width;
-    int pX2 = normX2 * width;
-    int xPos = pX2 - (int)((std::pow(10, curve * (1 - position)) - 1) / (std::pow(10, curve) - 1) * (pX2 - pX1));
-
-    int pW1 = normWidth1 * width;
-    int pW2 = normWidth2 * width;
-    int width = pW2 - (int)((std::pow(10, curve * (1 - position)) - 1) / (std::pow(10, curve) - 1) * (pW2 - pW1));
-
-    int height;
-    if (isBarNote)
+    juce::Rectangle<float> overlayRect;
+    if (isPart(state, Part::DRUMS) && gem == Gem::TAP_ACCENT)
     {
-        height = (int)width / 16.f;
+        float scaleFactor = 1.1232876712; // 12.32876712% larger
+        float newWidth = glyphRect.getWidth() * scaleFactor;
+        float newHeight = glyphRect.getHeight() * scaleFactor;
+        float widthIncrease = newWidth - glyphRect.getWidth();
+        float heightIncrease = newHeight - glyphRect.getHeight();
+
+        float xPos = glyphRect.getX() - widthIncrease / 2;
+        float yPos = glyphRect.getY() - heightIncrease / 2;
+
+        overlayRect = juce::Rectangle<float>(xPos, yPos, newWidth, newHeight);
     }
     else
     {
-        height = (int)width / 2.f;
+        overlayRect = glyphRect;
+    }
+    
+    return overlayRect;
+}
+
+//==============================================================================
+// Image pickers
+
+juce::Image HighwayRenderer::getGuitarGlyphImage(Gem gem, uint gemColumn)
+{
+    using Guitar = MidiPitchDefinitions::Guitar;
+    juce::Image gemImage;
+
+    if (state.getProperty("starPower") && midiInterpreter.isNoteHeld((int)Guitar::SP, framePosition))
+    {
+        switch (gem)
+        {
+        case Gem::HOPO_GHOST:
+            switch (gemColumn)
+            {
+            case 0: gemImage = barWhiteImage.createCopy(); break;
+            case 1:
+            case 2:
+            case 3:
+            case 4:
+            case 5: gemImage = hopoWhiteImage.createCopy(); break;
+            } break;
+        case Gem::NOTE:
+            switch (gemColumn)
+            {
+            case 0:
+                gemImage = barWhiteImage.createCopy(); break;
+            case 1:
+            case 2:
+            case 3:
+            case 4:
+            case 5:
+                gemImage = noteWhiteImage.createCopy(); break;
+            } break;
+        case Gem::TAP_ACCENT:
+            switch (gemColumn)
+            {
+            case 0: gemImage = barWhiteImage.createCopy(); break;
+            case 1:
+            case 2:
+            case 3:
+            case 4:
+            case 5: gemImage = hopoWhiteImage.createCopy(); break;
+            } break;
+        }
+    }
+    else
+    {
+        switch (gem)
+        {
+        case Gem::HOPO_GHOST:
+            switch (gemColumn)
+            {
+            case 0: gemImage = barOpenImage.createCopy(); break;
+            case 1: gemImage = hopoGreenImage.createCopy(); break;
+            case 2: gemImage = hopoRedImage.createCopy(); break;
+            case 3: gemImage = hopoYellowImage.createCopy(); break;
+            case 4: gemImage = hopoBlueImage.createCopy(); break;
+            case 5: gemImage = hopoOrangeImage.createCopy(); break;
+            } break;
+        case Gem::NOTE:
+            switch (gemColumn)
+            {
+            case 0: gemImage = barOpenImage.createCopy(); break;
+            case 1: gemImage = noteGreenImage.createCopy(); break;
+            case 2: gemImage = noteRedImage.createCopy(); break;
+            case 3: gemImage = noteYellowImage.createCopy(); break;
+            case 4: gemImage = noteBlueImage.createCopy(); break;
+            case 5: gemImage = noteOrangeImage.createCopy(); break;
+            } break;
+        case Gem::TAP_ACCENT:
+            switch (gemColumn)
+            {
+            case 0: gemImage = barOpenImage.createCopy(); break;
+            case 1: gemImage = hopoGreenImage.createCopy(); break;
+            case 2: gemImage = hopoRedImage.createCopy(); break;
+            case 3: gemImage = hopoYellowImage.createCopy(); break;
+            case 4: gemImage = hopoBlueImage.createCopy(); break;
+            case 5: gemImage = hopoOrangeImage.createCopy(); break;
+            } break;
+        }
     }
 
-    return juce::Rectangle<float>(xPos, yPos, width, height);
+    return gemImage;
 }
 
 juce::Image HighwayRenderer::getDrumGlyphImage(Gem gem, uint gemColumn)
@@ -294,6 +391,15 @@ juce::Image HighwayRenderer::getDrumGlyphImage(Gem gem, uint gemColumn)
         switch (gem)
         {
         case Gem::HOPO_GHOST:
+            switch (gemColumn)
+            {
+            case 0:
+            case 6: gemImage = barWhiteImage.createCopy(); break;
+            case 1:
+            case 2:
+            case 3:
+            case 4: gemImage = hopoWhiteImage.createCopy(); break;
+            } break;
         case Gem::NOTE:
         case Gem::TAP_ACCENT:
             switch (gemColumn)
@@ -321,6 +427,13 @@ juce::Image HighwayRenderer::getDrumGlyphImage(Gem gem, uint gemColumn)
         switch (gem)
         {
         case Gem::HOPO_GHOST:
+            switch (gemColumn)
+            {
+            case 1: gemImage = hopoRedImage.createCopy(); break;
+            case 2: gemImage = hopoYellowImage.createCopy(); break;
+            case 3: gemImage = hopoBlueImage.createCopy(); break;
+            case 4: gemImage = hopoGreenImage.createCopy(); break;
+            } break;
         case Gem::NOTE:
         case Gem::TAP_ACCENT:
             switch (gemColumn)
@@ -344,74 +457,30 @@ juce::Image HighwayRenderer::getDrumGlyphImage(Gem gem, uint gemColumn)
         }
     }
 
-    bool isGhost = (gem == Gem::HOPO_GHOST || gem == Gem::CYM_GHOST);
-    if (isGhost)
-    {
-        gemImage.multiplyAllAlphas(0.5f);
-    }
-
     return gemImage;
 }
 
-juce::Image HighwayRenderer::getGuitarGlyphImage(Gem gem, uint gemColumn)
+juce::Image HighwayRenderer::getOverlayImage(Gem gem)
 {
-    using Guitar = MidiPitchDefinitions::Guitar;
-    juce::Image gemImage;
+    juce::Image overlayImage;
 
-    if (state.getProperty("starPower") && midiInterpreter.isNoteHeld((int)Guitar::SP, framePosition))
+    if (isPart(state, Part::GUITAR))
     {
         switch (gem)
         {
-        case Gem::HOPO_GHOST:
-            switch (gemColumn)
-            {
-            case 0: gemImage = barWhiteImage.createCopy(); break;
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-            case 5: gemImage = hopoWhiteImage.createCopy(); break;
-            } break;
-        case Gem::NOTE:
-        case Gem::TAP_ACCENT:
-            switch (gemColumn)
-            {
-            case 0: gemImage = barWhiteImage.createCopy(); break;
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-            case 5: gemImage = noteWhiteImage.createCopy(); break;
-            } break;
+        case Gem::TAP_ACCENT: overlayImage = overlayNoteTapImage.createCopy(); break;
         }
     }
-    else
+    else // if (isPart(state, Part::DRUMS))
     {
         switch (gem)
         {
-        case Gem::HOPO_GHOST:
-            switch (gemColumn)
-            {
-            case 0: gemImage = barOpenImage.createCopy(); break;
-            case 1: gemImage = hopoGreenImage.createCopy(); break;
-            case 2: gemImage = hopoRedImage.createCopy(); break;
-            case 3: gemImage = hopoYellowImage.createCopy(); break;
-            case 4: gemImage = hopoBlueImage.createCopy(); break;
-            case 5: gemImage = hopoOrangeImage.createCopy(); break;
-            } break;
-        case Gem::NOTE:
-        case Gem::TAP_ACCENT:
-            switch (gemColumn)
-            {
-            case 0: gemImage = barOpenImage.createCopy(); break;
-            case 1: gemImage = noteGreenImage.createCopy(); break;
-            case 2: gemImage = noteRedImage.createCopy(); break;
-            case 3: gemImage = noteYellowImage.createCopy(); break;
-            case 4: gemImage = noteBlueImage.createCopy(); break;
-            case 5: gemImage = noteOrangeImage.createCopy(); break;
-            } break;
+        case Gem::HOPO_GHOST: overlayImage = overlayNoteGhostImage.createCopy(); break;
+        case Gem::TAP_ACCENT: overlayImage = overlayNoteAccentImage.createCopy(); break;
+        case Gem::CYM_GHOST: overlayImage = overlayCymGhostImage.createCopy(); break;
+        case Gem::CYM_ACCENT: overlayImage = overlayCymAccentImage.createCopy(); break;
         }
     }
 
-    return gemImage;
+    return overlayImage;
 }

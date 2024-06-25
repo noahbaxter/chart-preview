@@ -73,7 +73,7 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     drumTypeMenu.addListener(this);
     addAndMakeVisible(drumTypeMenu);
 
-    framerateMenu.addItemList({"15 fps", "30 fps", "60 fps"}, 1);
+    framerateMenu.addItemList({"15 FPS", "30 FPS", "60 FPS"}, 1);
     framerateMenu.setSelectedId(state.getProperty("framerate"), juce::NotificationType::dontSendNotification);
     framerateMenu.addListener(this);
     addAndMakeVisible(framerateMenu);
