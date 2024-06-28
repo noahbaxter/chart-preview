@@ -76,70 +76,97 @@ void HighwayRenderer::paint(juce::Graphics &g, uint trackWindowStart, uint track
 	// // FAKE DATA
 	// TrackWindow trackWindow;
     // trackWindow[trackWindowStart + (int)(1*displaySizeInSamples / 7)] = {Gem::NOTE, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::NONE, Gem::NONE};
+	// trackWindow[trackWindowStart + (int)(2*displaySizeInSamples / 7)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE, Gem::NOTE};
 	// trackWindow[trackWindowStart + (int)(2*displaySizeInSamples / 7)] = {Gem::NONE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE, Gem::NONE};
 	// trackWindow[trackWindowStart + (int)(3*displaySizeInSamples / 7)] = {Gem::NONE, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::NONE, Gem::NONE};
 	// trackWindow[trackWindowStart + (int)(4*displaySizeInSamples / 7)] = {Gem::NONE, Gem::NONE, Gem::CYM_GHOST, Gem::CYM_GHOST, Gem::CYM_GHOST, Gem::NONE, Gem::NONE};
 	// trackWindow[trackWindowStart + (int)(5*displaySizeInSamples / 7)] = {Gem::NONE, Gem::NONE, Gem::CYM, Gem::CYM, Gem::CYM, Gem::NONE, Gem::NONE};
 	// trackWindow[trackWindowStart + (int)(6*displaySizeInSamples / 7)] = {Gem::NONE, Gem::NONE, Gem::CYM_ACCENT, Gem::CYM_ACCENT, Gem::CYM_ACCENT, Gem::NONE, Gem::NONE};
+    // // Overlapping kicks
+	// trackWindow[trackWindowStart + (int)(3*displaySizeInSamples / 7) + 10] = {Gem::NOTE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE};
+	// trackWindow[trackWindowStart + (int)(3*displaySizeInSamples / 7) + 5000] = {Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NOTE};
 
+    drawCallMap.clear();
+
+    // Populate drawCallMap
     for (auto &frameItem : trackWindow)
 	{
 		framePosition = frameItem.first;
 		float normalizedPosition = (framePosition - trackWindowStart) / (float)displaySizeInSamples;
-		drawFrame(g, frameItem.second, normalizedPosition);
+		drawFrame(frameItem.second, normalizedPosition);
 	}
-}
 
-
-void HighwayRenderer::drawFrame(juce::Graphics &g, const std::array<Gem,7> &gems, float position)
-{
-    for (int gemColumn = 0; gemColumn < gems.size(); gemColumn++)
+    // Draw layer by layer
+    for (const auto& drawOrder : drawCallMap)
     {
-        if (gems[gemColumn] != Gem::NONE)
+        for (const auto& drawCall : drawOrder.second)
         {
-            drawGem(g, gemColumn, gems[gemColumn], position);
+            drawCall(g);
         }
     }
 }
 
-void HighwayRenderer::drawGem(juce::Graphics &g, uint gemColumn, Gem gem, float position)
+
+void HighwayRenderer::drawFrame(const std::array<Gem,7> &gems, float position)
+{
+    uint drawSequence[] = {0, 6, 1, 2, 3, 4, 5};
+    for (int i = 0; i < gems.size(); i++)
+    {
+        int gemColumn = drawSequence[i];
+        if (gems[gemColumn] != Gem::NONE)
+        {
+            drawGem(gemColumn, gems[gemColumn], position);
+        }
+    }
+}
+
+void HighwayRenderer::drawGem(uint gemColumn, Gem gem, float position)
 {
     juce::Rectangle<float> glyphRect;
-    juce::Image glyphImage;
+    juce::Image* glyphImage;
+    bool barNote;
 
     if (isPart(state, Part::GUITAR))
     {
         glyphRect = getGuitarGlyphRect(gemColumn, position);
         glyphImage = getGuitarGlyphImage(gem, gemColumn);
+        barNote = isBarNote(gemColumn, Part::GUITAR);
     }
     else // if (isPart(state, Part::DRUMS))
     {
         glyphRect = getDrumGlyphRect(gemColumn, position);
         glyphImage = getDrumGlyphImage(gem, gemColumn);
+        barNote = isBarNote(gemColumn, Part::DRUMS);
     }
 
-    fadeInImage(glyphImage, position);
-    g.drawImage(glyphImage, glyphRect);
+    // No glyph to draw
+    if (glyphImage == nullptr)
+    {
+        return;
+    }
 
-    // Draw overlay if needed
-    juce::Image overlayImage = getOverlayImage(gem);
-    if (!overlayImage.isNull())
+    float opacity = calculateOpacity(position);
+    if (barNote)
+    {
+        drawCallMap[DrawOrder::BAR].push_back([=](juce::Graphics &g) {
+            draw(g, glyphImage, glyphRect, opacity);
+        });
+    }
+    else
+    {
+        drawCallMap[DrawOrder::NOTE].push_back([=](juce::Graphics &g) {
+            draw(g, glyphImage, glyphRect, opacity);
+        });
+    }
+    
+    juce::Image* overlayImage = getOverlayImage(gem);
+    if (overlayImage != nullptr)
     {
         juce::Rectangle<float> overlayRect = getOverlayGlyphRect(gem, glyphRect);
-        fadeInImage(overlayImage, position);
-        g.drawImage(overlayImage, overlayRect);
-    }
-}
 
-void HighwayRenderer::fadeInImage(juce::Image &image, float position)
-{
-    // Make the gem fade out as it gets closer to the end
-    float opacity;
-    float opacityStart = 0.9;
-    if (position >= opacityStart)
-    {
-        float opacity = 1.0 - ((position - opacityStart) / (1.0 - opacityStart));
-        image.multiplyAllAlphas(opacity);
+        drawCallMap[DrawOrder::OVERLAY].push_back([=](juce::Graphics &g) {
+            draw(g, overlayImage, overlayRect, opacity);
+        });
     }
 }
 
@@ -181,7 +208,7 @@ juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float
     float normY1, normY2, normX1, normX2, normWidth1, normWidth2;
 
     // If the gem is an open note
-    bool isOpen = (gemColumn == 0);
+    bool isOpen = isBarNote(gemColumn, Part::GUITAR);
     if (isOpen)
     {
         normY1 = 0.73;
@@ -231,7 +258,7 @@ juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float p
     float normY1, normY2, normX1, normX2, normWidth1, normWidth2;
 
     // If the gem is a kick
-    bool isKick = (gemColumn == 0 || gemColumn == 6);
+    bool isKick = isBarNote(gemColumn, Part::DRUMS);
     if (isKick)
     {
         normY1 = 0.73;
@@ -298,10 +325,9 @@ juce::Rectangle<float> HighwayRenderer::getOverlayGlyphRect(Gem gem, juce::Recta
 //==============================================================================
 // Image pickers
 
-juce::Image HighwayRenderer::getGuitarGlyphImage(Gem gem, uint gemColumn)
+juce::Image* HighwayRenderer::getGuitarGlyphImage(Gem gem, uint gemColumn)
 {
     using Guitar = MidiPitchDefinitions::Guitar;
-    juce::Image gemImage;
 
     if (state.getProperty("starPower") && midiInterpreter.isNoteHeld((int)Guitar::SP, framePosition))
     {
@@ -310,34 +336,32 @@ juce::Image HighwayRenderer::getGuitarGlyphImage(Gem gem, uint gemColumn)
         case Gem::HOPO_GHOST:
             switch (gemColumn)
             {
-            case 0: gemImage = barWhiteImage.createCopy(); break;
+            case 0: return &barWhiteImage;
             case 1:
             case 2:
             case 3:
             case 4:
-            case 5: gemImage = hopoWhiteImage.createCopy(); break;
+            case 5: return &hopoWhiteImage;
             } break;
         case Gem::NOTE:
             switch (gemColumn)
             {
-            case 0:
-                gemImage = barWhiteImage.createCopy(); break;
+            case 0: return &barWhiteImage;
             case 1:
             case 2:
             case 3:
             case 4:
-            case 5:
-                gemImage = noteWhiteImage.createCopy(); break;
+            case 5: return &noteWhiteImage;
             } break;
         case Gem::TAP_ACCENT:
             switch (gemColumn)
             {
-            case 0: gemImage = barWhiteImage.createCopy(); break;
+            case 0: return &barWhiteImage;
             case 1:
             case 2:
             case 3:
             case 4:
-            case 5: gemImage = hopoWhiteImage.createCopy(); break;
+            case 5: return &hopoWhiteImage;
             } break;
         }
     }
@@ -348,43 +372,42 @@ juce::Image HighwayRenderer::getGuitarGlyphImage(Gem gem, uint gemColumn)
         case Gem::HOPO_GHOST:
             switch (gemColumn)
             {
-            case 0: gemImage = barOpenImage.createCopy(); break;
-            case 1: gemImage = hopoGreenImage.createCopy(); break;
-            case 2: gemImage = hopoRedImage.createCopy(); break;
-            case 3: gemImage = hopoYellowImage.createCopy(); break;
-            case 4: gemImage = hopoBlueImage.createCopy(); break;
-            case 5: gemImage = hopoOrangeImage.createCopy(); break;
+            case 0: return &barOpenImage;
+            case 1: return &hopoGreenImage;
+            case 2: return &hopoRedImage;
+            case 3: return &hopoYellowImage;
+            case 4: return &hopoBlueImage;
+            case 5: return &hopoOrangeImage;
             } break;
         case Gem::NOTE:
             switch (gemColumn)
             {
-            case 0: gemImage = barOpenImage.createCopy(); break;
-            case 1: gemImage = noteGreenImage.createCopy(); break;
-            case 2: gemImage = noteRedImage.createCopy(); break;
-            case 3: gemImage = noteYellowImage.createCopy(); break;
-            case 4: gemImage = noteBlueImage.createCopy(); break;
-            case 5: gemImage = noteOrangeImage.createCopy(); break;
+            case 0: return &barOpenImage;
+            case 1: return &noteGreenImage;
+            case 2: return &noteRedImage;
+            case 3: return &noteYellowImage;
+            case 4: return &noteBlueImage;
+            case 5: return &noteOrangeImage;
             } break;
         case Gem::TAP_ACCENT:
             switch (gemColumn)
             {
-            case 0: gemImage = barOpenImage.createCopy(); break;
-            case 1: gemImage = hopoGreenImage.createCopy(); break;
-            case 2: gemImage = hopoRedImage.createCopy(); break;
-            case 3: gemImage = hopoYellowImage.createCopy(); break;
-            case 4: gemImage = hopoBlueImage.createCopy(); break;
-            case 5: gemImage = hopoOrangeImage.createCopy(); break;
+            case 0: return &barOpenImage;
+            case 1: return &hopoGreenImage;
+            case 2: return &hopoRedImage;
+            case 3: return &hopoYellowImage;
+            case 4: return &hopoBlueImage;
+            case 5: return &hopoOrangeImage;
             } break;
         }
     }
 
-    return gemImage;
+    return nullptr;
 }
 
-juce::Image HighwayRenderer::getDrumGlyphImage(Gem gem, uint gemColumn)
+juce::Image* HighwayRenderer::getDrumGlyphImage(Gem gem, uint gemColumn)
 {
     using Drums = MidiPitchDefinitions::Drums;
-    juce::Image gemImage;
 
     if (state.getProperty("starPower") && midiInterpreter.isNoteHeld((int)Drums::SP, framePosition))
     {
@@ -394,22 +417,22 @@ juce::Image HighwayRenderer::getDrumGlyphImage(Gem gem, uint gemColumn)
             switch (gemColumn)
             {
             case 0:
-            case 6: gemImage = barWhiteImage.createCopy(); break;
+            case 6: return &barWhiteImage;
             case 1:
             case 2:
             case 3:
-            case 4: gemImage = hopoWhiteImage.createCopy(); break;
+            case 4: return &hopoWhiteImage;
             } break;
         case Gem::NOTE:
         case Gem::TAP_ACCENT:
             switch (gemColumn)
             {
             case 0:
-            case 6: gemImage = barWhiteImage.createCopy(); break;
+            case 6: return &barWhiteImage;
             case 1:
             case 2:
             case 3:
-            case 4: gemImage = noteWhiteImage.createCopy(); break;
+            case 4: return &noteWhiteImage;
             } break;
         case Gem::CYM_GHOST:
         case Gem::CYM:
@@ -418,7 +441,7 @@ juce::Image HighwayRenderer::getDrumGlyphImage(Gem gem, uint gemColumn)
             {
             case 2:
             case 3:
-            case 4: gemImage = cymWhiteImage.createCopy(); break;
+            case 4: return &cymWhiteImage;
             } break;
         }
     } 
@@ -429,58 +452,56 @@ juce::Image HighwayRenderer::getDrumGlyphImage(Gem gem, uint gemColumn)
         case Gem::HOPO_GHOST:
             switch (gemColumn)
             {
-            case 1: gemImage = hopoRedImage.createCopy(); break;
-            case 2: gemImage = hopoYellowImage.createCopy(); break;
-            case 3: gemImage = hopoBlueImage.createCopy(); break;
-            case 4: gemImage = hopoGreenImage.createCopy(); break;
+            case 1: return &hopoRedImage;
+            case 2: return &hopoYellowImage;
+            case 3: return &hopoBlueImage;
+            case 4: return &hopoGreenImage;
             } break;
         case Gem::NOTE:
         case Gem::TAP_ACCENT:
             switch (gemColumn)
             {
-            case 0: gemImage = barKickImage.createCopy(); break;
-            case 6: gemImage = barKick2xImage.createCopy(); break;
-            case 1: gemImage = noteRedImage.createCopy(); break;
-            case 2: gemImage = noteYellowImage.createCopy(); break;
-            case 3: gemImage = noteBlueImage.createCopy(); break;
-            case 4: gemImage = noteGreenImage.createCopy(); break;
+            case 0: return &barKickImage;
+            case 6: return &barKick2xImage;
+            case 1: return &noteRedImage;
+            case 2: return &noteYellowImage;
+            case 3: return &noteBlueImage;
+            case 4: return &noteGreenImage;
             } break;
         case Gem::CYM_GHOST:
         case Gem::CYM:
         case Gem::CYM_ACCENT:
             switch (gemColumn)
             {
-            case 2: gemImage = cymYellowImage.createCopy(); break;
-            case 3: gemImage = cymBlueImage.createCopy(); break;
-            case 4: gemImage = cymGreenImage.createCopy(); break;
+            case 2: return &cymYellowImage;
+            case 3: return &cymBlueImage;
+            case 4: return &cymGreenImage;
             } break;
         }
     }
 
-    return gemImage;
+    return nullptr;
 }
 
-juce::Image HighwayRenderer::getOverlayImage(Gem gem)
+juce::Image* HighwayRenderer::getOverlayImage(Gem gem)
 {
-    juce::Image overlayImage;
-
     if (isPart(state, Part::GUITAR))
     {
         switch (gem)
         {
-        case Gem::TAP_ACCENT: overlayImage = overlayNoteTapImage.createCopy(); break;
+        case Gem::TAP_ACCENT: return &overlayNoteTapImage;
         }
     }
     else // if (isPart(state, Part::DRUMS))
     {
         switch (gem)
         {
-        case Gem::HOPO_GHOST: overlayImage = overlayNoteGhostImage.createCopy(); break;
-        case Gem::TAP_ACCENT: overlayImage = overlayNoteAccentImage.createCopy(); break;
-        case Gem::CYM_GHOST: overlayImage = overlayCymGhostImage.createCopy(); break;
-        case Gem::CYM_ACCENT: overlayImage = overlayCymAccentImage.createCopy(); break;
+        case Gem::HOPO_GHOST: return &overlayNoteGhostImage;
+        case Gem::TAP_ACCENT: return &overlayNoteAccentImage;
+        case Gem::CYM_GHOST: return &overlayCymGhostImage;
+        case Gem::CYM_ACCENT: return &overlayCymAccentImage;
         }
     }
 
-    return overlayImage;
+    return nullptr;
 }
