@@ -28,7 +28,6 @@ class HighwayRenderer
 
 
     private:
-        
         juce::ValueTree &state;
         MidiInterpreter &midiInterpreter;
 
@@ -80,8 +79,38 @@ class HighwayRenderer
         juce::Image sustainWhiteImage;
         juce::Image sustainYellowImage;
 
-        void drawFrame(juce::Graphics &g, const std::array<Gem, 7> &gems, float position);
-        void drawGem(juce::Graphics &g, uint gemColumn, Gem gem, float position);
+        bool isBarNote(uint gemColumn, Part part)
+        {
+            if (part == Part::GUITAR)
+            {
+                return gemColumn == 0;
+            }
+            else // if (part == Part::DRUMS)
+            {
+                return gemColumn == 0 || gemColumn == 6;
+            }
+        }
+
+        float calculateOpacity(float position)
+        {
+            // Make the gem fade out as it gets closer to the end
+            float opacityStart = 0.9;
+            if (position >= opacityStart)
+            {
+                return 1.0 - ((position - opacityStart) / (1.0f - opacityStart));
+            }
+
+            return 1.0;
+        }
+
+        DrawCallMap drawCallMap;
+        void drawFrame(const std::array<Gem, 7> &gems, float position);
+        void drawGem(uint gemColumn, Gem gem, float position);
+        void draw(juce::Graphics &g, juce::Image *image, juce::Rectangle<float> position, float opacity)
+        {
+            g.setOpacity(opacity);
+            g.drawImage(*image, position);
+        };
 
         juce::Rectangle<float> createGlyphRect(float position, 
                                                float normY1, float normY2, 
@@ -92,9 +121,8 @@ class HighwayRenderer
         juce::Rectangle<float> getDrumGlyphRect(uint gemColumn, float position);
         juce::Rectangle<float> getOverlayGlyphRect(Gem gem, juce::Rectangle<float> glyphRect);
 
-        juce::Image getGuitarGlyphImage(Gem gem, uint gemColumn);
-        juce::Image getDrumGlyphImage(Gem gem, uint gemColumn);
-        juce::Image getOverlayImage(Gem gem);
+        juce::Image* getGuitarGlyphImage(Gem gem, uint gemColumn);
+        juce::Image* getDrumGlyphImage(Gem gem, uint gemColumn);
+        juce::Image* getOverlayImage(Gem gem);
 
-        void fadeInImage(juce::Image &image, float position);
 };

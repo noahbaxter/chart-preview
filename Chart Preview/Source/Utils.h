@@ -26,6 +26,21 @@ inline bool isPart(juce::ValueTree &state, Part part)
 }
 
 //==============================================================================
+// DRAWING
+
+enum class DrawOrder
+{
+    BACKGROUND,
+    LANE,
+    BAR,
+    SUSTAIN,
+    NOTE,
+    OVERLAY
+};
+
+using DrawCallMap = std::map<DrawOrder, std::vector<std::function<void(juce::Graphics&)>>>;
+
+//==============================================================================
 // CHART EVENTS
 
 enum class Gem
