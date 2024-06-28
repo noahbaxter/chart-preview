@@ -99,9 +99,10 @@ void HighwayRenderer::paint(juce::Graphics &g, uint trackWindowStart, uint track
     // Draw layer by layer
     for (const auto& drawOrder : drawCallMap)
     {
-        for (const auto& drawCall : drawOrder.second)
+        // Draw each layer from back to front
+        for (auto it = drawOrder.second.rbegin(); it != drawOrder.second.rend(); ++it)
         {
-            drawCall(g);
+            (*it)(g);
         }
     }
 }

@@ -31,6 +31,8 @@ inline bool isPart(juce::ValueTree &state, Part part)
 enum class DrawOrder
 {
     BACKGROUND,
+    TRACK,
+    GRID,
     LANE,
     BAR,
     SUSTAIN,
