@@ -7,9 +7,11 @@ This plugin supports any Windows or MacOS based 64bit DAW. Happy charting!
 
 Big massive thank you Invontor for the lovely custom art assets.
 
-**DISCLAIMER**
+#### **DISCLAIMER**
 
 Chart Preview is in active development and currently only released in beta. At the moment drums are *(mostly)* feature complete, but guitar is not so don't expect things like sustained notes for the moment. Please feel free to leave bug reports and feature requests as part of testing this tool.
+
+[Consider supporting the project!](https://www.paypal.com/donate/?business=3P35P46JLEDJA&no_recurring=0&item_name=Support+the+ongoing+development+of+Chart+Preview.&currency_code=USD)
 
 ### Install
 
