@@ -38,7 +38,9 @@ void MidiProcessor::process(juce::MidiBuffer& midiMessages, uint startPositionIn
 
         if (midiMessage.isNoteOn() || midiMessage.isNoteOff())
         {
-            noteStateMapArray[midiMessage.getNoteNumber()][globalMessagePositionInSamples] = midiMessage.getVelocity();
+            uint noteNumber = midiMessage.getNoteNumber();
+            uint velocity = midiMessage.isNoteOn() ? midiMessage.getVelocity() : 0; // Note off MUST be velocity 0
+            noteStateMapArray[noteNumber][globalMessagePositionInSamples] = velocity;
         }
 
         numMessages++;
