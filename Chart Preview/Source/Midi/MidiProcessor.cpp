@@ -5,7 +5,7 @@ void MidiProcessor::process(juce::MidiBuffer &midiMessages, uint startPositionIn
     // Erase all events in the map within the range of the current block so changes are reflected
     for (auto &noteStateMap : noteStateMapArray)
     {
-        // OLD - build and maintain all midi events for the project
+        // // OLD - build and maintain all midi events for the project
         // auto lower = noteStateMap.lower_bound(startPositionInSamples);
         // auto upper = noteStateMap.lower_bound(endPositionInSamples);
         // noteStateMap.erase(lower, upper);
@@ -37,7 +37,7 @@ void MidiProcessor::process(juce::MidiBuffer &midiMessages, uint startPositionIn
         }
 
         numMessages++;
-        if (numMessages >= maxNumMessages)
+        if (numMessages >= maxNumMessagesPerBlock)
         {
             break;
         }

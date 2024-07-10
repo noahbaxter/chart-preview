@@ -88,8 +88,6 @@ public:
 private:
   juce::ValueTree state;
   MidiProcessor midiProcessor;
-
-  uint lastProcessedSample = 0;
   
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChartPreviewAudioProcessor)
 };

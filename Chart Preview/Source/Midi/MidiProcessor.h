@@ -15,5 +15,5 @@ class MidiProcessor
 
     private:
         // The maximum number of messages to process per block
-        const uint maxNumMessages = 256;
+        const uint maxNumMessagesPerBlock = 256;
 };
