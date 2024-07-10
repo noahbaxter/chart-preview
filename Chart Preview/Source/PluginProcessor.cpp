@@ -140,8 +140,8 @@ void ChartPreviewAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         return;
     }
 
-    startPositionInSamples = std::max(positionInfo.timeInSamples, lastProcessedSample + 1);
-    
+    startPositionInSamples = std::max((uint)positionInfo.timeInSamples, lastProcessedSample + 1);
+
     // Reset last processed sample if we stop playback
     // No new midi events appear while playback is stopped
     isPlaying = positionInfo.isPlaying;
