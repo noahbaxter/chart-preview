@@ -140,7 +140,7 @@ private:
 
     int currentPlayheadPositionInSamples()
     {
-        return audioProcessor.playheadPositionInSamples;
+        return audioProcessor.startPositionInSamples;
     }
 
     float latencyInSeconds = 0.0;

@@ -6,13 +6,12 @@
 class MidiProcessor
 {
     public:
-        void process(juce::MidiBuffer& midiMessages,
+        void process(juce::MidiBuffer &midiMessages,
                      uint startPositionInSamples,
-                     uint blockSizeInSamples,
+                     uint endPositionInSamples,
                      uint latencyInSamples);
 
         NoteStateMapArray noteStateMapArray;
-        uint lastProcessedSample = 0;
 
     private:
         // The maximum number of messages to process per block

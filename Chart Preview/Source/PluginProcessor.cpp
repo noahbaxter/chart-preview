@@ -140,17 +140,27 @@ void ChartPreviewAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         return;
     }
 
-    playheadPositionInSamples = positionInfo.timeInSamples;
-    uint blockSizeInSamples = buffer.getNumSamples();
-
-    // Prevents events being erased while scrubbing through timeline while playback is stopped
+    startPositionInSamples = std::max(positionInfo.timeInSamples, lastProcessedSample + 1);
+    
+    // Reset last processed sample if we stop playback
+    // No new midi events appear while playback is stopped
     isPlaying = positionInfo.isPlaying;
-    if (isPlaying)
+    if (!isPlaying)
     {
-        midiProcessor.process(midiMessages, playheadPositionInSamples, blockSizeInSamples, latencyInSamples);
+        lastProcessedSample = 0;
+        return;
     }
-    else {
-        midiProcessor.lastProcessedSample = playheadPositionInSamples;
+
+    uint blockSizeInSamples = buffer.getNumSamples();
+    uint endPositionInSamples = startPositionInSamples + blockSizeInSamples;
+
+    // Ensure we process only sequential samples
+    // Need to keep track of the last processed sample since the buffer can
+    // shift unexpectedly in Ableton when tempo automation is present :/
+    if (startPositionInSamples < endPositionInSamples)
+    {
+        midiProcessor.process(midiMessages, startPositionInSamples, endPositionInSamples, latencyInSamples);
+        lastProcessedSample = endPositionInSamples;
     }
 }
 

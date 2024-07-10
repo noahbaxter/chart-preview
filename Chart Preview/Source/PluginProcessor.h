@@ -36,7 +36,7 @@ public:
       return midiProcessor.noteStateMapArray;
     }
 
-    uint playheadPositionInSamples = 0;
+    uint startPositionInSamples = 0;
     bool isPlaying = false;
 
     float latencyInSeconds = 0.8;
@@ -89,5 +89,7 @@ private:
   juce::ValueTree state;
   MidiProcessor midiProcessor;
 
+  uint lastProcessedSample = 0;
+  
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChartPreviewAudioProcessor)
 };
