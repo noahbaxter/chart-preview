@@ -77,6 +77,29 @@ public:
             }
             startTimerHz(frameRate);
         }
+        else if (comboBoxThatHasChanged == &latencyMenu)
+        {
+            auto latencyValue = latencyMenu.getSelectedId();
+            state.setProperty("latency", latencyValue, nullptr);
+
+            switch (latencyValue)
+            {
+            case 1:
+                latencyInSeconds = 0.250;
+                break;
+            case 2:
+                latencyInSeconds = 0.500;
+                break;
+            case 3:
+                latencyInSeconds = 0.750;
+                break;
+            case 4:
+                latencyInSeconds = 1.000;
+                break;
+            }
+
+            audioProcessor.setLatencyInSeconds(latencyInSeconds);
+        }
     }
 
     void sliderValueChanged(juce::Slider *slider) override
@@ -125,7 +148,7 @@ private:
     juce::Image trackGuitarImage;
 
     juce::Label chartZoomLabel;
-    juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu;
+    juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu;
     juce::ToggleButton starPowerToggle, kick2xToggle, dynamicsToggle;
     juce::Slider chartZoomSlider;
 
