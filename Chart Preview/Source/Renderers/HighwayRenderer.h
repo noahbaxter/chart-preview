@@ -21,6 +21,7 @@ class HighwayRenderer
         HighwayRenderer(juce::ValueTree &state, MidiInterpreter &midiInterpreter);
         ~HighwayRenderer();
 
+        TrackWindow trackWindow;
         uint width = 0, height = 0;
 
         void initAssets();

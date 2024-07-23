@@ -71,7 +71,7 @@ void HighwayRenderer::initAssets()
 
 void HighwayRenderer::paint(juce::Graphics &g, uint trackWindowStart, uint trackWindowEnd, uint displaySizeInSamples)
 {
-	TrackWindow trackWindow = midiInterpreter.generateTrackWindow(trackWindowStart, trackWindowEnd);
+	trackWindow = midiInterpreter.generateTrackWindow(trackWindowStart, trackWindowEnd);
 
 	// // FAKE DATA
 	// TrackWindow trackWindow;
