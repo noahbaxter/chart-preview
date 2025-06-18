@@ -19,7 +19,8 @@ ChartPreviewAudioProcessor::ChartPreviewAudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ),
+       midiProcessor(state)
 #endif
 {
 }
@@ -93,7 +94,13 @@ void ChartPreviewAudioProcessor::changeProgramName (int index, const juce::Strin
 //==============================================================================
 void ChartPreviewAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+    if(state.getProperty("isReaper"))
+    {
+        latencyInSeconds = 0.f;
+    }
+
     setLatencyInSeconds(latencyInSeconds);
+
 }
 
 void ChartPreviewAudioProcessor::releaseResources()

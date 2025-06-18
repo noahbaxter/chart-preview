@@ -144,10 +144,14 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     if (audioProcessor.isPlaying)
     {
         // Shift the start position back by the latency to account for the delay
-        trackWindowStart = std::max(0, (int)trackWindowStart - int(latencyInSeconds * audioProcessor.getSampleRate()));
+        trackWindowStart = std::max<int>(0, (int)trackWindowStart - int(latencyInSeconds * audioProcessor.getSampleRate()));
     }
     uint trackWindowEnd = trackWindowStart + displaySizeInSamples;
     highwayRenderer.paint(g, trackWindowStart, trackWindowEnd, displaySizeInSamples);
+
+    // printNoteStateMap(trackWindowStart, trackWindowEnd, displaySizeInSamples);
+    // print("\n");
+    // printTrackWindow();
 }
 
 void ChartPreviewAudioProcessorEditor::resized()
@@ -161,7 +165,10 @@ void ChartPreviewAudioProcessorEditor::resized()
     dynamicsToggle.setBounds(getWidth() - 120, 50, 100, 20);
 
     framerateMenu.setBounds(getWidth() - 120, getHeight() - 30, 100, 20);
-    latencyMenu.setBounds(getWidth() - 120, getHeight() - 50, 100, 20);
+    if(state.getProperty("isReaper"))   // midi lookahead supported so latency is unnecessary
+    {
+        latencyMenu.setBounds(getWidth() - 120, getHeight() - 50, 100, 20);
+    }
 
     chartZoomLabel.setBounds(getWidth() - 90, getHeight() - 250, 40, 20);
     chartZoomSlider.setBounds(getWidth() - 120, getHeight() - 220, 100, 150);

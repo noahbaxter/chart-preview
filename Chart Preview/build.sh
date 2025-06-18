@@ -23,14 +23,15 @@ if [ "$build_type" == "standalone" ]; then
         open build/$config_type/ChartPreview.app
     fi
 elif [ "$build_type" == "vst" ]; then
-    osascript -e 'quit app "Ableton Live 12 Suite"'
+    # osascript -e 'quit app "Ableton Live 12 Suite"'
 
     xcodebuild -quiet -project ChartPreview.xcodeproj -configuration $config_type
     if [ $? -eq 0 ]; then
         echo "SUCCESS"
         cp -R build/$config_type/ChartPreview.vst3 ~/Library/Audio/Plug-Ins/VST3/
 
-        open -a "Ableton Live 12 Suite" "/Users/noahbaxter/Code/personal/chart-preview/ableton-test Project/ableton-test.als"
+        # open -a "Ableton Live 12 Suite" "/Users/noahbaxter/Code/personal/chart-preview/ableton-test Project/ableton-test.als"
+        # open -a "Ableton Live 12 Suite" "/Users/noahbaxter/Dropbox/Audio/Sessions/charts/projects/Squid Pisser/squid pisser/squidpisser.als"
     fi
 elif [ "$build_type" == "au" ]; then
     xcodebuild -quiet -project ChartPreview.xcodeproj -configuration $config_type

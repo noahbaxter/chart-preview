@@ -88,6 +88,12 @@
       <FILE id="Mxww5q" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
       <FILE id="InYDKt" name="Utils.h" compile="0" resource="0" file="Source/Utils.h"/>
     </GROUP>
+    <GROUP id="{55EA985F-5ACA-CAC9-2027-97AEF2CDFFC7}" name="ThirdParty">
+      <GROUP id="{E80BEB27-46EF-55F2-9FFE-3AE2AE725884}" name="reaper-sdk">
+        <FILE id="xv22eG" name="reaper_plugin_functions.h" compile="0" resource="0"
+              file="ThirdParty/reaper-sdk/reaper_plugin_functions.h"/>
+      </GROUP>
+    </GROUP>
   </MAINGROUP>
   <MODULES>
     <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>

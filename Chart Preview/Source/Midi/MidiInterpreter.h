@@ -35,6 +35,21 @@ class MidiInterpreter
 			}
 		}
 
+		uint getNoteDuration(uint pitch, uint position)
+		{
+			auto &noteStateMap = noteStateMapArray[pitch];
+			auto it = noteStateMap.upper_bound(position);
+			if (it == noteStateMap.begin())
+			{
+				return 0;
+			}
+			else
+			{
+				--it;
+				return position - it->first;
+			}
+		}
+
 		TrackWindow generateTrackWindow(uint trackWindowStart, uint trackWindowEnd);
 		TrackFrame generateEmptyTrackFrame();
 		

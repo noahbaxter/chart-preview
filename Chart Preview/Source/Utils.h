@@ -56,6 +56,13 @@ enum class Gem
     CYM_ACCENT,
 };
 
+enum class Path
+{
+    NONE,
+    SUSTAIN,
+    LANE,
+};
+
 enum class Dynamic
 {
     NONE=0,
@@ -72,6 +79,9 @@ using NoteStateMapArray = std::array<NoteStateMap, 128>;
 // Represents all the note lanes at a moment in time
 using TrackFrame = std::array<Gem, 7>;
 using TrackWindow = std::map<uint, TrackFrame>;
+
+using TrackPathFrame = std::array<std::pair<Path, uint>, 7>;
+using TrackPathWindow = std::map<uint, TrackPathFrame>;
 
 //==============================================================================
 // MIDI MAPPINGS

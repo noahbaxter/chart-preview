@@ -181,6 +181,65 @@ private:
         audioProcessor.debugText += line + "\n";
     }
 
+    std::string trackFrameToString(const std::array<Gem, 7> &trackFrame)
+    {
+        std::string str = "";
+        for (const auto &gem : trackFrame)
+        {
+            str += std::to_string(static_cast<int>(gem)) + ",";
+        }
+        str += ")";
+        return str;
+    }
+
+    void printTrackWindow()
+    {
+        auto &trackWindow = highwayRenderer.trackWindow;
+        for (auto &frameItem : trackWindow)
+        {
+            uint framePosition = frameItem.first;
+            const auto& trackFrame = frameItem.second;
+            std::string str = std::to_string(framePosition) + ": " + trackFrameToString(trackFrame);
+            print(str);
+        }
+    }
+
+    void printNoteStateMap(uint trackWindowStart, uint trackWindowEnd, uint displaySizeInSamples)
+    {
+        auto &noteStateMapArray = midiInterpreter.noteStateMapArray;
+        std::map<uint, std::vector<uint>> noteOrderMap;
+
+        for (uint pitch = 0; pitch < noteStateMapArray.size(); pitch++)
+        {
+            auto &noteStateMap = noteStateMapArray[pitch];
+            auto it = noteStateMap.upper_bound(trackWindowStart);
+            if (it != noteStateMap.begin())
+            {
+                --it;
+            }
+            while (it != noteStateMap.end() && it->first < trackWindowEnd)
+            {
+                if (it->second > 0)
+                {
+                    noteOrderMap[it->first].push_back(pitch);
+                }
+                ++it;
+            }
+        }
+
+        for (const auto &item : noteOrderMap)
+        {
+            uint position = item.first;
+            const auto &pitches = item.second;
+            std::string str = std::to_string(position) + ": ";
+            for (const auto &pitch : pitches)
+            {
+                str += std::to_string(pitch) + ",";
+            }
+            print(str);
+        }
+    }
+
     std::string gemsToString(std::array<Gem, 7> gems)
     {
         std::string str = "(";

@@ -23,6 +23,7 @@ MidiInterpreter::~MidiInterpreter()
 TrackWindow MidiInterpreter::generateTrackWindow(uint trackWindowStart, uint trackWindowEnd)
 {
     TrackWindow trackWindow;
+    // TrackPathWindow trackPathWindow;
 
     Part part = (Part)((int)state.getProperty("part"));
     for (uint pitch = 0; pitch < 128; pitch++)
@@ -45,6 +46,10 @@ TrackWindow MidiInterpreter::generateTrackWindow(uint trackWindowStart, uint tra
             {
                 trackWindow[position] = generateEmptyTrackFrame();
             }
+            // if (trackPathWindow[position].empty())
+            // {
+            //     trackPathWindow[position] = generateEmptyTrackPathFrame();
+            // }
 
             if (part == Part::GUITAR)
             {
@@ -68,15 +73,32 @@ TrackFrame MidiInterpreter::generateEmptyTrackFrame()
                    //| -------------------------------------
         Gem::NONE, //| Open    |   Kick    |
         Gem::NONE, //| Fret 1  |   Lane 1  |
-        Gem::NOTE, //| Fret 2  |   Lane 2  |
+        Gem::NONE, //| Fret 2  |   Lane 2  |
         Gem::NONE, //| Fret 3  |   Lane 3  |
-        Gem::NOTE, //| Fret 4  |   Lane 4  |
+        Gem::NONE, //| Fret 4  |   Lane 4  |
         Gem::NONE, //| Fret 5  |   Lane 5  |
         Gem::NONE, //| Fret 6  |   2x Kick |
     };
 
     return frame;
 }
+
+// TrackFrame MidiInterpreter::generateEmptyTrackPathFrame()
+// {
+//     TrackPathWindow frame = {
+//                     //| Guitar  |   Drums   |   Real Drums
+//                     //| -------------------------------------
+//         Path::NONE, //| Open    |   Kick    |
+//         Path::NONE, //| Fret 1  |   Lane 1  |
+//         Path::NONE, //| Fret 2  |   Lane 2  |
+//         Path::NONE, //| Fret 3  |   Lane 3  |
+//         Path::NONE, //| Fret 4  |   Lane 4  |
+//         Path::NONE, //| Fret 5  |   Lane 5  |
+//         Path::NONE, //| Fret 6  |   2x Kick |
+//     };
+
+//     return frame;
+// }
 
 void MidiInterpreter::addGuitarEventToFrame(TrackFrame &frame, uint position, uint pitch)
 {
