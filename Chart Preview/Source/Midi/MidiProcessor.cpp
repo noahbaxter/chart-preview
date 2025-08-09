@@ -44,7 +44,7 @@ void MidiProcessor::process(juce::MidiBuffer& midiMessages, uint startPositionIn
         }
 
         numMessages++;
-        if (numMessages >= maxNumMessages)
+        if (numMessages >= maxNumMessagesPerBlock)
         {
             break;
         }
