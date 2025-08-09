@@ -77,6 +77,11 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     framerateMenu.setSelectedId(state.getProperty("framerate"), juce::NotificationType::dontSendNotification);
     framerateMenu.addListener(this);
     addAndMakeVisible(framerateMenu);
+
+    latencyMenu.addItemList({"250ms", "500ms", "750ms", "1000ms"}, 1);
+    latencyMenu.setSelectedId(state.getProperty("latency"), juce::NotificationType::dontSendNotification);
+    latencyMenu.addListener(this);
+    addAndMakeVisible(latencyMenu);
     
     chartZoomSlider.setRange(0.40, 1.2, 0.05);
     chartZoomSlider.setValue(0.60);
@@ -156,9 +161,10 @@ void ChartPreviewAudioProcessorEditor::resized()
     dynamicsToggle.setBounds(getWidth() - 120, 50, 100, 20);
 
     framerateMenu.setBounds(getWidth() - 120, getHeight() - 30, 100, 20);
+    latencyMenu.setBounds(getWidth() - 120, getHeight() - 50, 100, 20);
     
-    chartZoomLabel.setBounds(getWidth() - 90, getHeight() - 230, 40, 20);
-    chartZoomSlider.setBounds(getWidth() - 120, getHeight() - 200, 100, 150);
+    chartZoomLabel.setBounds(getWidth() - 90, getHeight() - 250, 40, 20);
+    chartZoomSlider.setBounds(getWidth() - 120, getHeight() - 220, 100, 150);
 
     debugToggle.setBounds(340, 10, 100, 20);
 
