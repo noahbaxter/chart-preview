@@ -147,7 +147,8 @@ void ChartPreviewAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     isPlaying = positionInfo.isPlaying;
     if (isPlaying)
     {
-        midiProcessor.process(midiMessages, playheadPositionInSamples, blockSizeInSamples, latencyInSamples);
+        uint startPositionInSamples = std::max((uint)positionInfo.timeInSamples, midiProcessor.lastProcessedSample + 1);
+        midiProcessor.process(midiMessages, startPositionInSamples, blockSizeInSamples, latencyInSamples);
     }
     else {
         midiProcessor.lastProcessedSample = playheadPositionInSamples;
