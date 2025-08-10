@@ -196,8 +196,8 @@ juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float p
     bool isKick = isBarNote(gemColumn, Part::DRUMS);
     if (isKick)
     {
-        normY1 = 0.73;
-        normY2 = 0.234;
+        normY1 = 0.735;
+        normY2 = 0.239;
         normX1 = 0.16;
         normX2 = 0.34;
         normWidth1 = 0.68;
