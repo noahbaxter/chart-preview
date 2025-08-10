@@ -65,15 +65,15 @@ class HighwayRenderer
             g.drawImage(*image, position);
         };
 
-        juce::Rectangle<float> createGlyphRect(float position, 
-                                               float normY1, float normY2, 
-                                               float normX1, float normX2, 
-                                               float normWidth1, float normWidth2, 
-                                               bool isBarNote);
         juce::Rectangle<float> getGuitarGlyphRect(uint gemColumn, float position);
         juce::Rectangle<float> getDrumGlyphRect(uint gemColumn, float position);
         juce::Rectangle<float> getOverlayGlyphRect(Gem gem, juce::Rectangle<float> glyphRect);
-
-
+        juce::Rectangle<float> createPerspectiveGlyphRect(
+            float position,
+            float normY1, float normY2,
+            float normX1, float normX2,
+            float normWidth1, float normWidth2,
+            bool isBarNote
+        );
 
 };

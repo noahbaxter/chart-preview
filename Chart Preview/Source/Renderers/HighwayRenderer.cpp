@@ -137,36 +137,6 @@ void HighwayRenderer::drawGem(uint gemColumn, Gem gem, float position)
 //==============================================================================
 // Glyph positioning
 
-juce::Rectangle<float> HighwayRenderer::createGlyphRect(float position, float normY1, float normY2, float normX1, float normX2, float normWidth1, float normWidth2, bool isBarNote)
-{
-    // Create rectangle
-    float curve = 0.333; // Makes placement a bit more exponential
-
-    int pY1 = normY1 * height;
-    int pY2 = normY2 * height;
-    int yPos = pY2 - (int)((std::pow(10, curve * (1 - position)) - 1) / (std::pow(10, curve) - 1) * (pY2 - pY1));
-
-    int pX1 = normX1 * width;
-    int pX2 = normX2 * width;
-    int xPos = pX2 - (int)((std::pow(10, curve * (1 - position)) - 1) / (std::pow(10, curve) - 1) * (pX2 - pX1));
-
-    int pW1 = normWidth1 * width;
-    int pW2 = normWidth2 * width;
-    int rectWidth = pW2 - (int)((std::pow(10, curve * (1 - position)) - 1) / (std::pow(10, curve) - 1) * (pW2 - pW1));
-
-    int rectHeight;
-    if (isBarNote)
-    {
-        rectHeight = (int)rectWidth / 16.f;
-    }
-    else
-    {
-        rectHeight = (int)rectWidth / 2.f;
-    }
-
-    return juce::Rectangle<float>(xPos, yPos, rectWidth, rectHeight);
-}
-
 juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float position)
 {
     float normY1 = 0.0f, normY2 = 0.0f, normX1 = 0.0f, normX2 = 0.0f, normWidth1 = 0.0f, normWidth2 = 0.0f;
@@ -184,38 +154,38 @@ juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float
     }
     else
     {
-        normWidth1 = 0.10;
-        normWidth2 = 0.050;
+        normWidth1 = 0.12;
+        normWidth2 = 0.06;
         normY1 = 0.71;
         normY2 = 0.22;
         if (gemColumn == 1)
         {
-            normX1 = 0.22;
-            normX2 = 0.365;
+            normX1 = 0.21;
+            normX2 = 0.360;
         }
         else if (gemColumn == 2)
         {
-            normX1 = 0.332;
-            normX2 = 0.420;
+            normX1 = 0.322;
+            normX2 = 0.410;
         }
         else if (gemColumn == 3)
         {
-            normX1 = 0.450;
-            normX2 = 0.475;
+            normX1 = 0.440;
+            normX2 = 0.465;
         }
         else if (gemColumn == 4)
         {
-            normX1 = 0.568;
-            normX2 = 0.532;
+            normX1 = 0.558;
+            normX2 = 0.522;
         }
         else if (gemColumn == 5)
         {
-            normX1 = 0.680;
-            normX2 = 0.590;
+            normX1 = 0.670;
+            normX2 = 0.580;
         }
     }
 
-    return createGlyphRect(position, normY1, normY2, normX1, normX2, normWidth1, normWidth2, isOpen);
+    return createPerspectiveGlyphRect(position, normY1, normY2, normX1, normX2, normWidth1, normWidth2, isOpen);
 }
 
 juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float position)
@@ -235,33 +205,33 @@ juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float p
     }
     else
     {
-        normWidth1 = 0.13;
-        normWidth2 = 0.060;
+        normWidth1 = 0.15;
+        normWidth2 = 0.075;
         normY1 = 0.70;
         normY2 = 0.22;
         if (gemColumn == 1)
         {
-            normX1 = 0.22;
-            normX2 = 0.365;
+            normX1 = 0.21;
+            normX2 = 0.360;
         }
         else if (gemColumn == 2)
         {
-            normX1 = 0.362;
-            normX2 = 0.434;
+            normX1 = 0.352;
+            normX2 = 0.424;
         }
         else if (gemColumn == 3)
         {
-            normX1 = 0.507;
-            normX2 = 0.504;
+            normX1 = 0.497;
+            normX2 = 0.494;
         }
         else if (gemColumn == 4)
         {
-            normX1 = 0.650;
-            normX2 = 0.570;
+            normX1 = 0.640;
+            normX2 = 0.560;
         }
     }
 
-    return createGlyphRect(position, normY1, normY2, normX1, normX2, normWidth1, normWidth2, isKick);
+    return createPerspectiveGlyphRect(position, normY1, normY2, normX1, normX2, normWidth1, normWidth2, isKick);
 }
 
 juce::Rectangle<float> HighwayRenderer::getOverlayGlyphRect(Gem gem, juce::Rectangle<float> glyphRect)
@@ -269,7 +239,7 @@ juce::Rectangle<float> HighwayRenderer::getOverlayGlyphRect(Gem gem, juce::Recta
     juce::Rectangle<float> overlayRect;
     if (isPart(state, Part::DRUMS) && gem == Gem::TAP_ACCENT)
     {
-        float scaleFactor = 1.1232876712; // 12.32876712% larger
+        float scaleFactor = 1.1232876712;
         float newWidth = glyphRect.getWidth() * scaleFactor;
         float newHeight = glyphRect.getHeight() * scaleFactor;
         float widthIncrease = newWidth - glyphRect.getWidth();
@@ -289,9 +259,46 @@ juce::Rectangle<float> HighwayRenderer::getOverlayGlyphRect(Gem gem, juce::Recta
 }
 
 //==============================================================================
-// Image pickers
+// 3D Perspective Highway Rendering
 
+juce::Rectangle<float> HighwayRenderer::createPerspectiveGlyphRect(float position, float normY1, float normY2, float normX1, float normX2, float normWidth1, float normWidth2, bool isBarNote)
+{
+    // 3D perspective parameters
+    const float highwayDepth = 100.0f;
+    const float playerDistance = 50.0f;
+    const float perspectiveStrength = 0.7f;
+    const float exponentialCurve = 0.5f;
+    const float xOffsetMultiplier = 0.5f;
+    const float barNoteHeightRatio = 16.0f;
+    const float regularNoteHeightRatio = 2.0f;
 
-
-
-
+    float depth = position;
+    
+    // Calculate 3D perspective scale for height
+    float perspectiveScale = (playerDistance + highwayDepth * (1.0f - depth)) / playerDistance;
+    perspectiveScale = 1.0f + (perspectiveScale - 1.0f) * perspectiveStrength;
+    
+    // Calculate dimensions
+    float targetWidth = normWidth2 * width;
+    float targetHeight = isBarNote ? targetWidth / barNoteHeightRatio : targetWidth / regularNoteHeightRatio;
+    
+    // Width calculation: both note types use exponential interpolation
+    float widthProgress = (std::pow(10, exponentialCurve * (1 - depth)) - 1) / (std::pow(10, exponentialCurve) - 1);
+    float interpolatedWidth = normWidth2 + (normWidth1 - normWidth2) * widthProgress;
+    float finalWidth = interpolatedWidth * width;
+    
+    // Height uses perspective scaling for 3D effect
+    float currentHeight = targetHeight * perspectiveScale;
+    
+    // Position calculation using exponential curve
+    float progress = (std::pow(10, exponentialCurve * (1 - depth)) - 1) / (std::pow(10, exponentialCurve) - 1);
+    float yPos = normY2 * height + (normY1 - normY2) * height * progress;
+    float xPos = normX2 * width + (normX1 - normX2) * width * progress;
+    
+    // Apply X offset and center positioning
+    float xOffset = targetWidth * xOffsetMultiplier;
+    float finalX = xPos + xOffset - targetWidth / 2.0f;
+    float finalY = yPos - targetHeight / 2.0f;
+    
+    return juce::Rectangle<float>(finalX, finalY, finalWidth, currentHeight);
+}
