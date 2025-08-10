@@ -76,4 +76,7 @@ class HighwayRenderer
             bool isBarNote
         );
 
+        void drawGridlines(juce::Graphics& g, uint trackWindowStart, uint trackWindowEnd, uint displaySizeInSamples);
+        void drawMeterBar(juce::Graphics& g, float position, juce::Image* markerImage);
+
 };

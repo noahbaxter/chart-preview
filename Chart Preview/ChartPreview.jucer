@@ -26,6 +26,9 @@
       <FILE id="PJ49Wi" name="lane_end.png" compile="0" resource="1" file="Assets/lane_end.png"/>
       <FILE id="lzLZ9M" name="lane_mid.png" compile="0" resource="1" file="Assets/lane_mid.png"/>
       <FILE id="vHHDZq" name="lane_start.png" compile="0" resource="1" file="Assets/lane_start.png"/>
+      <FILE id="markerBeat" name="marker_beat.png" compile="0" resource="1" file="Assets/marker_beat.png"/>
+      <FILE id="markerHalfBeat" name="marker_half_beat.png" compile="0" resource="1" file="Assets/marker_half_beat.png"/>
+      <FILE id="markerMeasure" name="marker_measure.png" compile="0" resource="1" file="Assets/marker_measure.png"/>
       <FILE id="qHhxEl" name="note_blue.png" compile="0" resource="1" file="Assets/note_blue.png"/>
       <FILE id="UABfS5" name="note_green.png" compile="0" resource="1" file="Assets/note_green.png"/>
       <FILE id="cRA40m" name="note_orange.png" compile="0" resource="1" file="Assets/note_orange.png"/>
