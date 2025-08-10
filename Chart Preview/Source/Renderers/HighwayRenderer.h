@@ -13,6 +13,7 @@
 #include <JuceHeader.h>
 #include "../Midi/MidiInterpreter.h"
 #include "../Utils.h"
+#include "AssetManager.h"
 
 
 class HighwayRenderer
@@ -23,61 +24,15 @@ class HighwayRenderer
 
         uint width = 0, height = 0;
 
-        void initAssets();
         void paint(juce::Graphics &g, uint trackWindowStart, uint trackWindowEnd, uint displaySizeInSamples);
 
 
     private:
         juce::ValueTree &state;
         MidiInterpreter &midiInterpreter;
+        AssetManager &assetManager;
 
         uint framePosition = 0;
-
-        // Chart Assets
-        juce::Image barKickImage;
-        juce::Image barKick2xImage;
-        juce::Image barOpenImage;
-        juce::Image barWhiteImage;
-
-        juce::Image cymBlueImage;
-        juce::Image cymGreenImage;
-        juce::Image cymRedImage;
-        juce::Image cymWhiteImage;
-        juce::Image cymYellowImage;
-
-        juce::Image hopoBlueImage;
-        juce::Image hopoGreenImage;
-        juce::Image hopoOrangeImage;
-        juce::Image hopoRedImage;
-        juce::Image hopoWhiteImage;
-        juce::Image hopoYellowImage;
-
-        juce::Image laneEndImage;
-        juce::Image laneMidImage;
-        juce::Image laneStartImage;
-
-        juce::Image noteBlueImage;
-        juce::Image noteGreenImage;
-        juce::Image noteOrangeImage;
-        juce::Image noteRedImage;
-        juce::Image noteWhiteImage;
-        juce::Image noteYellowImage;
-
-        juce::Image overlayCymAccentImage;
-        juce::Image overlayCymGhost80scaleImage;
-        juce::Image overlayCymGhostImage;
-        juce::Image overlayNoteAccentImage;
-        juce::Image overlayNoteGhostImage;
-        juce::Image overlayNoteTapImage;
-
-        juce::Image sustainBlueImage;
-        juce::Image sustainGreenImage;
-        juce::Image sustainOpenWhiteImage;
-        juce::Image sustainOpenImage;
-        juce::Image sustainOrangeImage;
-        juce::Image sustainRedImage;
-        juce::Image sustainWhiteImage;
-        juce::Image sustainYellowImage;
 
         bool isBarNote(uint gemColumn, Part part)
         {
@@ -121,8 +76,6 @@ class HighwayRenderer
         juce::Rectangle<float> getDrumGlyphRect(uint gemColumn, float position);
         juce::Rectangle<float> getOverlayGlyphRect(Gem gem, juce::Rectangle<float> glyphRect);
 
-        juce::Image* getGuitarGlyphImage(Gem gem, uint gemColumn);
-        juce::Image* getDrumGlyphImage(Gem gem, uint gemColumn);
-        juce::Image* getOverlayImage(Gem gem);
+
 
 };
