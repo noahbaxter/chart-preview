@@ -43,6 +43,10 @@ void AssetManager::initAssets()
     laneMidImage = juce::ImageCache::getFromMemory(BinaryData::lane_mid_png, BinaryData::lane_mid_pngSize);
     laneStartImage = juce::ImageCache::getFromMemory(BinaryData::lane_start_png, BinaryData::lane_start_pngSize);
 
+    markerBeatImage = juce::ImageCache::getFromMemory(BinaryData::marker_beat_png, BinaryData::marker_beat_pngSize);
+    markerHalfBeatImage = juce::ImageCache::getFromMemory(BinaryData::marker_half_beat_png, BinaryData::marker_half_beat_pngSize);
+    markerMeasureImage = juce::ImageCache::getFromMemory(BinaryData::marker_measure_png, BinaryData::marker_measure_pngSize);
+
     noteBlueImage = juce::ImageCache::getFromMemory(BinaryData::note_blue_png, BinaryData::note_blue_pngSize);
     noteGreenImage = juce::ImageCache::getFromMemory(BinaryData::note_green_png, BinaryData::note_green_pngSize);
     noteOrangeImage = juce::ImageCache::getFromMemory(BinaryData::note_orange_png, BinaryData::note_orange_pngSize);

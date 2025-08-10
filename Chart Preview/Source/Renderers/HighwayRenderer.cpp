@@ -64,6 +64,39 @@ void HighwayRenderer::paint(juce::Graphics &g, uint trackWindowStart, uint track
             (*it)(g);
         }
     }
+
+    // Draw gridlines using the same mechanism as kick bars
+    drawGridlines(g, trackWindowStart, trackWindowEnd, displaySizeInSamples);
+}
+
+
+
+void HighwayRenderer::drawGridlines(juce::Graphics& g, uint trackWindowStart, uint trackWindowEnd, uint displaySizeInSamples)
+{
+    
+}
+
+void HighwayRenderer::drawMeterBar(juce::Graphics& g, float position, juce::Image* markerImage)
+{
+    if (!markerImage) return;
+    
+    // Use the same positioning and dimensions as kick bars
+    // For guitar, this would be column 0 (open note position)
+    // For drums, this would be column 0 (kick position)
+    Part part = (Part)((int)state.getProperty("part"));
+    
+    if (part == Part::GUITAR)
+    {
+        // Use guitar open note positioning (column 0)
+        juce::Rectangle<float> rect = getGuitarGlyphRect(0, position);
+        draw(g, markerImage, rect, 1.0f);
+    }
+    else
+    {
+        // Use drum kick positioning (column 0)
+        juce::Rectangle<float> rect = getDrumGlyphRect(0, position);
+        draw(g, markerImage, rect, 1.0f);
+    }
 }
 
 

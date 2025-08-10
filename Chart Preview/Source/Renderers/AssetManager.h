@@ -53,6 +53,11 @@ public:
     juce::Image* getLaneMidImage() { return &laneMidImage; }
     juce::Image* getLaneStartImage() { return &laneStartImage; }
 
+    // Marker graphics
+    juce::Image* getMarkerBeatImage() { return &markerBeatImage; }
+    juce::Image* getMarkerHalfBeatImage() { return &markerHalfBeatImage; }
+    juce::Image* getMarkerMeasureImage() { return &markerMeasureImage; }
+
     // Regular notes
     juce::Image* getNoteBlueImage() { return &noteBlueImage; }
     juce::Image* getNoteGreenImage() { return &noteGreenImage; }
@@ -107,6 +112,11 @@ private:
     juce::Image laneEndImage;
     juce::Image laneMidImage;
     juce::Image laneStartImage;
+
+    // Marker graphics
+    juce::Image markerBeatImage;
+    juce::Image markerHalfBeatImage;
+    juce::Image markerMeasureImage;
 
     // Regular notes
     juce::Image noteBlueImage;
