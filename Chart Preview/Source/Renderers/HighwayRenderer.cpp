@@ -13,7 +13,7 @@
 HighwayRenderer::HighwayRenderer(juce::ValueTree &state, MidiInterpreter &midiInterpreter)
 	: state(state),
 	  midiInterpreter(midiInterpreter),
-	  assetManager(*new AssetManager())
+	  assetManager()
 {
 }
 
@@ -42,6 +42,11 @@ void HighwayRenderer::paint(juce::Graphics &g, uint trackWindowStart, uint track
 
     drawCallMap.clear();
 
+    // Set the drawing area dimensions from the graphics context
+    auto clipBounds = g.getClipBounds();
+    width = clipBounds.getWidth();
+    height = clipBounds.getHeight();
+
     // Populate drawCallMap
     for (auto &frameItem : trackWindow)
 	{
@@ -62,7 +67,7 @@ void HighwayRenderer::paint(juce::Graphics &g, uint trackWindowStart, uint track
 }
 
 
-void HighwayRenderer::drawFrame(const std::array<Gem,7> &gems, float position)
+void HighwayRenderer::drawFrame(const std::array<Gem,LANE_COUNT> &gems, float position)
 {
     uint drawSequence[] = {0, 6, 1, 2, 3, 4, 5};
     for (int i = 0; i < gems.size(); i++)
@@ -147,24 +152,24 @@ juce::Rectangle<float> HighwayRenderer::createGlyphRect(float position, float no
 
     int pW1 = normWidth1 * width;
     int pW2 = normWidth2 * width;
-    int width = pW2 - (int)((std::pow(10, curve * (1 - position)) - 1) / (std::pow(10, curve) - 1) * (pW2 - pW1));
+    int rectWidth = pW2 - (int)((std::pow(10, curve * (1 - position)) - 1) / (std::pow(10, curve) - 1) * (pW2 - pW1));
 
-    int height;
+    int rectHeight;
     if (isBarNote)
     {
-        height = (int)width / 16.f;
+        rectHeight = (int)rectWidth / 16.f;
     }
     else
     {
-        height = (int)width / 2.f;
+        rectHeight = (int)rectWidth / 2.f;
     }
 
-    return juce::Rectangle<float>(xPos, yPos, width, height);
+    return juce::Rectangle<float>(xPos, yPos, rectWidth, rectHeight);
 }
 
 juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float position)
 {
-    float normY1, normY2, normX1, normX2, normWidth1, normWidth2;
+    float normY1 = 0.0f, normY2 = 0.0f, normX1 = 0.0f, normX2 = 0.0f, normWidth1 = 0.0f, normWidth2 = 0.0f;
 
     // If the gem is an open note
     bool isOpen = isBarNote(gemColumn, Part::GUITAR);
@@ -179,9 +184,10 @@ juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float
     }
     else
     {
-
-        normWidth1 = 0.10, normWidth2 = 0.050;
-        normY1 = 0.71, normY2 = 0.22;
+        normWidth1 = 0.10;
+        normWidth2 = 0.050;
+        normY1 = 0.71;
+        normY2 = 0.22;
         if (gemColumn == 1)
         {
             normX1 = 0.22;
@@ -214,7 +220,7 @@ juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float
 
 juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float position)
 {
-    float normY1, normY2, normX1, normX2, normWidth1, normWidth2;
+    float normY1 = 0.0f, normY2 = 0.0f, normX1 = 0.0f, normX2 = 0.0f, normWidth1 = 0.0f, normWidth2 = 0.0f;
 
     // If the gem is a kick
     bool isKick = isBarNote(gemColumn, Part::DRUMS);
@@ -229,9 +235,10 @@ juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float p
     }
     else
     {
-
-        normWidth1 = 0.13, normWidth2 = 0.060;
-        normY1 = 0.70, normY2 = 0.22;
+        normWidth1 = 0.13;
+        normWidth2 = 0.060;
+        normY1 = 0.70;
+        normY2 = 0.22;
         if (gemColumn == 1)
         {
             normX1 = 0.22;

@@ -3,6 +3,12 @@
 #include <JuceHeader.h>
 
 //==============================================================================
+// CONSTANTS
+
+constexpr uint LANE_COUNT = 7;  // Number of note lanes (0-6)
+constexpr float OPACITY_FADE_START = 0.9f;  // Position where opacity starts fading
+
+//==============================================================================
 // MENUS
 
 enum class Part { GUITAR = 1, DRUMS };
@@ -70,7 +76,7 @@ using NoteStateMap = std::map<uint, uint8_t>;
 using NoteStateMapArray = std::array<NoteStateMap, 128>;
 
 // Represents all the note lanes at a moment in time
-using TrackFrame = std::array<Gem, 7>;
+using TrackFrame = std::array<Gem, LANE_COUNT>;
 using TrackWindow = std::map<uint, TrackFrame>;
 
 //==============================================================================

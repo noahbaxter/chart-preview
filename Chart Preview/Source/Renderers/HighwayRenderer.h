@@ -22,16 +22,15 @@ class HighwayRenderer
         HighwayRenderer(juce::ValueTree &state, MidiInterpreter &midiInterpreter);
         ~HighwayRenderer();
 
-        uint width = 0, height = 0;
-
         void paint(juce::Graphics &g, uint trackWindowStart, uint trackWindowEnd, uint displaySizeInSamples);
 
 
     private:
         juce::ValueTree &state;
         MidiInterpreter &midiInterpreter;
-        AssetManager &assetManager;
+        AssetManager assetManager;
 
+        uint width = 0, height = 0;
         uint framePosition = 0;
 
         bool isBarNote(uint gemColumn, Part part)
@@ -49,17 +48,16 @@ class HighwayRenderer
         float calculateOpacity(float position)
         {
             // Make the gem fade out as it gets closer to the end
-            float opacityStart = 0.9;
-            if (position >= opacityStart)
+            if (position >= OPACITY_FADE_START)
             {
-                return 1.0 - ((position - opacityStart) / (1.0f - opacityStart));
+                return 1.0 - ((position - OPACITY_FADE_START) / (1.0f - OPACITY_FADE_START));
             }
 
             return 1.0;
         }
 
         DrawCallMap drawCallMap;
-        void drawFrame(const std::array<Gem, 7> &gems, float position);
+        void drawFrame(const std::array<Gem, LANE_COUNT> &gems, float position);
         void drawGem(uint gemColumn, Gem gem, float position);
         void draw(juce::Graphics &g, juce::Image *image, juce::Rectangle<float> position, float opacity)
         {

@@ -169,7 +169,4 @@ void ChartPreviewAudioProcessorEditor::resized()
     debugToggle.setBounds(340, 10, 100, 20);
 
     consoleOutput.setBounds(10, 40, getWidth() - 20, getHeight() - 50);
-
-    highwayRenderer.width = getWidth();
-    highwayRenderer.height = getHeight();
 }
