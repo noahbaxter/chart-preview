@@ -78,6 +78,10 @@
               file="Source/Renderers/HighwayRenderer.cpp"/>
         <FILE id="DZ7Hvw" name="HighwayRenderer.h" compile="0" resource="0"
               file="Source/Renderers/HighwayRenderer.h"/>
+        <FILE id="AssetManagerCpp" name="AssetManager.cpp" compile="1" resource="0"
+              file="Source/Renderers/AssetManager.cpp"/>
+        <FILE id="AssetManagerH" name="AssetManager.h" compile="0" resource="0"
+              file="Source/Renderers/AssetManager.h"/>
       </GROUP>
       <FILE id="PZm7UN" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
