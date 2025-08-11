@@ -1,0 +1,32 @@
+Just a list of things to do here
+
+Priority-ranked backlog (ty gen AI for thinking so I dont have to)
+* P0 (correctness/architecture)
+    - Convert all note timing/state to PPQ and render from PPQ.
+    - Make renderer data access thread-safe (double-buffered snapshot).
+    - Gridlines: PPQ-based beats/measures with subdivisions; remove magic offsets; handle tempo/time-sig changes.
+    - Migrate parameters to AudioProcessorValueTreeState and wire UI bindings.
+    - Audio-thread hygiene: eliminate per-frame heap allocs and std::function in draw path; use preallocated vectors of structs.
+    - Host fallback UX when no playhead or not playing; avoid silent no-op.
+* P1 (core features promised)
+    - Guitar sustains (render + hit windows).
+    - Drums lanes + BRE.
+    - Extended memory so notes remain visible when transport stops. (TBD if essential)
+    - Latency compensation and a user calibration control; continue to report latency via setLatencySamples.
+    - Finalize grid visual polish (beat/half-beat/measure markers, visibility toggle).
+* P2 (polish/perf/UX)
+    - Draw-call optimizations (culling, layer batching, image pre-scaling).
+    - Metronome click playback and drum sample playback aligned to PPQ.
+    - FPS/cpu overlay toggle and targeted logging overlay for debugging.
+    - DPI scaling, asset validation, fallback artwork.
+* P3 (future/advanced)
+    - Heuristic HOPOs, open HOPOs, trill/tremolo sections.
+    - Real Drums support.
+    - MIDI lookahead (REAPER SWS) with clean fallback elsewhere.
+    - CI/release automation across platforms, signing/notarization.
+
+/Short notes
+Your gridlines implementation already reads BPM/time-sig, but it uses sample-step math and a hard-coded offset; move to PPQ-based calculation and drop the magic offset.
+Replace per-gem lambdas in drawCallMap with a compact POD command (image pointer + rect + opacity + layer), filled into a reused buffer each frame.
+Added gaps: thread-safety for renderer data, PPQ everywhere, robust gridlines, APVTS parameters, audio-thread allocation discipline, asset robustness, instrumentation, and packaging.
+Priority: P0 covers architecture and correctness; P1 covers promised feature completeness; P2 polish/perf; P3 advanced features and distro.
