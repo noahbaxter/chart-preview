@@ -20,7 +20,7 @@ class MidiInterpreter
 		~MidiInterpreter();
 
 		NoteStateMapArray &noteStateMapArray;
-		bool isNoteHeld(uint pitch, uint position)
+		bool isNoteHeld(uint pitch, PPQPosition position)
 		{
 			auto &noteStateMap = noteStateMapArray[pitch];
 			auto it = noteStateMap.upper_bound(position);
@@ -35,7 +35,7 @@ class MidiInterpreter
 			}
 		}
 
-		TrackWindow generateTrackWindow(uint trackWindowStart, uint trackWindowEnd);
+		TrackWindow generateTrackWindow(PPQPosition trackWindowStart, PPQPosition trackWindowEnd);
 		TrackFrame generateEmptyTrackFrame();
 		
 		static Gem getDrumGlyph(bool cymbal, bool dynamicsEnabled, Dynamic dynamic)
@@ -64,6 +64,6 @@ class MidiInterpreter
 	private:
 		juce::ValueTree &state;
 
-		void addGuitarEventToFrame(TrackFrame &frame, uint position, uint pitch);
-		void addDrumEventToFrame(TrackFrame &frame, uint position, uint pitch, Dynamic dynamic);
+		void addGuitarEventToFrame(TrackFrame &frame, PPQPosition position, uint pitch);
+		void addDrumEventToFrame(TrackFrame &frame, PPQPosition position, uint pitch, Dynamic dynamic);
 };

@@ -20,7 +20,7 @@ MidiInterpreter::~MidiInterpreter()
 {
 }
 
-TrackWindow MidiInterpreter::generateTrackWindow(uint trackWindowStart, uint trackWindowEnd)
+TrackWindow MidiInterpreter::generateTrackWindow(PPQPosition trackWindowStart, PPQPosition trackWindowEnd)
 {
     TrackWindow trackWindow;
 
@@ -39,7 +39,8 @@ TrackWindow MidiInterpreter::generateTrackWindow(uint trackWindowStart, uint tra
                 continue;
             }
 
-            uint position = it->first;
+            PPQPosition position = it->first;
+            
             // If the trackWindow at this position is empty, generate an empty frame
             if (trackWindow[position].empty())
             {
@@ -78,7 +79,7 @@ TrackFrame MidiInterpreter::generateEmptyTrackFrame()
     return frame;
 }
 
-void MidiInterpreter::addGuitarEventToFrame(TrackFrame &frame, uint position, uint pitch)
+void MidiInterpreter::addGuitarEventToFrame(TrackFrame &frame, PPQPosition position, uint pitch)
 {
     using Guitar = MidiPitchDefinitions::Guitar;
     SkillLevel skill = (SkillLevel)((int)state.getProperty("skillLevel"));
@@ -157,7 +158,7 @@ void MidiInterpreter::addGuitarEventToFrame(TrackFrame &frame, uint position, ui
     }
 }
 
-void MidiInterpreter::addDrumEventToFrame(TrackFrame &frame, uint position, uint pitch, Dynamic dynamic)
+void MidiInterpreter::addDrumEventToFrame(TrackFrame &frame, PPQPosition position, uint pitch, Dynamic dynamic)
 {
     using Drums = MidiPitchDefinitions::Drums;
     SkillLevel skill = (SkillLevel)((int)state.getProperty("skillLevel"));

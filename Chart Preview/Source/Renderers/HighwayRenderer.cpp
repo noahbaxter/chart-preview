@@ -21,24 +21,19 @@ HighwayRenderer::~HighwayRenderer()
 {
 }
 
-
-
-void HighwayRenderer::paint(juce::Graphics &g, uint trackWindowStart, uint trackWindowEnd, uint displaySizeInSamples)
+void HighwayRenderer::paint(juce::Graphics &g, PPQPosition trackWindowStartPPQ, PPQPosition trackWindowEndPPQ, PPQPosition displaySizeInPPQ)
 {
-	TrackWindow trackWindow = midiInterpreter.generateTrackWindow(trackWindowStart, trackWindowEnd);
+	TrackWindow trackWindow = midiInterpreter.generateTrackWindow(trackWindowStartPPQ, trackWindowEndPPQ);
 
 	// // FAKE DATA
 	// TrackWindow trackWindow;
-    // trackWindow[trackWindowStart + (int)(1*displaySizeInSamples / 7)] = {Gem::NOTE, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStart + (int)(2*displaySizeInSamples / 7)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE, Gem::NOTE};
-	// trackWindow[trackWindowStart + (int)(2*displaySizeInSamples / 7)] = {Gem::NONE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStart + (int)(3*displaySizeInSamples / 7)] = {Gem::NONE, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStart + (int)(4*displaySizeInSamples / 7)] = {Gem::NONE, Gem::NONE, Gem::CYM_GHOST, Gem::CYM_GHOST, Gem::CYM_GHOST, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStart + (int)(5*displaySizeInSamples / 7)] = {Gem::NONE, Gem::NONE, Gem::CYM, Gem::CYM, Gem::CYM, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStart + (int)(6*displaySizeInSamples / 7)] = {Gem::NONE, Gem::NONE, Gem::CYM_ACCENT, Gem::CYM_ACCENT, Gem::CYM_ACCENT, Gem::NONE, Gem::NONE};
-    // // Overlapping kicks
-	// trackWindow[trackWindowStart + (int)(3*displaySizeInSamples / 7) + 10] = {Gem::NOTE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStart + (int)(3*displaySizeInSamples / 7) + 5000] = {Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NOTE};
+    // trackWindow[trackWindowStartPPQ + (1.0 * displaySizeInPPQ / 7)] = {Gem::NOTE, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::NONE, Gem::NONE};
+	// trackWindow[trackWindowStartPPQ + (2.0 * displaySizeInPPQ / 7)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE, Gem::NOTE};
+	// trackWindow[trackWindowStartPPQ + (2.0 * displaySizeInPPQ / 7)] = {Gem::NONE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE, Gem::NONE};
+	// trackWindow[trackWindowStartPPQ + (3.0 * displaySizeInPPQ / 7)] = {Gem::NONE, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::NONE, Gem::NONE};
+	// trackWindow[trackWindowStartPPQ + (4.0 * displaySizeInPPQ / 7)] = {Gem::NONE, Gem::NONE, Gem::CYM_GHOST, Gem::CYM_GHOST, Gem::CYM_GHOST, Gem::NONE, Gem::NONE};
+	// trackWindow[trackWindowStartPPQ + (5.0 * displaySizeInPPQ / 7)] = {Gem::NONE, Gem::NONE, Gem::CYM, Gem::CYM, Gem::CYM, Gem::NONE, Gem::NONE};
+	// trackWindow[trackWindowStartPPQ + (6.0 * displaySizeInPPQ / 7)] = {Gem::NONE, Gem::NONE, Gem::CYM_ACCENT, Gem::CYM_ACCENT, Gem::CYM_ACCENT, Gem::NONE, Gem::NONE};
 
     drawCallMap.clear();
 
@@ -51,7 +46,7 @@ void HighwayRenderer::paint(juce::Graphics &g, uint trackWindowStart, uint track
     for (auto &frameItem : trackWindow)
 	{
 		framePosition = frameItem.first;
-		float normalizedPosition = (framePosition - trackWindowStart) / (float)displaySizeInSamples;
+		float normalizedPosition = (framePosition.toDouble() - trackWindowStartPPQ.toDouble()) / (float)displaySizeInPPQ.toDouble();
 		drawFrame(frameItem.second, normalizedPosition);
 	}
 
@@ -66,12 +61,12 @@ void HighwayRenderer::paint(juce::Graphics &g, uint trackWindowStart, uint track
     }
 
     // Draw gridlines using the same mechanism as kick bars
-    drawGridlines(g, trackWindowStart, trackWindowEnd, displaySizeInSamples);
+    drawGridlines(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ);
 }
 
 
 
-void HighwayRenderer::drawGridlines(juce::Graphics& g, uint trackWindowStart, uint trackWindowEnd, uint displaySizeInSamples)
+void HighwayRenderer::drawGridlines(juce::Graphics& g, PPQPosition trackWindowStartPPQ, PPQPosition trackWindowEndPPQ, PPQPosition displaySizeInPPQ)
 {
     
 }

@@ -133,24 +133,28 @@ int currentLoop = 0;
 
 void ChartPreviewAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-    juce::AudioPlayHead::CurrentPositionInfo positionInfo;
     // Can't process if there is no playhead
-    if (getPlayHead() == nullptr || !getPlayHead()->getCurrentPosition(positionInfo))
-    {
-        return;
-    }
+    if (getPlayHead() == nullptr) return;
+    
+    auto positionInfo = getPlayHead()->getPosition();
+    if (!positionInfo.hasValue()) return;
 
-    playheadPositionInSamples = positionInfo.timeInSamples;
-    uint blockSizeInSamples = buffer.getNumSamples();
+    // Get playhead position
+    playheadPositionInSamples = static_cast<uint>(positionInfo->getTimeInSamples().orFallback(0));
+    playheadPositionInPPQ = positionInfo->getPpqPosition().orFallback(0.0);
+    isPlaying = positionInfo->getIsPlaying();
 
-    // Prevents events being erased while scrubbing through timeline while playback is stopped
-    isPlaying = positionInfo.isPlaying;
     if (isPlaying)
     {
-        midiProcessor.process(midiMessages, playheadPositionInSamples, blockSizeInSamples, latencyInSamples);
+        midiProcessor.process(midiMessages,
+                              *positionInfo,
+                              buffer.getNumSamples(),
+                              latencyInSamples,
+                              getSampleRate());
     }
-    else {
-        midiProcessor.lastProcessedSample = playheadPositionInSamples;
+    else
+    {
+        midiProcessor.setLastProcessedPosition(*positionInfo);
     }
 }
 

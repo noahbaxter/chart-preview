@@ -22,8 +22,7 @@ class HighwayRenderer
         HighwayRenderer(juce::ValueTree &state, MidiInterpreter &midiInterpreter);
         ~HighwayRenderer();
 
-        void paint(juce::Graphics &g, uint trackWindowStart, uint trackWindowEnd, uint displaySizeInSamples);
-
+        void paint(juce::Graphics &g, PPQPosition trackWindowStartPPQ, PPQPosition trackWindowEndPPQ, PPQPosition displaySizeInPPQ);
 
     private:
         juce::ValueTree &state;
@@ -31,7 +30,7 @@ class HighwayRenderer
         AssetManager assetManager;
 
         uint width = 0, height = 0;
-        uint framePosition = 0;
+        PPQPosition framePosition = PPQPosition(0.0);
 
         bool isBarNote(uint gemColumn, Part part)
         {
@@ -76,7 +75,7 @@ class HighwayRenderer
             bool isBarNote
         );
 
-        void drawGridlines(juce::Graphics& g, uint trackWindowStart, uint trackWindowEnd, uint displaySizeInSamples);
+        void drawGridlines(juce::Graphics& g, PPQPosition trackWindowStartPPQ, PPQPosition trackWindowEndPPQ, PPQPosition displaySizeInPPQ);
         void drawMeterBar(juce::Graphics& g, float position, juce::Image* markerImage);
 
 };

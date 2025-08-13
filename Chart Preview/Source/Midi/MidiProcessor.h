@@ -7,14 +7,24 @@ class MidiProcessor
 {
     public:
         void process(juce::MidiBuffer& midiMessages,
-                     uint startPositionInSamples,
+                     const juce::AudioPlayHead::PositionInfo& positionInfo,
                      uint blockSizeInSamples,
-                     uint latencyInSamples);
+                     uint latencyInSamples,
+                     double sampleRate);
 
         NoteStateMapArray noteStateMapArray;
-        uint lastProcessedSample = 0;
+        double lastProcessedPPQ = 0;
+
+        void setLastProcessedPosition(const juce::AudioPlayHead::PositionInfo &positionInfo)
+        {
+            lastProcessedPPQ = positionInfo.getPpqPosition().orFallback(lastProcessedPPQ);
+        }
 
     private:
-        // The maximum number of messages to process per block
         const uint maxNumMessagesPerBlock = 256;
+        
+        double estimatePPQFromSamples(uint samples,
+                                      double bpm,
+                                      double sampleRate);
+
 };

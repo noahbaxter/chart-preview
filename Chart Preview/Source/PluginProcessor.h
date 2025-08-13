@@ -37,6 +37,7 @@ public:
     }
 
     uint playheadPositionInSamples = 0;
+    double playheadPositionInPPQ = 0;
     bool isPlaying = false;
 
     float latencyInSeconds = 0.5;
