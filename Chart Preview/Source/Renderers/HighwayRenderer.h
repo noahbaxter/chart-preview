@@ -22,7 +22,7 @@ class HighwayRenderer
         HighwayRenderer(juce::ValueTree &state, MidiInterpreter &midiInterpreter);
         ~HighwayRenderer();
 
-        void paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ);
+        void paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ, const juce::AudioPlayHead::PositionInfo* positionInfo = nullptr);
 
     private:
         juce::ValueTree &state;
@@ -75,7 +75,7 @@ class HighwayRenderer
             bool isBarNote
         );
 
-        void drawGridlines(juce::Graphics& g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ);
+        void drawGridlines(juce::Graphics& g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ, const juce::AudioPlayHead::PositionInfo* positionInfo);
         void drawMeterBar(juce::Graphics& g, float position, juce::Image* markerImage);
 
 };
