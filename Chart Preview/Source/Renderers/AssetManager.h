@@ -11,7 +11,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../Utils.h"
+#include "../Utils/Utils.h"
 
 // Forward declarations
 class MidiInterpreter;

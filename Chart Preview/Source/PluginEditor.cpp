@@ -140,13 +140,13 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     consoleOutput.setVisible(debugToggle.getToggleState());
 
     // Draw the highway
-    PPQPosition trackWindowStartPPQ = currentPlayheadPositionInPPQ();
+    PPQ trackWindowStartPPQ = currentPlayheadPositionInPPQ();
     if (audioProcessor.isPlaying)
     {
         // Shift the start position back by the latency in PPQ
-        trackWindowStartPPQ = std::max(PPQPosition(0.0), trackWindowStartPPQ - latencyInPPQ());
+        trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - latencyInPPQ());
     }
-    PPQPosition trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ();
+    PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ();
     highwayRenderer.paint(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ());
 }
 
