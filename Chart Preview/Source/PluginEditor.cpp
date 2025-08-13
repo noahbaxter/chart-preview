@@ -147,7 +147,19 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
         trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - latencyInPPQ());
     }
     PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ();
-    highwayRenderer.paint(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ());
+    
+    // Get position info for gridlines
+    const juce::AudioPlayHead::PositionInfo* positionInfo = nullptr;
+    if (audioProcessor.getPlayHead() != nullptr)
+    {
+        auto posInfo = audioProcessor.getPlayHead()->getPosition();
+        if (posInfo.hasValue())
+        {
+            positionInfo = &(*posInfo);
+        }
+    }
+    
+    highwayRenderer.paint(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ(), positionInfo);
 }
 
 void ChartPreviewAudioProcessorEditor::resized()
