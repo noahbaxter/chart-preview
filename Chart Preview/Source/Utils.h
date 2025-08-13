@@ -72,12 +72,47 @@ enum class Dynamic
 //==============================================================================
 // TYPES
 
-using NoteStateMap = std::map<uint, uint8_t>;
+class PPQPosition
+{
+public:
+    static constexpr double PPQ_RESOLUTION = 960.0;
+    
+    // Constructors
+    PPQPosition() : scaledValue(0) {}
+    PPQPosition(double ppq) : scaledValue(static_cast<int64_t>(ppq * PPQ_RESOLUTION)) {}
+    PPQPosition(int64_t scaledPPQ) : scaledValue(scaledPPQ) {}
+    
+    // Conversion operators
+    operator double() const { return static_cast<double>(scaledValue) / PPQ_RESOLUTION; }
+    operator int64_t() const { return scaledValue; }
+    
+    // Arithmetic operations
+    PPQPosition operator+(const PPQPosition& other) const { return PPQPosition(scaledValue + other.scaledValue); }
+    PPQPosition operator-(const PPQPosition& other) const { return PPQPosition(scaledValue - other.scaledValue); }
+    PPQPosition operator+(double ppq) const { return PPQPosition(scaledValue + static_cast<int64_t>(ppq * PPQ_RESOLUTION)); }
+    PPQPosition operator-(double ppq) const { return PPQPosition(scaledValue - static_cast<int64_t>(ppq * PPQ_RESOLUTION)); }
+    
+    // Comparison operators
+    bool operator<(const PPQPosition& other) const { return scaledValue < other.scaledValue; }
+    bool operator<=(const PPQPosition& other) const { return scaledValue <= other.scaledValue; }
+    bool operator>(const PPQPosition& other) const { return scaledValue > other.scaledValue; }
+    bool operator>=(const PPQPosition& other) const { return scaledValue >= other.scaledValue; }
+    bool operator==(const PPQPosition& other) const { return scaledValue == other.scaledValue; }
+    
+    // Utility methods
+    double toDouble() const { return static_cast<double>(scaledValue) / PPQ_RESOLUTION; }
+    int64_t toScaled() const { return scaledValue; }
+    
+private:
+    int64_t scaledValue;
+};
+
+
+using NoteStateMap = std::map<PPQPosition, uint8_t>;
 using NoteStateMapArray = std::array<NoteStateMap, 128>;
 
-// Represents all the note lanes at a moment in time
-using TrackFrame = std::array<Gem, LANE_COUNT>;
-using TrackWindow = std::map<uint, TrackFrame>;
+using TrackFrame = std::array<Gem, LANE_COUNT>;     // All the simultaneous notes at a moment in time
+using TrackWindow = std::map<PPQPosition, TrackFrame>;  // All the frames in the track window
 
 //==============================================================================
 // MIDI MAPPINGS

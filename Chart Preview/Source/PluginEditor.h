@@ -161,17 +161,50 @@ private:
     void initAssets();
     void initMenus();
 
-    int currentPlayheadPositionInSamples()
-    {
-        return audioProcessor.playheadPositionInSamples;
-    }
-
     float latencyInSeconds = 0.0;
 
     float displaySizeInSeconds = 0.5;
     int displaySizeInSamples = int(displaySizeInSeconds * audioProcessor.getSampleRate());
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
+
+    // Position helpers
+
+    int currentPlayheadPositionInSamples()
+    {
+        return audioProcessor.playheadPositionInSamples;
+    }
+
+    double currentPlayheadPositionInPPQ()
+    {
+        return audioProcessor.playheadPositionInPPQ;
+    }
+
+    double defaultLatencyInPPQ = 0.0;
+    double defaultBPM = 120.0;
+    double defaultDisplaySizeInPPQ = 4.0; // 4 beats
+
+    double latencyInPPQ()
+    {
+        if (audioProcessor.getPlayHead() == nullptr) return defaultLatencyInPPQ;
+
+        auto positionInfo = audioProcessor.getPlayHead()->getPosition();
+        if (!positionInfo.hasValue()) return defaultLatencyInPPQ;
+
+        double bpm = positionInfo->getBpm().orFallback(defaultBPM);
+        return audioProcessor.latencyInSeconds * (bpm / 60.0);
+    }
+
+    double displaySizeInPPQ()
+    {
+        if (audioProcessor.getPlayHead() == nullptr) return defaultDisplaySizeInPPQ;
+        
+        auto positionInfo = audioProcessor.getPlayHead()->getPosition();
+        if (!positionInfo.hasValue()) return defaultDisplaySizeInPPQ;
+
+        double bpm = positionInfo->getBpm().orFallback(defaultBPM);
+        return displaySizeInSeconds * (bpm / 60.0);
+    }
 
     //==============================================================================
     // Prints
