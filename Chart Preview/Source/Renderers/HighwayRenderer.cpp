@@ -21,7 +21,7 @@ HighwayRenderer::~HighwayRenderer()
 {
 }
 
-void HighwayRenderer::paint(juce::Graphics &g, PPQPosition trackWindowStartPPQ, PPQPosition trackWindowEndPPQ, PPQPosition displaySizeInPPQ)
+void HighwayRenderer::paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ)
 {
 	TrackWindow trackWindow = midiInterpreter.generateTrackWindow(trackWindowStartPPQ, trackWindowEndPPQ);
 
@@ -66,7 +66,7 @@ void HighwayRenderer::paint(juce::Graphics &g, PPQPosition trackWindowStartPPQ, 
 
 
 
-void HighwayRenderer::drawGridlines(juce::Graphics& g, PPQPosition trackWindowStartPPQ, PPQPosition trackWindowEndPPQ, PPQPosition displaySizeInPPQ)
+void HighwayRenderer::drawGridlines(juce::Graphics& g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ)
 {
     
 }

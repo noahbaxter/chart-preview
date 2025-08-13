@@ -1,7 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../Utils.h"
+#include "../Utils/Utils.h"
 
 class MidiProcessor
 {
@@ -13,7 +13,7 @@ class MidiProcessor
                      double sampleRate);
 
         NoteStateMapArray noteStateMapArray;
-        double lastProcessedPPQ = 0;
+        PPQ lastProcessedPPQ = 0.0;
 
         void setLastProcessedPosition(const juce::AudioPlayHead::PositionInfo &positionInfo)
         {
@@ -23,8 +23,6 @@ class MidiProcessor
     private:
         const uint maxNumMessagesPerBlock = 256;
         
-        double estimatePPQFromSamples(uint samples,
-                                      double bpm,
-                                      double sampleRate);
+                PPQ estimatePPQFromSamples(uint samples, double bpm, double sampleRate);
 
 };

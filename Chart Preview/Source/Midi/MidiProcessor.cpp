@@ -12,24 +12,24 @@ void MidiProcessor::process(juce::MidiBuffer& midiMessages,
     if (!ppqPosition.hasValue() || !bpm.hasValue())
         return;
         
-    double startPPQ = *ppqPosition;
+    PPQ startPPQ = *ppqPosition;
     // Initial estimate for end and latency in PPQ
-    double endPPQ = startPPQ + estimatePPQFromSamples(blockSizeInSamples, *bpm, sampleRate);
-    double latencyPPQ = estimatePPQFromSamples(latencyInSamples, *bpm, sampleRate);
+    PPQ endPPQ = startPPQ + estimatePPQFromSamples(blockSizeInSamples, *bpm, sampleRate);
+    PPQ latencyPPQ = estimatePPQFromSamples(latencyInSamples, *bpm, sampleRate);
 
     // Erase events in PPQ range
     if (endPPQ >= lastProcessedPPQ)
     {
         for (auto &noteStateMap : noteStateMapArray)
         {
-            auto lower = noteStateMap.upper_bound(PPQPosition(startPPQ - latencyPPQ));
+            auto lower = noteStateMap.upper_bound(PPQ(startPPQ - latencyPPQ));
             if (lower != noteStateMap.begin())
             {
                 --lower;
                 noteStateMap.erase(noteStateMap.begin(), lower);
             }
 
-            auto upper = noteStateMap.upper_bound(PPQPosition(startPPQ + latencyPPQ));
+            auto upper = noteStateMap.upper_bound(PPQ(startPPQ + latencyPPQ));
             noteStateMap.erase(upper, noteStateMap.end());
         }
     }
@@ -39,19 +39,19 @@ void MidiProcessor::process(juce::MidiBuffer& midiMessages,
     {
         // For each message, we need to estimate its PPQ position
         uint localSamplePos = message.samplePosition;
-        double estimatedMessagePPQ = startPPQ + estimatePPQFromSamples(localSamplePos, *bpm, sampleRate);
+        PPQ estimatedMessagePPQ = startPPQ + estimatePPQFromSamples(localSamplePos, *bpm, sampleRate);
 
         auto midiMessage = message.getMessage();
         if (midiMessage.isNoteOn() || midiMessage.isNoteOff())
         {
-            if (midiMessage.isNoteOff() && estimatedMessagePPQ > 0)
+            if (midiMessage.isNoteOff() && estimatedMessagePPQ > 0.0)
             {
-                estimatedMessagePPQ -= 0.1;
+                estimatedMessagePPQ -= 1;
             }
 
             uint noteNumber = midiMessage.getNoteNumber();
             uint velocity = midiMessage.isNoteOn() ? midiMessage.getVelocity() : 0;
-            noteStateMapArray[noteNumber][PPQPosition(estimatedMessagePPQ)] = velocity;
+            noteStateMapArray[noteNumber][PPQ(estimatedMessagePPQ)] = velocity;
         }
 
         if (++numMessages >= maxNumMessagesPerBlock)
@@ -61,12 +61,10 @@ void MidiProcessor::process(juce::MidiBuffer& midiMessages,
     lastProcessedPPQ = std::max(endPPQ, lastProcessedPPQ);
 }
 
-double MidiProcessor::estimatePPQFromSamples(uint samples,
-                                             double bpm,
-                                             double sampleRate)
+PPQ MidiProcessor::estimatePPQFromSamples(uint samples, double bpm, double sampleRate)
 {
     // Use current BPM as best estimate - this will be slightly inaccurate with tempo automation
     double timeInSeconds = samples / sampleRate;
     double beatsPerSecond = bpm / 60.0;
-    return timeInSeconds * beatsPerSecond;
+    return PPQ(timeInSeconds * beatsPerSecond);
 }

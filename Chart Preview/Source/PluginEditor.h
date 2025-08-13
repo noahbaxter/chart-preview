@@ -12,7 +12,7 @@
 #include "PluginProcessor.h"
 #include "Midi/MidiInterpreter.h"
 #include "Renderers/HighwayRenderer.h"
-#include "Utils.h"
+#include "Utils/Utils.h"
 
 //==============================================================================
 /**
@@ -175,16 +175,16 @@ private:
         return audioProcessor.playheadPositionInSamples;
     }
 
-    double currentPlayheadPositionInPPQ()
+    PPQ currentPlayheadPositionInPPQ()
     {
-        return audioProcessor.playheadPositionInPPQ;
+        return PPQ(audioProcessor.playheadPositionInPPQ);
     }
 
-    double defaultLatencyInPPQ = 0.0;
+    PPQ defaultLatencyInPPQ = 0.0;
     double defaultBPM = 120.0;
-    double defaultDisplaySizeInPPQ = 4.0; // 4 beats
+    PPQ defaultDisplaySizeInPPQ = 4.0; // 4 beats
 
-    double latencyInPPQ()
+    PPQ latencyInPPQ()
     {
         if (audioProcessor.getPlayHead() == nullptr) return defaultLatencyInPPQ;
 
@@ -192,10 +192,10 @@ private:
         if (!positionInfo.hasValue()) return defaultLatencyInPPQ;
 
         double bpm = positionInfo->getBpm().orFallback(defaultBPM);
-        return audioProcessor.latencyInSeconds * (bpm / 60.0);
+        return PPQ(audioProcessor.latencyInSeconds * (bpm / 60.0));
     }
 
-    double displaySizeInPPQ()
+    PPQ displaySizeInPPQ()
     {
         if (audioProcessor.getPlayHead() == nullptr) return defaultDisplaySizeInPPQ;
         
@@ -203,7 +203,7 @@ private:
         if (!positionInfo.hasValue()) return defaultDisplaySizeInPPQ;
 
         double bpm = positionInfo->getBpm().orFallback(defaultBPM);
-        return displaySizeInSeconds * (bpm / 60.0);
+        return PPQ(displaySizeInSeconds * (bpm / 60.0));
     }
 
     //==============================================================================

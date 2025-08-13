@@ -20,54 +20,32 @@ class ChartPreviewAudioProcessor  : public juce::AudioProcessor
                             #endif
 {
 public:
-    //==============================================================================
     ChartPreviewAudioProcessor();
     ~ChartPreviewAudioProcessor() override;
 
-    
-    juce::String debugText;
-    void print(const juce::String &line)
-    {
-      debugText += line + "\n";
-    }
-
-    NoteStateMapArray& getNoteStateMapArray()
-    {
-      return midiProcessor.noteStateMapArray;
-    }
-
     uint playheadPositionInSamples = 0;
-    double playheadPositionInPPQ = 0;
+    PPQ playheadPositionInPPQ = 0.0;
     bool isPlaying = false;
-
+    
     float latencyInSeconds = 0.5;
     uint latencyInSamples = 0;
-    void setLatencyInSeconds(float latencyInSeconds)
-    {
-      this->latencyInSeconds = latencyInSeconds;
-      this->latencyInSamples = (uint)(latencyInSeconds * getSampleRate());
-      setLatencySamples(latencyInSamples);
-    }
-
-    //==============================================================================
-
+    void setLatencyInSeconds(float latencyInSeconds);
     
+    NoteStateMapArray& getNoteStateMapArray() { return midiProcessor.noteStateMapArray; }
 
-    //==============================================================================
+    // Debug
+    juce::String debugText;
+    void print(const juce::String &line) { debugText += line + "\n"; }
+    
+    // Overrides
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
-
-   #ifndef JucePlugin_PreferredChannelConfigurations
-    bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
-   #endif
-
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
-    //==============================================================================
+   // Stock JUCE
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override;
 
-    //==============================================================================
     const juce::String getName() const override;
 
     bool acceptsMidi() const override;
@@ -75,20 +53,22 @@ public:
     bool isMidiEffect() const override;
     double getTailLengthSeconds() const override;
 
-    //==============================================================================
     int getNumPrograms() override;
     int getCurrentProgram() override;
     void setCurrentProgram (int index) override;
     const juce::String getProgramName (int index) override;
     void changeProgramName (int index, const juce::String& newName) override;
 
-    //==============================================================================
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-private:
-  juce::ValueTree state;
-  MidiProcessor midiProcessor;
+#ifndef JucePlugin_PreferredChannelConfigurations
+    bool isBusesLayoutSupported(const BusesLayout &layouts) const override;
+#endif
 
-  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChartPreviewAudioProcessor)
+  private:
+    juce::ValueTree state;
+    MidiProcessor midiProcessor;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChartPreviewAudioProcessor)
 };

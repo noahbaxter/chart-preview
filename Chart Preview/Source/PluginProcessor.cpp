@@ -28,7 +28,65 @@ ChartPreviewAudioProcessor::~ChartPreviewAudioProcessor()
 {
 }
 
-//==============================================================================
+void ChartPreviewAudioProcessor::setLatencyInSeconds(float latencyInSeconds)
+{
+    this->latencyInSeconds = latencyInSeconds;
+    this->latencyInSamples = (uint)(latencyInSeconds * getSampleRate());
+    setLatencySamples(this->latencyInSamples);
+}
+
+// MANUAL OVERRIDES
+void ChartPreviewAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+{
+    setLatencyInSeconds(latencyInSeconds);
+}
+
+void ChartPreviewAudioProcessor::releaseResources()
+{
+    // When playback stops, you can use this as an opportunity to free up any
+    // spare memory, etc.
+}
+
+void ChartPreviewAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, juce::MidiBuffer &midiMessages)
+{
+    // Can't process if there is no playhead
+    if (getPlayHead() == nullptr)
+        return;
+
+    auto positionInfo = getPlayHead()->getPosition();
+    if (!positionInfo.hasValue())
+        return;
+
+    // Get playhead position
+    playheadPositionInSamples = static_cast<uint>(positionInfo->getTimeInSamples().orFallback(0));
+    playheadPositionInPPQ = positionInfo->getPpqPosition().orFallback(0.0);
+    isPlaying = positionInfo->getIsPlaying();
+
+    if (isPlaying)
+    {
+        midiProcessor.process(midiMessages,
+                              *positionInfo,
+                              buffer.getNumSamples(),
+                              latencyInSamples,
+                              getSampleRate());
+    }
+    else
+    {
+        midiProcessor.setLastProcessedPosition(*positionInfo);
+    }
+}
+//==============================================
+// Stock JUCE
+juce::AudioProcessorEditor *ChartPreviewAudioProcessor::createEditor()
+{
+    return new ChartPreviewAudioProcessorEditor(*this, state);
+}
+
+bool ChartPreviewAudioProcessor::hasEditor() const
+{
+    return true; // (change this to false if you choose to not supply an editor)
+}
+
 const juce::String ChartPreviewAudioProcessor::getName() const
 {
     return JucePlugin_Name;
@@ -90,86 +148,6 @@ void ChartPreviewAudioProcessor::changeProgramName (int index, const juce::Strin
 {
 }
 
-//==============================================================================
-void ChartPreviewAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
-{
-    setLatencyInSeconds(latencyInSeconds);
-}
-
-void ChartPreviewAudioProcessor::releaseResources()
-{
-    // When playback stops, you can use this as an opportunity to free up any
-    // spare memory, etc.
-}
-
-#ifndef JucePlugin_PreferredChannelConfigurations
-bool ChartPreviewAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
-{
-  #if JucePlugin_IsMidiEffect
-    juce::ignoreUnused (layouts);
-    return true;
-  #else
-    // This is the place where you check if the layout is supported.
-    // In this template code we only support mono or stereo.
-    // Some plugin hosts, such as certain GarageBand versions, will only
-    // load plugins that support stereo bus layouts.
-    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
-     && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
-        return false;
-
-    // This checks if the input layout matches the output layout
-   #if ! JucePlugin_IsSynth
-    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
-        return false;
-   #endif
-
-    return true;
-  #endif
-}
-#endif
-
-int maxLoops = 5;
-int currentLoop = 0;
-
-void ChartPreviewAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
-{
-    // Can't process if there is no playhead
-    if (getPlayHead() == nullptr) return;
-    
-    auto positionInfo = getPlayHead()->getPosition();
-    if (!positionInfo.hasValue()) return;
-
-    // Get playhead position
-    playheadPositionInSamples = static_cast<uint>(positionInfo->getTimeInSamples().orFallback(0));
-    playheadPositionInPPQ = positionInfo->getPpqPosition().orFallback(0.0);
-    isPlaying = positionInfo->getIsPlaying();
-
-    if (isPlaying)
-    {
-        midiProcessor.process(midiMessages,
-                              *positionInfo,
-                              buffer.getNumSamples(),
-                              latencyInSamples,
-                              getSampleRate());
-    }
-    else
-    {
-        midiProcessor.setLastProcessedPosition(*positionInfo);
-    }
-}
-
-//==============================================================================
-bool ChartPreviewAudioProcessor::hasEditor() const
-{
-    return true; // (change this to false if you choose to not supply an editor)
-}
-
-juce::AudioProcessorEditor* ChartPreviewAudioProcessor::createEditor()
-{
-    return new ChartPreviewAudioProcessorEditor (*this, state);
-}
-
-//==============================================================================
 void ChartPreviewAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
@@ -188,6 +166,31 @@ void ChartPreviewAudioProcessor::setStateInformation (const void* data, int size
         state = juce::ValueTree::fromXml(*xml);
     }
 }
+
+#ifndef JucePlugin_PreferredChannelConfigurations
+bool ChartPreviewAudioProcessor::isBusesLayoutSupported(const BusesLayout &layouts) const
+{
+#if JucePlugin_IsMidiEffect
+    juce::ignoreUnused(layouts);
+    return true;
+#else
+    // This is the place where you check if the layout is supported.
+    // In this template code we only support mono or stereo.
+    // Some plugin hosts, such as certain GarageBand versions, will only
+    // load plugins that support stereo bus layouts.
+    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono() && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+        return false;
+
+    // This checks if the input layout matches the output layout
+#if !JucePlugin_IsSynth
+    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
+        return false;
+#endif
+
+    return true;
+#endif
+}
+#endif
 
 //==============================================================================
 // This creates new instances of the plugin..

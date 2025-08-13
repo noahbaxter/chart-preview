@@ -12,7 +12,7 @@
 
 #include <JuceHeader.h>
 #include "../Midi/MidiInterpreter.h"
-#include "../Utils.h"
+#include "../Utils/Utils.h"
 #include "AssetManager.h"
 
 
@@ -22,7 +22,7 @@ class HighwayRenderer
         HighwayRenderer(juce::ValueTree &state, MidiInterpreter &midiInterpreter);
         ~HighwayRenderer();
 
-        void paint(juce::Graphics &g, PPQPosition trackWindowStartPPQ, PPQPosition trackWindowEndPPQ, PPQPosition displaySizeInPPQ);
+        void paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ);
 
     private:
         juce::ValueTree &state;
@@ -30,7 +30,7 @@ class HighwayRenderer
         AssetManager assetManager;
 
         uint width = 0, height = 0;
-        PPQPosition framePosition = PPQPosition(0.0);
+        PPQ framePosition = 0.0;
 
         bool isBarNote(uint gemColumn, Part part)
         {
@@ -75,7 +75,7 @@ class HighwayRenderer
             bool isBarNote
         );
 
-        void drawGridlines(juce::Graphics& g, PPQPosition trackWindowStartPPQ, PPQPosition trackWindowEndPPQ, PPQPosition displaySizeInPPQ);
+        void drawGridlines(juce::Graphics& g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ);
         void drawMeterBar(juce::Graphics& g, float position, juce::Image* markerImage);
 
 };
