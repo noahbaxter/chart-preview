@@ -70,6 +70,13 @@ enum class Dynamic
     ACCENT=127,
 };
 
+enum class Gridline
+{
+    MEASURE,
+    BEAT,
+    HALF_BEAT,
+};
+
 //==============================================================================
 // TYPES
 
@@ -77,6 +84,7 @@ using NoteStateMap = std::map<PPQ, uint8_t>;
 using NoteStateMapArray = std::array<NoteStateMap, 128>;
 using TrackFrame = std::array<Gem, LANE_COUNT>; // All the simultaneous notes at a moment in time
 using TrackWindow = std::map<PPQ, TrackFrame>;  // All the frames in the track window
+using GridlineMap = std::map<PPQ, Gridline>;
 
 //==============================================================================
 // MIDI MAPPINGS

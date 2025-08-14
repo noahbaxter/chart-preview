@@ -14,7 +14,7 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
     : AudioProcessorEditor(&p),
       state(state),
       audioProcessor(p),
-      midiInterpreter(state, audioProcessor.getNoteStateMapArray()),
+      midiInterpreter(state, audioProcessor.getNoteStateMapArray(), audioProcessor.getGridlineMap(), audioProcessor.getGridlineMapLock()),
       highwayRenderer(state, midiInterpreter)
 {
     setSize(defaultWidth, defaultHeight);
@@ -83,8 +83,8 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     latencyMenu.addListener(this);
     addAndMakeVisible(latencyMenu);
     
-    chartZoomSlider.setRange(0.40, 1.2, 0.05);
-    chartZoomSlider.setValue(0.60);
+    chartZoomSlider.setRange(0.8, 2.0, 0.1);
+    chartZoomSlider.setValue(1.5);
     chartZoomSlider.setSliderStyle(juce::Slider::LinearVertical);
     chartZoomSlider.setTextBoxStyle(juce::Slider::TextBoxAbove, false, 50, 20);
     chartZoomSlider.addListener(this);
@@ -146,20 +146,8 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
         // Shift the start position back by the latency in PPQ
         trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - latencyInPPQ());
     }
-    PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ();
-    
-    // Get position info for gridlines
-    const juce::AudioPlayHead::PositionInfo* positionInfo = nullptr;
-    if (audioProcessor.getPlayHead() != nullptr)
-    {
-        auto posInfo = audioProcessor.getPlayHead()->getPosition();
-        if (posInfo.hasValue())
-        {
-            positionInfo = &(*posInfo);
-        }
-    }
-    
-    highwayRenderer.paint(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ(), positionInfo);
+    PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
+    highwayRenderer.paint(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ);
 }
 
 void ChartPreviewAudioProcessorEditor::resized()

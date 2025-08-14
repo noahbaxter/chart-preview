@@ -225,6 +225,18 @@ juce::Image* AssetManager::getDrumGlyphImage(Gem gem, uint gemColumn, bool starP
     return nullptr;
 }
 
+juce::Image* AssetManager::getGridlineImage(Gridline gridlineType)
+{
+    switch (gridlineType)
+    {
+    case Gridline::MEASURE: return getMarkerMeasureImage();
+    case Gridline::BEAT: return getMarkerBeatImage();
+    case Gridline::HALF_BEAT: return getMarkerHalfBeatImage();
+    }
+
+    return nullptr;
+}
+
 juce::Image* AssetManager::getOverlayImage(Gem gem, Part part)
 {
     if (part == Part::GUITAR)

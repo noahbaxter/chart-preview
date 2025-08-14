@@ -106,9 +106,7 @@ public:
     {
         if (slider == &chartZoomSlider)
         {
-            
-            displaySizeInSeconds = slider->getValue();
-            displaySizeInSamples = int(displaySizeInSeconds * audioProcessor.getSampleRate());
+            displaySizeInPPQ = PPQ(slider->getValue());
         }
     }
 
@@ -163,8 +161,7 @@ private:
 
     float latencyInSeconds = 0.0;
 
-    float displaySizeInSeconds = 0.5;
-    int displaySizeInSamples = int(displaySizeInSeconds * audioProcessor.getSampleRate());
+    PPQ displaySizeInPPQ = 1.5; // 4 beats (1 measure in 4/4)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
 
@@ -193,17 +190,6 @@ private:
 
         double bpm = positionInfo->getBpm().orFallback(defaultBPM);
         return PPQ(audioProcessor.latencyInSeconds * (bpm / 60.0));
-    }
-
-    PPQ displaySizeInPPQ()
-    {
-        if (audioProcessor.getPlayHead() == nullptr) return defaultDisplaySizeInPPQ;
-        
-        auto positionInfo = audioProcessor.getPlayHead()->getPosition();
-        if (!positionInfo.hasValue()) return defaultDisplaySizeInPPQ;
-
-        double bpm = positionInfo->getBpm().orFallback(defaultBPM);
-        return PPQ(displaySizeInSeconds * (bpm / 60.0));
     }
 
     //==============================================================================

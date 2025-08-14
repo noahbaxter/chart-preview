@@ -21,34 +21,19 @@ HighwayRenderer::~HighwayRenderer()
 {
 }
 
-void HighwayRenderer::paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ, const juce::AudioPlayHead::PositionInfo* positionInfo)
+void HighwayRenderer::paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ)
 {
-	TrackWindow trackWindow = midiInterpreter.generateTrackWindow(trackWindowStartPPQ, trackWindowEndPPQ);
-
-	// // FAKE DATA
-	// TrackWindow trackWindow;
-    // trackWindow[trackWindowStartPPQ + (1.0 * displaySizeInPPQ / 7)] = {Gem::NOTE, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::HOPO_GHOST, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStartPPQ + (2.0 * displaySizeInPPQ / 7)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE, Gem::NOTE};
-	// trackWindow[trackWindowStartPPQ + (2.0 * displaySizeInPPQ / 7)] = {Gem::NONE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStartPPQ + (3.0 * displaySizeInPPQ / 7)] = {Gem::NONE, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::TAP_ACCENT, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStartPPQ + (4.0 * displaySizeInPPQ / 7)] = {Gem::NONE, Gem::NONE, Gem::CYM_GHOST, Gem::CYM_GHOST, Gem::CYM_GHOST, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStartPPQ + (5.0 * displaySizeInPPQ / 7)] = {Gem::NONE, Gem::NONE, Gem::CYM, Gem::CYM, Gem::CYM, Gem::NONE, Gem::NONE};
-	// trackWindow[trackWindowStartPPQ + (6.0 * displaySizeInPPQ / 7)] = {Gem::NONE, Gem::NONE, Gem::CYM_ACCENT, Gem::CYM_ACCENT, Gem::CYM_ACCENT, Gem::NONE, Gem::NONE};
-
-    drawCallMap.clear();
-
+    TrackWindow trackWindow = midiInterpreter.generateTrackWindow(trackWindowStartPPQ, trackWindowEndPPQ);
+    
     // Set the drawing area dimensions from the graphics context
     auto clipBounds = g.getClipBounds();
     width = clipBounds.getWidth();
     height = clipBounds.getHeight();
-
-    // Populate drawCallMap
-    for (auto &frameItem : trackWindow)
-	{
-		framePosition = frameItem.first;
-		float normalizedPosition = (framePosition.toDouble() - trackWindowStartPPQ.toDouble()) / (float)displaySizeInPPQ.toDouble();
-		drawFrame(frameItem.second, normalizedPosition);
-	}
+    
+    // Repopulate drawCallMap
+    drawCallMap.clear();
+    drawNotesFromMap(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ);
+    drawGridlinesFromMap(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ);
 
     // Draw layer by layer
     for (const auto& drawOrder : drawCallMap)
@@ -59,76 +44,42 @@ void HighwayRenderer::paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trac
             (*it)(g);
         }
     }
-
-    // drawGridlines(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ, positionInfo);
 }
 
-void HighwayRenderer::drawGridlines(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ, const juce::AudioPlayHead::PositionInfo *positionInfo)
+void HighwayRenderer::drawNotesFromMap(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ)
 {
-    if (!positionInfo)
-        return;
-
-    const int64_t ppqPerTick = 30;
-    const int64_t ppqPerBeat = 960;
-
-    int64_t currentPPQ = static_cast<int64_t>(trackWindowStartPPQ.toDouble() * ppqPerBeat);
-    int64_t endPPQ = static_cast<int64_t>(trackWindowEndPPQ.toDouble() * ppqPerBeat);
-    int64_t startPPQ = currentPPQ;
-    int64_t displaySizePPQ = static_cast<int64_t>(displaySizeInPPQ.toDouble() * ppqPerBeat);
-
-    // Get the current bar start position from the host
-    auto ppqPositionOfLastBarStart = positionInfo->getPpqPositionOfLastBarStart();
-    if (!ppqPositionOfLastBarStart.hasValue())
-        return;
-
-    int64_t lastBarStartPPQ = static_cast<int64_t>(ppqPositionOfLastBarStart.orFallback(0.0) * ppqPerBeat);
-
-    auto timeSig = positionInfo->getTimeSignature();
-    if (!timeSig.hasValue())
-        return;
-
-    int timeSignatureNumerator = timeSig->numerator;
-    int64_t ppqPerMeasure = ppqPerBeat * timeSignatureNumerator;
-    int64_t ppqPerHalfBeat = ppqPerBeat / 2;
-
-    while (currentPPQ < endPPQ)
+    TrackWindow trackWindow = midiInterpreter.generateTrackWindow(trackWindowStartPPQ, trackWindowEndPPQ);
+    for (auto &frameItem : trackWindow)
     {
-        float normalizedPosition = static_cast<float>(currentPPQ - startPPQ) / static_cast<float>(displaySizePPQ);
-
-        if (normalizedPosition >= 0.0f && normalizedPosition <= 1.0f)
-        {
-            juce::Image *markerImage = nullptr;
-
-            // Calculate position relative to the last bar start (from host)
-            int64_t positionFromBarStart = currentPPQ - lastBarStartPPQ;
-
-            // Check if this is a measure boundary (relative to actual bar positions)
-            if (positionFromBarStart >= 0 && positionFromBarStart % ppqPerMeasure < ppqPerTick)
-            {
-                markerImage = assetManager.getMarkerMeasureImage();
-            }
-            // Check if this is a beat boundary
-            else if (positionFromBarStart >= 0 && positionFromBarStart % ppqPerBeat < ppqPerTick)
-            {
-                markerImage = assetManager.getMarkerBeatImage();
-            }
-            // Check if this is a half-beat boundary
-            else if (positionFromBarStart >= 0 && positionFromBarStart % ppqPerHalfBeat < ppqPerTick)
-            {
-                markerImage = assetManager.getMarkerHalfBeatImage();
-            }
-
-            if (markerImage != nullptr)
-            {
-                drawMeterBar(g, normalizedPosition, markerImage);
-            }
-        }
-
-        currentPPQ += ppqPerTick;
+        PPQ framePosition = frameItem.first;
+        float normalizedPosition = (framePosition.toDouble() - trackWindowStartPPQ.toDouble()) / (float)displaySizeInPPQ.toDouble();
+        drawFrame(frameItem.second, normalizedPosition, framePosition);
     }
 }
 
-void HighwayRenderer::drawMeterBar(juce::Graphics& g, float position, juce::Image* markerImage)
+void HighwayRenderer::drawGridlinesFromMap(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ)
+{
+    GridlineMap gridlineWindow = midiInterpreter.generateGridlineWindow(trackWindowStartPPQ, trackWindowEndPPQ);
+    for (const auto &gridlineItem : gridlineWindow)
+    {
+        PPQ gridlinePPQ = gridlineItem.first;
+        Gridline gridlineType = gridlineItem.second;
+
+        float normalizedPosition = (gridlinePPQ.toDouble() - trackWindowStartPPQ.toDouble()) / displaySizeInPPQ.toDouble();
+
+        if (normalizedPosition >= 0.0f && normalizedPosition <= 1.0f)
+        {
+            juce::Image *markerImage = assetManager.getGridlineImage(gridlineType);
+
+            if (markerImage != nullptr)
+            {
+                drawCallMap[DrawOrder::GRID].push_back([=](juce::Graphics &g) { drawGridline(g, normalizedPosition, markerImage); });
+            }
+        }
+    }
+}
+
+void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Image* markerImage)
 {
     if (!markerImage) return;
     
@@ -152,7 +103,7 @@ void HighwayRenderer::drawMeterBar(juce::Graphics& g, float position, juce::Imag
 }
 
 
-void HighwayRenderer::drawFrame(const std::array<Gem,LANE_COUNT> &gems, float position)
+void HighwayRenderer::drawFrame(const std::array<Gem,LANE_COUNT> &gems, float position, PPQ framePosition)
 {
     uint drawSequence[] = {0, 6, 1, 2, 3, 4, 5};
     for (int i = 0; i < gems.size(); i++)
@@ -160,12 +111,12 @@ void HighwayRenderer::drawFrame(const std::array<Gem,LANE_COUNT> &gems, float po
         int gemColumn = drawSequence[i];
         if (gems[gemColumn] != Gem::NONE)
         {
-            drawGem(gemColumn, gems[gemColumn], position);
+            drawGem(gemColumn, gems[gemColumn], position, framePosition);
         }
     }
 }
 
-void HighwayRenderer::drawGem(uint gemColumn, Gem gem, float position)
+void HighwayRenderer::drawGem(uint gemColumn, Gem gem, float position, PPQ framePosition)
 {
     juce::Rectangle<float> glyphRect;
     juce::Image* glyphImage;

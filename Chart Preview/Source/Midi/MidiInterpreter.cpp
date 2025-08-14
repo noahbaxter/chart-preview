@@ -10,14 +10,39 @@
 
 #include "MidiInterpreter.h"
 
-MidiInterpreter::MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &noteStateMapArray)
+MidiInterpreter::MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, GridlineMap &gridlineMap, juce::CriticalSection &gridlineMapLock)
     : state(state),
-      noteStateMapArray(noteStateMapArray)
+      noteStateMapArray(noteStateMapArray),
+      gridlineMap(gridlineMap),
+      gridlineMapLock(gridlineMapLock)
 {
 }
 
 MidiInterpreter::~MidiInterpreter()
 {
+}
+
+GridlineMap MidiInterpreter::generateGridlineWindow(PPQ trackWindowStart, PPQ trackWindowEnd)
+{
+    GridlineMap gridlineWindow;
+    
+    // Lock the gridlineMap during iteration to prevent crashes
+    const juce::ScopedLock lock(gridlineMapLock);
+    
+    // Simply read from the pre-generated gridlineMap
+    for (const auto& gridlineItem : gridlineMap)
+    {
+        PPQ gridlinePPQ = gridlineItem.first;
+        Gridline gridlineType = static_cast<Gridline>(gridlineItem.second);
+        
+        // Only include gridlines within our window
+        if (gridlinePPQ >= trackWindowStart && gridlinePPQ < trackWindowEnd)
+        {
+            gridlineWindow[gridlinePPQ] = gridlineType;
+        }
+    }
+    
+    return gridlineWindow;
 }
 
 TrackWindow MidiInterpreter::generateTrackWindow(PPQ trackWindowStart, PPQ trackWindowEnd)

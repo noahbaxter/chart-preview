@@ -48,6 +48,21 @@ public:
     bool operator!=(int64_t other) const { return scaledValue != other; }
 
     // Assignment operators
+    PPQ &operator+=(const PPQ &other)
+    {
+        scaledValue += other.scaledValue;
+        return *this;
+    }
+    PPQ &operator+=(double ppq)
+    {
+        scaledValue += static_cast<int64_t>(ppq * PPQ_RESOLUTION);
+        return *this;
+    }
+    PPQ &operator+=(int scaledPPQ)
+    {
+        scaledValue += scaledPPQ;
+        return *this;
+    }
     PPQ &operator-=(const PPQ &other)
     {
         scaledValue -= other.scaledValue;
@@ -87,3 +102,14 @@ inline bool operator>(int64_t lhs, const PPQ &rhs) { return rhs < lhs; }
 inline bool operator>=(int64_t lhs, const PPQ &rhs) { return rhs <= lhs; }
 inline bool operator==(int64_t lhs, const PPQ &rhs) { return rhs == lhs; }
 inline bool operator!=(int64_t lhs, const PPQ &rhs) { return rhs != lhs; }
+
+// Helper functions
+static PPQ fromScaled(int64_t scaledValue)
+{
+    return PPQ(scaledValue);
+}
+
+static PPQ fromDouble(double value)
+{
+    return PPQ(static_cast<int64_t>(value * PPQ::PPQ_RESOLUTION));
+}
