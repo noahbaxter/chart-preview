@@ -22,7 +22,7 @@ class HighwayRenderer
         HighwayRenderer(juce::ValueTree &state, MidiInterpreter &midiInterpreter);
         ~HighwayRenderer();
 
-        void paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ, const juce::AudioPlayHead::PositionInfo* positionInfo = nullptr);
+        void paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ);
 
     private:
         juce::ValueTree &state;
@@ -30,7 +30,6 @@ class HighwayRenderer
         AssetManager assetManager;
 
         uint width = 0, height = 0;
-        PPQ framePosition = 0.0;
 
         bool isBarNote(uint gemColumn, Part part)
         {
@@ -56,8 +55,12 @@ class HighwayRenderer
         }
 
         DrawCallMap drawCallMap;
-        void drawFrame(const std::array<Gem, LANE_COUNT> &gems, float position);
-        void drawGem(uint gemColumn, Gem gem, float position);
+        void drawGridlinesFromMap(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ);
+        void drawGridline(juce::Graphics &g, float position, juce::Image *markerImage);
+
+        void drawNotesFromMap(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ);
+        void drawFrame(const std::array<Gem, LANE_COUNT> &gems, float position, PPQ framePosition);
+        void drawGem(uint gemColumn, Gem gem, float position, PPQ framePosition);
         void draw(juce::Graphics &g, juce::Image *image, juce::Rectangle<float> position, float opacity)
         {
             g.setOpacity(opacity);
@@ -75,7 +78,6 @@ class HighwayRenderer
             bool isBarNote
         );
 
-        void drawGridlines(juce::Graphics& g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ, const juce::AudioPlayHead::PositionInfo* positionInfo);
-        void drawMeterBar(juce::Graphics& g, float position, juce::Image* markerImage);
+        
 
 };

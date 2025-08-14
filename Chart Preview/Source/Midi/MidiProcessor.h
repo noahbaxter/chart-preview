@@ -13,6 +13,9 @@ class MidiProcessor
                      double sampleRate);
 
         NoteStateMapArray noteStateMapArray;
+        GridlineMap gridlineMap;
+        mutable juce::CriticalSection gridlineMapLock;
+
         PPQ lastProcessedPPQ = 0.0;
 
         void setLastProcessedPosition(const juce::AudioPlayHead::PositionInfo &positionInfo)
@@ -23,6 +26,7 @@ class MidiProcessor
     private:
         const uint maxNumMessagesPerBlock = 256;
         
-                PPQ estimatePPQFromSamples(uint samples, double bpm, double sampleRate);
+        PPQ estimatePPQFromSamples(uint samples, double bpm, double sampleRate);
 
+        void generateGridLines(PPQ startPPQ, PPQ endPPQ, uint timeSignatureNumerator, uint timeSignatureDenominator);
 };

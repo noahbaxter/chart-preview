@@ -25,6 +25,7 @@ public:
     // Image picker methods
     juce::Image* getGuitarGlyphImage(Gem gem, uint gemColumn, bool starPowerActive, bool spNoteHeld);
     juce::Image* getDrumGlyphImage(Gem gem, uint gemColumn, bool starPowerActive, bool spNoteHeld);
+    juce::Image* getGridlineImage(Gridline gridlineType);
     juce::Image* getOverlayImage(Gem gem, Part part);
 
     // Bar/Open notes
