@@ -73,6 +73,7 @@
         "utility": "cpp",
         "stop_token": "cpp",
         "cinttypes": "cpp",
-        "forward_list": "cpp"
+        "forward_list": "cpp",
+        "print": "cpp"
     }
 }
