@@ -20,6 +20,8 @@ void MidiProcessor::process(juce::MidiBuffer &midiMessages,
                                 timeSig->numerator,
                                 timeSig->denominator,
                                 sampleRate);
+    
+    // Use stable host BPM for latency calculation (for audio processing cleanup)
     PPQ latencyPPQ = calculatePPQSegment(latencyInSamples, *bpm, sampleRate);
 
     cleanupOldEvents(startPPQ, endPPQ, latencyPPQ);

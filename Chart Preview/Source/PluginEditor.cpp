@@ -43,6 +43,7 @@ void ChartPreviewAudioProcessorEditor::initState()
         state.setProperty("starPower", true, nullptr);
         state.setProperty("kick2x", true, nullptr);
         state.setProperty("dynamics", true, nullptr);
+        state.setProperty("latency", 2, nullptr); // Default to 500ms to match latencyInSeconds default
 
         state.setProperty("framerate", 3, nullptr);
     }
@@ -143,8 +144,9 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     PPQ trackWindowStartPPQ = currentPlayheadPositionInPPQ();
     if (audioProcessor.isPlaying)
     {
-        // Shift the start position back by the latency in PPQ
-        trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - latencyInPPQ());
+        // Use fixed latency based on 120 BPM calculation (stable, no jitter)
+        PPQ fixedLatency = PPQ(latencyInSeconds * 2.0); // 120 BPM = 2 beats per second
+        trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - fixedLatency);
     }
     PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
     highwayRenderer.paint(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ);
