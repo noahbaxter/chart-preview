@@ -160,6 +160,7 @@ private:
     void initMenus();
 
     float latencyInSeconds = 0.0;
+    PPQ lastSmoothedLatencyPPQ = 0.0;  // For smoothing tempo transitions
 
     PPQ displaySizeInPPQ = 1.5; // 4 beats (1 measure in 4/4)
 
@@ -190,6 +191,27 @@ private:
 
         double bpm = positionInfo->getBpm().orFallback(defaultBPM);
         return PPQ(audioProcessor.latencyInSeconds * (bpm / 60.0));
+    }
+
+    PPQ smoothedLatencyInPPQ()
+    {
+        PPQ targetLatency = latencyInPPQ();
+        
+        // If this is the first frame or latency hasn't changed much, use target directly
+        if (lastSmoothedLatencyPPQ == 0.0 || std::abs((targetLatency - lastSmoothedLatencyPPQ).toDouble()) < 0.001)
+        {
+            lastSmoothedLatencyPPQ = targetLatency;
+            return targetLatency;
+        }
+        
+        // Smooth transition over one buffer - use 90% of previous + 10% of target
+        // This gives a gentle transition that completes in about 22 frames (at 60fps)
+        const double smoothingFactor = 0.1;
+        double latencyDifference = (targetLatency - lastSmoothedLatencyPPQ).toDouble() * smoothingFactor;
+        PPQ smoothedLatency = lastSmoothedLatencyPPQ + PPQ(latencyDifference);
+        lastSmoothedLatencyPPQ = smoothedLatency;
+        
+        return smoothedLatency;
     }
 
     //==============================================================================
