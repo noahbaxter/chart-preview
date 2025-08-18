@@ -96,6 +96,9 @@ public:
             case 4:
                 latencyInSeconds = 1.000;
                 break;
+            case 5:
+                latencyInSeconds = 1.500;
+                break;
             }
 
             audioProcessor.setLatencyInSeconds(latencyInSeconds);

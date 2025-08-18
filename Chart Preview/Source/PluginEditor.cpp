@@ -79,12 +79,12 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     framerateMenu.addListener(this);
     addAndMakeVisible(framerateMenu);
 
-    latencyMenu.addItemList({"250ms", "500ms", "750ms", "1000ms"}, 1);
+    latencyMenu.addItemList({"250ms", "500ms", "750ms", "1000ms", "1500ms"}, 1);
     latencyMenu.setSelectedId(state.getProperty("latency"), juce::NotificationType::dontSendNotification);
     latencyMenu.addListener(this);
     addAndMakeVisible(latencyMenu);
     
-    chartZoomSlider.setRange(0.8, 2.0, 0.1);
+    chartZoomSlider.setRange(1.0, 4.0, 0.1);
     chartZoomSlider.setValue(1.5);
     chartZoomSlider.setSliderStyle(juce::Slider::LinearVertical);
     chartZoomSlider.setTextBoxStyle(juce::Slider::TextBoxAbove, false, 50, 20);
