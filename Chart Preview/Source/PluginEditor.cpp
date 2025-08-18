@@ -144,9 +144,9 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     PPQ trackWindowStartPPQ = currentPlayheadPositionInPPQ();
     if (audioProcessor.isPlaying)
     {
-        // Use fixed latency based on 120 BPM calculation (stable, no jitter)
-        PPQ fixedLatency = PPQ(latencyInSeconds * 2.0); // 120 BPM = 2 beats per second
-        trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - fixedLatency);
+        // Use smoothed tempo-aware latency to prevent jitter during tempo changes
+        PPQ smoothedLatency = smoothedLatencyInPPQ();
+        trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - smoothedLatency);
     }
     PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
     highwayRenderer.paint(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ);

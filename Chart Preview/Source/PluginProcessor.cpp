@@ -70,10 +70,6 @@ void ChartPreviewAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, 
                               latencyInSamples,
                               getSampleRate());
     }
-    else
-    {
-        midiProcessor.setLastProcessedPosition(*positionInfo);
-    }
 }
 //==============================================
 // Stock JUCE
