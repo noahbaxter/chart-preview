@@ -1,0 +1,277 @@
+name: Build Chart Preview
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [ created ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v1.3
+      
+    - name: Install JUCE
+      run: |
+        echo "Downloading JUCE..."
+        Invoke-WebRequest -Uri "https://github.com/juce-framework/JUCE/releases/download/8.0.0/juce-8.0.0-windows.zip" -OutFile "juce.zip"
+        echo "Extracting JUCE..."
+        Expand-Archive -Path "juce.zip" -DestinationPath "C:\"
+        echo "JUCE installed at C:\JUCE"
+        dir "C:\JUCE"
+      
+    - name: Cache JUCE
+      uses: actions/cache@v4
+      with:
+        path: |
+          Chart Preview/Builds
+          Chart Preview/JuceLibraryCode
+        key: ${{ runner.os }}-juce-${{ hashFiles('Chart Preview/ChartPreview.jucer') }}
+        restore-keys: |
+          ${{ runner.os }}-juce-
+
+    - name: Verify Visual Studio project exists
+      shell: cmd
+      run: |
+        cd "Chart Preview"
+        echo "Checking for Visual Studio 2022 project files..."
+        if exist "Builds\VisualStudio2022\ChartPreview.sln" (
+          echo "✅ Visual Studio solution found"
+          dir "Builds\VisualStudio2022\*.sln"
+        ) else (
+          echo "❌ Visual Studio solution not found"
+          echo "Expected: Builds\VisualStudio2022\ChartPreview.sln"
+          dir "Builds\" /s
+          exit /b 1
+        )
+
+    - name: Build with MSBuild
+      shell: cmd
+      run: |
+        cd "Chart Preview"
+        echo "Building Release configuration..."
+        echo "First building shared code dependencies..."
+        msbuild "Builds/VisualStudio2022/ChartPreview_SharedCode.vcxproj" /p:Configuration=Release /p:Platform=x64 /m /verbosity:normal || (
+          echo "❌ SharedCode build failed!"
+          exit /b 1
+        )
+        echo "Checking if ChartPreview.lib was generated..."
+        if exist "Builds\VisualStudio2022\x64\Release\Shared Code\ChartPreview.lib" (
+          echo "✅ ChartPreview.lib found"
+          dir "Builds\VisualStudio2022\x64\Release\Shared Code\ChartPreview.lib"
+        ) else (
+          echo "❌ ChartPreview.lib not found, checking Shared Code directory..."
+          if exist "Builds\VisualStudio2022\x64\Release\Shared Code\" (
+            dir "Builds\VisualStudio2022\x64\Release\Shared Code\" /b
+          ) else (
+            echo "Shared Code output directory does not exist"
+            dir "Builds\VisualStudio2022\x64\Release" /b
+          )
+          exit /b 1
+        )
+        echo "Now building VST3 project..."
+        msbuild "Builds/VisualStudio2022/ChartPreview_VST3.vcxproj" /p:Configuration=Release /p:Platform=x64 /m /verbosity:minimal
+        echo "Build completed, checking output..."
+        if exist "Builds\VisualStudio2022\x64\Release\VST3" (
+          dir "Builds\VisualStudio2022\x64\Release\VST3" /s
+        ) else (
+          echo "VST3 output directory not found, checking all Release subdirectories..."
+          dir "Builds\VisualStudio2022\x64\Release" /s
+        )
+        
+    - name: Verify build artifacts
+      shell: cmd
+      run: |
+        cd "Chart Preview"
+        echo "Checking for VST3 files in various locations..."
+        
+        echo "=== Checking expected VST3 location ==="
+        if exist "Builds\VisualStudio2022\x64\Release\VST3" (
+          echo "VST3 directory exists, contents:"
+          dir "Builds\VisualStudio2022\x64\Release\VST3" /b
+          if exist "Builds\VisualStudio2022\x64\Release\VST3\*.dll" (
+            echo "✅ DLL found in VST3 folder"
+            dir "Builds\VisualStudio2022\x64\Release\VST3\*.dll"
+          ) else if exist "Builds\VisualStudio2022\x64\Release\VST3\*.vst3" (
+            echo "✅ VST3 bundle found"
+            dir "Builds\VisualStudio2022\x64\Release\VST3\*.vst3" /s
+          ) else (
+            echo "❌ No VST3 files found in VST3 directory"
+          )
+        ) else (
+          echo "❌ VST3 directory not found"
+        )
+        
+        echo "=== Searching for any VST3 or DLL files ==="
+        dir "Builds\VisualStudio2022" *.dll /s 2>nul || echo "No DLL files found"
+        dir "Builds\VisualStudio2022" *.vst3 /s 2>nul || echo "No VST3 files found"
+        
+    - name: Upload Windows VST3 artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ChartPreview-VST3-Windows-x64
+        path: |
+          Chart Preview/Builds/VisualStudio2022/x64/Release/VST3/
+          Chart Preview/Builds/VisualStudio2022/x64/Release/**/*.dll
+          Chart Preview/Builds/VisualStudio2022/x64/Release/**/*.vst3
+        retention-days: 30
+      if: always()
+
+  build-macos:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Install JUCE
+      run: |
+        echo "Downloading JUCE..."
+        curl -L "https://github.com/juce-framework/JUCE/releases/download/8.0.0/juce-8.0.0-osx.zip" -o juce.zip
+        echo "Extracting JUCE..."
+        unzip juce.zip -d /tmp/
+        sudo mkdir -p /Applications/JUCE
+        sudo cp -r /tmp/JUCE/* /Applications/JUCE/
+        echo "JUCE installed at /Applications/JUCE"
+        ls -la /Applications/JUCE/
+        
+    - name: Cache JUCE
+      uses: actions/cache@v4
+      with:
+        path: |
+          Chart Preview/Builds
+          Chart Preview/JuceLibraryCode
+        key: ${{ runner.os }}-juce-${{ hashFiles('Chart Preview/ChartPreview.jucer') }}
+        restore-keys: |
+          ${{ runner.os }}-juce-
+          
+    - name: Generate Xcode project with Projucer
+      run: |
+        cd "Chart Preview"
+        echo "Generating Xcode project files..."
+        if [ -f "ChartPreview.jucer" ]; then
+          echo "Found ChartPreview.jucer"
+          # Check if Projucer is available
+          if command -v projucer &> /dev/null; then
+            echo "Using Projucer from PATH"
+            projucer --resave "ChartPreview.jucer"
+          else
+            echo "Projucer not in PATH, checking if Xcode project already exists..."
+            if [ -f "Builds/MacOSX/ChartPreview.xcodeproj/project.pbxproj" ]; then
+              echo "Using existing Xcode project"
+            else
+              echo "No Xcode project found and Projucer not available"
+              echo "Checking if old project structure exists..."
+              if [ -f "Chart Preview.xcodeproj/project.pbxproj" ]; then
+                echo "Using project in root directory"
+              else
+                echo "No valid Xcode project found"
+                exit 1
+              fi
+            fi
+          fi
+        else
+          echo "ChartPreview.jucer not found"
+          exit 1
+        fi
+
+    - name: Build with xcodebuild
+      run: |
+        cd "Chart Preview"
+        echo "Building Release configuration..."
+        
+        # Try different possible project locations
+        if [ -f "Builds/MacOSX/ChartPreview.xcodeproj/project.pbxproj" ]; then
+          echo "Building from Builds/MacOSX/ChartPreview.xcodeproj"
+          xcodebuild -project "Builds/MacOSX/ChartPreview.xcodeproj" -scheme "ChartPreview - VST3" -configuration Release -derivedDataPath "Builds/MacOSX/DerivedData" build
+        elif [ -f "Chart Preview.xcodeproj/project.pbxproj" ]; then
+          echo "Building from Chart Preview.xcodeproj"
+          xcodebuild -project "Chart Preview.xcodeproj" -scheme "Chart Preview - VST3" -configuration Release build
+        else
+          echo "No valid Xcode project found"
+          exit 1
+        fi
+        
+    - name: Verify build artifacts
+      run: |
+        cd "Chart Preview"
+        echo "Checking for VST3 files..."
+        
+        # Check different possible output locations
+        VST3_FOUND=false
+        
+        if [ -d "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.vst3" ]; then
+          echo "✅ VST3 build found in DerivedData"
+          ls -la "Builds/MacOSX/DerivedData/Build/Products/Release/"
+          VST3_FOUND=true
+        elif [ -d "Builds/MacOSX/build/Release/ChartPreview.vst3" ]; then
+          echo "✅ VST3 build found in build/Release"
+          ls -la "Builds/MacOSX/build/Release/"
+          VST3_FOUND=true
+        elif [ -d "build/Release/ChartPreview.vst3" ]; then
+          echo "✅ VST3 build found in root build"
+          ls -la "build/Release/"
+          VST3_FOUND=true
+        else
+          echo "❌ VST3 build not found, checking all possible locations..."
+          find . -name "*.vst3" -type d 2>/dev/null || echo "No VST3 files found"
+          exit 1
+        fi
+        
+    - name: Upload macOS VST3 artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ChartPreview-VST3-macOS
+        path: |
+          Chart Preview/Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.vst3
+          Chart Preview/Builds/MacOSX/build/Release/ChartPreview.vst3
+          Chart Preview/build/Release/ChartPreview.vst3
+        retention-days: 30
+
+  # Create release if this is a tag
+  release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    
+    steps:
+    - name: Download Windows artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: ChartPreview-VST3-Windows-x64
+        path: ./windows-vst3/
+        
+    - name: Download macOS artifacts  
+      uses: actions/download-artifact@v4
+      with:
+        name: ChartPreview-VST3-macOS
+        path: ./macos-vst3/
+        
+    - name: Create release archives
+      run: |
+        # Create Windows release archive
+        cd windows-vst3 && zip -r ../ChartPreview-VST3-Windows-x64.zip . && cd ..
+        
+        # Create macOS release archive  
+        cd macos-vst3 && zip -r ../ChartPreview-VST3-macOS.zip . && cd ..
+        
+    - name: Upload release assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ChartPreview-VST3-Windows-x64.zip
+          ChartPreview-VST3-macOS.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
