@@ -2,9 +2,9 @@ name: Build Chart Preview
 
 on:
   push:
-    branches: [ main, develop, refac ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ main, develop, refac ]
+    branches: [ main, develop ]
   release:
     types: [ created ]
 
