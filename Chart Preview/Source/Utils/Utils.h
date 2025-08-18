@@ -3,6 +3,11 @@
 #include <JuceHeader.h>
 #include "PPQ.h"
 
+// Windows compatibility - uint is not defined by default on Windows
+#if defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(_MSC_VER)
+    typedef unsigned int uint;
+#endif
+
 //==============================================================================
 // CONSTANTS
 
