@@ -32,7 +32,7 @@ void HighwayRenderer::paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trac
     
     // Repopulate drawCallMap
     drawCallMap.clear();
-    drawNotesFromMap(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ);
+    drawNotesFromMap(g, trackWindow, trackWindowStartPPQ, displaySizeInPPQ);
     drawGridlinesFromMap(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ);
 
     // Draw layer by layer
@@ -46,9 +46,8 @@ void HighwayRenderer::paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trac
     }
 }
 
-void HighwayRenderer::drawNotesFromMap(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ)
+void HighwayRenderer::drawNotesFromMap(juce::Graphics &g, const TrackWindow& trackWindow, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ)
 {
-    TrackWindow trackWindow = midiInterpreter.generateTrackWindow(trackWindowStartPPQ, trackWindowEndPPQ);
     for (auto &frameItem : trackWindow)
     {
         PPQ framePosition = frameItem.first;

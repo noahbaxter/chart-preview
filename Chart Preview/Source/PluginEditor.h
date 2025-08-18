@@ -32,7 +32,7 @@ public:
     void timerCallback() override
     {
         printCallback();
-        repaint();
+        if (audioProcessor.isPlaying) { repaint(); }
     }
 
     void paint (juce::Graphics&) override;
@@ -160,7 +160,11 @@ private:
     void initMenus();
 
     float latencyInSeconds = 0.0;
-    PPQ lastSmoothedLatencyPPQ = 0.0;  // For smoothing tempo transitions
+
+    
+    // Dirty checking state
+    mutable PPQ lastDisplayStartPPQ = 0.0;
+    mutable bool lastIsPlaying = false;
 
     PPQ displaySizeInPPQ = 1.5; // 4 beats (1 measure in 4/4)
 
@@ -193,25 +197,69 @@ private:
         return PPQ(audioProcessor.latencyInSeconds * (bpm / 60.0));
     }
 
+    // Multi-buffer smoothing state
+    PPQ lastSmoothedLatencyPPQ = 0.0;        // Current smoothed latency value
+    PPQ smoothingTargetLatencyPPQ = 0.0;     // Target we're smoothing towards
+    PPQ smoothingStartLatencyPPQ = 0.0;      // Starting point of current smooth
+    double smoothingProgress = 1.0;          // 0.0 to 1.0, 1.0 means complete
+    double smoothingDurationSeconds = 2.0;   // How long to spread adjustment over
+    juce::int64 lastSmoothingUpdateTime = 0; // For timing calculations
+    void setSmoothingDurationSeconds(double duration) { smoothingDurationSeconds = duration; }
     PPQ smoothedLatencyInPPQ()
     {
         PPQ targetLatency = latencyInPPQ();
+        juce::int64 currentTime = juce::Time::getHighResolutionTicks();
         
-        // If this is the first frame or latency hasn't changed much, use target directly
-        if (lastSmoothedLatencyPPQ == 0.0 || std::abs((targetLatency - lastSmoothedLatencyPPQ).toDouble()) < 0.001)
+        // Check if target has changed significantly or this is first frame
+        double targetDifference = std::abs((targetLatency - smoothingTargetLatencyPPQ).toDouble());
+        bool targetChanged = targetDifference > 0.001;
+        bool isFirstFrame = lastSmoothedLatencyPPQ == 0.0;
+        
+        if (isFirstFrame)
         {
+            // Initialize everything to target on first frame
             lastSmoothedLatencyPPQ = targetLatency;
+            smoothingTargetLatencyPPQ = targetLatency;
+            smoothingStartLatencyPPQ = targetLatency;
+            smoothingProgress = 1.0;
+            lastSmoothingUpdateTime = currentTime;
             return targetLatency;
         }
         
-        // Smooth transition over one buffer - use 90% of previous + 10% of target
-        // This gives a gentle transition that completes in about 22 frames (at 60fps)
-        const double smoothingFactor = 0.1;
-        double latencyDifference = (targetLatency - lastSmoothedLatencyPPQ).toDouble() * smoothingFactor;
-        PPQ smoothedLatency = lastSmoothedLatencyPPQ + PPQ(latencyDifference);
-        lastSmoothedLatencyPPQ = smoothedLatency;
+        if (targetChanged)
+        {
+            // Start new smoothing transition
+            smoothingStartLatencyPPQ = lastSmoothedLatencyPPQ;  // Start from current position
+            smoothingTargetLatencyPPQ = targetLatency;          // Set new target
+            smoothingProgress = 0.0;                            // Reset progress
+            lastSmoothingUpdateTime = currentTime;              // Reset timing
+        }
         
-        return smoothedLatency;
+        // Calculate time elapsed since last update
+        double timeElapsedSeconds = (currentTime - lastSmoothingUpdateTime) / static_cast<double>(juce::Time::getHighResolutionTicksPerSecond());
+        lastSmoothingUpdateTime = currentTime;
+        
+        // Update progress based on time elapsed
+        if (smoothingProgress < 1.0)
+        {
+            double progressIncrement = timeElapsedSeconds / smoothingDurationSeconds;
+            smoothingProgress = std::min(1.0, smoothingProgress + progressIncrement);
+            
+            // Use smooth interpolation (ease-out curve)
+            double easedProgress = 1.0 - std::pow(1.0 - smoothingProgress, 3.0);
+            
+            // Interpolate between start and target
+            double totalAdjustment = (smoothingTargetLatencyPPQ - smoothingStartLatencyPPQ).toDouble();
+            PPQ currentAdjustment = PPQ(totalAdjustment * easedProgress);
+            lastSmoothedLatencyPPQ = smoothingStartLatencyPPQ + currentAdjustment;
+        }
+        else
+        {
+            // Smoothing complete, use target directly
+            lastSmoothedLatencyPPQ = smoothingTargetLatencyPPQ;
+        }
+        
+        return lastSmoothedLatencyPPQ;
     }
 
     //==============================================================================
