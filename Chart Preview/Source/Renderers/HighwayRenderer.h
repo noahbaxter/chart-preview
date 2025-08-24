@@ -61,6 +61,10 @@ class HighwayRenderer
         void drawNotesFromMap(juce::Graphics &g, const TrackWindow& trackWindow, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ);
         void drawFrame(const std::array<Gem, LANE_COUNT> &gems, float position, PPQ framePosition);
         void drawGem(uint gemColumn, Gem gem, float position, PPQ framePosition);
+        
+        void drawSustainFromWindow(juce::Graphics &g, const SustainWindow& sustainWindow, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ);
+        void drawSustain(const SustainEvent& sustain, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ);
+        juce::Rectangle<float> getSustainRect(uint gemColumn, float startPosition, float endPosition);
         void draw(juce::Graphics &g, juce::Image *image, juce::Rectangle<float> position, float opacity)
         {
             g.setOpacity(opacity);

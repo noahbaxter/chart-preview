@@ -259,3 +259,32 @@ juce::Image* AssetManager::getOverlayImage(Gem gem, Part part)
 
     return nullptr;
 }
+
+juce::Image* AssetManager::getSustainImage(uint gemColumn, bool starPowerActive, bool spNoteHeld)
+{
+    if (starPowerActive && spNoteHeld)
+    {
+        if (gemColumn == 0)
+        {
+            return getSustainOpenWhiteImage();
+        }
+        else
+        {
+            return getSustainWhiteImage();
+        }
+    }
+    else
+    {
+        switch (gemColumn)
+        {
+        case 0: return getSustainOpenImage();
+        case 1: return getSustainGreenImage();
+        case 2: return getSustainRedImage();
+        case 3: return getSustainYellowImage();
+        case 4: return getSustainBlueImage();
+        case 5: return getSustainOrangeImage();
+        }
+    }
+
+    return nullptr;
+}

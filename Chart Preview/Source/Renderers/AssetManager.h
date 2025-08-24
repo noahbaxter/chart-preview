@@ -27,6 +27,7 @@ public:
     juce::Image* getDrumGlyphImage(Gem gem, uint gemColumn, bool starPowerActive, bool spNoteHeld);
     juce::Image* getGridlineImage(Gridline gridlineType);
     juce::Image* getOverlayImage(Gem gem, Part part);
+    juce::Image* getSustainImage(uint gemColumn, bool starPowerActive, bool spNoteHeld);
 
     // Bar/Open notes
     juce::Image* getBarKickImage() { return &barKickImage; }

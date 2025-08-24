@@ -82,6 +82,23 @@ enum class Gridline
     HALF_BEAT,
 };
 
+enum class SustainType
+{
+    SUSTAIN,
+    LANE,
+    SOLO,
+    BRE
+};
+
+struct SustainEvent
+{
+    PPQ startPPQ;
+    PPQ endPPQ;
+    uint gemColumn;
+    SustainType sustainType;
+    Gem gemType;
+};
+
 //==============================================================================
 // TYPES
 
@@ -89,6 +106,7 @@ using NoteStateMap = std::map<PPQ, uint8_t>;
 using NoteStateMapArray = std::array<NoteStateMap, 128>;
 using TrackFrame = std::array<Gem, LANE_COUNT>; // All the simultaneous notes at a moment in time
 using TrackWindow = std::map<PPQ, TrackFrame>;  // All the frames in the track window
+using SustainWindow = std::vector<SustainEvent>; // Active sustains in the track window
 using GridlineMap = std::map<PPQ, Gridline>;
 
 //==============================================================================

@@ -24,6 +24,7 @@ HighwayRenderer::~HighwayRenderer()
 void HighwayRenderer::paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ)
 {
     TrackWindow trackWindow = midiInterpreter.generateTrackWindow(trackWindowStartPPQ, trackWindowEndPPQ);
+    SustainWindow sustainWindow = midiInterpreter.generateSustainWindow(trackWindowStartPPQ, trackWindowEndPPQ);
     
     // Set the drawing area dimensions from the graphics context
     auto clipBounds = g.getClipBounds();
@@ -33,6 +34,7 @@ void HighwayRenderer::paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trac
     // Repopulate drawCallMap
     drawCallMap.clear();
     drawNotesFromMap(g, trackWindow, trackWindowStartPPQ, displaySizeInPPQ);
+    drawSustainFromWindow(g, sustainWindow, trackWindowStartPPQ, displaySizeInPPQ);
     drawGridlinesFromMap(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ);
 
     // Draw layer by layer
@@ -336,4 +338,65 @@ juce::Rectangle<float> HighwayRenderer::createPerspectiveGlyphRect(float positio
     float finalY = yPos - targetHeight / 2.0f;
     
     return juce::Rectangle<float>(finalX, finalY, finalWidth, currentHeight);
+}
+
+//==============================================================================
+// Sustain Rendering
+
+void HighwayRenderer::drawSustainFromWindow(juce::Graphics &g, const SustainWindow& sustainWindow, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ)
+{
+    for (const auto& sustain : sustainWindow)
+    {
+        drawSustain(sustain, trackWindowStartPPQ, displaySizeInPPQ);
+    }
+}
+
+void HighwayRenderer::drawSustain(const SustainEvent& sustain, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ)
+{
+    // Calculate normalized positions for start and end of sustain
+    float startPosition = (sustain.startPPQ.toDouble() - trackWindowStartPPQ.toDouble()) / displaySizeInPPQ.toDouble();
+    float endPosition = (sustain.endPPQ.toDouble() - trackWindowStartPPQ.toDouble()) / displaySizeInPPQ.toDouble();
+    
+    // Only draw sustains that are visible in our window
+    if (endPosition < 0.0f || startPosition > 1.0f) return;
+    
+    // Clamp to visible area
+    startPosition = std::max(0.0f, startPosition);
+    endPosition = std::min(1.0f, endPosition);
+    
+    // Get the sustain rectangle
+    juce::Rectangle<float> sustainRect = getSustainRect(sustain.gemColumn, startPosition, endPosition);
+    
+    // Get sustain image based on gem column and star power state
+    bool starPowerActive = state.getProperty("starPower");
+    bool spNoteHeld = midiInterpreter.isNoteHeld((int)MidiPitchDefinitions::Guitar::SP, sustain.startPPQ);
+    juce::Image* sustainImage = assetManager.getSustainImage(sustain.gemColumn, starPowerActive, spNoteHeld);
+    
+    if (sustainImage == nullptr) return;
+    
+    // Calculate opacity (average of start and end positions for sustains)
+    float avgPosition = (startPosition + endPosition) / 2.0f;
+    float opacity = calculateOpacity(avgPosition);
+    
+    // Add to draw call map
+    drawCallMap[DrawOrder::SUSTAIN].push_back([=](juce::Graphics &g) {
+        // Draw sustain as tiled/stretched image
+        g.setOpacity(opacity);
+        g.drawImage(*sustainImage, sustainRect, juce::RectanglePlacement::stretchToFit);
+    });
+}
+
+juce::Rectangle<float> HighwayRenderer::getSustainRect(uint gemColumn, float startPosition, float endPosition)
+{
+    // Get the start and end glyph rectangles using existing guitar positioning
+    juce::Rectangle<float> startRect = getGuitarGlyphRect(gemColumn, startPosition);
+    juce::Rectangle<float> endRect = getGuitarGlyphRect(gemColumn, endPosition);
+    
+    // Create sustain rectangle that spans from start to end with proper perspective
+    float left = std::min(startRect.getX(), endRect.getX());
+    float right = std::max(startRect.getRight(), endRect.getRight());
+    float top = endRect.getY();  // End position (closer to player) is at top
+    float bottom = startRect.getBottom();  // Start position (farther from player) is at bottom
+    
+    return juce::Rectangle<float>(left, top, right - left, bottom - top);
 }

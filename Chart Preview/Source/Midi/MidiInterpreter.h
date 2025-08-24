@@ -40,6 +40,7 @@ class MidiInterpreter
 
 		GridlineMap generateGridlineWindow(PPQ trackWindowStart, PPQ trackWindowEnd);
 		TrackWindow generateTrackWindow(PPQ trackWindowStart, PPQ trackWindowEnd);
+		SustainWindow generateSustainWindow(PPQ trackWindowStart, PPQ trackWindowEnd);
 		TrackFrame generateEmptyTrackFrame();
 		
 		static Gem getDrumGlyph(bool cymbal, bool dynamicsEnabled, Dynamic dynamic)
@@ -68,6 +69,11 @@ class MidiInterpreter
 	private:
 		juce::ValueTree &state;
 
+		uint getGuitarGemColumn(uint pitch);
+		Gem getGuitarGemType(uint pitch, PPQ position);
 		void addGuitarEventToFrame(TrackFrame &frame, PPQ position, uint pitch);
+		
+		uint getDrumGemColumn(uint pitch);
+		Gem getDrumGemType(uint pitch, PPQ position, Dynamic dynamic);
 		void addDrumEventToFrame(TrackFrame &frame, PPQ position, uint pitch, Dynamic dynamic);
 };
