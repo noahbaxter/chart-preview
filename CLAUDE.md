@@ -57,6 +57,7 @@ The main project file is `Chart Preview/ChartPreview.jucer`. When modified:
 **Key Data Structures:**
 - `NoteStateMapArray` - Tracks held notes across all MIDI pitches
 - `TrackWindow` - Frame-based chart data for rendering window
+- `SustainWindow` - Sustain note data for rendering window
 - `GridlineMap` - Beat/measure grid timing information
 - `SustainList` - Sustain note information (for guitar)
 
@@ -82,10 +83,11 @@ All timing uses **PPQ (Pulses Per Quarter)** for tempo-independent calculations:
 - Cymbal vs tom differentiation
 - Lanes (in development)
 
-**Guitar (In Development)**
+**Guitar (Partially Implemented)**
 - Open notes and tap notes supported
 - HOPOs (hammer-ons/pull-offs) 
-- Sustain notes (in development)
+- Sustain notes (partially implemented)
+- Lanes (in development)
 
 ## Important Implementation Details
 
@@ -99,6 +101,7 @@ Defined in `Utils.h` as `MidiPitchDefinitions`:
 ### Asset Management
 
 - Graphics assets in `Chart Preview/Assets/`
+- Audio assets in `Chart Preview/Audio/`
 - `AssetManager` handles loading and caching
 - Perspective rendering for 3D highway effect
 - Draw call optimization using `DrawCallMap`
@@ -130,9 +133,15 @@ Plugin state stored in `juce::ValueTree` with properties:
 
 ## Development Status
 
-See `TODO.txt` for detailed priority-ranked backlog. Key areas:
-- **P0**: Thread safety, parameter system migration
-- **P1**: Guitar sustains, extended memory, drums lanes
+See `TODO.txt` for detailed priority-ranked backlog. Recent completions:
+- ✅ PPQ-based timing system conversion
+- ✅ Latency compensation with multi-buffer smoothing
+- ✅ Grid visual polish (beat/half-beat/measure markers)
+- ✅ CI/CD pipeline automation
+
+Key remaining areas:
+- **P0**: Thread safety improvements, parameter system migration
+- **P1**: Complete guitar sustains, extended memory, drums lanes
 - **P2**: Performance optimizations, DPI scaling
 - **P3**: Advanced features, Real Drums support
 
@@ -143,3 +152,4 @@ See `TODO.txt` for detailed priority-ranked backlog. Key areas:
 - Third-party dependencies in `ThirdParty/`
 - Platform-specific builds in `Builds/`
 - Asset files separate from distributable art assets
+- `DO NOT DISTRIBUTE/` contains additional development assets

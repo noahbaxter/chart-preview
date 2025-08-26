@@ -128,13 +128,18 @@ jobs:
       if: always()
 
   build-macos:
-    runs-on: macos-latest
+    runs-on: macos-14
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         submodules: recursive
+        
+    - name: Use latest Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
         
     - name: Install JUCE
       run: |
@@ -163,81 +168,98 @@ jobs:
         echo "Generating Xcode project files..."
         if [ -f "ChartPreview.jucer" ]; then
           echo "Found ChartPreview.jucer"
-          # Check if Projucer is available
-          if command -v projucer &> /dev/null; then
-            echo "Using Projucer from PATH"
-            projucer --resave "ChartPreview.jucer"
-          else
-            echo "Projucer not in PATH, checking if Xcode project already exists..."
-            if [ -f "Builds/MacOSX/ChartPreview.xcodeproj/project.pbxproj" ]; then
-              echo "Using existing Xcode project"
-            else
-              echo "No Xcode project found and Projucer not available"
-              echo "Checking if old project structure exists..."
-              if [ -f "Chart Preview.xcodeproj/project.pbxproj" ]; then
-                echo "Using project in root directory"
-              else
-                echo "No valid Xcode project found"
-                exit 1
-              fi
-            fi
-          fi
+          # Use Projucer to regenerate project
+          "/Applications/JUCE/Projucer.app/Contents/MacOS/Projucer" --resave "ChartPreview.jucer"
+          echo "Project regenerated"
+          ls -la Builds/MacOSX/
         else
           echo "ChartPreview.jucer not found"
           exit 1
         fi
 
-    - name: Build with xcodebuild
+    - name: Build with xcodebuild (optimized for CI)
       run: |
         cd "Chart Preview"
-        echo "Building Release configuration..."
+        echo "Building Release configuration with modern xcodebuild..."
         
-        # Try different possible project locations
-        if [ -f "Builds/MacOSX/ChartPreview.xcodeproj/project.pbxproj" ]; then
-          echo "Building from Builds/MacOSX/ChartPreview.xcodeproj"
-          xcodebuild -project "Builds/MacOSX/ChartPreview.xcodeproj" -scheme "ChartPreview - VST3" -configuration Release -derivedDataPath "Builds/MacOSX/DerivedData" build
-        elif [ -f "Chart Preview.xcodeproj/project.pbxproj" ]; then
-          echo "Building from Chart Preview.xcodeproj"
-          xcodebuild -project "Chart Preview.xcodeproj" -scheme "Chart Preview - VST3" -configuration Release build
-        else
-          echo "No valid Xcode project found"
-          exit 1
-        fi
+        # Build with universal binary support and Release optimization
+        xcodebuild \
+          -project "Builds/MacOSX/ChartPreview.xcodeproj" \
+          -scheme "ChartPreview - VST3" \
+          -configuration Release \
+          -derivedDataPath "Builds/MacOSX/DerivedData" \
+          -destination "generic/platform=macOS" \
+          -arch arm64 -arch x86_64 \
+          ARCHS="arm64 x86_64" \
+          VALID_ARCHS="arm64 x86_64" \
+          ONLY_ACTIVE_ARCH=NO \
+          MACOSX_DEPLOYMENT_TARGET=10.15 \
+          GCC_OPTIMIZATION_LEVEL=3 \
+          SWIFT_OPTIMIZATION_LEVEL="-O" \
+          build
+          
+    - name: Also build AU format
+      run: |
+        cd "Chart Preview"
+        echo "Building AU format..."
         
+        xcodebuild \
+          -project "Builds/MacOSX/ChartPreview.xcodeproj" \
+          -scheme "ChartPreview - AU" \
+          -configuration Release \
+          -derivedDataPath "Builds/MacOSX/DerivedData" \
+          -destination "generic/platform=macOS" \
+          -arch arm64 -arch x86_64 \
+          ARCHS="arm64 x86_64" \
+          VALID_ARCHS="arm64 x86_64" \
+          ONLY_ACTIVE_ARCH=NO \
+          MACOSX_DEPLOYMENT_TARGET=10.15 \
+          GCC_OPTIMIZATION_LEVEL=3 \
+          SWIFT_OPTIMIZATION_LEVEL="-O" \
+          build
+
     - name: Verify build artifacts
       run: |
         cd "Chart Preview"
-        echo "Checking for VST3 files..."
+        echo "Checking for build artifacts..."
         
-        # Check different possible output locations
-        VST3_FOUND=false
-        
+        # Check VST3
         if [ -d "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.vst3" ]; then
-          echo "✅ VST3 build found in DerivedData"
-          ls -la "Builds/MacOSX/DerivedData/Build/Products/Release/"
-          VST3_FOUND=true
-        elif [ -d "Builds/MacOSX/build/Release/ChartPreview.vst3" ]; then
-          echo "✅ VST3 build found in build/Release"
-          ls -la "Builds/MacOSX/build/Release/"
-          VST3_FOUND=true
-        elif [ -d "build/Release/ChartPreview.vst3" ]; then
-          echo "✅ VST3 build found in root build"
-          ls -la "build/Release/"
-          VST3_FOUND=true
+          echo "✅ VST3 build found"
+          ls -la "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.vst3/"
+          du -sh "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.vst3"
+          # Check if binary has both architectures
+          echo "Checking VST3 architectures:"
+          lipo -info "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.vst3/Contents/MacOS/ChartPreview" || echo "No executable found"
         else
-          echo "❌ VST3 build not found, checking all possible locations..."
-          find . -name "*.vst3" -type d 2>/dev/null || echo "No VST3 files found"
-          exit 1
+          echo "❌ VST3 build not found, checking all locations..."
+          find Builds/MacOSX -name "*.vst3" -type d 2>/dev/null || echo "No VST3 files found"
         fi
         
-    - name: Upload macOS VST3 artifact
+        # Check AU  
+        if [ -d "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.component" ]; then
+          echo "✅ AU build found"
+          ls -la "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.component/"
+          du -sh "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.component"
+          # Check if binary has both architectures
+          echo "Checking AU architectures:"
+          lipo -info "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.component/Contents/MacOS/ChartPreview" || echo "No executable found"
+        else
+          echo "❌ AU build not found, checking all locations..."
+          find Builds/MacOSX -name "*.component" -type d 2>/dev/null || echo "No AU files found"
+        fi
+        
+        # Show total build sizes
+        echo "Total DerivedData size:"
+        du -sh "Builds/MacOSX/DerivedData/" 2>/dev/null || echo "No DerivedData directory"
+        
+    - name: Upload macOS artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: ChartPreview-VST3-macOS
+        name: ChartPreview-macOS
         path: |
           Chart Preview/Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.vst3
-          Chart Preview/Builds/MacOSX/build/Release/ChartPreview.vst3
-          Chart Preview/build/Release/ChartPreview.vst3
+          Chart Preview/Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.component
         retention-days: 30
 
   # Create release if this is a tag
@@ -256,8 +278,8 @@ jobs:
     - name: Download macOS artifacts  
       uses: actions/download-artifact@v4
       with:
-        name: ChartPreview-VST3-macOS
-        path: ./macos-vst3/
+        name: ChartPreview-macOS
+        path: ./macos-artifacts/
         
     - name: Create release archives
       run: |
@@ -265,13 +287,13 @@ jobs:
         cd windows-vst3 && zip -r ../ChartPreview-VST3-Windows-x64.zip . && cd ..
         
         # Create macOS release archive  
-        cd macos-vst3 && zip -r ../ChartPreview-VST3-macOS.zip . && cd ..
+        cd macos-artifacts && zip -r ../ChartPreview-macOS.zip . && cd ..
         
     - name: Upload release assets
       uses: softprops/action-gh-release@v1
       with:
         files: |
           ChartPreview-VST3-Windows-x64.zip
-          ChartPreview-VST3-macOS.zip
+          ChartPreview-macOS.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
