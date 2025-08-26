@@ -65,6 +65,8 @@ class HighwayRenderer
         void drawSustainFromWindow(juce::Graphics &g, const SustainWindow& sustainWindow, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ);
         void drawSustain(const SustainEvent& sustain, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ);
         juce::Rectangle<float> getSustainRect(uint gemColumn, float startPosition, float endPosition);
+        void drawPerspectiveSustain(juce::Graphics &g, juce::Image* sustainImage, uint gemColumn, float startPosition, float endPosition, float opacity);
+        std::pair<juce::Rectangle<float>, juce::Rectangle<float>> getSustainPositionRects(uint gemColumn, float startPosition, float endPosition);
         void draw(juce::Graphics &g, juce::Image *image, juce::Rectangle<float> position, float opacity)
         {
             g.setOpacity(opacity);
@@ -82,6 +84,53 @@ class HighwayRenderer
             bool isBarNote
         );
 
-        
+        // Testing helper functions
+        TrackWindow generateFakeTrackWindow(PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ)
+        {
+            TrackWindow fakeTrackWindow;
+
+            // Use PPQ values, not floats - create notes every 0.25 PPQ starting from trackWindowStartPPQ
+            fakeTrackWindow[trackWindowStartPPQ + PPQ(0.00)] = {Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NOTE, Gem::NONE};
+            fakeTrackWindow[trackWindowStartPPQ + PPQ(0.25)] = {Gem::NOTE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE};
+            fakeTrackWindow[trackWindowStartPPQ + PPQ(0.50)] = {Gem::NONE, Gem::NOTE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE};
+            fakeTrackWindow[trackWindowStartPPQ + PPQ(0.75)] = {Gem::NONE, Gem::NONE, Gem::NOTE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE};
+            fakeTrackWindow[trackWindowStartPPQ + PPQ(1.00)] = {Gem::NONE, Gem::NONE, Gem::NONE, Gem::NOTE, Gem::NONE, Gem::NONE, Gem::NONE};
+            fakeTrackWindow[trackWindowStartPPQ + PPQ(1.25)] = {Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NOTE, Gem::NONE, Gem::NONE};
+            fakeTrackWindow[trackWindowStartPPQ + PPQ(1.50)] = {Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NOTE, Gem::NONE};
+            fakeTrackWindow[trackWindowStartPPQ + PPQ(1.75)] = {Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NONE, Gem::NOTE};
+
+            return fakeTrackWindow;
+        }
+
+        SustainWindow generateFakeSustainWindow(PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ)
+        {
+            SustainWindow fakeSustainWindow;
+
+            if (isPart(state, Part::GUITAR)) {
+                // Guitar uses lanes 0-5 (6 lanes total)
+                for (uint i = 0; i < 6; i++)
+                {
+                    SustainEvent sustain;
+                    sustain.startPPQ = trackWindowStartPPQ + PPQ(0.0);
+                    sustain.endPPQ = trackWindowStartPPQ + PPQ(2.0);
+                    sustain.gemColumn = i;
+                    sustain.gemType = Gem::NOTE;
+                    fakeSustainWindow.push_back(sustain);
+                }
+            } else {
+                // Drums uses lanes 0,1,2,3,4 (5 lanes total)
+                for (uint i = 0; i < 5; i++)
+                {
+                    SustainEvent sustain;
+                    sustain.startPPQ = trackWindowStartPPQ + PPQ(0.0);
+                    sustain.endPPQ = trackWindowStartPPQ + PPQ(2.0);
+                    sustain.gemColumn = i;
+                    sustain.gemType = Gem::NOTE;
+                    fakeSustainWindow.push_back(sustain);
+                }
+            }
+
+            return fakeSustainWindow;
+        }
 
 };

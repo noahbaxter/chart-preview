@@ -26,6 +26,10 @@ void HighwayRenderer::paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trac
     TrackWindow trackWindow = midiInterpreter.generateTrackWindow(trackWindowStartPPQ, trackWindowEndPPQ);
     SustainWindow sustainWindow = midiInterpreter.generateSustainWindow(trackWindowStartPPQ, trackWindowEndPPQ);
     
+    // Testing with fake MIDI data
+    // trackWindow = generateFakeTrackWindow(trackWindowStartPPQ, trackWindowEndPPQ);
+    // sustainWindow = generateFakeSustainWindow(trackWindowStartPPQ, trackWindowEndPPQ);
+
     // Set the drawing area dimensions from the graphics context
     auto clipBounds = g.getClipBounds();
     width = clipBounds.getWidth();
@@ -378,25 +382,129 @@ void HighwayRenderer::drawSustain(const SustainEvent& sustain, PPQ trackWindowSt
     float avgPosition = (startPosition + endPosition) / 2.0f;
     float opacity = calculateOpacity(avgPosition);
     
+    // Determine draw order - open notes (column 0) render below others
+    DrawOrder sustainDrawOrder = (sustain.gemColumn == 0) ? DrawOrder::BAR : DrawOrder::SUSTAIN;
+    
     // Add to draw call map
-    drawCallMap[DrawOrder::SUSTAIN].push_back([=](juce::Graphics &g) {
-        // Draw sustain as tiled/stretched image
-        g.setOpacity(opacity);
-        g.drawImage(*sustainImage, sustainRect, juce::RectanglePlacement::stretchToFit);
+    drawCallMap[sustainDrawOrder].push_back([=](juce::Graphics &g) {
+        // Draw sustain with proper perspective using a Path instead of simple rectangle
+        drawPerspectiveSustain(g, sustainImage, sustain.gemColumn, startPosition, endPosition, opacity);
     });
 }
 
 juce::Rectangle<float> HighwayRenderer::getSustainRect(uint gemColumn, float startPosition, float endPosition)
 {
-    // Get the start and end glyph rectangles using existing guitar positioning
-    juce::Rectangle<float> startRect = getGuitarGlyphRect(gemColumn, startPosition);
-    juce::Rectangle<float> endRect = getGuitarGlyphRect(gemColumn, endPosition);
+    // Get the rectangles using the helper function
+    auto [startRect, endRect] = getSustainPositionRects(gemColumn, startPosition, endPosition);
+    if (startRect.isEmpty() || endRect.isEmpty()) return juce::Rectangle<float>();
     
-    // Create sustain rectangle that spans from start to end with proper perspective
-    float left = std::min(startRect.getX(), endRect.getX());
-    float right = std::max(startRect.getRight(), endRect.getRight());
-    float top = endRect.getY();  // End position (closer to player) is at top
-    float bottom = startRect.getBottom();  // Start position (farther from player) is at bottom
+    // Use center points instead of full rectangle bounds for proper anchoring
+    float startCenterX = startRect.getCentreX();
+    float startCenterY = startRect.getCentreY(); 
+    float endCenterX = endRect.getCentreX();
+    float endCenterY = endRect.getCentreY();
+    
+    // Calculate sustain width based on the gem widths (use smaller of the two for consistency)
+    float sustainWidth = std::min(startRect.getWidth(), endRect.getWidth()) * 0.8f; // Slightly narrower than gems
+    
+    // Create a trapezoidal sustain that follows the perspective properly
+    // Top edge (closer to player, endPosition)
+    float topLeft = endCenterX - sustainWidth / 2.0f;
+    float topRight = endCenterX + sustainWidth / 2.0f;
+    
+    // Bottom edge (farther from player, startPosition)  
+    float bottomLeft = startCenterX - sustainWidth / 2.0f;
+    float bottomRight = startCenterX + sustainWidth / 2.0f;
+    
+    // For a simple Rectangle approach, we'll use the bounding box of the trapezoid
+    // but ensure it follows the center line properly
+    float left = std::min(topLeft, bottomLeft);
+    float right = std::max(topRight, bottomRight);
+    float top = endCenterY - sustainWidth * 0.1f; // Small margin above center
+    float bottom = startCenterY + sustainWidth * 0.1f; // Small margin below center
     
     return juce::Rectangle<float>(left, top, right - left, bottom - top);
+}
+
+void HighwayRenderer::drawPerspectiveSustain(juce::Graphics &g, juce::Image* sustainImage, uint gemColumn, float startPosition, float endPosition, float opacity)
+{
+    if (!sustainImage) return;
+    
+    // Get the rectangles using the helper function
+    auto [startRect, endRect] = getSustainPositionRects(gemColumn, startPosition, endPosition);
+    if (startRect.isEmpty() || endRect.isEmpty()) return;
+    
+    float startCenterX = startRect.getCentreX();
+    float startCenterY = startRect.getCentreY();
+    float endCenterX = endRect.getCentreX();
+    float endCenterY = endRect.getCentreY();
+    
+    // Calculate sustain width (slightly narrower than gems)
+    float startSustainWidth = startRect.getWidth() * 0.6f;
+    float endSustainWidth = endRect.getWidth() * 0.6f;
+    
+    // Create a trapezoidal path that follows the perspective
+    juce::Path sustainPath;
+    
+    // Define the four corners of the trapezoid
+    // Bottom edge (farther from player, startPosition)
+    float bottomLeft = startCenterX - startSustainWidth / 2.0f;
+    float bottomRight = startCenterX + startSustainWidth / 2.0f;
+    
+    // Top edge (closer to player, endPosition)
+    float topLeft = endCenterX - endSustainWidth / 2.0f;
+    float topRight = endCenterX + endSustainWidth / 2.0f;
+    
+    // Build the trapezoid path
+    sustainPath.startNewSubPath(bottomLeft, startCenterY);  // Bottom left
+    sustainPath.lineTo(bottomRight, startCenterY);         // Bottom right
+    sustainPath.lineTo(topRight, endCenterY);              // Top right  
+    sustainPath.lineTo(topLeft, endCenterY);               // Top left
+    sustainPath.closeSubPath();
+    
+    // Set opacity and fill the path with the sustain color/texture
+    g.setOpacity(opacity);
+    
+    if (isPart(state, Part::GUITAR)) {
+        // Guitar colors: Open=Purple, Green, Red, Yellow, Blue, Orange
+        juce::Colour guitarColors[] = {
+            juce::Colours::purple,  // 0 - open (purple)
+            juce::Colours::green,   // 1 - green
+            juce::Colours::red,     // 2 - red  
+            juce::Colours::yellow,  // 3 - yellow
+            juce::Colours::blue,    // 4 - blue
+            juce::Colours::orange   // 5 - orange
+        };
+        g.setColour(guitarColors[std::min(gemColumn, 5u)].withAlpha(0.7f));
+    } else {
+        // Drums colors: Kick=Orange, Red, Yellow, Blue, Green (lanes 0,1,2,3,4)
+        juce::Colour drumColors[] = {
+            juce::Colours::orange,  // 0 - kick (orange)
+            juce::Colours::red,     // 1 - red pad
+            juce::Colours::yellow,  // 2 - yellow pad
+            juce::Colours::blue,    // 3 - blue pad
+            juce::Colours::green,   // 4 - green pad
+            juce::Colours::white,   // 5 - unused (shouldn't appear)
+            juce::Colours::orange   // 6 - 2x kick (orange)
+        };
+        g.setColour(drumColors[std::min(gemColumn, 6u)].withAlpha(0.7f));
+    }
+    
+    g.fillPath(sustainPath);
+}
+
+std::pair<juce::Rectangle<float>, juce::Rectangle<float>> HighwayRenderer::getSustainPositionRects(uint gemColumn, float startPosition, float endPosition)
+{
+    juce::Rectangle<float> startRect, endRect;
+    
+    if (isPart(state, Part::DRUMS)) {
+        if (gemColumn >= 5) return std::make_pair(juce::Rectangle<float>(), juce::Rectangle<float>());
+        startRect = getDrumGlyphRect(gemColumn, startPosition);
+        endRect = getDrumGlyphRect(gemColumn, endPosition);
+    } else {
+        startRect = getGuitarGlyphRect(gemColumn, startPosition);
+        endRect = getGuitarGlyphRect(gemColumn, endPosition);
+    }
+    
+    return std::make_pair(startRect, endRect);
 }
