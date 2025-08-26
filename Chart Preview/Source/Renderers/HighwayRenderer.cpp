@@ -377,15 +377,15 @@ void HighwayRenderer::drawSustain(const SustainEvent& sustain, PPQ trackWindowSt
     
     // Calculate opacity (average of start and end positions for sustains)
     float avgPosition = (startPosition + endPosition) / 2.0f;
-    float opacity = calculateOpacity(avgPosition);
-    
+    float opacity = SUSTAIN_OPACITY * calculateOpacity(avgPosition);
+
     // Determine draw order - open notes (column 0) render below others
     DrawOrder sustainDrawOrder = (sustain.gemColumn == 0) ? DrawOrder::BAR : DrawOrder::SUSTAIN;
     
     // Add to draw call map
     drawCallMap[sustainDrawOrder].push_back([=](juce::Graphics &g) {
-        // Draw sustain with proper perspective using a Path instead of simple rectangle
-        drawPerspectiveSustain(g, sustainImage, sustain.gemColumn, startPosition, endPosition, opacity);
+        // Draw sustain as simple flat rectangle with configurable width
+        drawPerspectiveSustainFlat(g, sustain.gemColumn, startPosition, endPosition, opacity, SUSTAIN_WIDTH);
     });
 }
 
@@ -423,66 +423,7 @@ juce::Rectangle<float> HighwayRenderer::getSustainRect(uint gemColumn, float sta
     return juce::Rectangle<float>(left, top, right - left, bottom - top);
 }
 
-void HighwayRenderer::drawPerspectiveSustain(juce::Graphics &g, juce::Image* sustainImage, uint gemColumn, float startPosition, float endPosition, float opacity)
-{   
-    // Get the rectangles using the helper function
-    auto [startRect, endRect] = getSustainPositionRects(gemColumn, startPosition, endPosition);
-    if (startRect.isEmpty() || endRect.isEmpty()) return;
-    
-    float startCenterX = startRect.getCentreX();
-    float startCenterY = startRect.getCentreY();
-    float endCenterX = endRect.getCentreX();
-    float endCenterY = endRect.getCentreY();
-    
-    // Calculate sustain width (slightly narrower than gems)
-    float startSustainWidth = startRect.getWidth() * 0.6f;
-    float endSustainWidth = endRect.getWidth() * 0.6f;
-    
-    // We'll use a strip-based approach instead of defining trapezoid corners
-    
-    // For now, let's use a simpler approach that just tiles the texture in a rectangle
-    // and lets the trapezoid shape be handled by drawing multiple overlapping rectangles
-    // that approximate the perspective shape
-    
-    g.setOpacity(opacity);
-    
-    // Calculate the texture mapping coordinates for tiling  
-    float sustainHeight = endCenterY - startCenterY;
-    float textureHeight = static_cast<float>(sustainImage->getHeight());
-    float textureWidth = static_cast<float>(sustainImage->getWidth());
-    
-    // Draw multiple horizontal strips to approximate the trapezoid
-    int numStrips = std::max(1, static_cast<int>(sustainHeight / textureHeight) + 1);
-    float stripHeight = sustainHeight / static_cast<float>(numStrips);
-    
-    for (int strip = 0; strip < numStrips; strip++) {
-        float stripProgress = static_cast<float>(strip) / static_cast<float>(numStrips);
-        float stripY = startCenterY + stripProgress * sustainHeight;
-        
-        // Calculate width and position for this strip based on perspective
-        float currentWidth = startSustainWidth + (endSustainWidth - startSustainWidth) * stripProgress;
-        float currentCenterX = startCenterX + (endCenterX - startCenterX) * stripProgress;
-        float currentLeftX = currentCenterX - currentWidth / 2.0f;
-        
-        // Tile the texture horizontally across this strip
-        float currentX = currentLeftX;
-        while (currentX < currentLeftX + currentWidth) {
-            float remainingWidth = (currentLeftX + currentWidth) - currentX;
-            float tileWidth = std::min(textureWidth, remainingWidth);
-            
-            g.drawImageWithin(*sustainImage,
-                static_cast<int>(currentX),
-                static_cast<int>(stripY), 
-                static_cast<int>(tileWidth),
-                static_cast<int>(stripHeight),
-                juce::RectanglePlacement::stretchToFit);
-            
-            currentX += tileWidth;
-        }
-    }
-}
-
-void HighwayRenderer::drawPerspectiveSustainSolidColor(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity)
+void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth)
 {
     // Get the rectangles using the helper function
     auto [startRect, endRect] = getSustainPositionRects(gemColumn, startPosition, endPosition);
@@ -490,12 +431,11 @@ void HighwayRenderer::drawPerspectiveSustainSolidColor(juce::Graphics &g, uint g
     
     float startCenterX = startRect.getCentreX();
     float startCenterY = startRect.getCentreY();
-    float endCenterX = endRect.getCentreX();
     float endCenterY = endRect.getCentreY();
     
-    // Calculate sustain width (slightly narrower than gems)
-    float startSustainWidth = startRect.getWidth() * 0.6f;
-    float endSustainWidth = endRect.getWidth() * 0.6f;
+    // Calculate sustain width using the configurable width parameter
+    float startSustainWidth = startRect.getWidth() * sustainWidth;
+    float endSustainWidth = endRect.getWidth() * sustainWidth;
     
     // Create a trapezoidal path that follows the perspective
     juce::Path sustainPath;
@@ -506,6 +446,7 @@ void HighwayRenderer::drawPerspectiveSustainSolidColor(juce::Graphics &g, uint g
     float bottomRight = startCenterX + startSustainWidth / 2.0f;
     
     // Top edge (closer to player, endPosition)
+    float endCenterX = endRect.getCentreX();
     float topLeft = endCenterX - endSustainWidth / 2.0f;
     float topRight = endCenterX + endSustainWidth / 2.0f;
     
@@ -529,7 +470,7 @@ void HighwayRenderer::drawPerspectiveSustainSolidColor(juce::Graphics &g, uint g
             juce::Colours::blue,    // 4 - blue
             juce::Colours::orange   // 5 - orange
         };
-        g.setColour(guitarColors[std::min(gemColumn, 5u)].withAlpha(0.7f));
+        g.setColour(guitarColors[std::min(gemColumn, 5u)].withAlpha(opacity));
     } else {
         // Drums colors: Kick=Orange, Red, Yellow, Blue, Green (lanes 0,1,2,3,4)
         juce::Colour drumColors[] = {
@@ -541,7 +482,7 @@ void HighwayRenderer::drawPerspectiveSustainSolidColor(juce::Graphics &g, uint g
             juce::Colours::white,   // 5 - unused (shouldn't appear)
             juce::Colours::orange   // 6 - 2x kick (orange)
         };
-        g.setColour(drumColors[std::min(gemColumn, 6u)].withAlpha(0.7f));
+        g.setColour(drumColors[std::min(gemColumn, 6u)].withAlpha(opacity));
     }
     
     g.fillPath(sustainPath);
