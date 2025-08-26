@@ -66,6 +66,7 @@ class HighwayRenderer
         void drawSustain(const SustainEvent& sustain, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ);
         juce::Rectangle<float> getSustainRect(uint gemColumn, float startPosition, float endPosition);
         void drawPerspectiveSustain(juce::Graphics &g, juce::Image* sustainImage, uint gemColumn, float startPosition, float endPosition, float opacity);
+        void drawPerspectiveSustainSolidColor(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity);
         std::pair<juce::Rectangle<float>, juce::Rectangle<float>> getSustainPositionRects(uint gemColumn, float startPosition, float endPosition);
         void draw(juce::Graphics &g, juce::Image *image, juce::Rectangle<float> position, float opacity)
         {

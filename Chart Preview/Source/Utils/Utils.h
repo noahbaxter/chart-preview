@@ -17,7 +17,7 @@ constexpr float OPACITY_FADE_START = 0.9f;  // Position where opacity starts fad
 //==============================================================================
 // MENUS
 
-enum class Part { GUITAR = 1, DRUMS };
+enum class Part { GUITAR = 1, DRUMS, REAL_DRUMS };
 // enum class GuitarType { LEAD = 1, RHYTHM, BASS };
 enum class DrumType { NORMAL = 1, PRO };
 enum class SkillLevel { EASY = 1, MEDIUM, HARD, EXPERT };

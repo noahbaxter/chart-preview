@@ -367,7 +367,6 @@ void HighwayRenderer::drawSustain(const SustainEvent& sustain, PPQ trackWindowSt
     endPosition = std::min(1.0f, endPosition);
     
     // Get the sustain rectangle
-    juce::Rectangle<float> sustainRect = getSustainRect(sustain.gemColumn, startPosition, endPosition);
     
     // Get sustain image based on gem column and star power state
     bool starPowerActive = state.getProperty("starPower");
@@ -425,9 +424,66 @@ juce::Rectangle<float> HighwayRenderer::getSustainRect(uint gemColumn, float sta
 }
 
 void HighwayRenderer::drawPerspectiveSustain(juce::Graphics &g, juce::Image* sustainImage, uint gemColumn, float startPosition, float endPosition, float opacity)
-{
-    if (!sustainImage) return;
+{   
+    // Get the rectangles using the helper function
+    auto [startRect, endRect] = getSustainPositionRects(gemColumn, startPosition, endPosition);
+    if (startRect.isEmpty() || endRect.isEmpty()) return;
     
+    float startCenterX = startRect.getCentreX();
+    float startCenterY = startRect.getCentreY();
+    float endCenterX = endRect.getCentreX();
+    float endCenterY = endRect.getCentreY();
+    
+    // Calculate sustain width (slightly narrower than gems)
+    float startSustainWidth = startRect.getWidth() * 0.6f;
+    float endSustainWidth = endRect.getWidth() * 0.6f;
+    
+    // We'll use a strip-based approach instead of defining trapezoid corners
+    
+    // For now, let's use a simpler approach that just tiles the texture in a rectangle
+    // and lets the trapezoid shape be handled by drawing multiple overlapping rectangles
+    // that approximate the perspective shape
+    
+    g.setOpacity(opacity);
+    
+    // Calculate the texture mapping coordinates for tiling  
+    float sustainHeight = endCenterY - startCenterY;
+    float textureHeight = static_cast<float>(sustainImage->getHeight());
+    float textureWidth = static_cast<float>(sustainImage->getWidth());
+    
+    // Draw multiple horizontal strips to approximate the trapezoid
+    int numStrips = std::max(1, static_cast<int>(sustainHeight / textureHeight) + 1);
+    float stripHeight = sustainHeight / static_cast<float>(numStrips);
+    
+    for (int strip = 0; strip < numStrips; strip++) {
+        float stripProgress = static_cast<float>(strip) / static_cast<float>(numStrips);
+        float stripY = startCenterY + stripProgress * sustainHeight;
+        
+        // Calculate width and position for this strip based on perspective
+        float currentWidth = startSustainWidth + (endSustainWidth - startSustainWidth) * stripProgress;
+        float currentCenterX = startCenterX + (endCenterX - startCenterX) * stripProgress;
+        float currentLeftX = currentCenterX - currentWidth / 2.0f;
+        
+        // Tile the texture horizontally across this strip
+        float currentX = currentLeftX;
+        while (currentX < currentLeftX + currentWidth) {
+            float remainingWidth = (currentLeftX + currentWidth) - currentX;
+            float tileWidth = std::min(textureWidth, remainingWidth);
+            
+            g.drawImageWithin(*sustainImage,
+                static_cast<int>(currentX),
+                static_cast<int>(stripY), 
+                static_cast<int>(tileWidth),
+                static_cast<int>(stripHeight),
+                juce::RectanglePlacement::stretchToFit);
+            
+            currentX += tileWidth;
+        }
+    }
+}
+
+void HighwayRenderer::drawPerspectiveSustainSolidColor(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity)
+{
     // Get the rectangles using the helper function
     auto [startRect, endRect] = getSustainPositionRects(gemColumn, startPosition, endPosition);
     if (startRect.isEmpty() || endRect.isEmpty()) return;
@@ -460,7 +516,7 @@ void HighwayRenderer::drawPerspectiveSustain(juce::Graphics &g, juce::Image* sus
     sustainPath.lineTo(topLeft, endCenterY);               // Top left
     sustainPath.closeSubPath();
     
-    // Set opacity and fill the path with the sustain color/texture
+    // Set opacity and fill the path with solid colors
     g.setOpacity(opacity);
     
     if (isPart(state, Part::GUITAR)) {
