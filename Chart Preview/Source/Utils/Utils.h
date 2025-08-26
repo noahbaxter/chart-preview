@@ -17,10 +17,12 @@ constexpr float OPACITY_FADE_START = 0.9f;  // Position where opacity starts fad
 constexpr float SUSTAIN_WIDTH = 0.1f;
 constexpr float SUSTAIN_OPACITY = 0.7f;
 
+constexpr float GEM_SIZE = 0.9f; 
+constexpr float BAR_SIZE = 0.9f;
+
 // TODO: hook up
 constexpr float LANE_WIDTH = 0.8f;
 constexpr float LANE_OPACITY = 0.2f;
-constexpr float GEM_SIZE = 0.5f; 
 
 //==============================================================================
 // MENUS

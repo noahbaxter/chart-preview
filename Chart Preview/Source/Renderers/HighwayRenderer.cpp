@@ -28,6 +28,7 @@ void HighwayRenderer::paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trac
     
     // Testing with fake MIDI data
     // trackWindow = generateFakeTrackWindow(trackWindowStartPPQ, trackWindowEndPPQ);
+    // trackWindow = generateFullFakeTrackWindow(trackWindowStartPPQ, trackWindowEndPPQ);
     // sustainWindow = generateFakeSustainWindow(trackWindowStartPPQ, trackWindowEndPPQ);
 
     // Set the drawing area dimensions from the graphics context
@@ -178,7 +179,7 @@ void HighwayRenderer::drawGem(uint gemColumn, Gem gem, float position, PPQ frame
 
 juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float position)
 {
-    float normY1 = 0.0f, normY2 = 0.0f, normX1 = 0.0f, normX2 = 0.0f, normWidth1 = 0.0f, normWidth2 = 0.0f;
+    float normY1 = 0.0f, normY2 = 0.0f, normX1 = 0.0f, normX2 = 0.0f, normWidth1 = 0.0f, normWidth2 = 0.0f, scaler = 1.0f;
 
     // If the gem is an open note
     bool isOpen = isBarNote(gemColumn, Part::GUITAR);
@@ -190,6 +191,7 @@ juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float
         normX2 = 0.34;
         normWidth1 = 0.68;
         normWidth2 = 0.32;
+        scaler = BAR_SIZE;
     }
     else
     {
@@ -197,6 +199,7 @@ juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float
         normWidth2 = 0.06;
         normY1 = 0.71;
         normY2 = 0.22;
+        scaler = GEM_SIZE;
         if (gemColumn == 1)
         {
             normX1 = 0.21;
@@ -223,13 +226,19 @@ juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float
             normX2 = 0.580;
         }
     }
+    
+    float scaledNormWidth1 = normWidth1 * scaler;
+    float scaledNormWidth2 = normWidth2 * scaler;
+    float adjustedNormX1 = normX1 + (normWidth1 - scaledNormWidth1) / 2.0f;
+    float adjustedNormX2 = normX2 + (normWidth2 - scaledNormWidth2) / 2.0f;
+    
+    return createPerspectiveGlyphRect(position, normY1, normY2, adjustedNormX1, adjustedNormX2, scaledNormWidth1, scaledNormWidth2, isOpen);
 
-    return createPerspectiveGlyphRect(position, normY1, normY2, normX1, normX2, normWidth1, normWidth2, isOpen);
 }
 
 juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float position)
 {
-    float normY1 = 0.0f, normY2 = 0.0f, normX1 = 0.0f, normX2 = 0.0f, normWidth1 = 0.0f, normWidth2 = 0.0f;
+    float normY1 = 0.0f, normY2 = 0.0f, normX1 = 0.0f, normX2 = 0.0f, normWidth1 = 0.0f, normWidth2 = 0.0f, scaler = 1.0f;
 
     // If the gem is a kick
     bool isKick = isBarNote(gemColumn, Part::DRUMS);
@@ -241,6 +250,7 @@ juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float p
         normX2 = 0.34;
         normWidth1 = 0.68;
         normWidth2 = 0.32;
+        scaler = BAR_SIZE;
     }
     else
     {
@@ -248,6 +258,7 @@ juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float p
         normWidth2 = 0.075;
         normY1 = 0.70;
         normY2 = 0.22;
+        scaler = GEM_SIZE;
         if (gemColumn == 1)
         {
             normX1 = 0.21;
@@ -269,8 +280,13 @@ juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float p
             normX2 = 0.560;
         }
     }
-
-    return createPerspectiveGlyphRect(position, normY1, normY2, normX1, normX2, normWidth1, normWidth2, isKick);
+    
+    float scaledNormWidth1 = normWidth1 * scaler;
+    float scaledNormWidth2 = normWidth2 * scaler;
+    float adjustedNormX1 = normX1 + (normWidth1 - scaledNormWidth1) / 2.0f;
+    float adjustedNormX2 = normX2 + (normWidth2 - scaledNormWidth2) / 2.0f;
+    
+    return createPerspectiveGlyphRect(position, normY1, normY2, adjustedNormX1, adjustedNormX2, scaledNormWidth1, scaledNormWidth2, isKick);
 }
 
 juce::Rectangle<float> HighwayRenderer::getOverlayGlyphRect(Gem gem, juce::Rectangle<float> glyphRect)
@@ -278,7 +294,7 @@ juce::Rectangle<float> HighwayRenderer::getOverlayGlyphRect(Gem gem, juce::Recta
     juce::Rectangle<float> overlayRect;
     if (isPart(state, Part::DRUMS) && gem == Gem::TAP_ACCENT)
     {
-        float scaleFactor = 1.1232876712;
+        float scaleFactor = 1.1232876712 * GEM_SIZE;
         float newWidth = glyphRect.getWidth() * scaleFactor;
         float newHeight = glyphRect.getHeight() * scaleFactor;
         float widthIncrease = newWidth - glyphRect.getWidth();
