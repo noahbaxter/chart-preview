@@ -91,15 +91,13 @@ void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Imag
     // Use the same positioning and dimensions as kick bars
     // For guitar, this would be column 0 (open note position)
     // For drums, this would be column 0 (kick position)
-    Part part = (Part)((int)state.getProperty("part"));
-    
-    if (part == Part::GUITAR)
+    if (isPart(state, Part::GUITAR))
     {
         // Use guitar open note positioning (column 0)
         juce::Rectangle<float> rect = getGuitarGlyphRect(0, position);
         draw(g, markerImage, rect, 1.0f);
     }
-    else
+    else // if (isPart(state, Part::DRUMS))
     {
         // Use drum kick positioning (column 0)
         juce::Rectangle<float> rect = getDrumGlyphRect(0, position);

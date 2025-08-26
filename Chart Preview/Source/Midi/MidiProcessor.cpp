@@ -90,17 +90,20 @@ PPQ MidiProcessor::calculatePPQSegment(uint samples, double bpm, double sampleRa
 void MidiProcessor::cleanupOldEvents(PPQ startPPQ, PPQ endPPQ, PPQ latencyPPQ)
 {
     // Erase notes in PPQ range
-    for (auto &noteStateMap : noteStateMapArray)
     {
-        auto lower = noteStateMap.upper_bound(PPQ(startPPQ - latencyPPQ));
-        if (lower != noteStateMap.begin())
+        const juce::ScopedLock lock(noteStateMapLock);
+        for (auto &noteStateMap : noteStateMapArray)
         {
-            --lower;
-            noteStateMap.erase(noteStateMap.begin(), lower);
-        }
+            auto lower = noteStateMap.upper_bound(PPQ(startPPQ - latencyPPQ));
+            if (lower != noteStateMap.begin())
+            {
+                --lower;
+                noteStateMap.erase(noteStateMap.begin(), lower);
+            }
 
-        auto upper = noteStateMap.upper_bound(PPQ(startPPQ + latencyPPQ));
-        noteStateMap.erase(upper, noteStateMap.end());
+            auto upper = noteStateMap.upper_bound(PPQ(startPPQ + latencyPPQ));
+            noteStateMap.erase(upper, noteStateMap.end());
+        }
     }
 
     // Erase gridlines in PPQ range
@@ -151,5 +154,7 @@ void MidiProcessor::processNoteMessage(const juce::MidiMessage &midiMessage, PPQ
 
     uint noteNumber = midiMessage.getNoteNumber();
     uint velocity = midiMessage.isNoteOn() ? midiMessage.getVelocity() : 0;
+    
+    const juce::ScopedLock lock(noteStateMapLock);
     noteStateMapArray[noteNumber][messagePPQ] = velocity;
 }

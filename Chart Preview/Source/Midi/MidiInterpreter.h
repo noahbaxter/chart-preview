@@ -16,15 +16,17 @@
 class MidiInterpreter
 {
 	public:
-		MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, GridlineMap &gridlineMap, juce::CriticalSection &gridlineMapLock);
+		MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, GridlineMap &gridlineMap, juce::CriticalSection &gridlineMapLock, juce::CriticalSection &noteStateMapLock);
 		~MidiInterpreter();
 
 		NoteStateMapArray &noteStateMapArray;
 		GridlineMap &gridlineMap;
 		juce::CriticalSection &gridlineMapLock;
+		juce::CriticalSection &noteStateMapLock;
 
 		bool isNoteHeld(uint pitch, PPQ position)
 		{
+			const juce::ScopedLock lock(noteStateMapLock);
 			auto &noteStateMap = noteStateMapArray[pitch];
 			auto it = noteStateMap.upper_bound(position);
 			if (it == noteStateMap.begin())

@@ -10,10 +10,11 @@
 
 #include "MidiInterpreter.h"
 
-MidiInterpreter::MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, GridlineMap &gridlineMap, juce::CriticalSection &gridlineMapLock)
+MidiInterpreter::MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, GridlineMap &gridlineMap, juce::CriticalSection &gridlineMapLock, juce::CriticalSection &noteStateMapLock)
     : noteStateMapArray(noteStateMapArray),
       gridlineMap(gridlineMap),
       gridlineMapLock(gridlineMapLock),
+      noteStateMapLock(noteStateMapLock),
       state(state)
 {
 }
@@ -49,7 +50,8 @@ TrackWindow MidiInterpreter::generateTrackWindow(PPQ trackWindowStart, PPQ track
 {
     TrackWindow trackWindow;
 
-    Part part = (Part)((int)state.getProperty("part"));
+    const juce::ScopedLock lock(noteStateMapLock);
+
     for (uint pitch = 0; pitch < 128; pitch++)
     {
         const NoteStateMap& noteStateMap = noteStateMapArray[pitch];
@@ -72,11 +74,11 @@ TrackWindow MidiInterpreter::generateTrackWindow(PPQ trackWindowStart, PPQ track
                 trackWindow[position] = generateEmptyTrackFrame();
             }
 
-            if (part == Part::GUITAR)
+            if (isPart(state, Part::GUITAR))
             {
                 addGuitarEventToFrame(trackWindow[position], position, pitch);
             }
-            else if (part == Part::DRUMS)
+            else // if (isPart(state, Part::DRUMS))
             {
                 addDrumEventToFrame(trackWindow[position], position, pitch, dynamic);
             }
@@ -90,12 +92,15 @@ TrackWindow MidiInterpreter::generateTrackWindow(PPQ trackWindowStart, PPQ track
 SustainWindow MidiInterpreter::generateSustainWindow(PPQ trackWindowStart, PPQ trackWindowEnd)
 {
     SustainWindow sustainWindow;
-    Part part = (Part)((int)state.getProperty("part"));
     
     // Only process guitar sustains for now
-    if (part != Part::GUITAR) {
+    if (isPart(state, Part::DRUMS) || isPart(state, Part::REAL_DRUMS))
+    {
         return sustainWindow;
     }
+    
+    // Lock the noteStateMapArray during iteration to prevent crashes
+    const juce::ScopedLock lock(noteStateMapLock);
     
     PPQ MIN_SUSTAIN_LENGTH = PPQ(0.25);
     

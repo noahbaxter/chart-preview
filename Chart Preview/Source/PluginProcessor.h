@@ -34,6 +34,7 @@ public:
     NoteStateMapArray& getNoteStateMapArray() { return midiProcessor.noteStateMapArray; }
     GridlineMap& getGridlineMap() { return midiProcessor.gridlineMap; }
     juce::CriticalSection& getGridlineMapLock() { return midiProcessor.gridlineMapLock; }
+    juce::CriticalSection& getNoteStateMapLock() { return midiProcessor.noteStateMapLock; }
 
     // Debug
     juce::String debugText;

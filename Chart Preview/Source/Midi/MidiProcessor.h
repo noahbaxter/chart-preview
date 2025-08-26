@@ -14,6 +14,7 @@ public:
     NoteStateMapArray noteStateMapArray;
     GridlineMap gridlineMap;
     mutable juce::CriticalSection gridlineMapLock;
+    mutable juce::CriticalSection noteStateMapLock;
     PPQ lastProcessedPPQ = 0.0;
 
     void setLastProcessedPosition(const juce::AudioPlayHead::PositionInfo &positionInfo)
