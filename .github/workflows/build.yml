@@ -34,16 +34,19 @@ jobs:
       uses: actions/cache@v4
       with:
         path: |
-          Chart Preview/Builds
-          Chart Preview/JuceLibraryCode
-        key: ${{ runner.os }}-juce-${{ hashFiles('Chart Preview/ChartPreview.jucer') }}
+          ChartPreview/Builds
+          ChartPreview/JuceLibraryCode
+        key: ${{ runner.os }}-juce-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
         restore-keys: |
           ${{ runner.os }}-juce-
 
-    - name: Verify Visual Studio project exists
-      shell: cmd
+    - name: Generate Windows project with Projucer
+      shell: cmd  
       run: |
-        cd "Chart Preview"
+        cd ChartPreview
+        echo "Generating Visual Studio 2022 project files..."
+        C:\JUCE\Projucer.exe --resave ChartPreview.jucer
+        echo "Project generation complete"
         echo "Checking for Visual Studio 2022 project files..."
         if exist "Builds\VisualStudio2022\ChartPreview.sln" (
           echo "✅ Visual Studio solution found"
@@ -58,7 +61,7 @@ jobs:
     - name: Build with MSBuild
       shell: cmd
       run: |
-        cd "Chart Preview"
+        cd ChartPreview
         echo "Building Release configuration..."
         echo "First building shared code dependencies..."
         msbuild "Builds/VisualStudio2022/ChartPreview_SharedCode.vcxproj" /p:Configuration=Release /p:Platform=x64 /m /verbosity:normal || (
@@ -92,7 +95,7 @@ jobs:
     - name: Verify build artifacts
       shell: cmd
       run: |
-        cd "Chart Preview"
+        cd ChartPreview
         echo "Checking for VST3 files in various locations..."
         
         echo "=== Checking expected VST3 location ==="
@@ -102,6 +105,13 @@ jobs:
           if exist "Builds\VisualStudio2022\x64\Release\VST3\*.dll" (
             echo "✅ DLL found in VST3 folder"
             dir "Builds\VisualStudio2022\x64\Release\VST3\*.dll"
+            echo "🔍 Checking for debug symbols (cause of large artifact size):"
+            if exist "Builds\VisualStudio2022\x64\Release\VST3\*.pdb" (
+              echo "⚠️ DEBUG SYMBOLS FOUND - this makes artifacts ~30MB larger:"
+              dir "Builds\VisualStudio2022\x64\Release\VST3\*.pdb"
+            ) else (
+              echo "✅ No debug symbols in VST3 folder"
+            )
           ) else if exist "Builds\VisualStudio2022\x64\Release\VST3\*.vst3" (
             echo "✅ VST3 bundle found"
             dir "Builds\VisualStudio2022\x64\Release\VST3\*.vst3" /s
@@ -116,14 +126,26 @@ jobs:
         dir "Builds\VisualStudio2022" *.dll /s 2>nul || echo "No DLL files found"
         dir "Builds\VisualStudio2022" *.vst3 /s 2>nul || echo "No VST3 files found"
         
+    - name: Create optimized Windows artifacts
+      shell: cmd
+      run: |
+        cd ChartPreview
+        echo "Creating clean distribution without debug symbols..."
+        
+        mkdir "dist-windows"
+        if exist "Builds\VisualStudio2022\x64\Release\VST3\ChartPreview.dll" (
+          copy "Builds\VisualStudio2022\x64\Release\VST3\ChartPreview.dll" "dist-windows\"
+          echo "✅ Copied main DLL only (no .pdb debug symbols)"
+        )
+        
+        echo "Distribution contents:"
+        dir "dist-windows"
+        
     - name: Upload Windows VST3 artifact
       uses: actions/upload-artifact@v4
       with:
         name: ChartPreview-VST3-Windows-x64
-        path: |
-          Chart Preview/Builds/VisualStudio2022/x64/Release/VST3/
-          Chart Preview/Builds/VisualStudio2022/x64/Release/**/*.dll
-          Chart Preview/Builds/VisualStudio2022/x64/Release/**/*.vst3
+        path: ChartPreview/dist-windows/
         retention-days: 30
       if: always()
 
@@ -156,18 +178,22 @@ jobs:
       uses: actions/cache@v4
       with:
         path: |
-          Chart Preview/Builds
-          Chart Preview/JuceLibraryCode
-        key: ${{ runner.os }}-juce-${{ hashFiles('Chart Preview/ChartPreview.jucer') }}
+          ChartPreview/Builds
+          ChartPreview/JuceLibraryCode
+        key: ${{ runner.os }}-juce-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
         restore-keys: |
           ${{ runner.os }}-juce-
           
     - name: Generate Xcode project with Projucer
       run: |
-        cd "Chart Preview"
+        cd ChartPreview
         echo "Generating Xcode project files..."
         if [ -f "ChartPreview.jucer" ]; then
           echo "Found ChartPreview.jucer"
+          echo "Checking if JUCE Projucer exists..."
+          ls -la /Applications/JUCE/Projucer.app/Contents/MacOS/Projucer || echo "Projucer not found at expected location"
+          echo "Checking JUCE modules..."
+          ls -la /Applications/JUCE/modules/ || echo "JUCE modules not found"
           # Use Projucer to regenerate project
           "/Applications/JUCE/Projucer.app/Contents/MacOS/Projucer" --resave "ChartPreview.jucer"
           echo "Project regenerated"
@@ -179,7 +205,7 @@ jobs:
 
     - name: Build with xcodebuild (optimized for CI)
       run: |
-        cd "Chart Preview"
+        cd ChartPreview
         echo "Building Release configuration with modern xcodebuild..."
         
         # Build with universal binary support and Release optimization
@@ -187,9 +213,7 @@ jobs:
           -project "Builds/MacOSX/ChartPreview.xcodeproj" \
           -scheme "ChartPreview - VST3" \
           -configuration Release \
-          -derivedDataPath "Builds/MacOSX/DerivedData" \
           -destination "generic/platform=macOS" \
-          -arch arm64 -arch x86_64 \
           ARCHS="arm64 x86_64" \
           VALID_ARCHS="arm64 x86_64" \
           ONLY_ACTIVE_ARCH=NO \
@@ -200,16 +224,14 @@ jobs:
           
     - name: Also build AU format
       run: |
-        cd "Chart Preview"
+        cd ChartPreview
         echo "Building AU format..."
         
         xcodebuild \
           -project "Builds/MacOSX/ChartPreview.xcodeproj" \
           -scheme "ChartPreview - AU" \
           -configuration Release \
-          -derivedDataPath "Builds/MacOSX/DerivedData" \
           -destination "generic/platform=macOS" \
-          -arch arm64 -arch x86_64 \
           ARCHS="arm64 x86_64" \
           VALID_ARCHS="arm64 x86_64" \
           ONLY_ACTIVE_ARCH=NO \
@@ -220,51 +242,203 @@ jobs:
 
     - name: Verify build artifacts
       run: |
-        cd "Chart Preview"
+        cd ChartPreview
         echo "Checking for build artifacts..."
         
-        # Check VST3
-        if [ -d "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.vst3" ]; then
-          echo "✅ VST3 build found"
-          ls -la "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.vst3/"
-          du -sh "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.vst3"
+        # Check VST3 (first check actual location found by find command)
+        VST3_PATH=$(find Builds/MacOSX -name "ChartPreview.vst3" -type d | head -1)
+        if [ -d "$VST3_PATH" ]; then
+          echo "✅ VST3 build found at: $VST3_PATH"
+          ls -la "$VST3_PATH/"
+          du -sh "$VST3_PATH"
+          
           # Check if binary has both architectures
           echo "Checking VST3 architectures:"
-          lipo -info "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.vst3/Contents/MacOS/ChartPreview" || echo "No executable found"
+          lipo -info "$VST3_PATH/Contents/MacOS/ChartPreview" || echo "No executable found"
+          
+          # Check bundle structure
+          echo "VST3 Bundle structure:"
+          find "$VST3_PATH" -type f | head -10
+          
+          # Check for embedded resources
+          echo "Checking for embedded resources in VST3:"
+          strings "$VST3_PATH/Contents/MacOS/ChartPreview" | grep -E "\.(png|wav)" | head -5 || echo "No embedded assets found"
         else
-          echo "❌ VST3 build not found, checking all locations..."
-          find Builds/MacOSX -name "*.vst3" -type d 2>/dev/null || echo "No VST3 files found"
+          echo "❌ VST3 build not found"
         fi
         
-        # Check AU  
-        if [ -d "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.component" ]; then
-          echo "✅ AU build found"
-          ls -la "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.component/"
-          du -sh "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.component"
+        # Check AU (first check actual location found by find command)  
+        AU_PATH=$(find Builds/MacOSX -name "ChartPreview.component" -type d | head -1)
+        if [ -d "$AU_PATH" ]; then
+          echo "✅ AU build found at: $AU_PATH"
+          ls -la "$AU_PATH/"
+          du -sh "$AU_PATH"
+          
           # Check if binary has both architectures
           echo "Checking AU architectures:"
-          lipo -info "Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.component/Contents/MacOS/ChartPreview" || echo "No executable found"
+          lipo -info "$AU_PATH/Contents/MacOS/ChartPreview" || echo "No executable found"
+          
+          # Check bundle structure
+          echo "AU Bundle structure:"
+          find "$AU_PATH" -type f | head -10
         else
-          echo "❌ AU build not found, checking all locations..."
-          find Builds/MacOSX -name "*.component" -type d 2>/dev/null || echo "No AU files found"
+          echo "❌ AU build not found"
         fi
         
-        # Show total build sizes
-        echo "Total DerivedData size:"
-        du -sh "Builds/MacOSX/DerivedData/" 2>/dev/null || echo "No DerivedData directory"
+        # Show build directory sizes
+        echo "Build directories:"
+        find Builds/MacOSX -name "build" -type d | head -3 | xargs -I {} du -sh {} 2>/dev/null || echo "No build directories"
         
     - name: Upload macOS artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ChartPreview-macOS
         path: |
-          Chart Preview/Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.vst3
-          Chart Preview/Builds/MacOSX/DerivedData/Build/Products/Release/ChartPreview.component
+          ChartPreview/Builds/MacOSX/build/Release/ChartPreview.vst3
+          ChartPreview/Builds/MacOSX/build/Release/ChartPreview.component
+        retention-days: 30
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Install system dependencies
+      run: |
+        echo "Installing system dependencies for JUCE and VST3 development..."
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          git \
+          libasound2-dev \
+          libcurl4-openssl-dev \
+          libfreetype6-dev \
+          libgl1-mesa-dev \
+          libglu1-mesa-dev \
+          libjack-jackd2-dev \
+          libwebkit2gtk-4.0-dev \
+          libx11-dev \
+          libxext-dev \
+          libxinerama-dev \
+          libxrandr-dev \
+          libxss-dev \
+          libxtst-dev \
+          pkg-config \
+          python3 \
+          unzip \
+          wget \
+          zip
+        
+    - name: Install JUCE
+      run: |
+        echo "Downloading JUCE..."
+        wget -O juce.zip "https://github.com/juce-framework/JUCE/releases/download/8.0.0/juce-8.0.0-linux.zip"
+        echo "Extracting JUCE..."
+        unzip juce.zip -d /tmp/
+        sudo mkdir -p /opt/JUCE
+        sudo cp -r /tmp/JUCE/* /opt/JUCE/
+        echo "JUCE installed at /opt/JUCE"
+        ls -la /opt/JUCE/
+        echo "Checking modules directory..."
+        ls -la /opt/JUCE/modules/ || echo "Modules directory not found"
+        echo "Checking if Projucer exists..."
+        ls -la /opt/JUCE/Projucer || echo "Projucer not found"
+        
+    - name: Cache JUCE
+      uses: actions/cache@v4
+      with:
+        path: |
+          ChartPreview/Builds
+          ChartPreview/JuceLibraryCode
+        key: ${{ runner.os }}-juce-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
+        restore-keys: |
+          ${{ runner.os }}-juce-
+          
+    - name: Generate Linux project with Projucer
+      run: |
+        cd ChartPreview
+        echo "Generating Linux project files..."
+        echo "Setting JUCE environment..."
+        export JUCE_PATH=/opt/JUCE
+        export PATH=/opt/JUCE:$PATH
+        echo "Current JUCE paths:"
+        echo "JUCE_PATH=$JUCE_PATH"
+        which Projucer || echo "Projucer not in PATH"
+        /opt/JUCE/Projucer --resave ChartPreview.jucer
+        echo "Project generation complete"
+        ls -la Builds/
+        
+    - name: Build VST3 with Make
+      run: |
+        cd ChartPreview
+        echo "Building VST3 with Make..."
+        
+        cd Builds/LinuxMakefile
+        echo "Building Release configuration..."
+        make -j$(nproc) CONFIG=Release
+        
+        if [ $? -eq 0 ]; then
+          echo "✅ Build successful"
+          ls -la build/
+        else
+          echo "❌ Build failed"
+          exit 1
+        fi
+        
+    - name: Verify Linux build artifacts
+      run: |
+        cd ChartPreview
+        echo "Checking for Linux build artifacts..."
+        
+        # Check for the VST3 bundle created by JUCE
+        if [ -d "Builds/LinuxMakefile/build/ChartPreview.vst3" ]; then
+          echo "✅ VST3 bundle found"
+          find Builds/LinuxMakefile/build/ChartPreview.vst3 -name "*.so" -type f
+          
+          # Check the specific .so file
+          SO_FILE="Builds/LinuxMakefile/build/ChartPreview.vst3/Contents/x86_64-linux/ChartPreview.so"
+          if [ -f "$SO_FILE" ]; then
+            echo "✅ VST3 .so file found at correct location"
+            ls -la "$SO_FILE"
+            file "$SO_FILE"
+            
+            # Check dependencies
+            echo "Checking library dependencies:"
+            ldd "$SO_FILE" | head -10
+            
+            # Check if it's a valid ELF binary
+            if file "$SO_FILE" | grep -q "ELF"; then
+              echo "Valid ELF binary confirmed"
+            else
+              echo "Not a valid ELF binary"
+            fi
+            
+            # Check embedded resources
+            echo "Checking for embedded resources:"
+            strings "$SO_FILE" | grep -E "\.(png|wav)" | head -5 || echo "No embedded assets found in strings"
+          else
+            echo "❌ VST3 .so file not found in bundle"
+          fi
+        else
+          echo "❌ VST3 bundle not found"
+          find Builds/LinuxMakefile -name "*.so" -type f 2>/dev/null || echo "No .so files found"
+        fi
+        
+    - name: Upload Linux artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ChartPreview-VST3-Linux-x64
+        path: ChartPreview/Builds/LinuxMakefile/build/ChartPreview.vst3
         retention-days: 30
 
   # Create release if this is a tag
   release:
-    needs: [build-windows, build-macos]
+    needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
     
@@ -281,6 +455,12 @@ jobs:
         name: ChartPreview-macOS
         path: ./macos-artifacts/
         
+    - name: Download Linux artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: ChartPreview-Linux-x64
+        path: ./linux-artifacts/
+        
     - name: Create release archives
       run: |
         # Create Windows release archive
@@ -289,11 +469,15 @@ jobs:
         # Create macOS release archive  
         cd macos-artifacts && zip -r ../ChartPreview-macOS.zip . && cd ..
         
+        # Create Linux release archive
+        cd linux-artifacts && zip -r ../ChartPreview-VST3-Linux-x64.zip . && cd ..
+        
     - name: Upload release assets
       uses: softprops/action-gh-release@v1
       with:
         files: |
           ChartPreview-VST3-Windows-x64.zip
           ChartPreview-macOS.zip
+          ChartPreview-VST3-Linux-x64.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
