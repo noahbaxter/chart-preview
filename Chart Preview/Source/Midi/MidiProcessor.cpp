@@ -172,10 +172,10 @@ void MidiProcessor::processMidiMessages(juce::MidiBuffer &midiMessages, PPQ star
 
 void MidiProcessor::processNoteMessage(const juce::MidiMessage &midiMessage, PPQ messagePPQ)
 {
-    if (midiMessage.isNoteOff() && messagePPQ > 0.0)
-    {
-        messagePPQ -= 1;
-    }
+    // if (midiMessage.isNoteOff() && messagePPQ > 0.0)
+    // {
+    //     messagePPQ -= 1;
+    // }
     uint noteNumber = midiMessage.getNoteNumber();
     uint velocity = midiMessage.isNoteOn() ? midiMessage.getVelocity() : 0;
 
