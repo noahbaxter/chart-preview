@@ -4,15 +4,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Chart Preview is a VST/AU plugin for DAWs that visualizes MIDI notes as rhythm game charts (similar to Clone Hero/YARG). It's built with JUCE framework and designed for macOS and Windows 64-bit DAWs.
+Chart Preview is a VST/AU plugin for DAWs that visualizes MIDI notes as rhythm game charts (similar to Clone Hero/YARG). It's built with JUCE framework and designed for Windows, macOS, and Linux platforms.
 
 ## Development Commands
 
 ### Building the Plugin
 
+**Cross-Platform CI/CD (Automated)**
+GitHub Actions automatically builds for all platforms on push to any branch:
+- **Windows**: VST3 plugin (optimized, ~2.5MB)
+- **macOS**: Universal binary VST3 + AU (x86_64 + arm64, ~6.7MB) 
+- **Linux**: VST3 plugin (~4.4MB)
+
+Artifacts are automatically generated and downloadable from GitHub Actions.
+
+**Local Development**
+
 **macOS (Primary Development)**
 ```bash
-cd "Chart Preview"
+cd ChartPreview
 ./build.sh
 ```
 
@@ -29,12 +39,27 @@ The build script handles:
 - `au`: Audio Unit plugin
 
 **Windows**
-Use Visual Studio 2022 project at `Chart Preview/Builds/VisualStudio2022/ChartPreview.sln`
+Use Visual Studio 2022 project at `ChartPreview/Builds/VisualStudio2022/ChartPreview.sln`
+
+**Linux**
+```bash
+cd ChartPreview
+chmod +x build-linux.sh
+./build-linux.sh
+```
+
+Or manually:
+```bash
+cd ChartPreview/Builds/LinuxMakefile
+make -j$(nproc) CONFIG=Release
+```
+
+Requirements: JUCE 8.0.0, system dependencies (libcurl, libfreetype, etc.)
 
 ### Projucer Integration
 
-The main project file is `Chart Preview/ChartPreview.jucer`. When modified:
-- The build script automatically regenerates Xcode project
+The main project file is `ChartPreview/ChartPreview.jucer`. When modified:
+- The build script automatically regenerates platform projects
 - Manual regeneration: `/Applications/JUCE/Projucer.app/Contents/MacOS/Projucer --resave "ChartPreview.jucer"`
 
 ### Testing Setup
@@ -100,8 +125,9 @@ Defined in `Utils.h` as `MidiPitchDefinitions`:
 
 ### Asset Management
 
-- Graphics assets in `Chart Preview/Assets/`
-- Audio assets in `Chart Preview/Audio/`
+- Graphics assets in `ChartPreview/Assets/`
+- Audio assets in `ChartPreview/Audio/`
+- Assets are embedded in compiled binaries (verified in CI)
 - `AssetManager` handles loading and caching
 - Perspective rendering for 3D highway effect
 - Draw call optimization using `DrawCallMap`
@@ -137,7 +163,9 @@ See `TODO.txt` for detailed priority-ranked backlog. Recent completions:
 - ✅ PPQ-based timing system conversion
 - ✅ Latency compensation with multi-buffer smoothing
 - ✅ Grid visual polish (beat/half-beat/measure markers)
-- ✅ CI/CD pipeline automation
+- ✅ Cross-platform CI/CD pipeline with artifact verification
+- ✅ Linux build support with full dependency management
+- ✅ Windows artifact optimization (debug symbol removal)
 
 Key remaining areas:
 - **P0**: Thread safety improvements, parameter system migration
@@ -147,9 +175,27 @@ Key remaining areas:
 
 ## File Structure Notes
 
-- Main source in `Chart Preview/Source/`
-- JUCE auto-generated files in `JuceLibraryCode/`
-- Third-party dependencies in `ThirdParty/`
-- Platform-specific builds in `Builds/`
-- Asset files separate from distributable art assets
+- Main source in `ChartPreview/Source/`
+- Platform-specific builds in `ChartPreview/Builds/`
+  - `MacOSX/`: Xcode project files
+  - `VisualStudio2022/`: Visual Studio solution and projects  
+  - `LinuxMakefile/`: Linux build system and dependencies
+- Asset files in `ChartPreview/Assets/` (embedded in binaries)
+- Audio assets in `ChartPreview/Audio/` (embedded in binaries)
+- CI/CD configuration in `.github/workflows/build.yml`
 - `DO NOT DISTRIBUTE/` contains additional development assets
+
+## Build System Details
+
+### CI/CD Pipeline
+- **Triggers**: Any push to any branch, all pull requests
+- **Platforms**: Windows Server 2022, macOS 14, Ubuntu 22.04
+- **Optimization**: Windows artifacts exclude debug symbols (~92% size reduction)
+- **Verification**: Automatic validation of embedded resources and dependencies
+- **Caching**: JUCE installations and build artifacts cached for faster builds
+- **Distribution**: Downloadable artifacts for each platform automatically generated
+
+### Platform-Specific Notes
+- **Windows**: Uses MSBuild with Visual Studio 2022, produces optimized VST3 DLL
+- **macOS**: Uses Xcode with universal binary support, produces both VST3 and AU
+- **Linux**: Uses Make with system package dependencies, produces VST3 bundle
