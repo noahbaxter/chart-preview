@@ -26,6 +26,6 @@ Priority-ranked backlog (ty gen AI for thinking so I dont have to)
     ❌ Heuristic HOPOs, open HOPOs, trill/tremolo sections.
     ❌ Real Drums support.
     ❌ MIDI lookahead (REAPER SWS) with clean fallback elsewhere.
-    ✅ CI/release automation across platforms (GitHub Actions with Windows/macOS builds).
+    ✅ CI/release automation across platforms (GitHub Actions with Windows/macOS/Linux builds).
 
 Legend: ✅ Complete | 🔄 In Progress | ❌ Not Started

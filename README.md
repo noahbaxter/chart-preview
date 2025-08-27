@@ -1,7 +1,7 @@
 # Chart Preview
 Chart Preview is an au/vst plugin for DAWs that visualizes midi notes similar to how they appear in rhythm games like Clone Hero and YARG. It's designed to make it clearer how midi note placement will translate in game. To use it, just throw the plugin in a midi track in your DAW of choice.
 
-This plugin supports any Windows or MacOS based 64bit DAW. Happy charting!
+This plugin supports Windows, macOS, and Linux based 64bit DAWs. Happy charting!
 
 ![Preview Image](preview.jpg)
 
@@ -20,6 +20,9 @@ Place `ChartPreview.vst3` in `/Library/Audio/Plug-Ins/VST3` and `ChartPreview.co
 
 ##### Windows
 Place `ChartPreview.vst3` into `C:\Program Files (x86)\Steinberg\VstPlugins`.
+
+##### Linux
+Place `ChartPreview.vst3` into `~/.vst3/` or `/usr/local/lib/vst3/`, or copy the `.so` file directly to your DAW's VST3 directory.
 
 ### Why is this better than RBN Preview?
 Aside from being able to run on macs and outside of 32bit compatability layers, here's some unique features you may appreciate.

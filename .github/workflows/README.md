@@ -1,6 +1,6 @@
 # GitHub Actions Build Workflow
 
-This workflow automatically builds Chart Preview VST3 plugin for both Windows and macOS.
+This workflow automatically builds Chart Preview VST3 plugin for Windows, macOS, and Linux.
 
 ## Triggers
 
@@ -18,6 +18,9 @@ This workflow automatically builds Chart Preview VST3 plugin for both Windows an
 ### macOS (macos-latest)  
 - **VST3**: `ChartPreview-VST3-macOS.zip`
 
+### Linux (ubuntu-22.04)
+- **VST3**: `ChartPreview-VST3-Linux-x64.zip`
+
 ## Artifacts
 
 Artifacts are available for 30 days after each build:
@@ -29,7 +32,7 @@ Artifacts are available for 30 days after each build:
 ## Releases
 
 When you create a GitHub release:
-1. The workflow automatically builds both platforms
+1. The workflow automatically builds all three platforms
 2. Creates zip files with the plugins
 3. Attaches them to the release as downloadable assets
 
@@ -47,10 +50,14 @@ If builds fail:
 To test locally before pushing:
 ```bash
 # macOS
-cd "Chart Preview"
+cd ChartPreview
 ./build.sh
 
 # Windows (in Visual Studio Command Prompt)
-cd "Chart Preview"  
+cd ChartPreview  
 msbuild "Builds/VisualStudio2022/ChartPreview.sln" /p:Configuration=Release /p:Platform=x64
+
+# Linux
+cd ChartPreview
+./build-linux.sh
 ```

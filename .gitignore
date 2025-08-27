@@ -32,25 +32,25 @@
 *.app
 
 
-# Allow project files but ignore build outputs
-Builds/**/build/
-Builds/**/DerivedData/
-Builds/**/*.xcworkspace/xcuserdata/
-Builds/**/*.user
-Builds/**/*.suo
-Builds/**/*.opensdf
-Builds/**/*.sdf
-Builds/**/Debug/
-Builds/**/Release/
-Builds/**/x64/
-!Builds/
-!Builds/**/*.xcodeproj/
-!Builds/**/*.sln
-!Builds/**/*.vcxproj
-!Builds/**/*.filters
-!Builds/**/*.plist
-!Builds/**/*.nib
-!Builds/**/*.rc
+# JUCE Build outputs - exclude build artifacts but keep project files
+**/build/
+**/DerivedData/
+**/Debug/
+**/Release/
+**/x64/
+
+# User-specific IDE files
+**/*xcuserdata/
+**/*.xcuserstate
+**/*.user
+**/*.suo
+
+# Auto-generated JUCE files  
+**/JuceLibraryCode/
+
+# Build system temp files
+**/*.opensdf
+**/*.sdf
 ableton-test Project
 reaper-test
 .DS_Store
