@@ -387,9 +387,9 @@ void HighwayRenderer::drawSustain(const SustainEvent& sustain, PPQ trackWindowSt
     // Get sustain image based on gem column and star power state
     bool starPowerActive = state.getProperty("starPower");
     bool spNoteHeld = midiInterpreter.isNoteHeld((int)MidiPitchDefinitions::Guitar::SP, sustain.startPPQ);
-    juce::Image* sustainImage = assetManager.getSustainImage(sustain.gemColumn, starPowerActive, spNoteHeld);
-    
-    if (sustainImage == nullptr) return;
+    auto colour = assetManager.getLaneColour(sustain.gemColumn, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS, starPowerActive && spNoteHeld);
+    // juce::Image* sustainImage = assetManager.getSustainImage(sustain.gemColumn, starPowerActive, spNoteHeld);
+    // if (sustainImage == nullptr) return;
     
     // Calculate opacity (average of start and end positions for sustains)
     float avgPosition = (startPosition + endPosition) / 2.0f;
@@ -401,7 +401,7 @@ void HighwayRenderer::drawSustain(const SustainEvent& sustain, PPQ trackWindowSt
     // Add to draw call map
     drawCallMap[sustainDrawOrder].push_back([=](juce::Graphics &g) {
         // Draw sustain as simple flat rectangle with configurable width
-        drawPerspectiveSustainFlat(g, sustain.gemColumn, startPosition, endPosition, opacity, SUSTAIN_WIDTH);
+        drawPerspectiveSustainFlat(g, sustain.gemColumn, startPosition, endPosition, opacity, SUSTAIN_WIDTH, colour);
     });
 }
 
@@ -439,7 +439,7 @@ juce::Rectangle<float> HighwayRenderer::getSustainRect(uint gemColumn, float sta
     return juce::Rectangle<float>(left, top, right - left, bottom - top);
 }
 
-void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth)
+void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour)
 {
     // Get the rectangles using the helper function
     auto [startRect, endRect] = getSustainPositionRects(gemColumn, startPosition, endPosition);
@@ -475,32 +475,7 @@ void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColu
     
     // Set opacity and fill the path with solid colors
     g.setOpacity(opacity);
-    
-    if (isPart(state, Part::GUITAR)) {
-        // Guitar colors: Open=Purple, Green, Red, Yellow, Blue, Orange
-        juce::Colour guitarColors[] = {
-            juce::Colours::purple,  // 0 - open (purple)
-            juce::Colours::green,   // 1 - green
-            juce::Colours::red,     // 2 - red  
-            juce::Colours::yellow,  // 3 - yellow
-            juce::Colours::blue,    // 4 - blue
-            juce::Colours::orange   // 5 - orange
-        };
-        g.setColour(guitarColors[std::min(gemColumn, 5u)].withAlpha(opacity));
-    } else {
-        // Drums colors: Kick=Orange, Red, Yellow, Blue, Green (lanes 0,1,2,3,4)
-        juce::Colour drumColors[] = {
-            juce::Colours::orange,  // 0 - kick (orange)
-            juce::Colours::red,     // 1 - red pad
-            juce::Colours::yellow,  // 2 - yellow pad
-            juce::Colours::blue,    // 3 - blue pad
-            juce::Colours::green,   // 4 - green pad
-            juce::Colours::white,   // 5 - unused (shouldn't appear)
-            juce::Colours::orange   // 6 - 2x kick (orange)
-        };
-        g.setColour(drumColors[std::min(gemColumn, 6u)].withAlpha(opacity));
-    }
-    
+    g.setColour(colour.withAlpha(opacity));
     g.fillPath(sustainPath);
 }
 

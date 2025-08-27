@@ -288,3 +288,35 @@ juce::Image* AssetManager::getSustainImage(uint gemColumn, bool starPowerActive,
 
     return nullptr;
 }
+
+juce::Colour AssetManager::getLaneColour(uint gemColumn, Part part, bool starPowerActive)
+{
+    if (starPowerActive)
+    {
+        return juce::Colours::white;
+    }
+
+    if (part == Part::GUITAR)
+    {
+        juce::Colour guitarColors[] = {
+            juce::Colours::purple,  
+            juce::Colours::green,   
+            juce::Colours::red,     
+            juce::Colours::yellow,  
+            juce::Colours::blue,    
+            juce::Colours::orange
+        };
+        return guitarColors[std::min(gemColumn, 5u)];
+    }
+    else // if (part == Part::DRUMS)
+    {
+        juce::Colour drumColors[] = {
+            juce::Colours::orange,
+            juce::Colours::red,
+            juce::Colours::yellow,
+            juce::Colours::blue,
+            juce::Colours::green
+        };
+        return drumColors[std::min(gemColumn, 4u)];
+    }
+}

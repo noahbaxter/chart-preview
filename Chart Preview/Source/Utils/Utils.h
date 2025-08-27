@@ -14,7 +14,7 @@
 constexpr uint LANE_COUNT = 7;  // Number of note lanes (0-6)
 constexpr float OPACITY_FADE_START = 0.9f;  // Position where opacity starts fading
 
-constexpr float SUSTAIN_WIDTH = 0.1f;
+constexpr float SUSTAIN_WIDTH = 0.15f;
 constexpr float SUSTAIN_OPACITY = 0.7f;
 
 constexpr float GEM_SIZE = 0.9f; 

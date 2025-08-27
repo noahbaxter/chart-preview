@@ -29,6 +29,8 @@ public:
     juce::Image* getOverlayImage(Gem gem, Part part);
     juce::Image* getSustainImage(uint gemColumn, bool starPowerActive, bool spNoteHeld);
 
+    juce::Colour getLaneColour(uint gemColumn, Part part, bool starPowerActive);
+
     // Bar/Open notes
     juce::Image* getBarKickImage() { return &barKickImage; }
     juce::Image* getBarKick2xImage() { return &barKick2xImage; }
