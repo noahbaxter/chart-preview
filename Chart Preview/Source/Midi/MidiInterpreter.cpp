@@ -89,7 +89,7 @@ TrackWindow MidiInterpreter::generateTrackWindow(PPQ trackWindowStart, PPQ track
     return trackWindow;
 }
 
-SustainWindow MidiInterpreter::generateSustainWindow(PPQ trackWindowStart, PPQ trackWindowEnd)
+SustainWindow MidiInterpreter::generateSustainWindow(PPQ trackWindowStart, PPQ trackWindowEnd, PPQ latencyBufferEnd)
 {
     SustainWindow sustainWindow;
     
@@ -125,8 +125,8 @@ SustainWindow MidiInterpreter::generateSustainWindow(PPQ trackWindowStart, PPQ t
 
             // If corresponding note off exists within the map
             PPQ noteOffPPQ = (nextIt != noteStateMap.end()) ? 
-                nextIt->first : // Use found note-off PPQ
-                notePPQ + PPQ(100.0); // Default to 100 PPQ later if none found
+                nextIt->first :                                 // Use found note-off PPQ
+                std::min(notePPQ + (trackWindowEnd - trackWindowStart), latencyBufferEnd);  // Cap to latency buffer end
             
             PPQ duration = noteOffPPQ - notePPQ;
             
@@ -158,9 +158,9 @@ TrackFrame MidiInterpreter::generateEmptyTrackFrame()
                    //| -------------------------------------
         Gem::NONE, //| Open    |   Kick    |
         Gem::NONE, //| Fret 1  |   Lane 1  |
-        Gem::NOTE, //| Fret 2  |   Lane 2  |
+        Gem::NONE, //| Fret 2  |   Lane 2  |
         Gem::NONE, //| Fret 3  |   Lane 3  |
-        Gem::NOTE, //| Fret 4  |   Lane 4  |
+        Gem::NONE, //| Fret 4  |   Lane 4  |
         Gem::NONE, //| Fret 5  |   Lane 5  |
         Gem::NONE, //| Fret 6  |   2x Kick |
     };

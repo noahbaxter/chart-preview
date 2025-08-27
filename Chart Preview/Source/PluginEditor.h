@@ -74,6 +74,12 @@ public:
             case 3:
                 frameRate = 60;
                 break;
+            case 4:
+                frameRate = 120;
+                break;
+            case 5:
+                frameRate = 144;
+                break;
             }
             startTimerHz(frameRate);
         }
@@ -81,35 +87,21 @@ public:
         {
             auto latencyValue = latencyMenu.getSelectedId();
             state.setProperty("latency", latencyValue, nullptr);
-
-            switch (latencyValue)
-            {
-            case 1:
-                latencyInSeconds = 0.250;
-                break;
-            case 2:
-                latencyInSeconds = 0.500;
-                break;
-            case 3:
-                latencyInSeconds = 0.750;
-                break;
-            case 4:
-                latencyInSeconds = 1.000;
-                break;
-            case 5:
-                latencyInSeconds = 1.500;
-                break;
-            }
-
-            audioProcessor.setLatencyInSeconds(latencyInSeconds);
+            applyLatencySetting(latencyValue);
         }
     }
 
     void sliderValueChanged(juce::Slider *slider) override
     {
-        if (slider == &chartZoomSlider)
+        if (slider == &chartZoomSliderPPQ)
         {
-            displaySizeInPPQ = PPQ(slider->getValue());
+            state.setProperty("zoomPPQ", slider->getValue(), nullptr);
+            updateDisplaySizeFromZoomSlider();
+        }
+        else if (slider == &chartZoomSliderTime)
+        {
+            state.setProperty("zoomTime", slider->getValue(), nullptr);
+            updateDisplaySizeFromZoomSlider();
         }
     }
 
@@ -129,6 +121,14 @@ public:
         {
             bool buttonState = button->getToggleState();
             state.setProperty("dynamics", buttonState ? 1 : 0, nullptr);
+        }
+        else if (button == &dynamicZoomToggle)
+        {
+            bool buttonState = button->getToggleState();
+            state.setProperty("dynamicZoom", buttonState ? 1 : 0, nullptr);
+            
+            updateSliderVisibility();
+            updateDisplaySizeFromZoomSlider();
         }
     }
 
@@ -150,17 +150,20 @@ private:
 
     juce::Label chartZoomLabel;
     juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu;
-    juce::ToggleButton starPowerToggle, kick2xToggle, dynamicsToggle;
-    juce::Slider chartZoomSlider;
+    juce::ToggleButton starPowerToggle, kick2xToggle, dynamicsToggle, dynamicZoomToggle;
+    juce::Slider chartZoomSliderPPQ, chartZoomSliderTime;
 
     juce::TextEditor consoleOutput;
     juce::ToggleButton debugToggle;
 
     //==============================================================================
 
-    void initState();
     void initAssets();
     void initMenus();
+    void loadState();
+    void updateDisplaySizeFromZoomSlider();
+    void updateSliderVisibility();
+    void applyLatencySetting(int latencyValue);
 
     float latencyInSeconds = 0.0;
 
@@ -215,27 +218,29 @@ private:
         
         // Check if target has changed significantly or this is first frame
         double targetDifference = std::abs((targetLatency - smoothingTargetLatencyPPQ).toDouble());
-        bool targetChanged = targetDifference > 0.001;
+        bool targetChanged = targetDifference > 0.01;  // Increased threshold to reduce jitter
         bool isFirstFrame = lastSmoothedLatencyPPQ == 0.0;
         
-        if (isFirstFrame)
+        if (isFirstFrame || targetChanged)
         {
-            // Initialize everything to target on first frame
-            lastSmoothedLatencyPPQ = targetLatency;
-            smoothingTargetLatencyPPQ = targetLatency;
-            smoothingStartLatencyPPQ = targetLatency;
-            smoothingProgress = 1.0;
-            lastSmoothingUpdateTime = currentTime;
-            return targetLatency;
-        }
-        
-        if (targetChanged)
-        {
-            // Start new smoothing transition
-            smoothingStartLatencyPPQ = lastSmoothedLatencyPPQ;  // Start from current position
-            smoothingTargetLatencyPPQ = targetLatency;          // Set new target
-            smoothingProgress = 0.0;                            // Reset progress
-            lastSmoothingUpdateTime = currentTime;              // Reset timing
+            if (isFirstFrame)
+            {
+                // Initialize everything to target on first frame
+                lastSmoothedLatencyPPQ = targetLatency;
+                smoothingTargetLatencyPPQ = targetLatency;
+                smoothingStartLatencyPPQ = targetLatency;
+                smoothingProgress = 1.0;
+                lastSmoothingUpdateTime = currentTime;
+                return targetLatency;
+            }
+            else
+            {
+                // Start new smoothing transition
+                smoothingStartLatencyPPQ = lastSmoothedLatencyPPQ;
+                smoothingTargetLatencyPPQ = targetLatency;
+                smoothingProgress = 0.0;
+                lastSmoothingUpdateTime = currentTime;
+            }
         }
         
         // Calculate time elapsed since last update
@@ -248,12 +253,9 @@ private:
             double progressIncrement = timeElapsedSeconds / smoothingDurationSeconds;
             smoothingProgress = std::min(1.0, smoothingProgress + progressIncrement);
             
-            // Use smooth interpolation (ease-out curve)
-            double easedProgress = 1.0 - std::pow(1.0 - smoothingProgress, 3.0);
-            
-            // Interpolate between start and target
+            // Use simple linear interpolation for more predictable behavior
             double totalAdjustment = (smoothingTargetLatencyPPQ - smoothingStartLatencyPPQ).toDouble();
-            PPQ currentAdjustment = PPQ(totalAdjustment * easedProgress);
+            PPQ currentAdjustment = PPQ(totalAdjustment * smoothingProgress);
             lastSmoothedLatencyPPQ = smoothingStartLatencyPPQ + currentAdjustment;
         }
         else

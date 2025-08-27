@@ -42,7 +42,7 @@ class MidiInterpreter
 
 		GridlineMap generateGridlineWindow(PPQ trackWindowStart, PPQ trackWindowEnd);
 		TrackWindow generateTrackWindow(PPQ trackWindowStart, PPQ trackWindowEnd);
-		SustainWindow generateSustainWindow(PPQ trackWindowStart, PPQ trackWindowEnd);
+		SustainWindow generateSustainWindow(PPQ trackWindowStart, PPQ trackWindowEnd, PPQ latencyBufferEnd);
 		TrackFrame generateEmptyTrackFrame();
 		
 		static Gem getDrumGlyph(bool cymbal, bool dynamicsEnabled, Dynamic dynamic)

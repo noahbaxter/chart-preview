@@ -151,10 +151,9 @@ void MidiProcessor::processNoteMessage(const juce::MidiMessage &midiMessage, PPQ
     {
         messagePPQ -= 1;
     }
-
     uint noteNumber = midiMessage.getNoteNumber();
     uint velocity = midiMessage.isNoteOn() ? midiMessage.getVelocity() : 0;
-    
+
     const juce::ScopedLock lock(noteStateMapLock);
     noteStateMapArray[noteNumber][messagePPQ] = velocity;
 }
