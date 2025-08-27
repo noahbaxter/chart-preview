@@ -7,6 +7,18 @@ on:
     branches: [ main, develop ]
   release:
     types: [ created ]
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a release from this build'
+        required: false
+        default: false
+        type: boolean
+      release_tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   build-windows:
@@ -440,7 +452,7 @@ jobs:
   release:
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.create_release)
     
     steps:
     - name: Download Windows artifacts
@@ -475,6 +487,9 @@ jobs:
     - name: Upload release assets
       uses: softprops/action-gh-release@v1
       with:
+        tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+        name: ${{ github.event_name == 'workflow_dispatch' && format('Release {0}', inputs.release_tag) || github.ref_name }}
+        draft: ${{ github.event_name == 'workflow_dispatch' }}
         files: |
           ChartPreview-VST3-Windows-x64.zip
           ChartPreview-macOS.zip
