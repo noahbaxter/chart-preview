@@ -30,6 +30,7 @@ public:
     bool operator>(const PPQ &other) const { return scaledValue > other.scaledValue; }
     bool operator>=(const PPQ &other) const { return scaledValue >= other.scaledValue; }
     bool operator==(const PPQ &other) const { return scaledValue == other.scaledValue; }
+    bool operator!=(const PPQ &other) const { return scaledValue != other.scaledValue; }
 
     // Comparison operators (PPQ vs double)
     bool operator>(double other) const { return scaledValue > static_cast<int64_t>(other * PPQ_RESOLUTION); }

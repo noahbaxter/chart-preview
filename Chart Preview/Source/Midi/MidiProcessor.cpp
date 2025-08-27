@@ -21,7 +21,7 @@ void MidiProcessor::process(juce::MidiBuffer &midiMessages,
     // Use stable host BPM for latency calculation (for audio processing cleanup)
     PPQ latencyPPQ = calculatePPQSegment(latencyInSamples, *bpm, sampleRate);
 
-    cleanupOldEvents(startPPQ, endPPQ, latencyPPQ);
+    cleanupOldEvents(startPPQ, endPPQ, latencyPPQ); // Placeholder for visual window bounds
     processMidiMessages(midiMessages, startPPQ, sampleRate, *bpm);
     
     // Update last processed PPQ for cleanup tracking
@@ -89,19 +89,44 @@ PPQ MidiProcessor::calculatePPQSegment(uint samples, double bpm, double sampleRa
 
 void MidiProcessor::cleanupOldEvents(PPQ startPPQ, PPQ endPPQ, PPQ latencyPPQ)
 {
+    // Calculate conservative cleanup bounds that never delete events still in the visual range
+    // Use the maximum of audio latency and visual window bounds to ensure we don't delete visible events
+    PPQ conservativeStartPPQ = startPPQ - latencyPPQ;
+    PPQ conservativeEndPPQ = startPPQ + latencyPPQ;
+    
+    // Get current visual window bounds to clamp cleanup
+    PPQ currentVisualStart = PPQ(0.0);
+    PPQ currentVisualEnd = PPQ(0.0);
+    {
+        const juce::ScopedLock lock(visualWindowLock);
+        currentVisualStart = visualWindowStartPPQ;
+        currentVisualEnd = visualWindowEndPPQ;
+    }
+    
+    // If visual window bounds are available, clamp cleanup to never go beyond them
+    if (currentVisualStart > PPQ(0.0) && currentVisualEnd > PPQ(0.0))
+    {
+        // Never delete events that could still be in the visual window
+        PPQ oldStartPPQ = conservativeStartPPQ;
+        PPQ oldEndPPQ = conservativeEndPPQ;
+        
+        conservativeStartPPQ = std::min(conservativeStartPPQ, currentVisualStart);
+        conservativeEndPPQ = std::max(conservativeEndPPQ, currentVisualEnd);
+    }
+    
     // Erase notes in PPQ range
     {
         const juce::ScopedLock lock(noteStateMapLock);
         for (auto &noteStateMap : noteStateMapArray)
         {
-            auto lower = noteStateMap.upper_bound(PPQ(startPPQ - latencyPPQ));
+            auto lower = noteStateMap.upper_bound(conservativeStartPPQ);
             if (lower != noteStateMap.begin())
             {
                 --lower;
                 noteStateMap.erase(noteStateMap.begin(), lower);
             }
 
-            auto upper = noteStateMap.upper_bound(PPQ(startPPQ + latencyPPQ));
+            auto upper = noteStateMap.upper_bound(conservativeEndPPQ);
             noteStateMap.erase(upper, noteStateMap.end());
         }
     }
@@ -109,14 +134,14 @@ void MidiProcessor::cleanupOldEvents(PPQ startPPQ, PPQ endPPQ, PPQ latencyPPQ)
     // Erase gridlines in PPQ range
     {
         const juce::ScopedLock lock(gridlineMapLock);
-        auto lower = gridlineMap.upper_bound(PPQ(startPPQ - latencyPPQ));
+        auto lower = gridlineMap.upper_bound(conservativeStartPPQ);
         if (lower != gridlineMap.begin())
         {
             --lower;
             gridlineMap.erase(gridlineMap.begin(), lower);
         }
 
-        auto upper = gridlineMap.upper_bound(PPQ(startPPQ + latencyPPQ));
+        auto upper = gridlineMap.upper_bound(conservativeEndPPQ);
         gridlineMap.erase(upper, gridlineMap.end());
     }
 }

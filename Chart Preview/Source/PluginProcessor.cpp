@@ -31,8 +31,12 @@ ChartPreviewAudioProcessor::~ChartPreviewAudioProcessor()
 void ChartPreviewAudioProcessor::setLatencyInSeconds(float latencyInSeconds)
 {
     this->latencyInSeconds = latencyInSeconds;
-    this->latencyInSamples = (uint)(latencyInSeconds * getSampleRate());
-    setLatencySamples(this->latencyInSamples);
+    double sampleRate = getSampleRate();
+    if (sampleRate > 0.0)
+    {
+        this->latencyInSamples = (uint)(latencyInSeconds * sampleRate);
+        setLatencySamples(this->latencyInSamples);
+    }
 }
 
 // MANUAL OVERRIDES
@@ -194,3 +198,4 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new ChartPreviewAudioProcessor();
 }
+

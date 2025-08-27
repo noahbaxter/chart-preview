@@ -352,13 +352,13 @@ Gem MidiInterpreter::getDrumGemType(uint pitch, PPQ position, Dynamic dynamic)
         }
     }
     
-    // Kicks and snares can't have dynamics or be cymbals
+    // Kicks can't have dynamics
     bool canHaveDynamics = dynamicsEnabled && 
-        !(note == Drums::EASY_KICK || note == Drums::MEDIUM_KICK || 
-        note == Drums::HARD_KICK || note == Drums::EXPERT_KICK ||
-        note == Drums::EXPERT_KICK_2X ||
-        note == Drums::EASY_RED || note == Drums::MEDIUM_RED ||
-        note == Drums::HARD_RED || note == Drums::EXPERT_RED);
+        !(note == Drums::EASY_KICK || 
+          note == Drums::MEDIUM_KICK || 
+          note == Drums::HARD_KICK || 
+          note == Drums::EXPERT_KICK || 
+          note == Drums::EXPERT_KICK_2X);
     
     return getDrumGlyph(cymbal, canHaveDynamics, dynamic);
 }

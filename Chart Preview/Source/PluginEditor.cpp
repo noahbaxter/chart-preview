@@ -142,6 +142,9 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     }
     PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
     PPQ latencyBufferEnd = trackWindowStartPPQ + smoothedLatencyInPPQ();
+    
+    // Update MidiProcessor's visual window bounds to prevent premature cleanup of visible events
+    audioProcessor.setMidiProcessorVisualWindowBounds(trackWindowStartPPQ, trackWindowEndPPQ);
     highwayRenderer.paint(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ, latencyBufferEnd);
 }
 

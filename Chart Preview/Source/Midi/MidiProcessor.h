@@ -22,6 +22,14 @@ public:
         lastProcessedPPQ = positionInfo.getPpqPosition().orFallback(lastProcessedPPQ);
     }
 
+    // Set the current visual window bounds to prevent cleanup from deleting visible events
+    void setVisualWindowBounds(PPQ startPPQ, PPQ endPPQ)
+    {
+        const juce::ScopedLock lock(visualWindowLock);
+        visualWindowStartPPQ = startPPQ;
+        visualWindowEndPPQ = endPPQ;
+    }
+
 
 private:
     PPQ calculatePPQSegment(uint samples, double bpm, double sampleRate);
@@ -35,4 +43,9 @@ private:
     const uint maxNumMessagesPerBlock = 256;
     void processMidiMessages(juce::MidiBuffer &midiMessages, PPQ startPPQ, double sampleRate, double bpm);
     void processNoteMessage(const juce::MidiMessage &midiMessage, PPQ messagePPQ);
+    
+    // Visual window bounds for conservative cleanup
+    PPQ visualWindowStartPPQ = PPQ(0.0);
+    PPQ visualWindowEndPPQ = PPQ(0.0);
+    mutable juce::CriticalSection visualWindowLock;
 };
