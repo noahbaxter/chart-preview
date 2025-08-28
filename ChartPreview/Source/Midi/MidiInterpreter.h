@@ -74,6 +74,7 @@ class MidiInterpreter
 		uint getGuitarGemColumn(uint pitch);
 		Gem getGuitarGemType(uint pitch, PPQ position);
 		void addGuitarEventToFrame(TrackFrame &frame, PPQ position, uint pitch);
+		bool shouldBeAutoHOPO(uint pitch, PPQ position);
 		
 		uint getDrumGemColumn(uint pitch);
 		Gem getDrumGemType(uint pitch, PPQ position, Dynamic dynamic);

@@ -259,6 +259,7 @@ Gem MidiInterpreter::getGuitarGemType(uint pitch, PPQ position)
                    (isNoteHeld((int)Guitar::HARD_HOPO, position) && skill == SkillLevel::HARD) ||
                    (isNoteHeld((int)Guitar::EXPERT_HOPO, position) && skill == SkillLevel::EXPERT);
 
+    // Check for explicit modifiers first
     if(modStrum)
     {
         return Gem::NOTE;
@@ -273,8 +274,156 @@ Gem MidiInterpreter::getGuitarGemType(uint pitch, PPQ position)
     }
     else
     {
+        // No explicit modifiers - check for Auto HOPO
+        // First check if this note is part of a chord (multiple notes at same timestamp)
+        bool isPartOfChord = false;
+        uint currentColumn = getGuitarGemColumn(pitch);
+        
+        // Get valid guitar pitches for current skill level
+        std::vector<uint> guitarPitches;
+        switch (skill)
+        {
+            case SkillLevel::EASY:
+                guitarPitches = {(uint)Guitar::EASY_GREEN, (uint)Guitar::EASY_RED, (uint)Guitar::EASY_YELLOW, (uint)Guitar::EASY_BLUE, (uint)Guitar::EASY_ORANGE};
+                break;
+            case SkillLevel::MEDIUM:
+                guitarPitches = {(uint)Guitar::MEDIUM_GREEN, (uint)Guitar::MEDIUM_RED, (uint)Guitar::MEDIUM_YELLOW, (uint)Guitar::MEDIUM_BLUE, (uint)Guitar::MEDIUM_ORANGE};
+                break;
+            case SkillLevel::HARD:
+                guitarPitches = {(uint)Guitar::HARD_GREEN, (uint)Guitar::HARD_RED, (uint)Guitar::HARD_YELLOW, (uint)Guitar::HARD_BLUE, (uint)Guitar::HARD_ORANGE};
+                break;
+            case SkillLevel::EXPERT:
+                guitarPitches = {(uint)Guitar::EXPERT_GREEN, (uint)Guitar::EXPERT_RED, (uint)Guitar::EXPERT_YELLOW, (uint)Guitar::EXPERT_BLUE, (uint)Guitar::EXPERT_ORANGE};
+                break;
+        }
+        
+        // Check if any other guitar note is held at the same timestamp
+        for (uint otherPitch : guitarPitches)
+        {
+            if (otherPitch != pitch && isNoteHeld(otherPitch, position))
+            {
+                isPartOfChord = true;
+                break;
+            }
+        }
+        
+        // Only single notes can be Auto HOPOs
+        if (!isPartOfChord && shouldBeAutoHOPO(pitch, position))
+        {
+            return Gem::HOPO_GHOST;
+        }
+        
         return Gem::NOTE;
     }
+}
+
+bool MidiInterpreter::shouldBeAutoHOPO(uint pitch, PPQ position)
+{
+    // Check if Auto HOPOs are enabled
+    HopoMode hopoMode = (HopoMode)((int)state.getProperty("autoHopo", 1)); // Default Off
+    if (hopoMode == HopoMode::OFF) return false;
+    
+    // Get threshold based on HOPO mode using resolution-based calculations
+    // Standard MIDI resolution is 480 ticks per quarter note (PPQ)
+    const double MIDI_RESOLUTION = 480.0;
+    PPQ threshold = PPQ(0.0);
+    
+    switch (hopoMode)
+    {
+        case HopoMode::GH12_SIXTEENTH:
+            // 1/16th note = 120 ticks at 480 resolution
+            threshold = PPQ(120.0 / MIDI_RESOLUTION); 
+            break;
+        case HopoMode::CLASSIC_170:
+            // 170 ticks at 480 resolution
+            threshold = PPQ(170.0 / MIDI_RESOLUTION);
+            break;
+        case HopoMode::MODERN_FORMULA:
+            // (resolution/3) + 1 ticks = ((480/3)+1)/480 beats
+            threshold = PPQ(((MIDI_RESOLUTION / 3.0) + 1.0) / MIDI_RESOLUTION);
+            break;
+        default:
+            return false;
+    }
+    
+    using Guitar = MidiPitchDefinitions::Guitar;
+    SkillLevel skill = (SkillLevel)((int)state.getProperty("skillLevel"));
+    
+    // Get valid guitar pitches for current skill level
+    std::vector<uint> guitarPitches;
+    switch (skill)
+    {
+        case SkillLevel::EASY:
+            guitarPitches = {(uint)Guitar::EASY_GREEN, (uint)Guitar::EASY_RED, (uint)Guitar::EASY_YELLOW, (uint)Guitar::EASY_BLUE, (uint)Guitar::EASY_ORANGE};
+            break;
+        case SkillLevel::MEDIUM:
+            guitarPitches = {(uint)Guitar::MEDIUM_GREEN, (uint)Guitar::MEDIUM_RED, (uint)Guitar::MEDIUM_YELLOW, (uint)Guitar::MEDIUM_BLUE, (uint)Guitar::MEDIUM_ORANGE};
+            break;
+        case SkillLevel::HARD:
+            guitarPitches = {(uint)Guitar::HARD_GREEN, (uint)Guitar::HARD_RED, (uint)Guitar::HARD_YELLOW, (uint)Guitar::HARD_BLUE, (uint)Guitar::HARD_ORANGE};
+            break;
+        case SkillLevel::EXPERT:
+            guitarPitches = {(uint)Guitar::EXPERT_GREEN, (uint)Guitar::EXPERT_RED, (uint)Guitar::EXPERT_YELLOW, (uint)Guitar::EXPERT_BLUE, (uint)Guitar::EXPERT_ORANGE};
+            break;
+    }
+    
+    // Check if this pitch is a valid guitar note
+    bool isGuitarNote = std::find(guitarPitches.begin(), guitarPitches.end(), pitch) != guitarPitches.end();
+    if (!isGuitarNote) return false;
+    
+    uint currentColumn = getGuitarGemColumn(pitch);
+    if (currentColumn >= LANE_COUNT) return false;
+    
+    // Look for the most recent note before this position
+    PPQ searchStart = position - threshold;
+    PPQ mostRecentNotePPQ = PPQ(-1000.0); // Very old timestamp
+    uint mostRecentNoteColumn = LANE_COUNT; // Invalid column
+    bool foundChord = false;
+    
+    const juce::ScopedLock lock(noteStateMapLock);
+    
+    // Search all guitar pitches for recent notes
+    for (uint searchPitch : guitarPitches)
+    {
+        const NoteStateMap& noteStateMap = noteStateMapArray[searchPitch];
+        
+        // Find notes in the time window before current position
+        auto it = noteStateMap.lower_bound(searchStart);
+        while (it != noteStateMap.end() && it->first < position)
+        {
+            if (it->second) // Note ON event
+            {
+                PPQ notePPQ = it->first;
+                uint noteColumn = getGuitarGemColumn(searchPitch);
+                
+                // Check if this is more recent than our current most recent
+                if (notePPQ > mostRecentNotePPQ)
+                {
+                    mostRecentNotePPQ = notePPQ;
+                    mostRecentNoteColumn = noteColumn;
+                    foundChord = false; // Reset chord flag for new timestamp
+                }
+                else if (notePPQ == mostRecentNotePPQ && noteColumn != mostRecentNoteColumn)
+                {
+                    // Multiple notes at same timestamp = chord
+                    foundChord = true;
+                }
+            }
+            ++it;
+        }
+    }
+    
+    // Auto HOPO rules:
+    // 1. Must be within threshold of previous note
+    // 2. Previous note must be single note (not chord)  
+    // 3. Current note must be single note (checked in calling code)
+    // 4. Must be different column than previous note
+    
+    if (mostRecentNotePPQ <= searchStart) return false; // No recent note found
+    if (foundChord) return false; // Previous note was part of a chord
+    if (mostRecentNoteColumn == currentColumn) return false; // Same color as previous
+    
+    return true;
 }
 
 uint MidiInterpreter::getDrumGemColumn(uint pitch)

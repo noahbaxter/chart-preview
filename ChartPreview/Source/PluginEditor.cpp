@@ -15,7 +15,7 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
       state(state),
       audioProcessor(p),
       midiInterpreter(state, audioProcessor.getNoteStateMapArray(), audioProcessor.getGridlineMap(), audioProcessor.getGridlineMapLock(), audioProcessor.getNoteStateMapLock()),
-      highwayRenderer(state, midiInterpreter)
+      highwayRenderer(state, midiInterpreter, audioProcessor)
 {
     setSize(defaultWidth, defaultHeight);
 
@@ -61,6 +61,10 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     latencyMenu.addItemList({"250ms", "500ms", "750ms", "1000ms", "1500ms"}, 1);
     latencyMenu.addListener(this);
     addAndMakeVisible(latencyMenu);
+    
+    autoHopoMenu.addItemList(hopoModeLabels, 1);
+    autoHopoMenu.addListener(this);
+    addAndMakeVisible(autoHopoMenu);
     
     // Sliders
     chartZoomSliderPPQ.setRange(1.0, 8.0, 0.1);
@@ -123,6 +127,7 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     drumTypeMenu.setVisible(isPart(state, Part::DRUMS));
     kick2xToggle.setVisible(isPart(state, Part::DRUMS));
     dynamicsToggle.setVisible(isPart(state, Part::DRUMS));
+    autoHopoMenu.setVisible(isPart(state, Part::GUITAR));
     consoleOutput.setVisible(debugToggle.getToggleState());
 
     // Update display size if in time-based mode to account for tempo changes
@@ -153,6 +158,7 @@ void ChartPreviewAudioProcessorEditor::resized()
     skillMenu.setBounds(10, 10, 100, 20);
     partMenu.setBounds(120, 10, 100, 20);
     drumTypeMenu.setBounds(230, 10, 100, 20);
+    autoHopoMenu.setBounds(230, 10, 100, 20);
 
     starPowerToggle.setBounds(getWidth() - 120, 10, 100, 20);
     kick2xToggle.setBounds(getWidth() - 120, 30, 100, 20);
@@ -215,6 +221,7 @@ void ChartPreviewAudioProcessorEditor::loadState()
     drumTypeMenu.setSelectedId((int)state.getProperty("drumType", 2), juce::dontSendNotification);          // Default Pro Drums
     framerateMenu.setSelectedId((int)state.getProperty("framerate", 3), juce::dontSendNotification);        // Default 60fps
     latencyMenu.setSelectedId((int)state.getProperty("latency", 2), juce::dontSendNotification);            // Default 500ms
+    autoHopoMenu.setSelectedId((int)state.getProperty("autoHopo", 1), juce::dontSendNotification);          // Default Off
     
     starPowerToggle.setToggleState((bool)state.getProperty("starPower", true), juce::dontSendNotification);
     kick2xToggle.setToggleState((bool)state.getProperty("kick2x", true), juce::dontSendNotification);

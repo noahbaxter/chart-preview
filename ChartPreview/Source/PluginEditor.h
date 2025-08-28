@@ -89,6 +89,11 @@ public:
             state.setProperty("latency", latencyValue, nullptr);
             applyLatencySetting(latencyValue);
         }
+        else if (comboBoxThatHasChanged == &autoHopoMenu)
+        {
+            auto autoHopoValue = autoHopoMenu.getSelectedId();
+            state.setProperty("autoHopo", autoHopoValue, nullptr);
+        }
     }
 
     void sliderValueChanged(juce::Slider *slider) override
@@ -149,7 +154,7 @@ private:
     juce::Image trackGuitarImage;
 
     juce::Label chartZoomLabel;
-    juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu;
+    juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu, autoHopoMenu;
     juce::ToggleButton starPowerToggle, kick2xToggle, dynamicsToggle, dynamicZoomToggle;
     juce::Slider chartZoomSliderPPQ, chartZoomSliderTime;
 

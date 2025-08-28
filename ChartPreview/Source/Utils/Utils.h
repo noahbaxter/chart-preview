@@ -32,12 +32,14 @@ enum class Part { GUITAR = 1, DRUMS, REAL_DRUMS };
 enum class DrumType { NORMAL = 1, PRO };
 enum class SkillLevel { EASY = 1, MEDIUM, HARD, EXPERT };
 enum class ViewToggle { STAR_POWER = 1, KICK_2X, DYNAMICS };
+enum class HopoMode { OFF = 1, GH12_SIXTEENTH, CLASSIC_170, MODERN_FORMULA };
 
 const juce::StringArray partLabels = {"Guitar", "Drums"};
 // const juce::StringArray guitarTypeLabels = {"Lead", "Rhythm", "Bass"};
 const juce::StringArray drumTypeLabels = {"Normal", "Pro"};
 const juce::StringArray skillLevelLabels = {"Easy", "Medium", "Hard", "Expert"};
 const juce::StringArray viewToggleLabels = {"Star Power", "Kick 2x", "Dynamics"};
+const juce::StringArray hopoModeLabels = {"Off", "GH1/2 (1/16th)", "170 Tick", "Modern Formula"};
 
 //==============================================================================
 // State helpers
