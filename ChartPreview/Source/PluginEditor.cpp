@@ -15,7 +15,7 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
       state(state),
       audioProcessor(p),
       midiInterpreter(state, audioProcessor.getNoteStateMapArray(), audioProcessor.getGridlineMap(), audioProcessor.getGridlineMapLock(), audioProcessor.getNoteStateMapLock()),
-      highwayRenderer(state, midiInterpreter, audioProcessor)
+      highwayRenderer(state, midiInterpreter)
 {
     setSize(defaultWidth, defaultHeight);
 
