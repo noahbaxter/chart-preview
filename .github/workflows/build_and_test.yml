@@ -1,0 +1,328 @@
+name: ChartPreview
+
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+# Cancel in-progress builds on the same branch
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUILD_TYPE: Release
+  DISPLAY: :0
+  HOMEBREW_NO_INSTALL_CLEANUP: 1
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build_and_test:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-22.04
+          - name: macOS
+            os: macos-14
+          - name: Windows
+            os: windows-latest
+
+    steps:
+      - name: Get latest CMake
+        uses: lukka/get-cmake@latest
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Linux-specific setup
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libasound2-dev \
+            libcurl4-openssl-dev \
+            libfreetype6-dev \
+            libgl1-mesa-dev \
+            libglu1-mesa-dev \
+            libjack-jackd2-dev \
+            libwebkit2gtk-4.0-dev \
+            libx11-dev \
+            libxext-dev \
+            libxinerama-dev \
+            libxrandr-dev \
+            libxss-dev \
+            libxtst-dev \
+            pkg-config \
+            ninja-build
+
+      - name: Setup Xvfb (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y xvfb
+          sudo /usr/bin/Xvfb $DISPLAY -screen 0 1280x1024x24 &
+
+      # macOS-specific setup
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install ninja
+
+      - name: Install Xcode
+        if: runner.os == 'macOS'
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      # Windows-specific setup  
+      - name: Setup MSBuild (Windows)
+        if: runner.os == 'Windows'
+        uses: microsoft/setup-msbuild@v2
+
+      # Install JUCE to match .jucer file expectations  
+      - name: Cache JUCE (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: /opt/JUCE
+          key: ${{ runner.os }}-juce-8.0.0
+          restore-keys: |
+            ${{ runner.os }}-juce-
+
+      - name: Cache JUCE (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/cache@v4
+        with:
+          path: /Applications/JUCE
+          key: ${{ runner.os }}-juce-8.0.0
+          restore-keys: |
+            ${{ runner.os }}-juce-
+
+      - name: Cache JUCE (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: C:\JUCE
+          key: ${{ runner.os }}-juce-8.0.0
+          restore-keys: |
+            ${{ runner.os }}-juce-
+
+      - name: Install JUCE (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          if [ ! -d /opt/JUCE ]; then
+            cd /tmp
+            wget -O juce.zip "https://github.com/juce-framework/JUCE/releases/download/8.0.0/juce-8.0.0-linux.zip"
+            unzip -q juce.zip
+            sudo mkdir -p /opt
+            sudo mv JUCE /opt/JUCE
+            rm juce.zip
+          fi
+          ls -la /opt/JUCE
+
+      - name: Install JUCE (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          if [ ! -d /Applications/JUCE ]; then
+            cd /tmp
+            curl -L -o juce.zip "https://github.com/juce-framework/JUCE/releases/download/8.0.0/juce-8.0.0-osx.zip"
+            unzip -q juce.zip
+            sudo mv JUCE /Applications/JUCE
+            rm juce.zip
+          fi
+          ls -la /Applications/JUCE
+
+      - name: Install JUCE (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          if not exist "C:\JUCE" (
+            curl -L -o %TEMP%\juce.zip "https://github.com/juce-framework/JUCE/releases/download/8.0.0/juce-8.0.0-windows.zip"
+            tar -xf %TEMP%\juce.zip -C %TEMP%
+            move "%TEMP%\JUCE" "C:\JUCE"
+            del %TEMP%\juce.zip
+          )
+          dir C:\JUCE
+
+      # Generate platform-specific projects with Projucer
+      - name: Generate project files (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd ChartPreview
+          /opt/JUCE/Projucer --resave ChartPreview.jucer
+
+      - name: Generate project files (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd ChartPreview
+          /Applications/JUCE/Projucer.app/Contents/MacOS/Projucer --resave ChartPreview.jucer
+
+      - name: Generate project files (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          cd ChartPreview
+          C:\JUCE\Projucer.exe --resave ChartPreview.jucer
+          
+      - name: Disable Windows VST3 post-build script
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          cd ChartPreview
+          $vcxproj = "Builds\VisualStudio2022\ChartPreview_VST3.vcxproj"
+          $content = Get-Content $vcxproj -Raw
+          # Disable problematic post-build event by commenting it out
+          $content = $content -replace '<PostBuildEvent>', '<!-- Disabled PostBuildEvent'
+          $content = $content -replace '</PostBuildEvent>', 'End Disabled PostBuildEvent -->'
+          Set-Content $vcxproj $content
+          Write-Host "✅ Disabled VST3 post-build script - will build DLL only"
+
+      # Build using platform-specific tools
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd ChartPreview/Builds/LinuxMakefile
+          make -j$(nproc) CONFIG=Release
+
+      - name: Build (macOS)
+        if: runner.os == 'macOS'  
+        run: |
+          cd ChartPreview
+          xcodebuild -project "Builds/MacOSX/ChartPreview.xcodeproj" \
+            -scheme "ChartPreview - VST3" \
+            -configuration Release \
+            -destination "generic/platform=macOS" \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
+            build
+          # Also build AU
+          xcodebuild -project "Builds/MacOSX/ChartPreview.xcodeproj" \
+            -scheme "ChartPreview - AU" \
+            -configuration Release \
+            -destination "generic/platform=macOS" \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
+            build
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          cd ChartPreview
+          msbuild "Builds\VisualStudio2022\ChartPreview_SharedCode.vcxproj" /p:Configuration=Release /p:Platform=x64 /m
+          msbuild "Builds\VisualStudio2022\ChartPreview_VST3.vcxproj" /p:Configuration=Release /p:Platform=x64 /m
+
+      # Package artifacts
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd ChartPreview
+          mkdir -p Artifact/VST3
+          cp -r Builds/LinuxMakefile/build/ChartPreview.vst3 Artifact/VST3/
+          
+          # Create install script
+          cat > Artifact/install.sh << 'EOF'
+          #!/bin/bash
+          echo "Installing ChartPreview VST3..."
+          mkdir -p ~/.vst3
+          cp -r VST3/ChartPreview.vst3 ~/.vst3/
+          echo "✅ ChartPreview installed to ~/.vst3/"
+          EOF
+          chmod +x Artifact/install.sh
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd ChartPreview
+          mkdir -p Artifact
+          
+          # Find and copy VST3
+          VST3_PATH=$(find Builds/MacOSX -name "ChartPreview.vst3" -type d | head -1)
+          if [ -d "$VST3_PATH" ]; then
+            cp -r "$VST3_PATH" Artifact/
+          fi
+          
+          # Find and copy AU
+          AU_PATH=$(find Builds/MacOSX -name "ChartPreview.component" -type d | head -1)  
+          if [ -d "$AU_PATH" ]; then
+            cp -r "$AU_PATH" Artifact/
+          fi
+          
+          # Create install script
+          cat > Artifact/install.command << 'EOF'
+          #!/bin/bash
+          cd "$(dirname "$0")"
+          echo "Installing ChartPreview..."
+          if [ -d "ChartPreview.vst3" ]; then
+            cp -r ChartPreview.vst3 ~/Library/Audio/Plug-Ins/VST3/
+            echo "✅ VST3 installed"
+          fi
+          if [ -d "ChartPreview.component" ]; then
+            cp -r ChartPreview.component ~/Library/Audio/Plug-Ins/Components/
+            echo "✅ AU installed"
+          fi
+          echo "Installation complete!"
+          read -p "Press Enter to close..."
+          EOF
+          chmod +x Artifact/install.command
+
+      - name: Package (Windows)  
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          cd ChartPreview
+          mkdir Artifact
+          mkdir "Artifact\ChartPreview.vst3\Contents\x86_64-win"
+          
+          REM Copy DLL and create VST3 bundle structure
+          if exist "Builds\VisualStudio2022\x64\Release\VST3\ChartPreview.dll" (
+            copy "Builds\VisualStudio2022\x64\Release\VST3\ChartPreview.dll" "Artifact\ChartPreview.vst3\Contents\x86_64-win\ChartPreview.vst3"
+            echo ✅ Created VST3 bundle from DLL
+          ) else (
+            echo ❌ DLL not found
+          )
+          
+          REM Create install script
+          > Artifact\install.bat echo @echo off
+          >> Artifact\install.bat echo echo Installing ChartPreview VST3...
+          >> Artifact\install.bat echo if not exist "%%COMMONPROGRAMFILES%%\VST3" mkdir "%%COMMONPROGRAMFILES%%\VST3"
+          >> Artifact\install.bat echo xcopy ChartPreview.vst3 "%%COMMONPROGRAMFILES%%\VST3\ChartPreview.vst3\" /E /I /Y
+          >> Artifact\install.bat echo echo ✅ ChartPreview installed to VST3 folder
+          >> Artifact\install.bat echo pause
+
+      # Upload platform-specific artifacts
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChartPreview-${{ matrix.name }}-${{ github.sha }}
+          path: ChartPreview/Artifact/*
+          retention-days: 30
+
+  # Create release when tagged
+  release:
+    if: contains(github.ref, 'tags/v')
+    runs-on: ubuntu-latest
+    needs: build_and_test
+
+    steps:
+      - name: Get Artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          files: |
+            ChartPreview-Linux-*/*
+            ChartPreview-macOS-*/*  
+            ChartPreview-Windows-*/*
