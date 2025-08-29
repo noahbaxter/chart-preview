@@ -37,6 +37,7 @@
 **/DerivedData/
 **/Debug/
 **/Release/
+**/releases/
 **/x64/
 
 # User-specific IDE files
