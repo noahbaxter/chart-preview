@@ -9,7 +9,7 @@ build_type="vst"
 config_type="Debug"
 
 # Navigate to the project directory
-cd Builds/MacOSX
+cd ../Builds/MacOSX
 
 # xcodebuild clean -project ChartPreview.xcodeproj
 

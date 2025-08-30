@@ -33,6 +33,7 @@
 
 
 # JUCE Build outputs - exclude build artifacts but keep project files
+**/Builds/
 **/build/
 **/DerivedData/
 **/Debug/

@@ -94,6 +94,8 @@ public:
             auto autoHopoValue = autoHopoMenu.getSelectedId();
             state.setProperty("autoHopo", autoHopoValue, nullptr);
         }
+
+        audioProcessor.refreshMidiDisplay();
     }
 
     void sliderValueChanged(juce::Slider *slider) override
@@ -135,6 +137,7 @@ public:
             updateSliderVisibility();
             updateDisplaySizeFromZoomSlider();
         }
+        audioProcessor.refreshMidiDisplay();
     }
 
 private:

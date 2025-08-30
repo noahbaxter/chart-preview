@@ -1,10 +1,13 @@
 #pragma once
 #include <JuceHeader.h>
 #include "../Utils/Utils.h"
+#include "MidiUtility.h"
 
 class MidiProcessor
 {
 public:
+    MidiProcessor(juce::ValueTree &state);
+    
     void process(juce::MidiBuffer &midiMessages,
                  const juce::AudioPlayHead::PositionInfo &positionInfo,
                  uint blockSizeInSamples,
@@ -30,8 +33,13 @@ public:
         visualWindowEndPPQ = endPPQ;
     }
 
+    // Recalculate gem types for all existing notes (called when settings change)
+    void refreshMidiDisplay();
+
 
 private:
+    juce::ValueTree &state;
+    
     PPQ calculatePPQSegment(uint samples, double bpm, double sampleRate);
     void cleanupOldEvents(PPQ startPPQ, PPQ endPPQ, PPQ latencyPPQ);
     
@@ -43,6 +51,13 @@ private:
     const uint maxNumMessagesPerBlock = 256;
     void processMidiMessages(juce::MidiBuffer &midiMessages, PPQ startPPQ, double sampleRate, double bpm);
     void processNoteMessage(const juce::MidiMessage &midiMessage, PPQ messagePPQ);
+    
+    // HOPO calculation moved from MidiInterpreter
+    bool isNoteHeld(uint pitch, PPQ position);
+    uint getGuitarGemColumn(uint pitch);
+    Gem getGuitarGemType(uint pitch, PPQ position);
+    uint getDrumGemColumn(uint pitch);
+    Gem getDrumGemType(uint pitch, PPQ position, Dynamic dynamic);
     
     // Visual window bounds for conservative cleanup
     PPQ visualWindowStartPPQ = PPQ(0.0);

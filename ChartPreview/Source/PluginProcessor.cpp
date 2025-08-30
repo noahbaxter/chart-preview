@@ -19,7 +19,8 @@ ChartPreviewAudioProcessor::ChartPreviewAudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ), 
+       midiProcessor(state)
 #endif
 {
 }

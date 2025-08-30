@@ -39,7 +39,7 @@ const juce::StringArray partLabels = {"Guitar", "Drums"};
 const juce::StringArray drumTypeLabels = {"Normal", "Pro"};
 const juce::StringArray skillLevelLabels = {"Easy", "Medium", "Hard", "Expert"};
 const juce::StringArray viewToggleLabels = {"Star Power", "Kick 2x", "Dynamics"};
-const juce::StringArray hopoModeLabels = {"Off", "GH1/2 (1/16th)", "170 Tick", "Modern Formula"};
+const juce::StringArray hopoModeLabels = {"Off", "16th", "Dot 16th", "170 Tick" "8th"};
 
 //==============================================================================
 // State helpers
@@ -114,7 +114,20 @@ struct SustainEvent
 //==============================================================================
 // TYPES
 
-using NoteStateMap = std::map<PPQ, uint8_t>;
+struct NoteData
+{
+    uint8_t velocity;
+    Gem gemType;
+    
+    NoteData() : velocity(0), gemType(Gem::NONE) {}
+    NoteData(uint8_t vel, Gem gem) : velocity(vel), gemType(gem) {}
+    
+    // For compatibility with existing velocity checks
+    operator uint8_t() const { return velocity; }
+    operator bool() const { return velocity > 0; }
+};
+
+using NoteStateMap = std::map<PPQ, NoteData>;
 using NoteStateMapArray = std::array<NoteStateMap, 128>;
 using TrackFrame = std::array<Gem, LANE_COUNT>; // All the simultaneous notes at a moment in time
 using TrackWindow = std::map<PPQ, TrackFrame>;  // All the frames in the track window

@@ -1,5 +1,9 @@
 #include "MidiProcessor.h"
 
+MidiProcessor::MidiProcessor(juce::ValueTree &state) : state(state)
+{
+}
+
 void MidiProcessor::process(juce::MidiBuffer &midiMessages,
                             const juce::AudioPlayHead::PositionInfo &positionInfo,
                             uint blockSizeInSamples,
@@ -178,7 +182,68 @@ void MidiProcessor::processNoteMessage(const juce::MidiMessage &midiMessage, PPQ
     // }
     uint noteNumber = midiMessage.getNoteNumber();
     uint velocity = midiMessage.isNoteOn() ? midiMessage.getVelocity() : 0;
+    
+    // Calculate the final Gem type at MIDI processing time
+    Gem gemType = Gem::NONE;
+    if (velocity > 0) {
+        if (isPart(state, Part::GUITAR)) {
+            gemType = getGuitarGemType(noteNumber, messagePPQ);
+        } else if (isPart(state, Part::DRUMS)) {
+            Dynamic dynamic = (Dynamic)velocity;
+            gemType = getDrumGemType(noteNumber, messagePPQ, dynamic);
+        }
+    }
 
     const juce::ScopedLock lock(noteStateMapLock);
-    noteStateMapArray[noteNumber][messagePPQ] = velocity;
+    noteStateMapArray[noteNumber][messagePPQ] = NoteData(velocity, gemType);
+}
+
+uint MidiProcessor::getGuitarGemColumn(uint pitch)
+{
+    return MidiUtility::getGuitarGemColumn(pitch, state);
+}
+
+Gem MidiProcessor::getGuitarGemType(uint pitch, PPQ position)
+{
+    return MidiUtility::getGuitarGemType(pitch, position, state, noteStateMapArray, noteStateMapLock);
+}
+
+
+uint MidiProcessor::getDrumGemColumn(uint pitch)
+{
+    return MidiUtility::getDrumGemColumn(pitch, state);
+}
+
+Gem MidiProcessor::getDrumGemType(uint pitch, PPQ position, Dynamic dynamic)
+{
+    return MidiUtility::getDrumGemType(pitch, position, dynamic, state, noteStateMapArray, noteStateMapLock);
+}
+
+void MidiProcessor::refreshMidiDisplay()
+{
+    const juce::ScopedLock lock(noteStateMapLock);
+    
+    // Iterate through all pitches and all notes
+    for (uint pitch = 0; pitch < 128; pitch++)
+    {
+        NoteStateMap& noteStateMap = noteStateMapArray[pitch];
+        
+        for (auto& noteEntry : noteStateMap)
+        {
+            PPQ position = noteEntry.first;
+            NoteData& noteData = noteEntry.second;
+            
+            // Only recalculate for note-on events
+            if (noteData.velocity > 0)
+            {
+                // Recalculate the gem type with current settings
+                if (isPart(state, Part::GUITAR)) {
+                    noteData.gemType = getGuitarGemType(pitch, position);
+                } else if (isPart(state, Part::DRUMS)) {
+                    Dynamic dynamic = (Dynamic)noteData.velocity;
+                    noteData.gemType = getDrumGemType(pitch, position, dynamic);
+                }
+            }
+        }
+    }
 }
