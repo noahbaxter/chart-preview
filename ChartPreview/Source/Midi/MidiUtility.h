@@ -20,8 +20,9 @@ public:
     static uint getGuitarGemColumn(uint pitch, juce::ValueTree &state);
     static uint getDrumGemColumn(uint pitch, juce::ValueTree &state);
     
-    // Note state query function
+    // Note state query functions
     static bool isNoteHeld(uint pitch, PPQ position, NoteStateMapArray &noteStateMapArray, juce::CriticalSection &noteStateMapLock);
+    static bool isNoteHeldWithTolerance(uint pitch, PPQ position, NoteStateMapArray &noteStateMapArray, juce::CriticalSection &noteStateMapLock);
     
     // Gem type calculation functions
     static Gem getGuitarGemType(uint pitch, PPQ position, juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, juce::CriticalSection &noteStateMapLock);
@@ -31,6 +32,7 @@ public:
     // Helper utility functions
     static std::vector<uint> getGuitarPitchesForSkill(SkillLevel skill);
     static bool isDrumKick(uint pitch);
+    static bool isWithinChordTolerance(PPQ position1, PPQ position2);
     
     // Gem appearance utility
     static Gem getDrumGlyph(bool cymbal, bool dynamicsEnabled, Dynamic dynamic)
