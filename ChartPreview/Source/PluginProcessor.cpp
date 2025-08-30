@@ -23,10 +23,29 @@ ChartPreviewAudioProcessor::ChartPreviewAudioProcessor()
        midiProcessor(state)
 #endif
 {
+    initializeDefaultState();
 }
 
 ChartPreviewAudioProcessor::~ChartPreviewAudioProcessor()
 {
+}
+
+void ChartPreviewAudioProcessor::initializeDefaultState()
+{
+    state = juce::ValueTree("state");
+    
+    state.setProperty("skillLevel", (int)SkillLevel::EXPERT, nullptr);
+    state.setProperty("part", (int)Part::DRUMS, nullptr);
+    state.setProperty("drumType", (int)DrumType::PRO, nullptr);
+    state.setProperty("framerate", 3, nullptr); // 60 FPS
+    state.setProperty("latency", 2, nullptr);   // 500 ms
+    state.setProperty("autoHopo", (int)HopoMode::OFF, nullptr);
+    state.setProperty("starPower", 1, nullptr);
+    state.setProperty("kick2x", 1, nullptr);
+    state.setProperty("dynamics", 1, nullptr);
+    state.setProperty("dynamicZoom", 0, nullptr);
+    state.setProperty("zoomPPQ", 2.5, nullptr);
+    state.setProperty("zoomTime", 1.0, nullptr);
 }
 
 void ChartPreviewAudioProcessor::setLatencyInSeconds(float latencyInSeconds)

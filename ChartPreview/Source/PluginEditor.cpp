@@ -214,32 +214,30 @@ void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromZoomSlider()
 
 void ChartPreviewAudioProcessorEditor::loadState()
 {
-    if (!state.isValid()) { state = juce::ValueTree("state"); }
-    
-    skillMenu.setSelectedId((int)state.getProperty("skillLevel", 4), juce::dontSendNotification);           // Default Expert
-    partMenu.setSelectedId((int)state.getProperty("part", 2), juce::dontSendNotification);                  // Default Drums
-    drumTypeMenu.setSelectedId((int)state.getProperty("drumType", 2), juce::dontSendNotification);          // Default Pro Drums
-    framerateMenu.setSelectedId((int)state.getProperty("framerate", 3), juce::dontSendNotification);        // Default 60fps
-    latencyMenu.setSelectedId((int)state.getProperty("latency", 2), juce::dontSendNotification);            // Default 500ms
-    autoHopoMenu.setSelectedId((int)state.getProperty("autoHopo", 1), juce::dontSendNotification);          // Default Off
-    
-    starPowerToggle.setToggleState((bool)state.getProperty("starPower", true), juce::dontSendNotification);
-    kick2xToggle.setToggleState((bool)state.getProperty("kick2x", true), juce::dontSendNotification);
-    dynamicsToggle.setToggleState((bool)state.getProperty("dynamics", true), juce::dontSendNotification);
-    dynamicZoomToggle.setToggleState((bool)state.getProperty("dynamicZoom", false), juce::dontSendNotification);
-    
-    chartZoomSliderPPQ.setValue((double)state.getProperty("zoomPPQ", 1.5), juce::dontSendNotification);     // Default 1.5 PPQ
-    chartZoomSliderTime.setValue((double)state.getProperty("zoomTime", 0.8), juce::dontSendNotification);   // Default 0.8 seconds
-    
-    // Apply functional state that requires side effects
-    applyLatencySetting((int)state.getProperty("latency", 2));
-    
-    // Framerate
-    auto framerateValue = (int)state.getProperty("framerate", 3);
-    int frameRate = (framerateValue == 1) ? 15 : (framerateValue == 2) ? 30 : 60;
-    startTimerHz(frameRate);
-    
-    // Slider visibility and display size
+    skillMenu.setSelectedId((int)state["skillLevel"], juce::dontSendNotification);
+    partMenu.setSelectedId((int)state["part"], juce::dontSendNotification);
+    drumTypeMenu.setSelectedId((int)state["drumType"], juce::dontSendNotification);
+    framerateMenu.setSelectedId((int)state["framerate"], juce::dontSendNotification);
+    latencyMenu.setSelectedId((int)state["latency"], juce::dontSendNotification);
+    autoHopoMenu.setSelectedId((int)state["autoHopo"], juce::dontSendNotification);
+
+    starPowerToggle.setToggleState((bool)state["starPower"], juce::dontSendNotification);
+    kick2xToggle.setToggleState((bool)state["kick2x"], juce::dontSendNotification);
+    dynamicsToggle.setToggleState((bool)state["dynamics"], juce::dontSendNotification);
+    dynamicZoomToggle.setToggleState((bool)state["dynamicZoom"], juce::dontSendNotification);
+
+    chartZoomSliderPPQ.setValue((double)state["zoomPPQ"], juce::dontSendNotification);
+    chartZoomSliderTime.setValue((double)state["zoomTime"], juce::dontSendNotification);
+
+    // Apply side-effects that your listeners would normally do
+    applyLatencySetting((int)state["latency"]);
+    int fr = ((int)state["framerate"] == 1) ? 15 : 
+             ((int)state["framerate"] == 2) ? 30 : 
+             ((int)state["framerate"] == 3) ? 60 : 
+             ((int)state["framerate"] == 4) ? 120 : 
+             ((int)state["framerate"] == 5) ? 144 : 60;
+    startTimerHz(fr);
+
     updateSliderVisibility();
     updateDisplaySizeFromZoomSlider();
 }
