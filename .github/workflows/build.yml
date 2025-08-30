@@ -147,8 +147,11 @@ jobs:
         
         mkdir "dist-windows"
         if exist "Builds\VisualStudio2022\x64\Release\VST3\ChartPreview.dll" (
-          copy "Builds\VisualStudio2022\x64\Release\VST3\ChartPreview.dll" "dist-windows\"
+          copy "Builds\VisualStudio2022\x64\Release\VST3\ChartPreview.dll" "dist-windows\ChartPreview.dll"
           echo "✅ Copied main DLL only (no .pdb debug symbols)"
+          echo "Renaming DLL to VST3 extension for Windows DAW compatibility..."
+          ren "dist-windows\ChartPreview.dll" "ChartPreview.vst3"
+          echo "✅ Renamed to .vst3 extension"
         )
         
         echo "Distribution contents:"
