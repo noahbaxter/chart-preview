@@ -37,6 +37,10 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    
+    // Resizable constraints
+    juce::ComponentBoundsConstrainer* getConstrainer();
+    void parentSizeChanged() override;
 
     //==============================================================================
     // UI Callbacks
@@ -149,7 +153,11 @@ private:
 
     //==============================================================================
     // UI Elements
-    int defaultWidth = 800, defaultHeight = 600;
+    static constexpr int defaultWidth = 800;
+    static constexpr int defaultHeight = 600;
+    static constexpr double aspectRatio = (double)defaultWidth / defaultHeight;
+    static constexpr int minWidth = 400;
+    static constexpr int minHeight = 300;
 
     // Background Assets
     juce::Image backgroundImage;
@@ -174,7 +182,9 @@ private:
     void applyLatencySetting(int latencyValue);
 
     float latencyInSeconds = 0.0;
-
+    
+    // Resize constraints
+    juce::ComponentBoundsConstrainer constrainer;
     
     // Dirty checking state
     mutable PPQ lastDisplayStartPPQ = 0.0;

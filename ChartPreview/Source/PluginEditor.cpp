@@ -17,6 +17,12 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
       midiInterpreter(state, audioProcessor.getNoteStateMapArray(), audioProcessor.getGridlineMap(), audioProcessor.getGridlineMapLock(), audioProcessor.getNoteStateMapLock()),
       highwayRenderer(state, midiInterpreter)
 {
+    // Set up resize constraints
+    constrainer.setMinimumSize(minWidth, minHeight);
+    constrainer.setFixedAspectRatio(aspectRatio);
+    setConstrainer(&constrainer);
+    setResizable(true, true);
+    
     setSize(defaultWidth, defaultHeight);
 
     latencyInSeconds = audioProcessor.latencyInSeconds;
@@ -155,26 +161,35 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 
 void ChartPreviewAudioProcessorEditor::resized()
 {
-    skillMenu.setBounds(10, 10, 100, 20);
-    partMenu.setBounds(120, 10, 100, 20);
-    drumTypeMenu.setBounds(230, 10, 100, 20);
-    autoHopoMenu.setBounds(230, 10, 100, 20);
-
-    starPowerToggle.setBounds(getWidth() - 120, 10, 100, 20);
-    kick2xToggle.setBounds(getWidth() - 120, 30, 100, 20);
-    dynamicsToggle.setBounds(getWidth() - 120, 50, 100, 20);
-
-    framerateMenu.setBounds(getWidth() - 120, getHeight() - 30, 100, 20);
-    latencyMenu.setBounds(getWidth() - 120, getHeight() - 50, 100, 20);
+    // Keep original control sizes but use responsive positioning
+    const int controlWidth = 100;
+    const int controlHeight = 20;
+    const int margin = 10;
     
-    chartZoomLabel.setBounds(getWidth() - 90, getHeight() - 270, 40, 20);
-    chartZoomSliderPPQ.setBounds(getWidth() - 120, getHeight() - 240, 100, 150);
-    chartZoomSliderTime.setBounds(getWidth() - 120, getHeight() - 240, 100, 150);
-    dynamicZoomToggle.setBounds(getWidth() - 120, getHeight() - 90, 80, 20);
+    // Top row - left side controls (fixed positions, will bunch up or spread out naturally)
+    skillMenu.setBounds(10, 10, controlWidth, controlHeight);
+    partMenu.setBounds(120, 10, controlWidth, controlHeight);
+    drumTypeMenu.setBounds(230, 10, controlWidth, controlHeight);
+    autoHopoMenu.setBounds(230, 10, controlWidth, controlHeight);
+    debugToggle.setBounds(340, 10, controlWidth, controlHeight);
 
-    debugToggle.setBounds(340, 10, 100, 20);
+    // Top row - right side controls (anchored to right edge)
+    starPowerToggle.setBounds(getWidth() - 120, 10, controlWidth, controlHeight);
+    kick2xToggle.setBounds(getWidth() - 120, 35, controlWidth, controlHeight);
+    dynamicsToggle.setBounds(getWidth() - 120, 60, controlWidth, controlHeight);
 
-    consoleOutput.setBounds(10, 40, getWidth() - 20, getHeight() - 50);
+    // Bottom right controls (anchored to bottom-right corner)
+    framerateMenu.setBounds(getWidth() - 120, getHeight() - 30, controlWidth, controlHeight);
+    latencyMenu.setBounds(getWidth() - 120, getHeight() - 55, controlWidth, controlHeight);
+    
+    // Zoom controls (anchored to bottom-right)
+    chartZoomLabel.setBounds(getWidth() - 90, getHeight() - 270, 40, controlHeight);
+    chartZoomSliderPPQ.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
+    chartZoomSliderTime.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
+    dynamicZoomToggle.setBounds(getWidth() - 120, getHeight() - 90, 80, controlHeight);
+
+    // Console output (responsive width and height)
+    consoleOutput.setBounds(margin, 40, getWidth() - (2 * margin), getHeight() - 50);
 }
 
 void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromZoomSlider()
@@ -261,4 +276,16 @@ void ChartPreviewAudioProcessorEditor::updateSliderVisibility()
     
     chartZoomSliderPPQ.setVisible(isDynamicZoom);
     chartZoomSliderTime.setVisible(!isDynamicZoom);
+}
+
+juce::ComponentBoundsConstrainer* ChartPreviewAudioProcessorEditor::getConstrainer()
+{
+    return &constrainer;
+}
+
+void ChartPreviewAudioProcessorEditor::parentSizeChanged()
+{
+    // This method is called when the parent component size changes
+    // We can use this to handle host-specific resize behavior if needed
+    AudioProcessorEditor::parentSizeChanged();
 }
