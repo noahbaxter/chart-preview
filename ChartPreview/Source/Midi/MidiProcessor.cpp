@@ -157,20 +157,51 @@ void MidiProcessor::cleanupOldEvents(PPQ startPPQ, PPQ endPPQ, PPQ latencyPPQ)
 
 void MidiProcessor::processMidiMessages(juce::MidiBuffer &midiMessages, PPQ startPPQ, double sampleRate, double bpm)
 {
+    using Drums = MidiPitchDefinitions::Drums;
+    
+    // Collect all note messages with their positions
+    struct NoteMessage {
+        juce::MidiMessage message;
+        PPQ position;
+        uint pitch;
+        bool isTomNote;
+    };
+    
+    std::vector<NoteMessage> noteMessages;
     uint numMessages = 0;
+    
     for (const auto message : midiMessages)
     {
-        // Calculate PPQ position for each message using host BPM
-        PPQ messagePositionPPQ = startPPQ + calculatePPQSegment(message.samplePosition, bpm, sampleRate);
-
         auto midiMessage = message.getMessage();
         if (midiMessage.isNoteOn() || midiMessage.isNoteOff())
         {
-            processNoteMessage(midiMessage, messagePositionPPQ);
+            PPQ messagePositionPPQ = startPPQ + calculatePPQSegment(message.samplePosition, bpm, sampleRate);
+            uint pitch = midiMessage.getNoteNumber();
+            
+            // For drums, identify tom notes for priority processing
+            bool isTomNote = false;
+            if (isPart(state, Part::DRUMS)) {
+                Drums note = (Drums)pitch;
+                isTomNote = (note == Drums::TOM_YELLOW || note == Drums::TOM_BLUE || note == Drums::TOM_GREEN);
+            }
+            
+            noteMessages.push_back({midiMessage, messagePositionPPQ, pitch, isTomNote});
         }
-
-        if (++numMessages >= maxNumMessagesPerBlock)
-            break;
+        
+        if (++numMessages >= maxNumMessagesPerBlock) break;
+    }
+    
+    // For drums, sort so tom notes are processed first
+    if (isPart(state, Part::DRUMS)) {
+        std::sort(noteMessages.begin(), noteMessages.end(), [](const NoteMessage& a, const NoteMessage& b) {
+            if (a.isTomNote != b.isTomNote) return a.isTomNote > b.isTomNote; // Tom notes first
+            return a.position < b.position; // Then by time
+        });
+    }
+    
+    // Process all messages in order
+    for (const auto& noteMsg : noteMessages) {
+        processNoteMessage(noteMsg.message, noteMsg.position);
     }
 }
 
