@@ -487,8 +487,8 @@ jobs:
         # Create macOS release archive  
         cd macos-artifacts && zip -r ../ChartPreview-macOS.zip . && cd ..
         
-        # Create Linux release archive
-        cd linux-artifacts && zip -r ../ChartPreview-VST3-Linux-x64.zip . && cd ..
+        # Create Linux release archive with .vst3 extension
+        cd linux-artifacts && zip -r ../ChartPreview-VST3-Linux-x64.vst3 . && cd ..
         
     - name: Upload release assets
       uses: softprops/action-gh-release@v1
@@ -499,6 +499,6 @@ jobs:
         files: |
           ChartPreview-VST3-Windows-x64.zip
           ChartPreview-macOS.zip
-          ChartPreview-VST3-Linux-x64.zip
+          ChartPreview-VST3-Linux-x64.vst3
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
