@@ -247,28 +247,27 @@ bool MidiUtility::shouldBeAutoHOPO(uint pitch, PPQ position, juce::ValueTree &st
     HopoMode hopoMode = (HopoMode)((int)state.getProperty("autoHopo", 1)); // Default Off
     if (hopoMode == HopoMode::OFF) return false;
     
-    // Get threshold based on HOPO mode using resolution-based calculations
-    // Standard MIDI resolution is 480 ticks per quarter note (PPQ)
-    const double MIDI_RESOLUTION = 480.0;
+    // Maximum distance from previous note to qualify as auto HOPO
     PPQ threshold = PPQ(0.0);
-    
     switch (hopoMode)
     {
-        case HopoMode::GH12_SIXTEENTH:
-            // 1/16th note = 120 ticks at 480 resolution
-            threshold = PPQ(120.0 / MIDI_RESOLUTION); 
+        case HopoMode::SIXTEENTH:
+            threshold = PPQ(0.25); // 120 ticks
+            break;
+        case HopoMode::DOT_SIXTEENTH:
+            threshold = PPQ(0.33333333); // 160 ticks
             break;
         case HopoMode::CLASSIC_170:
-            // 170 ticks at 480 resolution
-            threshold = PPQ(170.0 / MIDI_RESOLUTION);
+            threshold = PPQ(0.35416667); // 170 ticks
             break;
-        case HopoMode::MODERN_FORMULA:
-            // (resolution/3) + 1 ticks = ((480/3)+1)/480 beats
-            threshold = PPQ(((MIDI_RESOLUTION / 3.0) + 1.0) / MIDI_RESOLUTION);
+        case HopoMode::EIGHTH:
+            threshold = PPQ(0.5); // 240 ticks
             break;
         default:
             return false;
     }
+
+    threshold += PPQ(0.01); // Small buffer to account for rounding errors
     
     using Guitar = MidiPitchDefinitions::Guitar;
     SkillLevel skill = (SkillLevel)((int)state.getProperty("skillLevel"));
