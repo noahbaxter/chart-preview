@@ -1,59 +1,61 @@
-# Prerequisites
-*.d
+# =============================================================================
+# Chart Preview .gitignore
+# =============================================================================
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-
-# JUCE Build outputs - exclude build artifacts but keep project files
+# -----------------------------------------------------------------------------
+# JUCE/Plugin Build Artifacts
+# -----------------------------------------------------------------------------
 **/Builds/
 **/build/
 **/DerivedData/
+**/JuceLibraryCode/
+**/x64/
 **/Debug/
 **/Release/
-**/releases/
-**/x64/
+ChartPreview/build-scripts/releases/
 
-# User-specific IDE files
+# -----------------------------------------------------------------------------  
+# Compiled Binaries
+# -----------------------------------------------------------------------------
+*.exe
+*.dll
+*.dylib
+*.so
+*.app
+*.vst3
+*.component
+*.lib
+*.a
+
+# -----------------------------------------------------------------------------
+# Development Files  
+# -----------------------------------------------------------------------------
+*.o
+*.obj
+*.d
+*.pch
+*.gch
+*.opensdf
+*.sdf
+
+# -----------------------------------------------------------------------------
+# IDE/Editor Files
+# -----------------------------------------------------------------------------
+# Xcode
 **/*xcuserdata/
 **/*.xcuserstate
+
+# Visual Studio
 **/*.user
 **/*.suo
 
-# Auto-generated JUCE files  
-**/JuceLibraryCode/
+# VS Code
+.vscode/
 
-# Build system temp files
-**/*.opensdf
-**/*.sdf
-# macOS system files
+# -----------------------------------------------------------------------------
+# Operating System Files
+# -----------------------------------------------------------------------------
+# macOS
 .DS_Store
 .AppleDouble
 .LSOverride
@@ -61,7 +63,15 @@ Icon?
 Icon
 ._*
 
-# These directories were moved to examples/ and assets/
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# -----------------------------------------------------------------------------
+# Project-Specific (Legacy Paths - Now Moved)  
+# -----------------------------------------------------------------------------
+# These were moved during repo reorganization but keeping for compatibility
 ableton-test Project
 reaper-test
 DO NOT DISTRIBUTE
