@@ -53,8 +53,15 @@
 # Build system temp files
 **/*.opensdf
 **/*.sdf
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+Icon
+._*
+
+# These directories were moved to examples/ and assets/
 ableton-test Project
 reaper-test
-.DS_Store
-
 DO NOT DISTRIBUTE
