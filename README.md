@@ -9,55 +9,77 @@ Big massive thank you Invontor for the lovely custom art assets.
 
 #### **DISCLAIMER**
 
-Chart Preview is in active development and currently only released in beta. At the moment drums are *(mostly)* feature complete, but guitar is not so don't expect things like sustained notes for the moment. Please feel free to leave bug reports and feature requests as part of testing this tool.
+Chart Preview is in active development (v0.7+ beta). Drums are fully usable with some quirks, guitar has more bugs but core features work. Sustained notes and lanes are now implemented! See [roadmap](docs/TODO.md) for current status and known issues.
 
 [Consider supporting the project!](https://www.paypal.com/donate/?business=3P35P46JLEDJA&no_recurring=0&item_name=Support+the+ongoing+development+of+Chart+Preview.&currency_code=USD)
 
 ### Install
 
-##### MacOS
-Place `ChartPreview.vst3` in `/Library/Audio/Plug-Ins/VST3` and `ChartPreview.component` in `/Library/Audio/Plug-Ins/Components`.
+See [releases](https://github.com/noahbaxter/chart-preview/releases) to download the latest builds for your platform.
 
-##### Windows
-Place `ChartPreview.vst3` into `C:\Program Files (x86)\Steinberg\VstPlugins`.
+##### macOS
+**VST3:** Place `ChartPreview.vst3` in `/Library/Audio/Plug-Ins/VST3`  
+**AU:** Place `ChartPreview.component` in `/Library/Audio/Plug-Ins/Components`
+
+##### Windows  
+Place `ChartPreview.vst3` in your DAW's VST3 directory:
+- **Most DAWs:** `C:\Program Files\Common Files\VST3`
+- **Steinberg/Cubase:** `C:\Program Files (x86)\Steinberg\VstPlugins` 
+- **REAPER:** Check Options > Preferences > Plug-ins > VST for custom paths
 
 ##### Linux
-Place `ChartPreview.vst3` into `~/.vst3/` or `/usr/local/lib/vst3/`, or copy the `.so` file directly to your DAW's VST3 directory.
+Place the `ChartPreview.vst3` bundle in:
+- **User:** `~/.vst3/` 
+- **System:** `/usr/local/lib/vst3/` or `/usr/lib/vst3/`
+- **Custom:** Check your DAW's VST3 scan paths
+
+**Note:** I recommended you close and reopen your DAW after installation to ensure a proper plugin rescan.
+
+### Quick Start
+
+1. **Load Plugin:** Add Chart Preview to a MIDI track in your DAW
+2. **Select Instrument:** Choose Guitar or Drums from the plugin interface
+3. **Pick Difficulty:** Set skill level (Easy, Medium, Hard, Expert)
+4. **Configure Settings:** Adjust latency, frame rate, and zoom as needed
+5. **Play & Chart:** Hit play and enjoy!
 
 ### Why is this better than RBN Preview?
-Aside from being able to run on macs and outside of 32bit compatability layers, here's some unique features you may appreciate.
+Chart Preview is an open source replacement vst for RBN Preview, built from the ground up for use on modern platforms and with some unique features you may appreciate.
 * Guitar
-  * Open Notes
-  * Tap Notes
-* Drums
-  * Ghosts and Accents
-  * 2x Kick
+  * **Open Notes**
+  * **Tap Notes**
+  * **Lanes/Tremolo**
+* Drums  
+  * **Ghosts and Accents**
+  * **2x Kick Support**
+  * **Lanes**
 * General
-  * Visibility toggle for star power, dynamics, 2x kicks, and cymbals
-  * Chart zoom from 400ms to 1.2s
-  * 60 FPS
+  * **Cross-platform** - Proper 64bit Windows, macOS, and Linux support
+  * **Advanced Visibility Toggles** - Star power, dynamics, 2x kicks, cymbal detection
+  * **Flexible Note Speed**
+  * **60FPS Efficient Rendering**
 
-### Note Regarding Performance
-You can make things easier on your cpu by reducing the framerate below 60FPS and/or reducing your chart zoom so that fewer notes are rendered at once. That said this plugin shouldn't be too taxing and I'm able to run 4 instances at once without any issue on a 2021 m1 pro macbook for reference.
+## Documentation
 
+- **[📋 Development Roadmap](docs/TODO.md)** - Current tasks, known issues, and future plans
+- **[🔧 Build Instructions](docs/BUILDING.md)** - How to compile from source
 
-### Currently In-Development Features
-#### Guitar
-* Sustain Notes
-* Heuristic HOPOs (when notes are naturally close together)
-* Open HOPOs
-* Trill/Tremelo sections
-#### Drums
-* Lanes (cymbal swells and rolls)
-#### Misc
-* Extended memory (currently forgets everything except what was just played making it useless when playback is stopped)
-* Measure and grid lines
-* Draw call optimizations
-* Latency tweaks
-  * Compensate for other plugins with latency in a project
-  * User toggle to reduce/increase based on chart zoom (do people want this?)
+### Recent Features (v0.7)
+- ✅ **Sustain Notes** - Guitar sustain rendering with accurate timing
+- ✅ **Drum/Cymbal Lanes** - Tremolo rolls and cymbal swells
+- ✅ **Guitar Tremolo** - Trill sections using same lane system  
+- ✅ **HOPO Modes** - Configurable auto-HOPO timing (16th, dot 16th, 170 tick, 8th, off)
+- ✅ **Resizable Interface** - Window scaling with locked aspect ratio
+- ✅ **Linux Support** - Full cross-platform CI/CD pipeline
+- ✅ **Chord Detection** - 10-tick tolerance for accurate chord grouping
+- ✅ **Performance** - PPQ-based timing system with latency compensation
 
-### Future Development
-* Real Drums support
+### Known Issues
+- Force strum/HOPO markers only apply to first note (should cover all notes underneath)
+- Sync inconsistency between plugin restarts
+
+See the [complete roadmap](docs/TODO.md) for detailed status and priority ranking.
+
+## License
 
 This codebase is distributed under an MIT license, but note that all art assets are exempt and distributed only for build purposes.
