@@ -454,11 +454,11 @@ jobs:
         path: ChartPreview/Builds/LinuxMakefile/build/ChartPreview.vst3
         retention-days: 30
 
-  # Create release if this is a tag
+  # Create release automatically on tags or manual trigger
   release:
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.create_release)
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.create_release)
     
     steps:
     - name: Download Windows artifacts
@@ -476,7 +476,7 @@ jobs:
     - name: Download Linux artifacts
       uses: actions/download-artifact@v4
       with:
-        name: ChartPreview-Linux-x64
+        name: ChartPreview-VST3-Linux-x64
         path: ./linux-artifacts/
         
     - name: Create release archives
@@ -490,12 +490,31 @@ jobs:
         # Create Linux release archive with .vst3 extension
         cd linux-artifacts && zip -r ../ChartPreview-VST3-Linux-x64.vst3 . && cd ..
         
+    - name: Generate release notes
+      run: |
+        echo "## Chart Preview Release" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### Installation" >> release_notes.md
+        echo "- **Windows**: Extract ChartPreview-VST3-Windows-x64.zip and place ChartPreview.vst3 in your VST3 directory" >> release_notes.md
+        echo "- **macOS**: Extract ChartPreview-macOS.zip and install both VST3 and AU formats" >> release_notes.md  
+        echo "- **Linux**: Extract ChartPreview-VST3-Linux-x64.vst3 to ~/.vst3/ or your DAW's VST3 directory" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### What's New" >> release_notes.md
+        echo "See [development roadmap](https://github.com/noahbaxter/chart-preview/blob/main/docs/TODO.md) for detailed changes and known issues." >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### Files" >> release_notes.md
+        echo "- \`ChartPreview-VST3-Windows-x64.zip\` - Windows VST3 plugin" >> release_notes.md
+        echo "- \`ChartPreview-macOS.zip\` - macOS VST3 + AU plugins (Universal Binary)" >> release_notes.md
+        echo "- \`ChartPreview-VST3-Linux-x64.vst3\` - Linux VST3 plugin bundle" >> release_notes.md
+        
     - name: Upload release assets
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
-        name: ${{ github.event_name == 'workflow_dispatch' && format('Release {0}', inputs.release_tag) || github.ref_name }}
+        name: ${{ github.event_name == 'workflow_dispatch' && format('Chart Preview {0}', inputs.release_tag) || format('Chart Preview {0}', github.ref_name) }}
+        body_path: release_notes.md
         draft: ${{ github.event_name == 'workflow_dispatch' }}
+        prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'rc') }}
         files: |
           ChartPreview-VST3-Windows-x64.zip
           ChartPreview-macOS.zip
