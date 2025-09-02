@@ -1,7 +1,7 @@
 # Chart Preview TODO & Roadmap
 # Consolidated master list - architectural + beta tester feedback
 
-Current Version: **v0.7+ (beta testing phase)**  
+Current Version: **v0.8.5 (beta testing phase)**  
 Primary Beta Tester: **Invontor** (main contributor/QA)
 
 ## 🚨 CRITICAL BUGS (P0) - Beta Blockers
@@ -40,8 +40,9 @@ Primary Beta Tester: **Invontor** (main contributor/QA)
 ## 🔥 HIGH PRIORITY (P1) - Core Features & UX
 
 ### Feature Completion
-- ✅ ~~Guitar sustains (render + hit windows)~~ - **COMPLETED in v0.7**
-- ✅ ~~Drums lanes + BRE~~ - **COMPLETED in v0.7** (lanes implemented, BRE pending)
+- ✅ ~~Guitar sustains (render + hit windows)~~ - **COMPLETED in v0.8.5**
+- ✅ ~~Drums lanes~~ - **COMPLETED in v0.8.5** (lanes implemented)
+- ❌ **BRE**
 - ❌ **Extended memory** so notes remain visible when transport stops
 - ✅ ~~Latency compensation and user calibration control~~ - **COMPLETED**
 - ✅ ~~Finalize grid visual polish~~ - **COMPLETED**
@@ -54,8 +55,7 @@ Primary Beta Tester: **Invontor** (main contributor/QA)
 - ❌ **Fix window resizing not preserved** across project loads/Reaper restarts
 
 ### Missing Core Features
-- ❌ **Re-enable lanes rendering** (currently disabled due to visual issues)
-      - Need to fix rounded corner rendering problems from recent work
+- ✅ ~~Re-enable lanes rendering~~ - **COMPLETED in v0.8.5** (fixed rounded corner rendering with offscreen compositing)
 - ❌ **Add hit animation/effects** (light flash) with toggle option
       - Users report jarring lack of hit feedback compared to RBN preview - HIGH DEMAND
 - ❌ **Add time offset setting/slider** for manual audio sync compensation
@@ -95,7 +95,7 @@ Primary Beta Tester: **Invontor** (main contributor/QA)
 
 ### HOPO & Advanced Features  
 - ❌ **Heuristic HOPOs, open HOPOs** *(partially implemented - auto-HOPO system exists)*
-- ❌ **Trill/tremolo sections** *(lanes system completed, needs re-enabling)*
+- ✅ ~~Trill/tremolo sections~~ - **COMPLETED in v0.8.5** (lanes system with rounded rendering)
 - ❌ **Face off/Battle mode sections support**
 
 ### Advanced Workflow
@@ -111,12 +111,15 @@ Primary Beta Tester: **Invontor** (main contributor/QA)
 - ❌ **Preview different instruments simultaneously**  
 - ❌ **Custom MIDI channel editor** with audio track background
 
-## ✅ RECENT COMPLETIONS (v0.7)
+## ✅ RECENT COMPLETIONS (v0.8.5)
 - ✅ Convert all note timing/state to PPQ and render from PPQ
 - ✅ Gridlines: PPQ-based beats/measures with subdivisions
 - ✅ Latency compensation and user calibration control with multi-buffer smoothing
 - ✅ Grid visual polish (beat/half-beat/measure markers, visibility working)  
 - ✅ CI/release automation across platforms (GitHub Actions with Windows/macOS/Linux builds)
+- ✅ **Lanes System Overhaul** - Complete rewrite with perspective-aware coordinates, rounded cap rendering, and offscreen compositing
+- ✅ **Sustain Visual Polish** - Added rounded corners, proportional perspective scaling, and pixel-perfect rendering
+- ✅ **Coordinate System Refactor** - Dedicated lane coordinate functions independent of gem positioning for consistent spacing
 - ✅ Sustain note implementation
 - ✅ Resizable VST with fixed aspect ratio  
 - ✅ Chord detection tolerance (10-tick grouping)

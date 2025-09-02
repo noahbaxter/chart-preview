@@ -112,13 +112,13 @@ All timing uses **PPQ (Pulses Per Quarter)** for tempo-independent calculations:
 - Ghost notes and accents (dynamics)
 - 2x kick support
 - Cymbal vs tom differentiation
-- Lanes (in development)
+- Lanes (completed - tremolo/cymbal swells)
 
-**Guitar (Partially Implemented)**
+**Guitar (Feature Complete)**
 - Open notes and tap notes supported
-- HOPOs (hammer-ons/pull-offs) 
-- Sustain notes (partially implemented)
-- Lanes (in development)
+- HOPOs (hammer-ons/pull-offs) with configurable timing
+- Sustain notes with rounded cap rendering
+- Lanes (completed - trill/tremolo sections)
 
 ## Important Implementation Details
 
@@ -152,7 +152,9 @@ Includes Windows-specific typedef in `Utils.h`:
 - 60 FPS rendering by default (configurable: 15/30/60 FPS)
 - Latency compensation with multi-buffer smoothing
 - Chart zoom affects visible note count (400ms to 1.5s)
-- Draw call batching and culling optimizations in progress
+- Draw call batching with column-based ordering
+- Offscreen compositing for complex sustain/lane rendering
+- Perspective-aware coordinate caching
 
 ## State Management
 
@@ -165,21 +167,22 @@ Plugin state stored in `juce::ValueTree` with properties:
 
 ## Development Status
 
-Current version: **v0.7+ (beta testing phase)**
+Current version: **v0.8.5 (beta testing phase)**
 
 See `docs/TODO.md` for comprehensive priority-ranked backlog based on beta tester feedback.
 
-### Recent Completions (v0.7)
+### Recent Completions (v0.8.5)
 - ✅ PPQ-based timing system conversion
 - ✅ Latency compensation with multi-buffer smoothing
 - ✅ Grid visual polish (beat/half-beat/measure markers)
 - ✅ Cross-platform CI/CD pipeline with artifact verification
 - ✅ Linux build support with full dependency management
 - ✅ Windows artifact optimization (debug symbol removal)
-- ✅ Sustain note implementation
+- ✅ Sustain note implementation with rounded cap rendering
 - ✅ Resizable VST with fixed aspect ratio
 - ✅ Chord detection tolerance (10-tick grouping)
-- ✅ Drum/cymbal lanes (tremolo/trills) implementation
+- ✅ **Lanes System Overhaul** - Complete rewrite with perspective-aware coordinates and offscreen compositing
+- ✅ **Coordinate System Refactor** - Dedicated lane coordinate functions for consistent spacing
 - ✅ HOPO mode configuration system
 
 ### Beta Testing Insights

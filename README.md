@@ -9,7 +9,7 @@ Big massive thank you Invontor for the lovely custom art assets.
 
 #### **DISCLAIMER**
 
-Chart Preview is in active development (v0.7+ beta). Drums are fully usable with some quirks, guitar has more bugs but core features work. Sustained notes and lanes are now implemented! See [roadmap](docs/TODO.md) for current status and known issues.
+Chart Preview is in active development (v0.8.5 beta). Both drums and guitar are now feature-complete with full sustain and lane support! Some timing/sync bugs remain. See [roadmap](docs/TODO.md) for current status and known issues.
 
 [Consider supporting the project!](https://www.paypal.com/donate/?business=3P35P46JLEDJA&no_recurring=0&item_name=Support+the+ongoing+development+of+Chart+Preview.&currency_code=USD)
 
@@ -64,7 +64,7 @@ Chart Preview is an open source replacement vst for RBN Preview, built from the 
 - **[📋 Development Roadmap](docs/TODO.md)** - Current tasks, known issues, and future plans
 - **[🔧 Build Instructions](docs/BUILDING.md)** - How to compile from source
 
-### Recent Features (v0.7)
+### Recent Features (v0.8.5)
 - ✅ **Sustain Notes** - Guitar sustain rendering with accurate timing
 - ✅ **Drum/Cymbal Lanes** - Tremolo rolls and cymbal swells
 - ✅ **Guitar Tremolo** - Trill sections using same lane system  
