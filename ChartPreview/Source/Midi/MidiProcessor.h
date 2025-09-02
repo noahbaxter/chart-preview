@@ -51,6 +51,8 @@ private:
     const uint maxNumMessagesPerBlock = 256;
     void processMidiMessages(juce::MidiBuffer &midiMessages, PPQ startPPQ, double sampleRate, double bpm);
     void processNoteMessage(const juce::MidiMessage &midiMessage, PPQ messagePPQ);
+    bool isChordFormed(uint pitch, PPQ position);
+    void fixChordHOPOs(uint pitch, PPQ position);
     
     // HOPO calculation moved from MidiInterpreter
     bool isNoteHeld(uint pitch, PPQ position);

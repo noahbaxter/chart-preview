@@ -197,6 +197,13 @@ void MidiProcessor::processMidiMessages(juce::MidiBuffer &midiMessages, PPQ star
     // Process all messages in order
     for (const auto& noteMsg : noteMessages) {
         processNoteMessage(noteMsg.message, noteMsg.position);
+        
+        // If this guitar note forms a chord, fix any HOPOs at the same timestamp
+        if (noteMsg.message.isNoteOn() && isPart(state, Part::GUITAR)) {
+            if (isChordFormed(noteMsg.pitch, noteMsg.position)) {
+                fixChordHOPOs(noteMsg.pitch, noteMsg.position);
+            }
+        }
     }
 }
 
@@ -223,6 +230,55 @@ void MidiProcessor::processNoteMessage(const juce::MidiMessage &midiMessage, PPQ
 
     const juce::ScopedLock lock(noteStateMapLock);
     noteStateMapArray[noteNumber][messagePPQ] = NoteData(velocity, gemType);
+}
+
+bool MidiProcessor::isChordFormed(uint pitch, PPQ position)
+{
+    std::vector<uint> guitarPitches = MidiUtility::getGuitarPitchesForSkill((SkillLevel)((int)state.getProperty("skillLevel")));
+    
+    int chordNoteCount = 0;
+    const juce::ScopedLock lock(noteStateMapLock);
+    for (uint guitarPitch : guitarPitches) {
+        if (MidiUtility::isNoteHeldWithTolerance(guitarPitch, position, noteStateMapArray, noteStateMapLock)) {
+            chordNoteCount++;
+            if (chordNoteCount >= 2) return true; // 2+ notes = chord
+        }
+    }
+    
+    return false;
+}
+
+void MidiProcessor::fixChordHOPOs(uint pitch, PPQ position)
+{
+    // Get all guitar pitches and find the chord notes
+    std::vector<uint> guitarPitches = MidiUtility::getGuitarPitchesForSkill((SkillLevel)((int)state.getProperty("skillLevel")));
+    std::vector<uint> chordPitches;
+    
+    const juce::ScopedLock lock(noteStateMapLock);
+    for (uint guitarPitch : guitarPitches) {
+        if (MidiUtility::isNoteHeldWithTolerance(guitarPitch, position, noteStateMapArray, noteStateMapLock)) {
+            chordPitches.push_back(guitarPitch);
+        }
+    }
+    
+    // Fix any HOPOs in the chord
+    for (uint chordPitch : chordPitches) {
+        auto& noteStateMap = noteStateMapArray[chordPitch];
+
+        // Find notes within chord tolerance of this position
+        PPQ searchStart = position - CHORD_TOLERANCE;
+        PPQ searchEnd = position + CHORD_TOLERANCE;
+        
+        auto lower = noteStateMap.lower_bound(searchStart);
+        auto upper = noteStateMap.upper_bound(searchEnd);
+        
+        for (auto it = lower; it != upper; ++it) {
+            if (it->second.velocity > 0 && it->second.gemType == Gem::HOPO_GHOST) {
+                // Change HOPO to regular note since it's part of a chord
+                it->second.gemType = Gem::NOTE;
+            }
+        }
+    }
 }
 
 uint MidiProcessor::getGuitarGemColumn(uint pitch)
