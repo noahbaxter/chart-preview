@@ -42,13 +42,16 @@ void HighwayRenderer::paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trac
     drawSustainFromWindow(g, sustainWindow, trackWindowStartPPQ, displaySizeInPPQ);
     drawGridlinesFromMap(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ);
 
-    // Draw layer by layer
+    // Draw layer by layer, then column by column within each layer
     for (const auto& drawOrder : drawCallMap)
     {
-        // Draw each layer from back to front
-        for (auto it = drawOrder.second.rbegin(); it != drawOrder.second.rend(); ++it)
+        for (const auto& column : drawOrder.second)
         {
-            (*it)(g);
+            // Draw each layer from back to front
+            for (auto it = column.second.rbegin(); it != column.second.rend(); ++it)
+            {
+                (*it)(g);
+            }
         }
     }
 }
@@ -79,7 +82,7 @@ void HighwayRenderer::drawGridlinesFromMap(juce::Graphics &g, PPQ trackWindowSta
 
             if (markerImage != nullptr)
             {
-                drawCallMap[DrawOrder::GRID].push_back([=](juce::Graphics &g) { drawGridline(g, normalizedPosition, markerImage, gridlineType); });
+                drawCallMap[DrawOrder::GRID][0].push_back([=](juce::Graphics &g) { drawGridline(g, normalizedPosition, markerImage, gridlineType); });
             }
         }
     }
@@ -154,13 +157,13 @@ void HighwayRenderer::drawGem(uint gemColumn, Gem gem, float position, PPQ frame
     float opacity = calculateOpacity(position);
     if (barNote)
     {
-        drawCallMap[DrawOrder::BAR].push_back([=](juce::Graphics &g) {
+        drawCallMap[DrawOrder::BAR][gemColumn].push_back([=](juce::Graphics &g) {
             draw(g, glyphImage, glyphRect, opacity);
         });
     }
     else
     {
-        drawCallMap[DrawOrder::NOTE].push_back([=](juce::Graphics &g) {
+        drawCallMap[DrawOrder::NOTE][gemColumn].push_back([=](juce::Graphics &g) {
             draw(g, glyphImage, glyphRect, opacity);
         });
     }
@@ -170,7 +173,7 @@ void HighwayRenderer::drawGem(uint gemColumn, Gem gem, float position, PPQ frame
     {
         juce::Rectangle<float> overlayRect = getOverlayGlyphRect(gem, glyphRect);
 
-        drawCallMap[DrawOrder::OVERLAY].push_back([=](juce::Graphics &g) {
+        drawCallMap[DrawOrder::OVERLAY][gemColumn].push_back([=](juce::Graphics &g) {
             draw(g, overlayImage, overlayRect, opacity);
         });
     }
@@ -435,23 +438,28 @@ void HighwayRenderer::drawSustain(const SustainEvent& sustain, PPQ trackWindowSt
     // juce::Image* sustainImage = assetManager.getSustainImage(sustain.gemColumn, starPowerActive, spNoteHeld);
     // if (sustainImage == nullptr) return;
     
-    // Calculate opacity (average of start and end positions for sustains)
+    // Calculate opacity (average of start and end positions)
     float avgPosition = (startPosition + endPosition) / 2.0f;
-    float opacity = SUSTAIN_OPACITY * calculateOpacity(avgPosition);
-
-    // Determine draw order - open notes (column 0) render below others
-    DrawOrder sustainDrawOrder = (sustain.gemColumn == 0) ? DrawOrder::BAR : DrawOrder::SUSTAIN;
+    float baseOpacity = calculateOpacity(avgPosition);
     
-    float sustainWidth;
-    if (sustain.gemColumn == 0) {
-        sustainWidth = SUSTAIN_OPEN_WIDTH; // TODO: Use LANE_OPEN_WIDTH when lanes are implemented
-    } else { // if regular note
-        sustainWidth = SUSTAIN_WIDTH; // TODO: Use LANE_WIDTH when lanes are implemented
+    // Lanes and sustains render differently
+    float opacity, sustainWidth;
+    DrawOrder sustainDrawOrder;
+    switch (sustain.sustainType) {
+        case SustainType::LANE:
+            opacity = LANE_OPACITY * baseOpacity;
+            sustainWidth = (sustain.gemColumn == 0) ? LANE_OPEN_WIDTH : LANE_WIDTH;
+            sustainDrawOrder = DrawOrder::LANE;
+            break;
+        case SustainType::SUSTAIN:
+        default:
+            opacity = SUSTAIN_OPACITY * baseOpacity;
+            sustainWidth = (sustain.gemColumn == 0) ? SUSTAIN_OPEN_WIDTH : SUSTAIN_WIDTH;
+            sustainDrawOrder = (sustain.gemColumn == 0) ? DrawOrder::BAR : DrawOrder::SUSTAIN;
+            break;
     }
     
-    // Add to draw call map
-    drawCallMap[sustainDrawOrder].push_back([=](juce::Graphics &g) {
-        // Draw sustain as simple flat rectangle with configurable width
+    drawCallMap[sustainDrawOrder][sustain.gemColumn].push_back([=](juce::Graphics &g) {
         drawPerspectiveSustainFlat(g, sustain.gemColumn, startPosition, endPosition, opacity, sustainWidth, colour);
     });
 }
