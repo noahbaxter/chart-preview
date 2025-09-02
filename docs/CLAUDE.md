@@ -161,7 +161,7 @@ Plugin state stored in `juce::ValueTree` with properties:
 
 Current version: **v0.7+ (beta testing phase)**
 
-See `TODO.txt` for comprehensive priority-ranked backlog based on beta tester feedback.
+See `docs/TODO.md` for comprehensive priority-ranked backlog based on beta tester feedback.
 
 ### Recent Completions (v0.7)
 - ✅ PPQ-based timing system conversion

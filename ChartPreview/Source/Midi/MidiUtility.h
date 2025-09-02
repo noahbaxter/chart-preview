@@ -33,6 +33,7 @@ public:
     static std::vector<uint> getGuitarPitchesForSkill(SkillLevel skill);
     static bool isDrumKick(uint pitch);
     static bool isWithinChordTolerance(PPQ position1, PPQ position2);
+    static bool isSustainedModifierPitch(uint pitch);
     
     // Gem appearance utility
     static Gem getDrumGlyph(bool cymbal, bool dynamicsEnabled, Dynamic dynamic)

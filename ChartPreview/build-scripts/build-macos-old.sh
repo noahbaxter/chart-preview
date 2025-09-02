@@ -36,8 +36,8 @@ elif [ "$build_type" == "vst" ]; then
         echo "SUCCESS"
         cp -R build/$config_type/ChartPreview.vst3 ~/Library/Audio/Plug-Ins/VST3/
 
-        # open -a "Ableton Live 12 Suite" "/Users/noahbaxter/Code/personal/chart-preview/ableton-test Project/ableton-test.als"
-        open -a "REAPER" "/Users/noahbaxter/Code/personal/chart-preview/reaper-test/reaper-test.RPP"
+        # open -a "Ableton Live 12 Suite" "/Users/noahbaxter/Code/personal/chart-preview/examples/ableton/ableton-test.als"
+        open -a "REAPER" "/Users/noahbaxter/Code/personal/chart-preview/examples/reaper/reaper-test.RPP"
     fi
 elif [ "$build_type" == "au" ]; then
     xcodebuild -quiet -project ChartPreview.xcodeproj -configuration $config_type

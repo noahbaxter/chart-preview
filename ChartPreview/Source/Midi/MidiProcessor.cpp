@@ -124,11 +124,10 @@ void MidiProcessor::cleanupOldEvents(PPQ startPPQ, PPQ endPPQ, PPQ latencyPPQ)
         for (auto &noteStateMap : noteStateMapArray)
         {
             auto lower = noteStateMap.upper_bound(conservativeStartPPQ);
-            if (lower != noteStateMap.begin())
-            {
-                --lower;
-                noteStateMap.erase(noteStateMap.begin(), lower);
-            }
+            // Keep 2 events before window to prevent sustain modifier note ons from being deleted
+            if (lower != noteStateMap.begin()) --lower;
+            if (lower != noteStateMap.begin()) --lower;
+            noteStateMap.erase(noteStateMap.begin(), lower);
 
             auto upper = noteStateMap.upper_bound(conservativeEndPPQ);
             noteStateMap.erase(upper, noteStateMap.end());
@@ -164,7 +163,7 @@ void MidiProcessor::processMidiMessages(juce::MidiBuffer &midiMessages, PPQ star
         juce::MidiMessage message;
         PPQ position;
         uint pitch;
-        bool isTomNote;
+        bool isSustainedModifier;
     };
     
     std::vector<NoteMessage> noteMessages;
@@ -178,26 +177,22 @@ void MidiProcessor::processMidiMessages(juce::MidiBuffer &midiMessages, PPQ star
             PPQ messagePositionPPQ = startPPQ + calculatePPQSegment(message.samplePosition, bpm, sampleRate);
             uint pitch = midiMessage.getNoteNumber();
             
-            // For drums, identify tom notes for priority processing
-            bool isTomNote = false;
-            if (isPart(state, Part::DRUMS)) {
-                Drums note = (Drums)pitch;
-                isTomNote = (note == Drums::TOM_YELLOW || note == Drums::TOM_BLUE || note == Drums::TOM_GREEN);
-            }
+            // Identify sustained modifier notes for priority processing
+            bool isSustainedModifier = MidiUtility::isSustainedModifierPitch(pitch);
             
-            noteMessages.push_back({midiMessage, messagePositionPPQ, pitch, isTomNote});
+            noteMessages.push_back({midiMessage, messagePositionPPQ, pitch, isSustainedModifier});
         }
         
         if (++numMessages >= maxNumMessagesPerBlock) break;
     }
     
-    // For drums, sort so tom notes are processed first
-    if (isPart(state, Part::DRUMS)) {
-        std::sort(noteMessages.begin(), noteMessages.end(), [](const NoteMessage& a, const NoteMessage& b) {
-            if (a.isTomNote != b.isTomNote) return a.isTomNote > b.isTomNote; // Tom notes first
-            return a.position < b.position; // Then by time
-        });
-    }
+    // Sort so sustained modifier notes are processed first (for all instruments)
+    // This ensures modifiers like tom markers, HOPO/strum markers, star power, etc. 
+    // are active before the actual notes that depend on them
+    std::sort(noteMessages.begin(), noteMessages.end(), [](const NoteMessage& a, const NoteMessage& b) {
+        if (a.isSustainedModifier != b.isSustainedModifier) return a.isSustainedModifier > b.isSustainedModifier; // Modifiers first
+        return a.position < b.position; // Then by time
+    });
     
     // Process all messages in order
     for (const auto& noteMsg : noteMessages) {
@@ -207,12 +202,13 @@ void MidiProcessor::processMidiMessages(juce::MidiBuffer &midiMessages, PPQ star
 
 void MidiProcessor::processNoteMessage(const juce::MidiMessage &midiMessage, PPQ messagePPQ)
 {
-    // if (midiMessage.isNoteOff() && messagePPQ > 0.0)
-    // {
-    //     messagePPQ -= 1;
-    // }
     uint noteNumber = midiMessage.getNoteNumber();
     uint velocity = midiMessage.isNoteOn() ? midiMessage.getVelocity() : 0;
+    
+    // Ensure notes that stop and start at the same PPQ are processed in correct order
+    if (midiMessage.isNoteOff()) {
+        messagePPQ -= PPQ(1); // Smallest possible PPQ unit
+    }
     
     // Calculate the final Gem type at MIDI processing time
     Gem gemType = Gem::NONE;

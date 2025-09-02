@@ -102,8 +102,6 @@ SustainWindow MidiInterpreter::generateSustainWindow(PPQ trackWindowStart, PPQ t
     // Lock the noteStateMapArray during iteration to prevent crashes
     const juce::ScopedLock lock(noteStateMapLock);
     
-    PPQ MIN_SUSTAIN_LENGTH = TICK_120_SIXTEENTH;
-    
     for (uint pitch = 0; pitch < 128; pitch++)
     {
         const NoteStateMap& noteStateMap = noteStateMapArray[pitch];

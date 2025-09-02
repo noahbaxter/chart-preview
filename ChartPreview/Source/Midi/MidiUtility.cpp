@@ -180,20 +180,48 @@ bool MidiUtility::isWithinChordTolerance(PPQ position1, PPQ position2)
     return diff <= CHORD_TOLERANCE;
 }
 
+bool MidiUtility::isSustainedModifierPitch(uint pitch)
+{
+    using Guitar = MidiPitchDefinitions::Guitar;
+    using Drums = MidiPitchDefinitions::Drums;
+    
+    // Guitar modifiers (all sustained)
+    if (pitch == (uint)Guitar::SP ||
+        pitch == (uint)Guitar::TAP ||
+        pitch == (uint)Guitar::EXPERT_STRUM || pitch == (uint)Guitar::EXPERT_HOPO ||
+        pitch == (uint)Guitar::HARD_STRUM || pitch == (uint)Guitar::HARD_HOPO ||
+        pitch == (uint)Guitar::MEDIUM_STRUM || pitch == (uint)Guitar::MEDIUM_HOPO ||
+        pitch == (uint)Guitar::EASY_STRUM || pitch == (uint)Guitar::EASY_HOPO ||
+        pitch == (uint)Guitar::LANE_1 || pitch == (uint)Guitar::LANE_2)
+    {
+        return true;
+    }
+    
+    // Drum modifiers (all sustained)
+    if (pitch == (uint)Drums::SP ||
+        pitch == (uint)Drums::TOM_GREEN || pitch == (uint)Drums::TOM_BLUE || pitch == (uint)Drums::TOM_YELLOW ||
+        pitch == (uint)Drums::LANE_1 || pitch == (uint)Drums::LANE_2)
+    {
+        return true;
+    }
+    
+    return false;
+}
+
 Gem MidiUtility::getGuitarGemType(uint pitch, PPQ position, juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, juce::CriticalSection &noteStateMapLock)
 {
     using Guitar = MidiPitchDefinitions::Guitar;
     SkillLevel skill = (SkillLevel)((int)state.getProperty("skillLevel"));
     
-    bool modStrum = (isNoteHeldWithTolerance((int)Guitar::EASY_STRUM, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::EASY) ||
-                    (isNoteHeldWithTolerance((int)Guitar::MEDIUM_STRUM, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::MEDIUM) ||
-                    (isNoteHeldWithTolerance((int)Guitar::HARD_STRUM, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::HARD) ||
-                    (isNoteHeldWithTolerance((int)Guitar::EXPERT_STRUM, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::EXPERT);
-    bool modTap = isNoteHeldWithTolerance((int)Guitar::TAP, position, noteStateMapArray, noteStateMapLock);
-    bool modHOPO = (isNoteHeldWithTolerance((int)Guitar::EASY_HOPO, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::EASY) ||
-                   (isNoteHeldWithTolerance((int)Guitar::MEDIUM_HOPO, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::MEDIUM) ||
-                   (isNoteHeldWithTolerance((int)Guitar::HARD_HOPO, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::HARD) ||
-                   (isNoteHeldWithTolerance((int)Guitar::EXPERT_HOPO, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::EXPERT);
+    bool modStrum = (isNoteHeld((int)Guitar::EASY_STRUM, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::EASY) ||
+                    (isNoteHeld((int)Guitar::MEDIUM_STRUM, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::MEDIUM) ||
+                    (isNoteHeld((int)Guitar::HARD_STRUM, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::HARD) ||
+                    (isNoteHeld((int)Guitar::EXPERT_STRUM, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::EXPERT);
+    bool modTap = isNoteHeld((int)Guitar::TAP, position, noteStateMapArray, noteStateMapLock);
+    bool modHOPO = (isNoteHeld((int)Guitar::EASY_HOPO, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::EASY) ||
+                   (isNoteHeld((int)Guitar::MEDIUM_HOPO, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::MEDIUM) ||
+                   (isNoteHeld((int)Guitar::HARD_HOPO, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::HARD) ||
+                   (isNoteHeld((int)Guitar::EXPERT_HOPO, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::EXPERT);
 
     // Check for explicit modifiers first
     if(modStrum)
@@ -251,15 +279,15 @@ Gem MidiUtility::getDrumGemType(uint pitch, PPQ position, Dynamic dynamic, juce:
     if (isProDrums) {
         if ((note == Drums::EASY_YELLOW || note == Drums::MEDIUM_YELLOW || 
              note == Drums::HARD_YELLOW || note == Drums::EXPERT_YELLOW)) {
-            cymbal = !isNoteHeldWithTolerance((uint)Drums::TOM_YELLOW, position, noteStateMapArray, noteStateMapLock);
+            cymbal = !isNoteHeld((uint)Drums::TOM_YELLOW, position, noteStateMapArray, noteStateMapLock);
         }
         else if ((note == Drums::EASY_BLUE || note == Drums::MEDIUM_BLUE || 
                   note == Drums::HARD_BLUE || note == Drums::EXPERT_BLUE)) {
-            cymbal = !isNoteHeldWithTolerance((uint)Drums::TOM_BLUE, position, noteStateMapArray, noteStateMapLock);
+            cymbal = !isNoteHeld((uint)Drums::TOM_BLUE, position, noteStateMapArray, noteStateMapLock);
         }
         else if ((note == Drums::EASY_GREEN || note == Drums::MEDIUM_GREEN || 
                   note == Drums::HARD_GREEN || note == Drums::EXPERT_GREEN)) {
-            cymbal = !isNoteHeldWithTolerance((int)Drums::TOM_GREEN, position, noteStateMapArray, noteStateMapLock);
+            cymbal = !isNoteHeld((int)Drums::TOM_GREEN, position, noteStateMapArray, noteStateMapLock);
         }
     }
     

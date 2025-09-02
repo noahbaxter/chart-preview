@@ -15,7 +15,7 @@
 constexpr float MIDI_RESOLUTION = 480.0f; // Standard MIDI resolution
 const PPQ TICK_10                   = PPQ(10.0 / MIDI_RESOLUTION);
 const PPQ TICK_120_SIXTEENTH        = PPQ(120.0 / MIDI_RESOLUTION); // 1/16th note
-const PPQ TICK_160_SIXTEENTH_DOT    = PPQ(170.0 / MIDI_RESOLUTION); // 1/16th note + dot
+const PPQ TICK_160_SIXTEENTH_DOT    = PPQ(160.0 / MIDI_RESOLUTION); // 1/16th note + dot
 const PPQ TICK_170                  = PPQ(170.0 / MIDI_RESOLUTION);
 const PPQ TICK_240_EIGTH            = PPQ(240.0 / MIDI_RESOLUTION); // 1/8th note
 
@@ -23,7 +23,7 @@ constexpr uint LANE_COUNT = 7;  // Number of note lanes (0-6)
 constexpr float OPACITY_FADE_START = 0.9f;  // Position where opacity starts fading
 
 const PPQ CHORD_TOLERANCE = TICK_10;
-const PPQ SUSTAIN_CUTOFF_THRESHOLD = PPQ(1.0 / 12.0); // 1/12th note minimum sustain length
+const PPQ MIN_SUSTAIN_LENGTH = PPQ(4.0 / 12.0); // 1/12th note minimum sustain length
 
 constexpr float SUSTAIN_WIDTH = 0.15f;
 constexpr float SUSTAIN_OPACITY = 0.7f;
