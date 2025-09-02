@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## IMPORTANT: Git Commit Guidelines
+
+**NEVER add co-authoring or "Generated with Claude Code" to commit messages unless explicitly requested by the user.**
+
+When creating commits, use ONLY the user's requested message format without any additional attribution or co-authoring lines.
+
 ## Project Overview
 
 Chart Preview is a VST/AU plugin for DAWs that visualizes MIDI notes as rhythm game charts (similar to Clone Hero/YARG). It's built with JUCE framework and designed for Windows, macOS, and Linux platforms.
