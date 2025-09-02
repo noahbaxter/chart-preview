@@ -35,7 +35,8 @@ constexpr float BEAT_OPACITY = 0.4f;
 constexpr float HALF_BEAT_OPACITY = 0.3f;
 
 constexpr float GEM_SIZE = 0.9f; 
-constexpr float BAR_SIZE = 0.9f;
+constexpr float BAR_SIZE = 0.95f;
+constexpr float GRIDLINE_SIZE = 0.9f;
 
 // TODO: hook up
 constexpr float LANE_WIDTH = 0.8f;

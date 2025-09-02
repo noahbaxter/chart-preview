@@ -75,6 +75,8 @@ class HighwayRenderer
 
         juce::Rectangle<float> getGuitarGlyphRect(uint gemColumn, float position);
         juce::Rectangle<float> getDrumGlyphRect(uint gemColumn, float position);
+        juce::Rectangle<float> getGuitarGridlineRect(float position);
+        juce::Rectangle<float> getDrumGridlineRect(float position);
         juce::Rectangle<float> getOverlayGlyphRect(Gem gem, juce::Rectangle<float> glyphRect);
         juce::Rectangle<float> createPerspectiveGlyphRect(
             float position,
