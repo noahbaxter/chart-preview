@@ -56,7 +56,7 @@ class HighwayRenderer
 
         DrawCallMap drawCallMap;
         void drawGridlinesFromMap(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ);
-        void drawGridline(juce::Graphics &g, float position, juce::Image *markerImage);
+        void drawGridline(juce::Graphics &g, float position, juce::Image *markerImage, Gridline gridlineType);
 
         void drawNotesFromMap(juce::Graphics &g, const TrackWindow& trackWindow, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ);
         void drawFrame(const std::array<Gem, LANE_COUNT> &gems, float position, PPQ framePosition);

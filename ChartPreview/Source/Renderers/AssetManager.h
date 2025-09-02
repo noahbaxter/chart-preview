@@ -45,6 +45,8 @@ public:
     juce::Image* getCymYellowImage() { return &cymYellowImage; }
 
     // HOPO notes
+    juce::Image* getHopoBarOpenImage() { return &barWhiteImage; }   // TODO: create unique asset
+    juce::Image* getHopoBarWhiteImage() { return &barWhiteImage; }  // TODO: create unique asset
     juce::Image* getHopoBlueImage() { return &hopoBlueImage; }
     juce::Image* getHopoGreenImage() { return &hopoGreenImage; }
     juce::Image* getHopoOrangeImage() { return &hopoOrangeImage; }

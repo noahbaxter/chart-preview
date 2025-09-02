@@ -79,15 +79,22 @@ void HighwayRenderer::drawGridlinesFromMap(juce::Graphics &g, PPQ trackWindowSta
 
             if (markerImage != nullptr)
             {
-                drawCallMap[DrawOrder::GRID].push_back([=](juce::Graphics &g) { drawGridline(g, normalizedPosition, markerImage); });
+                drawCallMap[DrawOrder::GRID].push_back([=](juce::Graphics &g) { drawGridline(g, normalizedPosition, markerImage, gridlineType); });
             }
         }
     }
 }
 
-void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Image* markerImage)
+void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Image* markerImage, Gridline gridlineType)
 {
     if (!markerImage) return;
+    
+    float opacity = 1.0f;
+    switch (gridlineType) {
+        case Gridline::MEASURE: opacity = MEASURE_OPACITY; break;
+        case Gridline::BEAT: opacity = BEAT_OPACITY; break;
+        case Gridline::HALF_BEAT: opacity = HALF_BEAT_OPACITY; break;
+    }
     
     // Use the same positioning and dimensions as kick bars
     // For guitar, this would be column 0 (open note position)
@@ -96,13 +103,13 @@ void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Imag
     {
         // Use guitar open note positioning (column 0)
         juce::Rectangle<float> rect = getGuitarGlyphRect(0, position);
-        draw(g, markerImage, rect, 1.0f);
+        draw(g, markerImage, rect, opacity);
     }
     else // if (isPart(state, Part::DRUMS))
     {
         // Use drum kick positioning (column 0)
         juce::Rectangle<float> rect = getDrumGlyphRect(0, position);
-        draw(g, markerImage, rect, 1.0f);
+        draw(g, markerImage, rect, opacity);
     }
 }
 
@@ -398,10 +405,17 @@ void HighwayRenderer::drawSustain(const SustainEvent& sustain, PPQ trackWindowSt
     // Determine draw order - open notes (column 0) render below others
     DrawOrder sustainDrawOrder = (sustain.gemColumn == 0) ? DrawOrder::BAR : DrawOrder::SUSTAIN;
     
+    float sustainWidth;
+    if (sustain.gemColumn == 0) {
+        sustainWidth = SUSTAIN_OPEN_WIDTH; // TODO: Use LANE_OPEN_WIDTH when lanes are implemented
+    } else { // if regular note
+        sustainWidth = SUSTAIN_WIDTH; // TODO: Use LANE_WIDTH when lanes are implemented
+    }
+    
     // Add to draw call map
     drawCallMap[sustainDrawOrder].push_back([=](juce::Graphics &g) {
         // Draw sustain as simple flat rectangle with configurable width
-        drawPerspectiveSustainFlat(g, sustain.gemColumn, startPosition, endPosition, opacity, SUSTAIN_WIDTH, colour);
+        drawPerspectiveSustainFlat(g, sustain.gemColumn, startPosition, endPosition, opacity, sustainWidth, colour);
     });
 }
 
