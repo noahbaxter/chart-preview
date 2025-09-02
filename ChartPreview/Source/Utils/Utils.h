@@ -39,7 +39,7 @@ constexpr float BAR_SIZE = 0.95f;
 constexpr float GRIDLINE_SIZE = 0.9f;
 
 // TODO: hook up
-constexpr float LANE_WIDTH = 1.2f;
+constexpr float LANE_WIDTH = 1.0f;
 constexpr float LANE_OPEN_WIDTH = 0.9f;
 constexpr float LANE_OPACITY = 0.4f;
 

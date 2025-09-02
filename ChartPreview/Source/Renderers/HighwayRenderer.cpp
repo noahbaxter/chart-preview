@@ -200,20 +200,22 @@ juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float
     }
     else
     {
-        normWidth1 = 0.12;
-        normWidth2 = 0.06;
+        normWidth1 = 0.125;
+        normWidth2 = 0.065;
         normY1 = 0.71;
         normY2 = 0.22;
         scaler = GEM_SIZE;
         if (gemColumn == 1)
         {
-            normX1 = 0.21;
-            normX2 = 0.360;
+            normX1 = 0.227;
+            normX2 = 0.363;
+            normWidth1 = 0.105;
+            normWidth2 = 0.055;
         }
         else if (gemColumn == 2)
         {
             normX1 = 0.322;
-            normX2 = 0.410;
+            normX2 = 0.412;
         }
         else if (gemColumn == 3)
         {
@@ -222,8 +224,8 @@ juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float
         }
         else if (gemColumn == 4)
         {
-            normX1 = 0.558;
-            normX2 = 0.522;
+            normX1 = 0.555;
+            normX2 = 0.524;
         }
         else if (gemColumn == 5)
         {
@@ -231,12 +233,12 @@ juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float
             normX2 = 0.580;
         }
     }
-    
+
     float scaledNormWidth1 = normWidth1 * scaler;
     float scaledNormWidth2 = normWidth2 * scaler;
     float adjustedNormX1 = normX1 + (normWidth1 - scaledNormWidth1) / 2.0f;
     float adjustedNormX2 = normX2 + (normWidth2 - scaledNormWidth2) / 2.0f;
-    
+
     return createPerspectiveGlyphRect(position, normY1, normY2, adjustedNormX1, adjustedNormX2, scaledNormWidth1, scaledNormWidth2, isOpen);
 
 }
@@ -259,38 +261,38 @@ juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float p
     }
     else
     {
-        normWidth1 = 0.15;
-        normWidth2 = 0.075;
+        normWidth1 = 0.147;
+        normWidth2 = 0.0714;
         normY1 = 0.70;
         normY2 = 0.22;
         scaler = GEM_SIZE;
         if (gemColumn == 1)
         {
-            normX1 = 0.21;
-            normX2 = 0.360;
+            normX1 = 0.222;
+            normX2 = 0.37;
         }
         else if (gemColumn == 2)
         {
-            normX1 = 0.352;
-            normX2 = 0.424;
+            normX1 = 0.360;
+            normX2 = 0.430;
         }
         else if (gemColumn == 3)
         {
             normX1 = 0.497;
-            normX2 = 0.494;
+            normX2 = 0.495;
         }
         else if (gemColumn == 4)
         {
-            normX1 = 0.640;
-            normX2 = 0.560;
+            normX1 = 0.630;
+            normX2 = 0.564;
         }
     }
-    
+
     float scaledNormWidth1 = normWidth1 * scaler;
     float scaledNormWidth2 = normWidth2 * scaler;
     float adjustedNormX1 = normX1 + (normWidth1 - scaledNormWidth1) / 2.0f;
     float adjustedNormX2 = normX2 + (normWidth2 - scaledNormWidth2) / 2.0f;
-    
+
     return createPerspectiveGlyphRect(position, normY1, normY2, adjustedNormX1, adjustedNormX2, scaledNormWidth1, scaledNormWidth2, isKick);
 }
 
@@ -500,42 +502,30 @@ juce::Rectangle<float> HighwayRenderer::getSustainRect(uint gemColumn, float sta
 
 void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour)
 {
-    // Get the rectangles using the helper function
-    auto [startRect, endRect] = getSustainPositionRects(gemColumn, startPosition, endPosition);
-    if (startRect.isEmpty() || endRect.isEmpty()) return;
+    // Get lane coordinates instead of glyph rectangles
+    auto startLane = getLaneCoordinates(gemColumn, startPosition);
+    auto endLane = getLaneCoordinates(gemColumn, endPosition);
     
-    float startCenterX = startRect.getCentreX();
-    float startCenterY = startRect.getCentreY();
-    float endCenterY = endRect.getCentreY();
+    // Calculate lane widths based on sustain width parameter
+    float startWidth = (startLane.rightX - startLane.leftX) * sustainWidth;
+    float endWidth = (endLane.rightX - endLane.leftX) * sustainWidth;
+    float radius = std::min(startWidth, endWidth) * 0.25f;
     
-    // Calculate sustain width using the configurable width parameter
-    float startSustainWidth = startRect.getWidth() * sustainWidth;
-    float endSustainWidth = endRect.getWidth() * sustainWidth;
+    // Create paths for trapezoid and rounded caps
+    auto trapezoid = createTrapezoidPath(startLane, endLane, startWidth, endWidth);
+    auto startCap = createRoundedCapPath(startLane, startWidth, radius);
     
-    // Create a trapezoidal path that follows the perspective
-    juce::Path sustainPath;
+    // Scale end cap height proportionally to width for natural perspective
+    float endCapHeightScale = endWidth / startWidth;
+    auto endCap = createRoundedCapPath(endLane, endWidth, radius, endCapHeightScale);
     
-    // Define the four corners of the trapezoid
-    // Bottom edge (farther from player, startPosition)
-    float bottomLeft = startCenterX - startSustainWidth / 2.0f;
-    float bottomRight = startCenterX + startSustainWidth / 2.0f;
+    // Render to offscreen image for perfect compositing
+    auto sustainImage = createOffscreenSustainImage(trapezoid, startCap, endCap, colour);
     
-    // Top edge (closer to player, endPosition)
-    float endCenterX = endRect.getCentreX();
-    float topLeft = endCenterX - endSustainWidth / 2.0f;
-    float topRight = endCenterX + endSustainWidth / 2.0f;
-    
-    // Build the trapezoid path
-    sustainPath.startNewSubPath(bottomLeft, startCenterY);  // Bottom left
-    sustainPath.lineTo(bottomRight, startCenterY);         // Bottom right
-    sustainPath.lineTo(topRight, endCenterY);              // Top right  
-    sustainPath.lineTo(topLeft, endCenterY);               // Top left
-    sustainPath.closeSubPath();
-    
-    // Set opacity and fill the path with solid colors
+    // Draw final result
     g.setOpacity(opacity);
-    g.setColour(colour.withAlpha(opacity));
-    g.fillPath(sustainPath);
+    auto bounds = trapezoid.getBounds().getUnion(startCap.getBounds()).getUnion(endCap.getBounds());
+    g.drawImageAt(sustainImage, (int)bounds.getX() - 1, (int)bounds.getY() - 1);
 }
 
 std::pair<juce::Rectangle<float>, juce::Rectangle<float>> HighwayRenderer::getSustainPositionRects(uint gemColumn, float startPosition, float endPosition)
@@ -552,4 +542,182 @@ std::pair<juce::Rectangle<float>, juce::Rectangle<float>> HighwayRenderer::getSu
     }
     
     return std::make_pair(startRect, endRect);
+}
+
+HighwayRenderer::LaneCorners HighwayRenderer::getLaneCoordinates(uint gemColumn, float position)
+{
+    if (isPart(state, Part::DRUMS)) {
+        return getDrumLaneCoordinates(gemColumn, position);
+    } else {
+        return getGuitarLaneCoordinates(gemColumn, position);
+    }
+}
+
+HighwayRenderer::LaneCorners HighwayRenderer::getDrumLaneCoordinates(uint gemColumn, float position)
+{
+    float normY1 = 0.0f, normY2 = 0.0f, normX1 = 0.0f, normX2 = 0.0f, normWidth1 = 0.0f, normWidth2 = 0.0f, scaler = 1.0f;
+    
+    // If the gem is a kick
+    bool isKick = isBarNote(gemColumn, Part::DRUMS);
+    if (isKick)
+    {
+        normY1 = 0.735;
+        normY2 = 0.239;
+        normX1 = 0.16;
+        normX2 = 0.34;
+        normWidth1 = 0.68;
+        normWidth2 = 0.32;
+        scaler = BAR_SIZE;
+    }
+    else
+    {
+        normWidth1 = 0.147;
+        normWidth2 = 0.0714;
+        normY1 = 0.70;
+        normY2 = 0.22;
+        scaler = GEM_SIZE;
+        if (gemColumn == 1)
+        {
+            normX1 = 0.222;
+            normX2 = 0.37;
+        }
+        else if (gemColumn == 2)
+        {
+            normX1 = 0.360;
+            normX2 = 0.430;
+        }
+        else if (gemColumn == 3)
+        {
+            normX1 = 0.497;
+            normX2 = 0.495;
+        }
+        else if (gemColumn == 4)
+        {
+            normX1 = 0.630;
+            normX2 = 0.564;
+        }
+    }
+    
+    float scaledNormWidth1 = normWidth1 * scaler;
+    float scaledNormWidth2 = normWidth2 * scaler;
+    float adjustedNormX1 = normX1 + (normWidth1 - scaledNormWidth1) / 2.0f;
+    float adjustedNormX2 = normX2 + (normWidth2 - scaledNormWidth2) / 2.0f;
+    
+    auto rect = createPerspectiveGlyphRect(position, normY1, normY2, adjustedNormX1, adjustedNormX2, scaledNormWidth1, scaledNormWidth2, isKick);
+    return {rect.getX(), rect.getRight(), rect.getCentreY()};
+}
+
+HighwayRenderer::LaneCorners HighwayRenderer::getGuitarLaneCoordinates(uint gemColumn, float position)
+{
+    float normY1 = 0.0f, normY2 = 0.0f, normX1 = 0.0f, normX2 = 0.0f, normWidth1 = 0.0f, normWidth2 = 0.0f, scaler = 1.0f;
+
+    // If the gem is an open note
+    bool isOpen = isBarNote(gemColumn, Part::GUITAR);
+    if (isOpen)
+    {
+        normY1 = 0.73;
+        normY2 = 0.234;
+        normX1 = 0.16;
+        normX2 = 0.34;
+        normWidth1 = 0.68;
+        normWidth2 = 0.32;
+        scaler = BAR_SIZE;
+    }
+    else
+    {
+        normWidth1 = 0.125;
+        normWidth2 = 0.065;
+        normY1 = 0.71;
+        normY2 = 0.22;
+        scaler = GEM_SIZE;
+        if (gemColumn == 1)
+        {
+            normX1 = 0.227;
+            normX2 = 0.363;
+            normWidth1 = 0.105;
+            normWidth2 = 0.055;
+        }
+        else if (gemColumn == 2)
+        {
+            normX1 = 0.322;
+            normX2 = 0.412;
+        }
+        else if (gemColumn == 3)
+        {
+            normX1 = 0.440;
+            normX2 = 0.465;
+        }
+        else if (gemColumn == 4)
+        {
+            normX1 = 0.555;
+            normX2 = 0.524;
+        }
+        else if (gemColumn == 5)
+        {
+            normX1 = 0.670;
+            normX2 = 0.580;
+        }
+    }
+    
+    float scaledNormWidth1 = normWidth1 * scaler;
+    float scaledNormWidth2 = normWidth2 * scaler;
+    float adjustedNormX1 = normX1 + (normWidth1 - scaledNormWidth1) / 2.0f;
+    float adjustedNormX2 = normX2 + (normWidth2 - scaledNormWidth2) / 2.0f;
+    
+    auto rect = createPerspectiveGlyphRect(position, normY1, normY2, adjustedNormX1, adjustedNormX2, scaledNormWidth1, scaledNormWidth2, isOpen);
+    return {rect.getX(), rect.getRight(), rect.getCentreY()};
+}
+
+juce::Path HighwayRenderer::createTrapezoidPath(LaneCorners start, LaneCorners end, float startWidth, float endWidth)
+{
+    juce::Path path;
+    float startCenterX = (start.leftX + start.rightX) / 2.0f;
+    float endCenterX = (end.leftX + end.rightX) / 2.0f;
+    
+    path.startNewSubPath(startCenterX - startWidth / 2.0f, start.centerY);
+    path.lineTo(startCenterX + startWidth / 2.0f, start.centerY);
+    path.lineTo(endCenterX + endWidth / 2.0f, end.centerY);
+    path.lineTo(endCenterX - endWidth / 2.0f, end.centerY);
+    path.closeSubPath();
+    
+    return path;
+}
+
+juce::Path HighwayRenderer::createRoundedCapPath(LaneCorners coords, float width, float radius, float heightScale)
+{
+    juce::Path path;
+    float centerX = (coords.leftX + coords.rightX) / 2.0f;
+    float capHeight = radius * 2.0f * heightScale;
+    
+    path.addRoundedRectangle(
+        centerX - width / 2.0f,
+        coords.centerY - capHeight / 2.0f,
+        width,
+        capHeight,
+        radius * heightScale
+    );
+    
+    return path;
+}
+
+juce::Image HighwayRenderer::createOffscreenSustainImage(const juce::Path& trapezoid, const juce::Path& startCap, const juce::Path& endCap, juce::Colour colour)
+{
+    auto bounds = trapezoid.getBounds().getUnion(startCap.getBounds()).getUnion(endCap.getBounds());
+    int width = (int)std::ceil(bounds.getWidth()) + 2;
+    int height = (int)std::ceil(bounds.getHeight()) + 2;
+    
+    juce::Image image(juce::Image::ARGB, width, height, true);
+    juce::Graphics graphics(image);
+    
+    // Translate to local coordinates
+    graphics.addTransform(juce::AffineTransform::translation(-bounds.getX() + 1, -bounds.getY() + 1));
+    graphics.setColour(colour);
+    
+    // Draw trapezoid, then caps with clipping to avoid overlap
+    graphics.fillPath(trapezoid);
+    graphics.excludeClipRegion(trapezoid.getBounds().toNearestInt());
+    graphics.fillPath(startCap);
+    graphics.fillPath(endCap);
+    
+    return image;
 }

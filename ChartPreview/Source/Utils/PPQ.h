@@ -21,8 +21,12 @@ public:
     // Arithmetic operations
     PPQ operator+(const PPQ &other) const { return PPQ(scaledValue + other.scaledValue); }
     PPQ operator-(const PPQ &other) const { return PPQ(scaledValue - other.scaledValue); }
+    PPQ operator*(const PPQ &other) const { return PPQ((scaledValue * other.scaledValue) / PPQ_RESOLUTION); }
+    PPQ operator/(const PPQ &other) const { return PPQ((scaledValue * PPQ_RESOLUTION) / other.scaledValue); }
     PPQ operator+(double ppq) const { return PPQ(scaledValue + static_cast<int64_t>(ppq * PPQ_RESOLUTION)); }
     PPQ operator-(double ppq) const { return PPQ(scaledValue - static_cast<int64_t>(ppq * PPQ_RESOLUTION)); }
+    PPQ operator*(double ppq) const { return PPQ(static_cast<int64_t>(scaledValue * ppq)); }
+    PPQ operator/(double ppq) const { return PPQ(static_cast<int64_t>(scaledValue / ppq)); }
 
     // Comparison operators
     bool operator<(const PPQ &other) const { return scaledValue < other.scaledValue; }
