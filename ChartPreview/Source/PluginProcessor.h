@@ -38,6 +38,7 @@ public:
     
     // Set visual window bounds for conservative cleanup during tempo changes
     void setMidiProcessorVisualWindowBounds(PPQ startPPQ, PPQ endPPQ) { midiProcessor.setVisualWindowBounds(startPPQ, endPPQ); }
+    void refreshMidiDisplay() { midiProcessor.refreshMidiDisplay(); }
 
     // Debug
     juce::String debugText;
@@ -75,6 +76,8 @@ public:
   private:
     juce::ValueTree state;
     MidiProcessor midiProcessor;
+    
+    void initializeDefaultState();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChartPreviewAudioProcessor)
 };

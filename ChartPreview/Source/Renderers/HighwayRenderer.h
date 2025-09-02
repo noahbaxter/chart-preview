@@ -56,7 +56,7 @@ class HighwayRenderer
 
         DrawCallMap drawCallMap;
         void drawGridlinesFromMap(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ);
-        void drawGridline(juce::Graphics &g, float position, juce::Image *markerImage);
+        void drawGridline(juce::Graphics &g, float position, juce::Image *markerImage, Gridline gridlineType);
 
         void drawNotesFromMap(juce::Graphics &g, const TrackWindow& trackWindow, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ);
         void drawFrame(const std::array<Gem, LANE_COUNT> &gems, float position, PPQ framePosition);
@@ -75,6 +75,8 @@ class HighwayRenderer
 
         juce::Rectangle<float> getGuitarGlyphRect(uint gemColumn, float position);
         juce::Rectangle<float> getDrumGlyphRect(uint gemColumn, float position);
+        juce::Rectangle<float> getGuitarGridlineRect(float position);
+        juce::Rectangle<float> getDrumGridlineRect(float position);
         juce::Rectangle<float> getOverlayGlyphRect(Gem gem, juce::Rectangle<float> glyphRect);
         juce::Rectangle<float> createPerspectiveGlyphRect(
             float position,

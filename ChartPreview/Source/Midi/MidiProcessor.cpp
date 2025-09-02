@@ -1,5 +1,9 @@
 #include "MidiProcessor.h"
 
+MidiProcessor::MidiProcessor(juce::ValueTree &state) : state(state)
+{
+}
+
 void MidiProcessor::process(juce::MidiBuffer &midiMessages,
                             const juce::AudioPlayHead::PositionInfo &positionInfo,
                             uint blockSizeInSamples,
@@ -120,11 +124,10 @@ void MidiProcessor::cleanupOldEvents(PPQ startPPQ, PPQ endPPQ, PPQ latencyPPQ)
         for (auto &noteStateMap : noteStateMapArray)
         {
             auto lower = noteStateMap.upper_bound(conservativeStartPPQ);
-            if (lower != noteStateMap.begin())
-            {
-                --lower;
-                noteStateMap.erase(noteStateMap.begin(), lower);
-            }
+            // Keep 2 events before window to prevent sustain modifier note ons from being deleted
+            if (lower != noteStateMap.begin()) --lower;
+            if (lower != noteStateMap.begin()) --lower;
+            noteStateMap.erase(noteStateMap.begin(), lower);
 
             auto upper = noteStateMap.upper_bound(conservativeEndPPQ);
             noteStateMap.erase(upper, noteStateMap.end());
@@ -153,32 +156,177 @@ void MidiProcessor::cleanupOldEvents(PPQ startPPQ, PPQ endPPQ, PPQ latencyPPQ)
 
 void MidiProcessor::processMidiMessages(juce::MidiBuffer &midiMessages, PPQ startPPQ, double sampleRate, double bpm)
 {
+    using Drums = MidiPitchDefinitions::Drums;
+    
+    // Collect all note messages with their positions
+    struct NoteMessage {
+        juce::MidiMessage message;
+        PPQ position;
+        uint pitch;
+        bool isSustainedModifier;
+    };
+    
+    std::vector<NoteMessage> noteMessages;
     uint numMessages = 0;
+    
     for (const auto message : midiMessages)
     {
-        // Calculate PPQ position for each message using host BPM
-        PPQ messagePositionPPQ = startPPQ + calculatePPQSegment(message.samplePosition, bpm, sampleRate);
-
         auto midiMessage = message.getMessage();
         if (midiMessage.isNoteOn() || midiMessage.isNoteOff())
         {
-            processNoteMessage(midiMessage, messagePositionPPQ);
+            PPQ messagePositionPPQ = startPPQ + calculatePPQSegment(message.samplePosition, bpm, sampleRate);
+            uint pitch = midiMessage.getNoteNumber();
+            
+            // Identify sustained modifier notes for priority processing
+            bool isSustainedModifier = MidiUtility::isSustainedModifierPitch(pitch);
+            
+            noteMessages.push_back({midiMessage, messagePositionPPQ, pitch, isSustainedModifier});
         }
-
-        if (++numMessages >= maxNumMessagesPerBlock)
-            break;
+        
+        if (++numMessages >= maxNumMessagesPerBlock) break;
+    }
+    
+    // Sort so sustained modifier notes are processed first (for all instruments)
+    // This ensures modifiers like tom markers, HOPO/strum markers, star power, etc. 
+    // are active before the actual notes that depend on them
+    std::sort(noteMessages.begin(), noteMessages.end(), [](const NoteMessage& a, const NoteMessage& b) {
+        if (a.isSustainedModifier != b.isSustainedModifier) return a.isSustainedModifier > b.isSustainedModifier; // Modifiers first
+        return a.position < b.position; // Then by time
+    });
+    
+    // Process all messages in order
+    for (const auto& noteMsg : noteMessages) {
+        processNoteMessage(noteMsg.message, noteMsg.position);
+        
+        // If this guitar note forms a chord, fix any HOPOs at the same timestamp
+        if (noteMsg.message.isNoteOn() && isPart(state, Part::GUITAR)) {
+            if (isChordFormed(noteMsg.pitch, noteMsg.position)) {
+                fixChordHOPOs(noteMsg.pitch, noteMsg.position);
+            }
+        }
     }
 }
 
 void MidiProcessor::processNoteMessage(const juce::MidiMessage &midiMessage, PPQ messagePPQ)
 {
-    // if (midiMessage.isNoteOff() && messagePPQ > 0.0)
-    // {
-    //     messagePPQ -= 1;
-    // }
     uint noteNumber = midiMessage.getNoteNumber();
     uint velocity = midiMessage.isNoteOn() ? midiMessage.getVelocity() : 0;
+    
+    // Ensure notes that stop and start at the same PPQ are processed in correct order
+    if (midiMessage.isNoteOff()) {
+        messagePPQ -= PPQ(1); // Smallest possible PPQ unit
+    }
+    
+    // Calculate the final Gem type at MIDI processing time
+    Gem gemType = Gem::NONE;
+    if (velocity > 0) {
+        if (isPart(state, Part::GUITAR)) {
+            gemType = getGuitarGemType(noteNumber, messagePPQ);
+        } else if (isPart(state, Part::DRUMS)) {
+            Dynamic dynamic = (Dynamic)velocity;
+            gemType = getDrumGemType(noteNumber, messagePPQ, dynamic);
+        }
+    }
 
     const juce::ScopedLock lock(noteStateMapLock);
-    noteStateMapArray[noteNumber][messagePPQ] = velocity;
+    noteStateMapArray[noteNumber][messagePPQ] = NoteData(velocity, gemType);
+}
+
+bool MidiProcessor::isChordFormed(uint pitch, PPQ position)
+{
+    std::vector<uint> guitarPitches = MidiUtility::getGuitarPitchesForSkill((SkillLevel)((int)state.getProperty("skillLevel")));
+    
+    int chordNoteCount = 0;
+    const juce::ScopedLock lock(noteStateMapLock);
+    for (uint guitarPitch : guitarPitches) {
+        if (MidiUtility::isNoteHeldWithTolerance(guitarPitch, position, noteStateMapArray, noteStateMapLock)) {
+            chordNoteCount++;
+            if (chordNoteCount >= 2) return true; // 2+ notes = chord
+        }
+    }
+    
+    return false;
+}
+
+void MidiProcessor::fixChordHOPOs(uint pitch, PPQ position)
+{
+    // Get all guitar pitches and find the chord notes
+    std::vector<uint> guitarPitches = MidiUtility::getGuitarPitchesForSkill((SkillLevel)((int)state.getProperty("skillLevel")));
+    std::vector<uint> chordPitches;
+    
+    const juce::ScopedLock lock(noteStateMapLock);
+    for (uint guitarPitch : guitarPitches) {
+        if (MidiUtility::isNoteHeldWithTolerance(guitarPitch, position, noteStateMapArray, noteStateMapLock)) {
+            chordPitches.push_back(guitarPitch);
+        }
+    }
+    
+    // Fix any HOPOs in the chord
+    for (uint chordPitch : chordPitches) {
+        auto& noteStateMap = noteStateMapArray[chordPitch];
+
+        // Find notes within chord tolerance of this position
+        PPQ searchStart = position - CHORD_TOLERANCE;
+        PPQ searchEnd = position + CHORD_TOLERANCE;
+        
+        auto lower = noteStateMap.lower_bound(searchStart);
+        auto upper = noteStateMap.upper_bound(searchEnd);
+        
+        for (auto it = lower; it != upper; ++it) {
+            if (it->second.velocity > 0 && it->second.gemType == Gem::HOPO_GHOST) {
+                // Change HOPO to regular note since it's part of a chord
+                it->second.gemType = Gem::NOTE;
+            }
+        }
+    }
+}
+
+uint MidiProcessor::getGuitarGemColumn(uint pitch)
+{
+    return MidiUtility::getGuitarGemColumn(pitch, state);
+}
+
+Gem MidiProcessor::getGuitarGemType(uint pitch, PPQ position)
+{
+    return MidiUtility::getGuitarGemType(pitch, position, state, noteStateMapArray, noteStateMapLock);
+}
+
+
+uint MidiProcessor::getDrumGemColumn(uint pitch)
+{
+    return MidiUtility::getDrumGemColumn(pitch, state);
+}
+
+Gem MidiProcessor::getDrumGemType(uint pitch, PPQ position, Dynamic dynamic)
+{
+    return MidiUtility::getDrumGemType(pitch, position, dynamic, state, noteStateMapArray, noteStateMapLock);
+}
+
+void MidiProcessor::refreshMidiDisplay()
+{
+    const juce::ScopedLock lock(noteStateMapLock);
+    
+    // Iterate through all pitches and all notes
+    for (uint pitch = 0; pitch < 128; pitch++)
+    {
+        NoteStateMap& noteStateMap = noteStateMapArray[pitch];
+        
+        for (auto& noteEntry : noteStateMap)
+        {
+            PPQ position = noteEntry.first;
+            NoteData& noteData = noteEntry.second;
+            
+            // Only recalculate for note-on events
+            if (noteData.velocity > 0)
+            {
+                // Recalculate the gem type with current settings
+                if (isPart(state, Part::GUITAR)) {
+                    noteData.gemType = getGuitarGemType(pitch, position);
+                } else if (isPart(state, Part::DRUMS)) {
+                    Dynamic dynamic = (Dynamic)noteData.velocity;
+                    noteData.gemType = getDrumGemType(pitch, position, dynamic);
+                }
+            }
+        }
+    }
 }

@@ -78,6 +78,9 @@
         <FILE id="NRFvjU" name="MidiProcessor.cpp" compile="1" resource="0"
               file="Source/Midi/MidiProcessor.cpp"/>
         <FILE id="pIB2gC" name="MidiProcessor.h" compile="0" resource="0" file="Source/Midi/MidiProcessor.h"/>
+        <FILE id="MdUtil1" name="MidiUtility.cpp" compile="1" resource="0"
+              file="Source/Midi/MidiUtility.cpp"/>
+        <FILE id="MdUtil2" name="MidiUtility.h" compile="0" resource="0" file="Source/Midi/MidiUtility.h"/>
       </GROUP>
       <GROUP id="{EFFC1A57-AA5E-2DEE-307B-5E9D2B4CE97B}" name="Renderers">
         <FILE id="FUkCrf" name="HighwayRenderer.cpp" compile="1" resource="0"

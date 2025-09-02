@@ -80,7 +80,7 @@ juce::Image* AssetManager::getGuitarGlyphImage(Gem gem, uint gemColumn, bool sta
         case Gem::HOPO_GHOST:
             switch (gemColumn)
             {
-            case 0: return getBarWhiteImage();
+            case 0: return getHopoBarWhiteImage();
             case 1:
             case 2:
             case 3:
@@ -100,7 +100,7 @@ juce::Image* AssetManager::getGuitarGlyphImage(Gem gem, uint gemColumn, bool sta
         case Gem::TAP_ACCENT:
             switch (gemColumn)
             {
-            case 0: return getBarWhiteImage();
+            case 0: return getHopoBarWhiteImage();
             case 1:
             case 2:
             case 3:
@@ -116,7 +116,7 @@ juce::Image* AssetManager::getGuitarGlyphImage(Gem gem, uint gemColumn, bool sta
         case Gem::HOPO_GHOST:
             switch (gemColumn)
             {
-            case 0: return getBarOpenImage();
+            case 0: return getHopoBarOpenImage();
             case 1: return getHopoGreenImage();
             case 2: return getHopoRedImage();
             case 3: return getHopoYellowImage();

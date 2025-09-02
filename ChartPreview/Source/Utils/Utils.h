@@ -11,17 +11,36 @@
 //==============================================================================
 // CONSTANTS
 
+// Ticks
+constexpr float MIDI_RESOLUTION = 480.0f; // Standard MIDI resolution
+const PPQ TICK_10                   = PPQ(10.0 / MIDI_RESOLUTION);
+const PPQ TICK_120_SIXTEENTH        = PPQ(120.0 / MIDI_RESOLUTION); // 1/16th note
+const PPQ TICK_160_SIXTEENTH_DOT    = PPQ(160.0 / MIDI_RESOLUTION); // 1/16th note + dot
+const PPQ TICK_170                  = PPQ(170.0 / MIDI_RESOLUTION);
+const PPQ TICK_240_EIGTH            = PPQ(240.0 / MIDI_RESOLUTION); // 1/8th note
+
 constexpr uint LANE_COUNT = 7;  // Number of note lanes (0-6)
 constexpr float OPACITY_FADE_START = 0.9f;  // Position where opacity starts fading
 
+const PPQ CHORD_TOLERANCE = TICK_10;
+const PPQ MIN_SUSTAIN_LENGTH = PPQ(4.0 / 12.0); // 1/12th note minimum sustain length
+
 constexpr float SUSTAIN_WIDTH = 0.15f;
+constexpr float SUSTAIN_OPEN_WIDTH = 0.8f;
 constexpr float SUSTAIN_OPACITY = 0.7f;
 
+// Gridline opacity levels
+constexpr float MEASURE_OPACITY = 1.0f;
+constexpr float BEAT_OPACITY = 0.4f;
+constexpr float HALF_BEAT_OPACITY = 0.3f;
+
 constexpr float GEM_SIZE = 0.9f; 
-constexpr float BAR_SIZE = 0.9f;
+constexpr float BAR_SIZE = 0.95f;
+constexpr float GRIDLINE_SIZE = 0.9f;
 
 // TODO: hook up
 constexpr float LANE_WIDTH = 0.8f;
+constexpr float LANE_OPEN_WIDTH = 0.9f;
 constexpr float LANE_OPACITY = 0.2f;
 
 //==============================================================================
@@ -32,12 +51,14 @@ enum class Part { GUITAR = 1, DRUMS, REAL_DRUMS };
 enum class DrumType { NORMAL = 1, PRO };
 enum class SkillLevel { EASY = 1, MEDIUM, HARD, EXPERT };
 enum class ViewToggle { STAR_POWER = 1, KICK_2X, DYNAMICS };
+enum class HopoMode { OFF = 1, SIXTEENTH, DOT_SIXTEENTH, CLASSIC_170, EIGHTH };
 
 const juce::StringArray partLabels = {"Guitar", "Drums"};
 // const juce::StringArray guitarTypeLabels = {"Lead", "Rhythm", "Bass"};
 const juce::StringArray drumTypeLabels = {"Normal", "Pro"};
 const juce::StringArray skillLevelLabels = {"Easy", "Medium", "Hard", "Expert"};
 const juce::StringArray viewToggleLabels = {"Star Power", "Kick 2x", "Dynamics"};
+const juce::StringArray hopoModeLabels = {"Off", "16th", "Dot 16th", "170 Tick", "8th"};
 
 //==============================================================================
 // State helpers
@@ -112,7 +133,20 @@ struct SustainEvent
 //==============================================================================
 // TYPES
 
-using NoteStateMap = std::map<PPQ, uint8_t>;
+struct NoteData
+{
+    uint8_t velocity;
+    Gem gemType;
+    
+    NoteData() : velocity(0), gemType(Gem::NONE) {}
+    NoteData(uint8_t vel, Gem gem) : velocity(vel), gemType(gem) {}
+    
+    // For compatibility with existing velocity checks
+    operator uint8_t() const { return velocity; }
+    operator bool() const { return velocity > 0; }
+};
+
+using NoteStateMap = std::map<PPQ, NoteData>;
 using NoteStateMapArray = std::array<NoteStateMap, 128>;
 using TrackFrame = std::array<Gem, LANE_COUNT>; // All the simultaneous notes at a moment in time
 using TrackWindow = std::map<PPQ, TrackFrame>;  // All the frames in the track window

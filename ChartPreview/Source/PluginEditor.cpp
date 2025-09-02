@@ -17,6 +17,12 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
       midiInterpreter(state, audioProcessor.getNoteStateMapArray(), audioProcessor.getGridlineMap(), audioProcessor.getGridlineMapLock(), audioProcessor.getNoteStateMapLock()),
       highwayRenderer(state, midiInterpreter)
 {
+    // Set up resize constraints
+    constrainer.setMinimumSize(minWidth, minHeight);
+    constrainer.setFixedAspectRatio(aspectRatio);
+    setConstrainer(&constrainer);
+    setResizable(true, true);
+    
     setSize(defaultWidth, defaultHeight);
 
     latencyInSeconds = audioProcessor.latencyInSeconds;
@@ -61,6 +67,10 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     latencyMenu.addItemList({"250ms", "500ms", "750ms", "1000ms", "1500ms"}, 1);
     latencyMenu.addListener(this);
     addAndMakeVisible(latencyMenu);
+    
+    autoHopoMenu.addItemList(hopoModeLabels, 1);
+    autoHopoMenu.addListener(this);
+    addAndMakeVisible(autoHopoMenu);
     
     // Sliders
     chartZoomSliderPPQ.setRange(1.0, 8.0, 0.1);
@@ -123,6 +133,7 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     drumTypeMenu.setVisible(isPart(state, Part::DRUMS));
     kick2xToggle.setVisible(isPart(state, Part::DRUMS));
     dynamicsToggle.setVisible(isPart(state, Part::DRUMS));
+    autoHopoMenu.setVisible(isPart(state, Part::GUITAR));
     consoleOutput.setVisible(debugToggle.getToggleState());
 
     // Update display size if in time-based mode to account for tempo changes
@@ -150,25 +161,35 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 
 void ChartPreviewAudioProcessorEditor::resized()
 {
-    skillMenu.setBounds(10, 10, 100, 20);
-    partMenu.setBounds(120, 10, 100, 20);
-    drumTypeMenu.setBounds(230, 10, 100, 20);
-
-    starPowerToggle.setBounds(getWidth() - 120, 10, 100, 20);
-    kick2xToggle.setBounds(getWidth() - 120, 30, 100, 20);
-    dynamicsToggle.setBounds(getWidth() - 120, 50, 100, 20);
-
-    framerateMenu.setBounds(getWidth() - 120, getHeight() - 30, 100, 20);
-    latencyMenu.setBounds(getWidth() - 120, getHeight() - 50, 100, 20);
+    // Keep original control sizes but use responsive positioning
+    const int controlWidth = 100;
+    const int controlHeight = 20;
+    const int margin = 10;
     
-    chartZoomLabel.setBounds(getWidth() - 90, getHeight() - 270, 40, 20);
-    chartZoomSliderPPQ.setBounds(getWidth() - 120, getHeight() - 240, 100, 150);
-    chartZoomSliderTime.setBounds(getWidth() - 120, getHeight() - 240, 100, 150);
-    dynamicZoomToggle.setBounds(getWidth() - 120, getHeight() - 90, 80, 20);
+    // Top row - left side controls (fixed positions, will bunch up or spread out naturally)
+    skillMenu.setBounds(10, 10, controlWidth, controlHeight);
+    partMenu.setBounds(120, 10, controlWidth, controlHeight);
+    drumTypeMenu.setBounds(230, 10, controlWidth, controlHeight);
+    autoHopoMenu.setBounds(230, 10, controlWidth, controlHeight);
+    debugToggle.setBounds(340, 10, controlWidth, controlHeight);
 
-    debugToggle.setBounds(340, 10, 100, 20);
+    // Top row - right side controls (anchored to right edge)
+    starPowerToggle.setBounds(getWidth() - 120, 10, controlWidth, controlHeight);
+    kick2xToggle.setBounds(getWidth() - 120, 35, controlWidth, controlHeight);
+    dynamicsToggle.setBounds(getWidth() - 120, 60, controlWidth, controlHeight);
 
-    consoleOutput.setBounds(10, 40, getWidth() - 20, getHeight() - 50);
+    // Bottom right controls (anchored to bottom-right corner)
+    framerateMenu.setBounds(getWidth() - 120, getHeight() - 30, controlWidth, controlHeight);
+    latencyMenu.setBounds(getWidth() - 120, getHeight() - 55, controlWidth, controlHeight);
+    
+    // Zoom controls (anchored to bottom-right)
+    chartZoomLabel.setBounds(getWidth() - 90, getHeight() - 270, 40, controlHeight);
+    chartZoomSliderPPQ.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
+    chartZoomSliderTime.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
+    dynamicZoomToggle.setBounds(getWidth() - 120, getHeight() - 90, 80, controlHeight);
+
+    // Console output (responsive width and height)
+    consoleOutput.setBounds(margin, 40, getWidth() - (2 * margin), getHeight() - 50);
 }
 
 void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromZoomSlider()
@@ -208,31 +229,30 @@ void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromZoomSlider()
 
 void ChartPreviewAudioProcessorEditor::loadState()
 {
-    if (!state.isValid()) { state = juce::ValueTree("state"); }
-    
-    skillMenu.setSelectedId((int)state.getProperty("skillLevel", 4), juce::dontSendNotification);           // Default Expert
-    partMenu.setSelectedId((int)state.getProperty("part", 2), juce::dontSendNotification);                  // Default Drums
-    drumTypeMenu.setSelectedId((int)state.getProperty("drumType", 2), juce::dontSendNotification);          // Default Pro Drums
-    framerateMenu.setSelectedId((int)state.getProperty("framerate", 3), juce::dontSendNotification);        // Default 60fps
-    latencyMenu.setSelectedId((int)state.getProperty("latency", 2), juce::dontSendNotification);            // Default 500ms
-    
-    starPowerToggle.setToggleState((bool)state.getProperty("starPower", true), juce::dontSendNotification);
-    kick2xToggle.setToggleState((bool)state.getProperty("kick2x", true), juce::dontSendNotification);
-    dynamicsToggle.setToggleState((bool)state.getProperty("dynamics", true), juce::dontSendNotification);
-    dynamicZoomToggle.setToggleState((bool)state.getProperty("dynamicZoom", false), juce::dontSendNotification);
-    
-    chartZoomSliderPPQ.setValue((double)state.getProperty("zoomPPQ", 1.5), juce::dontSendNotification);     // Default 1.5 PPQ
-    chartZoomSliderTime.setValue((double)state.getProperty("zoomTime", 0.8), juce::dontSendNotification);   // Default 0.8 seconds
-    
-    // Apply functional state that requires side effects
-    applyLatencySetting((int)state.getProperty("latency", 2));
-    
-    // Framerate
-    auto framerateValue = (int)state.getProperty("framerate", 3);
-    int frameRate = (framerateValue == 1) ? 15 : (framerateValue == 2) ? 30 : 60;
-    startTimerHz(frameRate);
-    
-    // Slider visibility and display size
+    skillMenu.setSelectedId((int)state["skillLevel"], juce::dontSendNotification);
+    partMenu.setSelectedId((int)state["part"], juce::dontSendNotification);
+    drumTypeMenu.setSelectedId((int)state["drumType"], juce::dontSendNotification);
+    framerateMenu.setSelectedId((int)state["framerate"], juce::dontSendNotification);
+    latencyMenu.setSelectedId((int)state["latency"], juce::dontSendNotification);
+    autoHopoMenu.setSelectedId((int)state["autoHopo"], juce::dontSendNotification);
+
+    starPowerToggle.setToggleState((bool)state["starPower"], juce::dontSendNotification);
+    kick2xToggle.setToggleState((bool)state["kick2x"], juce::dontSendNotification);
+    dynamicsToggle.setToggleState((bool)state["dynamics"], juce::dontSendNotification);
+    dynamicZoomToggle.setToggleState((bool)state["dynamicZoom"], juce::dontSendNotification);
+
+    chartZoomSliderPPQ.setValue((double)state["zoomPPQ"], juce::dontSendNotification);
+    chartZoomSliderTime.setValue((double)state["zoomTime"], juce::dontSendNotification);
+
+    // Apply side-effects that your listeners would normally do
+    applyLatencySetting((int)state["latency"]);
+    int fr = ((int)state["framerate"] == 1) ? 15 : 
+             ((int)state["framerate"] == 2) ? 30 : 
+             ((int)state["framerate"] == 3) ? 60 : 
+             ((int)state["framerate"] == 4) ? 120 : 
+             ((int)state["framerate"] == 5) ? 144 : 60;
+    startTimerHz(fr);
+
     updateSliderVisibility();
     updateDisplaySizeFromZoomSlider();
 }
@@ -256,4 +276,16 @@ void ChartPreviewAudioProcessorEditor::updateSliderVisibility()
     
     chartZoomSliderPPQ.setVisible(isDynamicZoom);
     chartZoomSliderTime.setVisible(!isDynamicZoom);
+}
+
+juce::ComponentBoundsConstrainer* ChartPreviewAudioProcessorEditor::getConstrainer()
+{
+    return &constrainer;
+}
+
+void ChartPreviewAudioProcessorEditor::parentSizeChanged()
+{
+    // This method is called when the parent component size changes
+    // We can use this to handle host-specific resize behavior if needed
+    AudioProcessorEditor::parentSizeChanged();
 }
