@@ -7,14 +7,13 @@ Primary Beta Tester: **Invontor** (main contributor/QA)
 ## 🚨 CRITICAL BUGS (P0) - Beta Blockers
 
 ### Guitar Playability Issues
-- ❌ **Fix force strum/hopo markers applying to all notes underneath** (not just first note)
-      - Currently only applies to first note under marker, should work like OD phrases
-      - Same logic applies to drum tom markers - MAJOR usability blocker
-- ❌ **Fix natural hopos incorrectly applying to chords** 
-- ❌ **Fix force strum/hopo markers loading/applying inconsistently during playback**
-- ❌ **Fix sustain length/endings rendering inaccurately** (appear too long)
-- ❌ **Fix sustains under minimum threshold not being clipped** (baby sustains display)
-- ❌ **Fix OD should apply to whole sustain even when phrase doesn't fully cover it**
+- ✅ ~~Fix force strum/hopo markers applying to all notes underneath~~ - **COMPLETED** (replaced tolerance checks with exact matching)
+- ✅ ~~Fix natural hopos incorrectly applying to chords~~ - **COMPLETED** (added retroactive chord HOPO fixing)
+- ✅ ~~Fix drum tom markers applying to all notes underneath~~ - **COMPLETED** (generalized sustained modifier processing)
+- ✅ ~~Fix OD should apply to whole sustain even when phrase doesn't fully cover it~~ - **COMPLETED** (improved MIDI cleanup preservation)
+- ✅ ~~Fix sustains under minimum threshold not being clipped~~ - **COMPLETED** (now uses proper MIN_SUSTAIN_LENGTH threshold)
+- ✅ ~~Fix sustain length/endings rendering inaccurately~~ - **COMPLETED** (fixed with proper threshold)
+- ✅ ~~Fix force strum/hopo markers loading/applying inconsistently during playback~~ - **COMPLETED** (fixed by sustained modifier processing order + cleanup preservation)
 
 ### Architecture & Threading
 - 🔄 **Make renderer data access thread-safe** (has gridlineMapLock, needs double-buffered snapshot)
