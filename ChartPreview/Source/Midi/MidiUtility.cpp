@@ -163,6 +163,23 @@ std::vector<uint> MidiUtility::getGuitarPitchesForSkill(SkillLevel skill)
     return {}; // Empty vector for invalid skill level
 }
 
+std::vector<uint> MidiUtility::getDrumPitchesForSkill(SkillLevel skill)
+{
+    using Drums = MidiPitchDefinitions::Drums;
+    switch (skill)
+    {
+        case SkillLevel::EASY:
+            return {(uint)Drums::EASY_KICK, (uint)Drums::EASY_RED, (uint)Drums::EASY_YELLOW, (uint)Drums::EASY_BLUE, (uint)Drums::EASY_GREEN};
+        case SkillLevel::MEDIUM:
+            return {(uint)Drums::MEDIUM_KICK, (uint)Drums::MEDIUM_RED, (uint)Drums::MEDIUM_YELLOW, (uint)Drums::MEDIUM_BLUE, (uint)Drums::MEDIUM_GREEN};
+        case SkillLevel::HARD:
+            return {(uint)Drums::HARD_KICK, (uint)Drums::HARD_RED, (uint)Drums::HARD_YELLOW, (uint)Drums::HARD_BLUE, (uint)Drums::HARD_GREEN};
+        case SkillLevel::EXPERT:
+            return {(uint)Drums::EXPERT_KICK, (uint)Drums::EXPERT_RED, (uint)Drums::EXPERT_YELLOW, (uint)Drums::EXPERT_BLUE, (uint)Drums::EXPERT_GREEN, (uint)Drums::EXPERT_KICK_2X};
+    }
+    return {}; // Empty vector for invalid skill level
+}
+
 bool MidiUtility::isDrumKick(uint pitch)
 {
     using Drums = MidiPitchDefinitions::Drums;
@@ -388,4 +405,78 @@ bool MidiUtility::shouldBeAutoHOPO(uint pitch, PPQ position, juce::ValueTree &st
     if (mostRecentNoteColumn == currentColumn) return false; // Same color as previous
     
     return true;
+}
+
+std::vector<SustainEvent> MidiUtility::detectLanes(uint laneType, PPQ startPPQ, PPQ endPPQ, uint laneVelocity, 
+                                                    juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, 
+                                                    juce::CriticalSection &noteStateMapLock)
+{
+    using Drums = MidiPitchDefinitions::Drums;
+    std::vector<SustainEvent> lanes;
+    
+    // Check if lane applies to current skill level based on velocity
+    SkillLevel skill = (SkillLevel)((int)state.getProperty("skillLevel"));
+    bool appliesToSkill = (skill == SkillLevel::EXPERT) || 
+                          (skill == SkillLevel::HARD && laneVelocity >= 41 && laneVelocity <= 50);
+    
+    if (!appliesToSkill) return lanes;
+    
+    // Get pitches for current instrument and skill level
+    std::vector<uint> instrumentPitches;
+    if (isPart(state, Part::GUITAR)) {
+        instrumentPitches = getGuitarPitchesForSkill(skill);
+    } else if (isPart(state, Part::DRUMS) || isPart(state, Part::REAL_DRUMS)) {
+        instrumentPitches = getDrumPitchesForSkill(skill);
+    } else {
+        return lanes; // Unknown instrument
+    }
+    
+    // Find first notes after lane start to determine column(s)
+    std::vector<uint> laneColumns;
+    const juce::ScopedLock lock(noteStateMapLock);
+    
+    // Collect all notes in the lane timeframe and sort by time
+    std::vector<std::pair<PPQ, uint>> noteEvents; // (time, pitch)
+    
+    for (uint pitch : instrumentPitches) {
+        const auto& noteStateMap = noteStateMapArray[pitch];
+        auto it = noteStateMap.lower_bound(startPPQ);
+        
+        while (it != noteStateMap.end() && it->first <= endPPQ) {
+            if (it->second.velocity > 0) { // Note-on event
+                uint column = isPart(state, Part::GUITAR) ? 
+                             getGuitarGemColumn(pitch, state) : 
+                             getDrumGemColumn(pitch, state);
+                if (column < LANE_COUNT) { // Valid column
+                    noteEvents.push_back({it->first, pitch});
+                }
+            }
+            ++it;
+        }
+    }
+    
+    // Sort by time to get chronological order
+    std::sort(noteEvents.begin(), noteEvents.end());
+    
+    // Take first 1 or 2 notes depending on lane type
+    uint maxNotes = (laneType == (uint)Drums::LANE_2) ? 2 : 1;
+    for (size_t i = 0; i < noteEvents.size() && laneColumns.size() < maxNotes; ++i) {
+        uint column = isPart(state, Part::GUITAR) ? 
+                     getGuitarGemColumn(noteEvents[i].second, state) : 
+                     getDrumGemColumn(noteEvents[i].second, state);
+        laneColumns.push_back(column);
+    }
+    
+    // Create lane sustain events
+    for (uint column : laneColumns) {
+        SustainEvent lane;
+        lane.startPPQ = startPPQ;
+        lane.endPPQ = endPPQ;
+        lane.gemColumn = column;
+        lane.sustainType = SustainType::LANE;
+        lane.gemType = Gem::NOTE; // Placeholder gem type
+        lanes.push_back(lane);
+    }
+    
+    return lanes;
 }

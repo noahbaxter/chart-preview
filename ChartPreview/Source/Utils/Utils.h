@@ -39,9 +39,9 @@ constexpr float BAR_SIZE = 0.95f;
 constexpr float GRIDLINE_SIZE = 0.9f;
 
 // TODO: hook up
-constexpr float LANE_WIDTH = 0.8f;
+constexpr float LANE_WIDTH = 1.0f;
 constexpr float LANE_OPEN_WIDTH = 0.9f;
-constexpr float LANE_OPACITY = 0.2f;
+constexpr float LANE_OPACITY = 0.4f;
 
 //==============================================================================
 // MENUS
@@ -83,7 +83,7 @@ enum class DrawOrder
     OVERLAY
 };
 
-using DrawCallMap = std::map<DrawOrder, std::vector<std::function<void(juce::Graphics&)>>>;
+using DrawCallMap = std::map<DrawOrder, std::map<uint, std::vector<std::function<void(juce::Graphics&)>>>>;
 
 //==============================================================================
 // CHART EVENTS

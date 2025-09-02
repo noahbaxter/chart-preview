@@ -48,6 +48,8 @@ GridlineMap MidiInterpreter::generateGridlineWindow(PPQ trackWindowStart, PPQ tr
 
 TrackWindow MidiInterpreter::generateTrackWindow(PPQ trackWindowStart, PPQ trackWindowEnd)
 {
+    // return generateFakeTrackWindow(trackWindowStart, trackWindowEnd);
+
     TrackWindow trackWindow;
 
     const juce::ScopedLock lock(noteStateMapLock);
@@ -89,18 +91,41 @@ TrackWindow MidiInterpreter::generateTrackWindow(PPQ trackWindowStart, PPQ track
     return trackWindow;
 }
 
+TrackWindow MidiInterpreter::generateFakeTrackWindow(PPQ trackWindowStart, PPQ trackWindowEnd)
+{
+    TrackWindow fakeTrackWindow;
+
+    std::vector<uint> lanes = {1, 2, 3, 4, 5};
+    // std::vector<uint> lanes = {0};
+
+    uint numNotes = 10;
+
+    for (uint lane : lanes) {
+        for (uint n = 0; n < numNotes; n++)
+        {
+            PPQ position = trackWindowStart + (trackWindowEnd - trackWindowStart) * ((double)n / (double)numNotes);
+            if (fakeTrackWindow[position].empty())
+            {
+                fakeTrackWindow[position] = generateEmptyTrackFrame();
+            }
+            fakeTrackWindow[position][lane] = Gem::NOTE;
+        }
+    }
+
+    return fakeTrackWindow;
+}
+
 SustainWindow MidiInterpreter::generateSustainWindow(PPQ trackWindowStart, PPQ trackWindowEnd, PPQ latencyBufferEnd)
 {
+    // return generateFakeSustains(trackWindowStart, trackWindowEnd);
+
     SustainWindow sustainWindow;
-    
-    // Only process guitar sustains for now
-    if (isPart(state, Part::DRUMS) || isPart(state, Part::REAL_DRUMS))
-    {
-        return sustainWindow;
-    }
     
     // Lock the noteStateMapArray during iteration to prevent crashes
     const juce::ScopedLock lock(noteStateMapLock);
+    
+    using Drums = MidiPitchDefinitions::Drums;
+    using Guitar = MidiPitchDefinitions::Guitar;
     
     for (uint pitch = 0; pitch < 128; pitch++)
     {
@@ -123,30 +148,70 @@ SustainWindow MidiInterpreter::generateSustainWindow(PPQ trackWindowStart, PPQ t
 
             // If corresponding note off exists within the map
             PPQ noteOffPPQ = (nextIt != noteStateMap.end()) ? 
-                nextIt->first :                                 // Use found note-off PPQ
-                std::min(notePPQ + (trackWindowEnd - trackWindowStart), latencyBufferEnd);  // Cap to latency buffer end
+                nextIt->first :     // Use found note-off PPQ
+                latencyBufferEnd;   // Extend to latency buffer end if no note-off found
             
-            PPQ duration = noteOffPPQ - notePPQ;
-            
-            // Create sustain if it meets criteria
-            if (duration >= MIN_SUSTAIN_LENGTH && 
-                notePPQ < trackWindowEnd && 
-                noteOffPPQ > trackWindowStart) {
+            // Check if sustain overlaps with current track window (any part)
+            if (notePPQ < trackWindowEnd && noteOffPPQ > trackWindowStart) {
                 
-                uint gemColumn = MidiUtility::getGuitarGemColumn(pitch, state);
-                if (gemColumn < LANE_COUNT) {
-                    SustainEvent sustain;
-                    sustain.startPPQ = notePPQ;
-                    sustain.endPPQ = noteOffPPQ;
-                    sustain.gemColumn = gemColumn;
-                    sustain.gemType = it->second.gemType;
-                    sustainWindow.push_back(sustain);
+                // Lanes
+                if (pitch == (uint)Drums::LANE_1 || pitch == (uint)Drums::LANE_2 ||
+                    pitch == (uint)Guitar::LANE_1 || pitch == (uint)Guitar::LANE_2) {
+                    // Extend lane start time slightly earlier for better visibility
+                    PPQ extendedStartPPQ = notePPQ - PPQ(0.1); // Start 0.1 beats earlier
+                    
+                    // Use lane detection logic to determine which columns to create lanes for
+                    auto lanes = MidiUtility::detectLanes(pitch, extendedStartPPQ, noteOffPPQ, 
+                                                          velocity, state, noteStateMapArray, noteStateMapLock);
+                    
+                    // Add detected lanes to window
+                    for (const auto& lane : lanes) {
+                        sustainWindow.push_back(lane);
+                    }
+                }
+                // Sustains (guitar only)
+                else if (isPart(state, Part::GUITAR)) {
+                    PPQ duration = noteOffPPQ - notePPQ;
+                    if (duration >= MIN_SUSTAIN_LENGTH) {
+                        uint gemColumn = MidiUtility::getGuitarGemColumn(pitch, state);
+                        if (gemColumn < LANE_COUNT) {
+                            SustainEvent sustain;
+                            sustain.startPPQ = notePPQ;
+                            sustain.endPPQ = noteOffPPQ;
+                            sustain.gemColumn = gemColumn;
+                            sustain.sustainType = SustainType::SUSTAIN;
+                            sustain.gemType = it->second.gemType;
+                            sustainWindow.push_back(sustain);
+                        }
+                    }
                 }
             }
         }
     }
     
     return sustainWindow;
+}
+
+SustainWindow MidiInterpreter::generateFakeSustains(PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ)
+{
+    SustainWindow fakeSustainWindow;
+
+    // std::vector<uint> lanes = {1, 3, 5};
+    // std::vector<uint> lanes = {2, 4};
+    std::vector<uint> lanes = {1, 2, 3, 4, 5};
+    // std::vector<uint> lanes = {0};
+
+    for (uint lane : lanes) {
+        SustainEvent sustain;
+        sustain.startPPQ = trackWindowStartPPQ;
+        sustain.endPPQ = trackWindowEndPPQ;
+        sustain.gemColumn = lane;
+        sustain.gemType = Gem::NOTE;
+        sustain.sustainType = SustainType::LANE;
+        fakeSustainWindow.push_back(sustain);
+    }
+
+    return fakeSustainWindow;
 }
 
 TrackFrame MidiInterpreter::generateEmptyTrackFrame()

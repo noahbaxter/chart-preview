@@ -40,4 +40,8 @@ class MidiInterpreter
 
 		void addGuitarEventToFrame(TrackFrame &frame, PPQ position, uint pitch, Gem gemType);
 		void addDrumEventToFrame(TrackFrame &frame, PPQ position, uint pitch, Gem gemType);
+
+		// Helper functions for testing
+		TrackWindow generateFakeTrackWindow(PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ);
+		SustainWindow generateFakeSustains(PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ);
 };

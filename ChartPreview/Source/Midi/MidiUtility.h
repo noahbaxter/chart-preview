@@ -31,9 +31,15 @@ public:
     
     // Helper utility functions
     static std::vector<uint> getGuitarPitchesForSkill(SkillLevel skill);
+    static std::vector<uint> getDrumPitchesForSkill(SkillLevel skill);
     static bool isDrumKick(uint pitch);
     static bool isWithinChordTolerance(PPQ position1, PPQ position2);
     static bool isSustainedModifierPitch(uint pitch);
+    
+    // Lane detection functions
+    static std::vector<SustainEvent> detectLanes(uint laneType, PPQ startPPQ, PPQ endPPQ, uint laneVelocity, 
+                                                  juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, 
+                                                  juce::CriticalSection &noteStateMapLock);
     
     // Gem appearance utility
     static Gem getDrumGlyph(bool cymbal, bool dynamicsEnabled, Dynamic dynamic)

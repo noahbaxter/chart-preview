@@ -86,6 +86,19 @@ class HighwayRenderer
             bool isBarNote
         );
 
+        // Lane coordinate system
+        struct LaneCorners {
+            float leftX, rightX, centerY;
+        };
+        LaneCorners getLaneCoordinates(uint gemColumn, float position);
+        LaneCorners getDrumLaneCoordinates(uint gemColumn, float position);
+        LaneCorners getGuitarLaneCoordinates(uint gemColumn, float position);
+
+        // Sustain rendering helper functions
+        juce::Path createTrapezoidPath(LaneCorners start, LaneCorners end, float startWidth, float endWidth);
+        juce::Path createRoundedCapPath(LaneCorners coords, float width, float radius, float heightScale = 1.0f);
+        juce::Image createOffscreenSustainImage(const juce::Path& trapezoid, const juce::Path& startCap, const juce::Path& endCap, juce::Colour colour);
+
         // Testing helper functions
         TrackWindow generateFakeTrackWindow(PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ)
         {
