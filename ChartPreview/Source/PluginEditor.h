@@ -32,7 +32,29 @@ public:
     void timerCallback() override
     {
         printCallback();
-        if (audioProcessor.isPlaying) { repaint(); }
+
+        // Check for position changes (cursor movement when paused, playhead when playing)
+        bool positionChanged = false;
+
+        if (auto* playHead = audioProcessor.getPlayHead()) {
+            auto positionInfo = playHead->getPosition();
+            if (positionInfo.hasValue()) {
+                PPQ currentPosition = PPQ(positionInfo->getPpqPosition().orFallback(0.0));
+                bool isCurrentlyPlaying = positionInfo->getIsPlaying();
+
+                // Check if position or playing state changed
+                if (currentPosition != lastKnownPosition || isCurrentlyPlaying != lastPlayingState) {
+                    lastKnownPosition = currentPosition;
+                    lastPlayingState = isCurrentlyPlaying;
+                    positionChanged = true;
+                }
+            }
+        }
+
+        // Repaint if playing or if position changed while paused
+        if (audioProcessor.isPlaying || positionChanged) {
+            repaint();
+        }
     }
 
     void paint (juce::Graphics&) override;
@@ -189,6 +211,10 @@ private:
     // Dirty checking state
     mutable PPQ lastDisplayStartPPQ = 0.0;
     mutable bool lastIsPlaying = false;
+
+    // Position tracking for cursor vs playhead separation
+    PPQ lastKnownPosition = 0.0;
+    bool lastPlayingState = false;
 
     PPQ displaySizeInPPQ = 1.5; // 4 beats (1 measure in 4/4)
 

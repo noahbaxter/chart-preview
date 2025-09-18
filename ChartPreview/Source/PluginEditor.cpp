@@ -144,7 +144,8 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     }
 
     // Draw the highway
-    PPQ trackWindowStartPPQ = currentPlayheadPositionInPPQ();
+    // Use current position (cursor when paused, playhead when playing)
+    PPQ trackWindowStartPPQ = lastKnownPosition;
     if (audioProcessor.isPlaying)
     {
         // Use smoothed tempo-aware latency to prevent jitter during tempo changes
