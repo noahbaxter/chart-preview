@@ -4,6 +4,7 @@
               addUsingNamespaceToJuceHeader="0" displaySplashScreen="1" jucerFormatVersion="1"
               companyName="Dichotic Studios" pluginVST3Category="Analyzer"
               pluginCharacteristicsValue="pluginWantsMidiIn" cppLanguageStandard="17"
+              pluginFormats="buildVST,buildVST3,buildAU,buildStandalone"
               pluginName="Chart Preview" pluginDesc="A tool for visualizing midi as guitar/drum game charts">
   <MAINGROUP id="vNZlKl" name="ChartPreview">
     <GROUP id="{A87F74BB-BA5C-8155-543F-2CB0BFD5611F}" name="Assets">

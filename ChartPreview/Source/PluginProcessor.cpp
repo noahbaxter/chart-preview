@@ -213,6 +213,68 @@ bool ChartPreviewAudioProcessor::isBusesLayoutSupported(const BusesLayout &layou
 #endif
 
 //==============================================================================
+// VST2 REAPER Integration
+class ChartPreviewVST2Extensions : public juce::VST2ClientExtensions
+{
+public:
+    ChartPreviewVST2Extensions(ChartPreviewAudioProcessor* proc) : processor(proc) {}
+
+    juce::pointer_sized_int handleVstPluginCanDo(juce::int32, juce::pointer_sized_int, void*, float) override
+    {
+        return 0; // Return 0 for "don't know"
+    }
+
+    juce::pointer_sized_int handleVstManufacturerSpecific(juce::int32 index, juce::pointer_sized_int value, void* ptr, float) override
+    {
+        // Check for REAPER's magic handshake
+        if (index == 0xdeadbeef && value == 0xdeadf00d)
+        {
+            // ptr contains the function to get REAPER API functions
+            processor->reaperGetFunc = (void*(*)(const char*))ptr;
+            processor->isReaperHost = true;
+
+            DBG("REAPER host detected via VST2! API functions available.");
+
+            // Tell REAPER we accepted the handshake
+            return 1;
+        }
+        return 0;
+    }
+
+private:
+    ChartPreviewAudioProcessor* processor;
+};
+
+juce::VST2ClientExtensions* ChartPreviewAudioProcessor::getVST2ClientExtensions()
+{
+    static ChartPreviewVST2Extensions vst2Extensions(this);
+    return &vst2Extensions;
+}
+
+bool ChartPreviewAudioProcessor::attemptReaperConnection()
+{
+    if (!isReaperHost || !reaperGetFunc)
+        return false;
+
+    // Test the connection by getting a simple REAPER function
+    auto GetPlayState = (int(*)())reaperGetFunc("GetPlayState");
+    if (GetPlayState)
+    {
+        DBG("Successfully connected to REAPER API via VST2!");
+        return true;
+    }
+
+    return false;
+}
+
+void* ChartPreviewAudioProcessor::getReaperApi(const char* funcname)
+{
+    if (reaperGetFunc)
+        return reaperGetFunc(funcname);
+    return nullptr;
+}
+
+//==============================================================================
 // This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {

@@ -73,6 +73,15 @@ public:
     bool isBusesLayoutSupported(const BusesLayout &layouts) const override;
 #endif
 
+    // VST2 REAPER Integration
+    juce::VST2ClientExtensions* getVST2ClientExtensions() override;
+
+    // REAPER API function pointers (populated via VST2)
+    void* (*reaperGetFunc)(const char*) = nullptr;
+    bool isReaperHost = false;
+    bool attemptReaperConnection();
+    void* getReaperApi(const char* funcname);
+
   private:
     juce::ValueTree state;
     MidiProcessor midiProcessor;
