@@ -43,6 +43,9 @@ void ChartPreviewAudioProcessorEditor::initAssets()
     backgroundImage = juce::ImageCache::getFromMemory(BinaryData::background_png, BinaryData::background_pngSize);
     trackDrumImage = juce::ImageCache::getFromMemory(BinaryData::track_drum_png, BinaryData::track_drum_pngSize);
     trackGuitarImage = juce::ImageCache::getFromMemory(BinaryData::track_guitar_png, BinaryData::track_guitar_pngSize);
+
+    // Load REAPER logo SVG
+    reaperLogo = juce::Drawable::createFromImageData(BinaryData::logoreaper_svg, BinaryData::logoreaper_svgSize);
 }
 
 void ChartPreviewAudioProcessorEditor::initMenus()
@@ -123,29 +126,18 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.drawImage(backgroundImage, getLocalBounds().toFloat());
 
-    // Visual feedback for REAPER connection status (development mode)
-    #ifdef DEBUG
-    if (audioProcessor.isReaperHost)
+    // Visual feedback for REAPER connection status
+    if (audioProcessor.isReaperHost && audioProcessor.attemptReaperConnection())
     {
-        // Green background tint = REAPER detected and connected via VST2
-        g.setColour(juce::Colours::green.withAlpha(0.1f));
-        g.fillRect(getLocalBounds());
-
-        // Test REAPER connection
-        if (audioProcessor.attemptReaperConnection())
+        // Draw REAPER logo in bottom left corner
+        if (reaperLogo)
         {
-            g.setColour(juce::Colours::green);
-            g.drawText("REAPER VST2 Connected", 10, getHeight() - 25, 200, 20,
-                      juce::Justification::left);
-        }
-        else
-        {
-            g.setColour(juce::Colours::orange);
-            g.drawText("REAPER Detected (VST2)", 10, getHeight() - 25, 200, 20,
-                      juce::Justification::left);
+            const int logoSize = 24;
+            const int margin = 10;
+            juce::Rectangle<float> logoBounds(margin, getHeight() - logoSize - margin, logoSize, logoSize);
+            reaperLogo->drawWithin(g, logoBounds, juce::RectanglePlacement::centred, 0.8f);
         }
     }
-    #endif
 
     // Draw the track
     if (isPart(state, Part::DRUMS))

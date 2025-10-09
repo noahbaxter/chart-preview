@@ -69,6 +69,8 @@
       <FILE id="hJ1sOr" name="track_drum.png" compile="0" resource="1" file="Assets/track_drum.png"/>
       <FILE id="Ncb5IR" name="track_guitar.png" compile="0" resource="1"
             file="Assets/track_guitar.png"/>
+      <FILE id="logoReaper" name="logo-reaper.svg" compile="0" resource="1"
+            file="Assets/logo-reaper.svg"/>
     </GROUP>
     <GROUP id="{577BFFED-2E98-5329-03C4-711F74395056}" name="Source">
       <GROUP id="{DE1AE764-3F26-9AE7-E8D2-54A14F69655C}" name="Midi">
@@ -105,6 +107,8 @@
             file="Source/PluginProcessor.cpp"/>
       <FILE id="GADCKX" name="PluginProcessor.h" compile="0" resource="0"
             file="Source/PluginProcessor.h"/>
+      <FILE id="ReaperVST3H" name="ReaperVST3.h" compile="0" resource="0"
+            file="Source/ReaperVST3.h"/>
       <FILE id="Fw3asZ" name="PluginEditor.cpp" compile="1" resource="0"
             file="Source/PluginEditor.cpp"/>
       <FILE id="Mxww5q" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>

@@ -8,6 +8,7 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "ReaperVST3.h"
 
 //==============================================================================
 ChartPreviewAudioProcessor::ChartPreviewAudioProcessor()
@@ -356,6 +357,61 @@ std::string ChartPreviewAudioProcessor::getHostInfo()
     // JUCE doesn't provide a direct way to get host name in VST2, but we can infer it
     // from various clues or wait for the REAPER-specific handshake
     return hostName.toStdString();
+}
+
+//==============================================================================
+// VST3 REAPER Integration
+#if JucePlugin_Build_VST3
+class ChartPreviewVST3Extensions : public juce::VST3ClientExtensions
+{
+public:
+    ChartPreviewVST3Extensions(ChartPreviewAudioProcessor* proc) : processor(proc) {}
+
+    // Called by JUCE when the host provides an IHostApplication
+    void setIHostApplication(Steinberg::FUnknown* host) override
+    {
+        if (!host)
+            return;
+
+        // Use FUnknownPtr for automatic COM handling (from reference project)
+        auto reaper = FUnknownPtr<IReaperHostApplication>(host);
+        if (reaper)
+        {
+            processor->isReaperHost = true;
+
+            // Create a wrapper function to call getReaperApi
+            // Store reaper interface in static variable for the function pointer
+            static FUnknownPtr<IReaperHostApplication> staticReaper = reaper;
+            static auto reaperApiWrapper = [](const char* funcname) -> void* {
+                if (!staticReaper)
+                    return nullptr;
+                return staticReaper->getReaperApi(funcname);
+            };
+
+            processor->reaperGetFunc = reaperApiWrapper;
+
+            // Initialize the REAPER MIDI provider
+            processor->reaperMidiProvider.initialize(processor->reaperGetFunc);
+            processor->debugText += "✅ REAPER API connected via VST3 - MIDI timeline access ready\n";
+        }
+    }
+
+private:
+    ChartPreviewAudioProcessor* processor;
+};
+#endif
+
+juce::VST3ClientExtensions* ChartPreviewAudioProcessor::getVST3ClientExtensions()
+{
+#if JucePlugin_Build_VST3
+    // Create VST3 extensions instance on demand
+    if (!vst3Extensions)
+        vst3Extensions = std::make_unique<ChartPreviewVST3Extensions>(this);
+
+    return vst3Extensions.get();
+#else
+    return nullptr;
+#endif
 }
 
 //==============================================================================

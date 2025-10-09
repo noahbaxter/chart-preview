@@ -185,6 +185,7 @@ private:
     juce::Image backgroundImage;
     juce::Image trackDrumImage;
     juce::Image trackGuitarImage;
+    std::unique_ptr<juce::Drawable> reaperLogo;
 
     juce::Label chartZoomLabel;
     juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu, autoHopoMenu;

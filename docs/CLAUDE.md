@@ -6,6 +6,18 @@ Guidance for Claude Code when working with this repository.
 
 **NEVER add co-authoring or "Generated with Claude Code" to commit messages unless explicitly requested.**
 
+## CRITICAL: Use Local JUCE Submodule Only
+
+**DO NOT reference /Applications/JUCE** - This project uses a custom JUCE submodule with REAPER modifications.
+
+**ALWAYS use**: `third_party/JUCE/` for all JUCE source code references.
+
+When researching JUCE implementation details:
+1. Check `third_party/JUCE/modules/` first
+2. Refer to `/docs/` for project-specific documentation
+3. Only use web searches if local resources are insufficient
+4. Document findings in `/docs/` for future reference
+
 ## Project Overview
 
 Chart Preview is a VST/AU plugin that visualizes MIDI notes as rhythm game charts (Clone Hero/YARG style). Built with JUCE for Windows, macOS, and Linux.
@@ -16,7 +28,13 @@ Chart Preview is a VST/AU plugin that visualizes MIDI notes as rhythm game chart
 
 **CI/CD**: GitHub Actions builds all platforms automatically (Windows VST3 ~2.5MB, macOS universal VST3+AU ~6.7MB, Linux VST3 ~4.4MB)
 
-**macOS**: `cd ChartPreview && ./build.sh` (supports `vst`, `standalone`, `au`)
+**Local REAPER Testing** (macOS): `cd ChartPreview && ./build-scripts/build-local-test.sh [--open-reaper]`
+  - Builds VST2 + VST3 in Debug mode
+  - Installs to plugin folders
+  - Use `--open-reaper` flag to force quit & reopen REAPER
+  - For local testing only - doesn't affect CI
+
+**macOS Release**: `./build-scripts/build-macos-release.sh`
 **Windows**: Use `ChartPreview/Builds/VisualStudio2022/ChartPreview.sln`
 **Linux**: `./build-linux.sh` or `make -j$(nproc) CONFIG=Release` in `Builds/LinuxMakefile/`
 

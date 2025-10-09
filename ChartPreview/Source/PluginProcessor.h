@@ -81,7 +81,10 @@ public:
     // VST2 REAPER Integration
     juce::VST2ClientExtensions* getVST2ClientExtensions() override;
 
-    // REAPER API function pointers (populated via VST2)
+    // VST3 REAPER Integration
+    juce::VST3ClientExtensions* getVST3ClientExtensions() override;
+
+    // REAPER API function pointers (populated via VST2 or VST3)
     void* (*reaperGetFunc)(const char*) = nullptr;
     bool isReaperHost = false;
     bool attemptReaperConnection();
@@ -100,6 +103,9 @@ public:
 
     // VST2 extensions instance (forward declared in .cpp)
     std::unique_ptr<juce::VST2ClientExtensions> vst2Extensions;
+
+    // VST3 extensions instance (forward declared in .cpp)
+    std::unique_ptr<juce::VST3ClientExtensions> vst3Extensions;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChartPreviewAudioProcessor)
 };
