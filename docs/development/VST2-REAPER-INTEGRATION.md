@@ -18,24 +18,17 @@
 
 ## Overview
 
-This plugin successfully integrates with REAPER's VST2 extensions to access the REAPER API, enabling direct MIDI timeline reading, scrubbing support, and lookahead functionality that bypasses VST audio buffer limitations.
+Integrates with REAPER's VST2 extensions for direct MIDI timeline reading, scrubbing support, and lookahead that bypasses VST audio buffer limitations.
 
 ## How It Works
 
-### REAPER API Access Method
-
-REAPER exposes its API to VST2 plugins through the `audioMasterCallback`. Each API function is requested individually:
+REAPER exposes API via `audioMasterCallback`. Each function requested individually using magic numbers `0xdeadbeef` and `0xdeadf00d`:
 
 ```cpp
-// Request a REAPER function by name
 auto funcPtr = audioMaster(nullptr, 0xdeadbeef, 0xdeadf00d, 0, (void*)"FunctionName", 0.0);
-
-// Cast and call the function
 auto GetPlayState = (int(*)())funcPtr;
 int state = GetPlayState();
 ```
-
-**Key Insight**: There is no single "getReaperApi" bootstrapping function. Each function must be requested by name using magic numbers `0xdeadbeef` and `0xdeadf00d`.
 
 ### Implementation Architecture
 
@@ -79,25 +72,10 @@ int state = GetPlayState();
 
 ### JUCE Framework Modifications
 
-**1. `third_party/JUCE/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST2.cpp`**
+**1. `juce_audio_plugin_client_VST2.cpp`** - Expose callback in wrapper initialization
+**2. `juce_VST2ClientExtensions.h`** - Add `handleVstHostCallbackAvailable()` virtual method
 
-Added callback exposure in the VST2 wrapper initialization:
-```cpp
-// After VST2 wrapper setup, expose callback to plugin
-if (auto* vst2Extensions = processor->getVST2ClientExtensions())
-{
-    vst2Extensions->handleVstHostCallbackAvailable([this](int32 opcode, ...) {
-        return audioMaster(effect, opcode, ...);
-    });
-}
-```
-
-**2. `third_party/JUCE/modules/juce_audio_processors/utilities/juce_VST2ClientExtensions.h`**
-
-Added virtual method for callback reception:
-```cpp
-virtual void handleVstHostCallbackAvailable(std::function<VstHostCallbackType>&& callback);
-```
+See `/docs/JUCE_REAPER_MODIFICATIONS.md` for details.
 
 ### Plugin Implementation
 
@@ -107,38 +85,15 @@ virtual void handleVstHostCallbackAvailable(std::function<VstHostCallbackType>&&
 - Added `ReaperMidiProvider reaperMidiProvider` - MIDI timeline reader
 - Added `std::unique_ptr<VST2ClientExtensions> vst2Extensions` - extensions instance
 
-**4. `ChartPreview/Source/PluginProcessor.cpp`**
+**4. `Source/PluginProcessor.cpp`** - `ChartPreviewVST2Extensions` class (lines 271-367):
+- Advertises REAPER capabilities
+- Receives audioMaster callback
+- Tests and establishes API connection
+- Uses static callback wrapper (lambda can't capture in function pointer)
 
-Implemented `ChartPreviewVST2Extensions` class (lines 271-367):
-- `handleVstPluginCanDo()` - Advertises REAPER capabilities
-- `handleVstManufacturerSpecific()` - Handles custom plugin naming
-- `handleVstHostCallbackAvailable()` - Receives audioMaster callback
-- `tryGetReaperApi()` - Tests and establishes REAPER API connection
-
-Key implementation detail - static callback wrapper:
-```cpp
-// Store callback in static member (lambda can't capture in function pointer)
-static std::function<VstHostCallbackType>* staticCallback;
-
-// Create captureless lambda wrapper
-static auto reaperApiWrapper = [](const char* funcname) -> void* {
-    auto& callback = *ChartPreviewVST2Extensions::staticCallback;
-    return (void*)callback(0xdeadbeef, 0xdeadf00d, 0, (void*)funcname, 0.0);
-};
-
-processor->reaperGetFunc = reaperApiWrapper;
-```
-
-**5. `ChartPreview/Source/Midi/ReaperMidiProvider.h/cpp`**
-
-Comprehensive REAPER API wrapper providing:
-- `initialize(reaperGetFunc)` - Loads all required REAPER functions
-- `getNotesInRange(startPPQ, endPPQ)` - Reads MIDI notes from timeline
-- `getCurrentPlayPosition()` - Gets playback position
-- `getCurrentCursorPosition()` - Gets edit cursor position
-- `isPlaying()` - Checks transport state
-
-Thread-safe with `juce::CriticalSection` and comprehensive error handling.
+**5. `Source/Midi/ReaperMidiProvider.h/cpp`** - REAPER API wrapper:
+- `initialize()`, `getNotesInRange()`, `getCurrentPlayPosition()`, `getCurrentCursorPosition()`, `isPlaying()`
+- Thread-safe with `juce::CriticalSection`
 
 ## Supported REAPER Capabilities
 
@@ -172,26 +127,9 @@ The plugin advertises support for:
 
 ## Verification
 
-To verify REAPER integration is working:
-
-1. **Build the plugin**:
-   ```bash
-   cd ChartPreview
-   ./build-vst2.sh
-   ```
-
-2. **Load in REAPER**:
-   - Open REAPER
-   - Add VST2 plugin (not VST3!)
-   - Select "Chart Preview"
-
-3. **Check for indicators**:
-   - Green background tint (visual confirmation)
-   - Debug output: "✅ REAPER API connected via VST2"
-
-4. **Test API access**:
-   - Debug output shows GetPlayState() result
-   - ReaperMidiProvider initialized successfully
+1. Build: `./build-vst2.sh`
+2. Load VST2 (not VST3) in REAPER
+3. Check for green background and debug output: "✅ REAPER API connected via VST2"
 
 ## Usage in Code
 
@@ -228,10 +166,9 @@ double cursorPos = reaperMidiProvider.getCurrentCursorPosition();
 
 ## References
 
-- [REAPER VST Extensions Documentation](https://www.reaper.fm/sdk/vst/vst_ext.php)
-- [JUCE VST2ClientExtensions API](https://docs.juce.com/master/structjuce_1_1VST2ClientExtensions.html)
-- ReaperMidiProvider: `Source/Midi/ReaperMidiProvider.cpp`
-- Previous research: `docs/archive/REAPER-VST2-INTEGRATION-REPORT-2025-10-09-research.md`
+- [REAPER VST Extensions](https://www.reaper.fm/sdk/vst/vst_ext.php)
+- [JUCE VST2ClientExtensions](https://docs.juce.com/master/structjuce_1_1VST2ClientExtensions.html)
+- `Source/Midi/ReaperMidiProvider.cpp`
 
 ## Critical Discovery: PPQ Resolution
 

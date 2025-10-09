@@ -2,50 +2,30 @@
 
 ## Overview
 
-This document explains the **required JUCE modifications** for accessing REAPER's API from VST plugins. Unlike what some documentation suggests, **you MUST modify JUCE** to get clean REAPER integration working.
+Stock JUCE cannot access REAPER's API. This document explains required modifications for MIDI/timeline access from VST plugins.
 
 ## The Problem
 
-REAPER provides a powerful C++ API for plugins to access timeline data, MIDI notes, track information, and more. However, accessing this API from JUCE-based plugins requires modifying JUCE's source code because:
+REAPER provides a C++ API for accessing timeline data, MIDI notes, track information, etc. Accessing this from JUCE plugins requires source modifications:
 
-1. **VST2**: Stock JUCE provides `handleVstHostCallbackAvailable()` but doesn't perform the REAPER handshake automatically
-2. **VST3**: Stock JUCE doesn't expose the VST3 host context in a way that allows querying for REAPER's `IReaperHostApplication` interface
+1. **VST2**: Stock JUCE provides `handleVstHostCallbackAvailable()` but doesn't perform REAPER handshake automatically
+2. **VST3**: Stock JUCE doesn't expose VST3 host context for querying `IReaperHostApplication` interface
 
-## What Everyone Else Does
+## Community Precedent
 
-Looking at the JUCE/REAPER development community:
+Every developer who wants full REAPER integration modifies JUCE:
 
-- **Xenakios** (2016-2018): Maintained a fork of JUCE with REAPER modifications
+- **Xenakios** (2016-2018): Maintained JUCE fork with REAPER modifications
 - **GavinRay97** (2021): Created patches for VST3 REAPER UI embedding ([JUCE-reaper-embedded-fx-gui](https://github.com/GavinRay97/JUCE-reaper-embedded-fx-gui))
 - **This Project** (2025): Custom modifications for VST2 REAPER API access
 
-**Every developer who wants full REAPER integration ends up modifying JUCE.**
+## Stock JUCE Limitations
 
-## Official JUCE Support Status
+**VST2**: Extension points exist but require manual handshake and callback management in plugin code.
 
-### What Stock JUCE Provides
+**VST3**: `setIHostApplication()` provides `FUnknown*` pointer, but it's forward-declared only; cannot call `queryInterface()` without full VST3 SDK.
 
-#### VST2
-- `VST2ClientExtensions::handleVstHostCallbackAvailable()` - Gives you the raw `audioMaster` callback
-- `VST2ClientExtensions::handleVstPluginCanDo()` - Can advertise REAPER capabilities
-- `VST2ClientExtensions::handleVstManufacturerSpecific()` - Can handle REAPER messages
-
-**However**: You must manually perform the REAPER handshake yourself in your plugin code.
-
-#### VST3
-- `VST3ClientExtensions::setIHostApplication()` - Receives `FUnknown*` host pointer
-- `VST3ClientExtensions::queryIEditController()` - Can provide custom interfaces
-
-**However**: The `FUnknown*` is only forward-declared; you cannot easily call `queryInterface()` on it without linking against the full VST3 SDK.
-
-### Official Example: ReaperEmbeddedViewPluginDemo
-
-JUCE includes `examples/Plugins/ReaperEmbeddedViewPluginDemo.h` (added around June 2021) that demonstrates:
-- Embedding a custom UI in REAPER's track control panel
-- Using both VST2 and VST3 extension points
-- Accessing REAPER's global bypass function
-
-**Important**: This example focuses on **UI embedding**, not **API access for MIDI/timeline data**. It shows the extension points exist, but doesn't demonstrate accessing REAPER's main API functions.
+**Official Example**: JUCE includes `ReaperEmbeddedViewPluginDemo.h` for UI embedding, but not MIDI/timeline API access.
 
 ## Our Modifications for VST2
 
@@ -119,94 +99,15 @@ VST2ClientExtensions* getVST2ClientExtensions() override
 }
 ```
 
-### Why This Is Better Than Stock JUCE
+### Benefits Over Stock JUCE
 
-**Stock JUCE Approach** (what you'd have to do):
-```cpp
-void handleVstHostCallbackAvailable(std::function<VstHostCallbackType>&& callback) override
-{
-    hostCallback = std::move(callback);
-
-    // You have to do the handshake yourself:
-    auto testResult = hostCallback(0xdeadbeef, 0xdeadf00d, 0, (void*)"GetPlayState", 0.0);
-    if (testResult != 0)
-    {
-        // Now create a wrapper function...
-        // And store static pointers...
-        // And manage the callback lifetime...
-    }
-}
-```
-
-**Our Approach**:
-```cpp
-void handleReaperApi(void* (*reaperGetFunc)(const char*)) override
-{
-    // Just use it!
-    auto GetPlayState = (int(*)())reaperGetFunc("GetPlayState");
-}
-```
+Our modifications eliminate boilerplate: handshake is automatic, function pointer is ready to use immediately.
 
 ## VST3 Support (TODO)
 
-### Current Status
-❌ Not yet implemented
+❌ Not yet implemented. See GavinRay97's patches for reference approach: add `handleVST3HostContext()` virtual method to pass host context, then query for `IReaperHostApplication` interface.
 
-### What Needs to Happen
-
-Looking at GavinRay97's patches as reference:
-
-#### 1. Patch `juce_AudioProcessor.h`
-Add a new virtual method that receives the VST3 host context:
-
-```cpp
-#ifdef JUCE_VST3_ENABLE_PASS_HOST_CONTEXT_TO_AUDIO_PROCESSOR_ON_INITIALIZE
-virtual void handleVST3HostContext(
-    Steinberg::FUnknown* hostContext,
-    Steinberg::Vst::IHostApplication* host,
-    JuceAudioProcessor* comPluginInstance,
-    JuceVST3EditController* juceVST3EditController) {};
-#endif
-```
-
-#### 2. Patch `juce_VST3_Wrapper.cpp`
-Call the method during initialization:
-
-```cpp
-#ifdef JUCE_VST3_ENABLE_PASS_HOST_CONTEXT_TO_AUDIO_PROCESSOR_ON_INITIALIZE
-    getPluginInstance().handleVST3HostContext(
-        hostContext,
-        this->host.get(),
-        this->comPluginInstance.get(),
-        this->juceVST3EditController.get()
-    );
-#endif
-```
-
-#### 3. Use It in Your Plugin
-
-```cpp
-void handleVST3HostContext(Steinberg::FUnknown* hostContext, ...) override
-{
-    // Now you can query for IReaperHostApplication
-    void* objPtr = nullptr;
-    if (hostContext->queryInterface(reaper::IReaperHostApplication::iid, &objPtr) == Steinberg::kResultOk)
-    {
-        auto* reaperHost = static_cast<reaper::IReaperHostApplication*>(objPtr);
-        auto MIDI_GetNote = reaperHost->getReaperApi("MIDI_GetNote");
-        // ...
-    }
-}
-```
-
-### Alternative: Use VST3ClientExtensions (More Complex)
-
-Stock JUCE's `VST3ClientExtensions::setIHostApplication()` provides the host pointer, but you need to:
-1. Manually handle the `queryInterface()` call (requires VST3 SDK knowledge)
-2. Deal with `FUnknown` being forward-declared only
-3. Manage COM reference counting
-
-See `examples/Plugins/ReaperEmbeddedViewPluginDemo.h` for an example, though it uses REAPER's header files that help with this.
+Alternative: Use stock `VST3ClientExtensions::setIHostApplication()` but requires manual `queryInterface()` handling and COM reference counting.
 
 ## The REAPER VST2 API Handshake
 
@@ -350,14 +251,4 @@ Check your plugin's debug output for connection status.
 
 ## Summary
 
-**The Reality**: Despite JUCE's official `ReaperEmbeddedViewPluginDemo` example, **you need to modify JUCE** for practical REAPER integration because:
-
-1. **VST2**: The official extension points require you to manually do the handshake and manage callbacks
-2. **VST3**: The host context isn't exposed in a usable way for querying custom interfaces
-
-Our modifications make this cleaner by:
-- Automatically performing the REAPER handshake in VST2
-- Providing a simple callback with the function pointer ready to use
-- Eliminating boilerplate code from your plugin
-
-This is the same conclusion reached by Xenakios, GavinRay97, and other JUCE developers who've tackled REAPER integration.
+Stock JUCE requires manual REAPER integration. Our modifications automate the VST2 handshake and eliminate boilerplate, following the same approach as Xenakios, GavinRay97, and other JUCE developers who've tackled REAPER integration.
