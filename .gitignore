@@ -84,8 +84,13 @@ DO NOT DISTRIBUTE
 *.RPP-UNDO
 
 # -----------------------------------------------------------------------------
-# Third-Party SDKs (for reference only, not committed)
+# Third-Party Dependencies (obtain via third_party/README.md)
 # -----------------------------------------------------------------------------
+/third_party/*
+!/third_party/README.md
+!/third_party/.gitkeep
+
+# Legacy patterns (can be removed after confirming no issues)
 **/third_party/reaper-sdk/
 **/third_party/vst2sdk/
 **/third_party/sws/
