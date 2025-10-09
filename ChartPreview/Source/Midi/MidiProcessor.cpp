@@ -1,4 +1,5 @@
 #include "MidiProcessor.h"
+#include "ReaperMidiProvider.h"
 
 MidiProcessor::MidiProcessor(juce::ValueTree &state) : state(state)
 {
@@ -305,17 +306,17 @@ Gem MidiProcessor::getDrumGemType(uint pitch, PPQ position, Dynamic dynamic)
 void MidiProcessor::refreshMidiDisplay()
 {
     const juce::ScopedLock lock(noteStateMapLock);
-    
+
     // Iterate through all pitches and all notes
     for (uint pitch = 0; pitch < 128; pitch++)
     {
         NoteStateMap& noteStateMap = noteStateMapArray[pitch];
-        
+
         for (auto& noteEntry : noteStateMap)
         {
             PPQ position = noteEntry.first;
             NoteData& noteData = noteEntry.second;
-            
+
             // Only recalculate for note-on events
             if (noteData.velocity > 0)
             {
@@ -328,5 +329,47 @@ void MidiProcessor::refreshMidiDisplay()
                 }
             }
         }
+    }
+}
+
+//================================================================================
+// REAPER LOOKAHEAD MIDI PROCESSING
+//================================================================================
+
+void MidiProcessor::processLookaheadMidi(ReaperMidiProvider* reaperMidiProvider,
+                                          PPQ currentPosition,
+                                          PPQ lookaheadRange,
+                                          double sampleRate,
+                                          double bpm)
+{
+    if (!reaperMidiProvider || !reaperMidiProvider->isReaperApiAvailable())
+        return;
+
+    // Get notes from REAPER timeline in the lookahead range
+    PPQ startPPQ = currentPosition;
+    PPQ endPPQ = currentPosition + lookaheadRange;
+
+    auto reaperNotes = reaperMidiProvider->getNotesInRange(startPPQ.toDouble(), endPPQ.toDouble());
+
+    DBG("Processing " << reaperNotes.size() << " lookahead notes from REAPER timeline");
+
+    // Process each note from the timeline
+    for (const auto& reaperNote : reaperNotes)
+    {
+        if (reaperNote.muted) continue; // Skip muted notes
+
+        // Create note-on message at note start
+        juce::MidiMessage noteOnMsg = juce::MidiMessage::noteOn(reaperNote.channel + 1,
+                                                                reaperNote.pitch,
+                                                                (juce::uint8)reaperNote.velocity);
+        PPQ noteStartPPQ = PPQ(reaperNote.startPPQ);
+        processNoteMessage(noteOnMsg, noteStartPPQ);
+
+        // Create note-off message at note end
+        juce::MidiMessage noteOffMsg = juce::MidiMessage::noteOff(reaperNote.channel + 1,
+                                                                  reaperNote.pitch,
+                                                                  (juce::uint8)0);
+        PPQ noteEndPPQ = PPQ(reaperNote.endPPQ);
+        processNoteMessage(noteOffMsg, noteEndPPQ);
     }
 }

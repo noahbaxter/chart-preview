@@ -82,6 +82,10 @@
         <FILE id="MdUtil1" name="MidiUtility.cpp" compile="1" resource="0"
               file="Source/Midi/MidiUtility.cpp"/>
         <FILE id="MdUtil2" name="MidiUtility.h" compile="0" resource="0" file="Source/Midi/MidiUtility.h"/>
+        <FILE id="ReaperProvider1" name="ReaperMidiProvider.cpp" compile="1" resource="0"
+              file="Source/Midi/ReaperMidiProvider.cpp"/>
+        <FILE id="ReaperProvider2" name="ReaperMidiProvider.h" compile="0" resource="0"
+              file="Source/Midi/ReaperMidiProvider.h"/>
       </GROUP>
       <GROUP id="{EFFC1A57-AA5E-2DEE-307B-5E9D2B4CE97B}" name="Renderers">
         <FILE id="FUkCrf" name="HighwayRenderer.cpp" compile="1" resource="0"
@@ -107,19 +111,19 @@
     </GROUP>
   </MAINGROUP>
   <MODULES>
-    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
-    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
-    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
-    <MODULE id="juce_audio_plugin_client" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
-    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
-    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
-    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
-    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
-    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
-    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
-    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
-    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
-    <MODULE id="juce_midi_ci" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="1" useGlobalPath="0"/>
+    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="1" useGlobalPath="0"/>
+    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="1" useGlobalPath="0"/>
+    <MODULE id="juce_audio_plugin_client" showAllCode="1" useLocalCopy="1" useGlobalPath="0"/>
+    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="1" useGlobalPath="0"/>
+    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="1" useGlobalPath="0"/>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="1" useGlobalPath="0"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="1" useGlobalPath="0"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="1" useGlobalPath="0"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="1" useGlobalPath="0"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="1" useGlobalPath="0"/>
+    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="1" useGlobalPath="0"/>
+    <MODULE id="juce_midi_ci" showAllCode="1" useLocalCopy="1" useGlobalPath="0"/>
   </MODULES>
   <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"/>
   <EXPORTFORMATS>
@@ -129,19 +133,19 @@
         <CONFIGURATION isDebug="0" name="Release" targetName="ChartPreview"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
-        <MODULEPATH id="juce_audio_basics" path="/Applications/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_devices" path="/Applications/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_formats" path="/Applications/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_plugin_client" path="/Applications/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_processors" path="/Applications/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_utils" path="/Applications/JUCE/modules"/>
-        <MODULEPATH id="juce_core" path="/Applications/JUCE/modules"/>
-        <MODULEPATH id="juce_data_structures" path="/Applications/JUCE/modules"/>
-        <MODULEPATH id="juce_events" path="/Applications/JUCE/modules"/>
-        <MODULEPATH id="juce_graphics" path="/Applications/JUCE/modules"/>
-        <MODULEPATH id="juce_gui_basics" path="/Applications/JUCE/modules"/>
-        <MODULEPATH id="juce_gui_extra" path="/Applications/JUCE/modules"/>
-        <MODULEPATH id="juce_midi_ci" path="/Applications/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_midi_ci" path="third_party/JUCE/modules"/>
       </MODULEPATHS>
     </XCODE_MAC>
     <VS2022 targetFolder="Builds/VisualStudio2022">
@@ -150,19 +154,19 @@
         <CONFIGURATION isDebug="0" name="Release"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
-        <MODULEPATH id="juce_audio_basics" path="C:\JUCE\modules"/>
-        <MODULEPATH id="juce_audio_devices" path="C:\JUCE\modules"/>
-        <MODULEPATH id="juce_audio_formats" path="C:\JUCE\modules"/>
-        <MODULEPATH id="juce_audio_plugin_client" path="C:\JUCE\modules"/>
-        <MODULEPATH id="juce_audio_processors" path="C:\JUCE\modules"/>
-        <MODULEPATH id="juce_audio_utils" path="C:\JUCE\modules"/>
-        <MODULEPATH id="juce_core" path="C:\JUCE\modules"/>
-        <MODULEPATH id="juce_data_structures" path="C:\JUCE\modules"/>
-        <MODULEPATH id="juce_events" path="C:\JUCE\modules"/>
-        <MODULEPATH id="juce_graphics" path="C:\JUCE\modules"/>
-        <MODULEPATH id="juce_gui_basics" path="C:\JUCE\modules"/>
-        <MODULEPATH id="juce_gui_extra" path="C:\JUCE\modules"/>
-        <MODULEPATH id="juce_midi_ci" path="C:\JUCE\modules"/>
+        <MODULEPATH id="juce_audio_basics" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_midi_ci" path="third_party/JUCE/modules"/>
       </MODULEPATHS>
     </VS2022>
     <LINUX_MAKE targetFolder="Builds/LinuxMakefile">
@@ -171,19 +175,19 @@
         <CONFIGURATION isDebug="0" name="Release"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
-        <MODULEPATH id="juce_audio_basics" path="/opt/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_devices" path="/opt/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_formats" path="/opt/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_plugin_client" path="/opt/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_processors" path="/opt/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_utils" path="/opt/JUCE/modules"/>
-        <MODULEPATH id="juce_core" path="/opt/JUCE/modules"/>
-        <MODULEPATH id="juce_data_structures" path="/opt/JUCE/modules"/>
-        <MODULEPATH id="juce_events" path="/opt/JUCE/modules"/>
-        <MODULEPATH id="juce_graphics" path="/opt/JUCE/modules"/>
-        <MODULEPATH id="juce_gui_basics" path="/opt/JUCE/modules"/>
-        <MODULEPATH id="juce_gui_extra" path="/opt/JUCE/modules"/>
-        <MODULEPATH id="juce_midi_ci" path="/opt/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="third_party/JUCE/modules"/>
+        <MODULEPATH id="juce_midi_ci" path="third_party/JUCE/modules"/>
       </MODULEPATHS>
     </LINUX_MAKE>
   </EXPORTFORMATS>

@@ -332,11 +332,12 @@ private:
 
     void printCallback()
     {
-        consoleOutput.clear();
-        // consoleOutput.moveCaretToEnd();
-
-        consoleOutput.insertTextAtCaret(audioProcessor.debugText);
-        audioProcessor.debugText.clear();
+        if (!audioProcessor.debugText.isEmpty())
+        {
+            consoleOutput.moveCaretToEnd();
+            consoleOutput.insertTextAtCaret(audioProcessor.debugText);
+            audioProcessor.debugText.clear();
+        }
     }
 
     // void printMidiMessages()

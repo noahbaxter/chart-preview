@@ -3,6 +3,9 @@
 #include "../Utils/Utils.h"
 #include "MidiUtility.h"
 
+// Forward declaration to avoid circular dependency
+class ReaperMidiProvider;
+
 class MidiProcessor
 {
 public:
@@ -13,6 +16,13 @@ public:
                  uint blockSizeInSamples,
                  uint latencyInSamples,
                  double sampleRate);
+
+    // Process lookahead MIDI data from REAPER timeline for scrubbing/preview
+    void processLookaheadMidi(ReaperMidiProvider* reaperMidiProvider,
+                              PPQ currentPosition,
+                              PPQ lookaheadRange,
+                              double sampleRate,
+                              double bpm);
 
     NoteStateMapArray noteStateMapArray;
     GridlineMap gridlineMap;

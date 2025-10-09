@@ -10,6 +10,7 @@
 
 #include <JuceHeader.h>
 #include "Midi/MidiProcessor.h"
+#include "Midi/ReaperMidiProvider.h"
 
 //==============================================================================
 /**
@@ -26,6 +27,10 @@ public:
     uint playheadPositionInSamples = 0;
     PPQ playheadPositionInPPQ = 0.0;
     bool isPlaying = false;
+
+    // Cursor position tracking for scrubbing support
+    PPQ lastCursorPosition = 0.0;
+    bool cursorPositionChanged = false;
     
     float latencyInSeconds = 0.5;
     uint latencyInSamples = 0;
@@ -81,12 +86,20 @@ public:
     bool isReaperHost = false;
     bool attemptReaperConnection();
     void* getReaperApi(const char* funcname);
+    std::string getHostInfo();
+
+    // REAPER MIDI timeline access
+    ReaperMidiProvider reaperMidiProvider;
+    ReaperMidiProvider& getReaperMidiProvider() { return reaperMidiProvider; }
 
   private:
     juce::ValueTree state;
     MidiProcessor midiProcessor;
-    
+
     void initializeDefaultState();
+
+    // VST2 extensions instance (forward declared in .cpp)
+    std::unique_ptr<juce::VST2ClientExtensions> vst2Extensions;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChartPreviewAudioProcessor)
 };

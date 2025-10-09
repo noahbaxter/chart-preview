@@ -105,20 +105,47 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     dynamicsToggle.addListener(this);
     addAndMakeVisible(dynamicsToggle);
 
-    // // Debug toggle
-    // debugToggle.setButtonText("Debug");
-    // addAndMakeVisible(debugToggle);
+    #ifdef DEBUG
+    // Debug toggle
+    debugToggle.setButtonText("Debug");
+    debugToggle.addListener(this);
+    addAndMakeVisible(debugToggle);
 
-    // // Create console output
-    // consoleOutput.setMultiLine(true);
-    // consoleOutput.setReadOnly(true);
-    // addAndMakeVisible(consoleOutput);
+    // Create console output
+    consoleOutput.setMultiLine(true);
+    consoleOutput.setReadOnly(true);
+    addAndMakeVisible(consoleOutput);
+    #endif
 }
 
 //==============================================================================
 void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.drawImage(backgroundImage, getLocalBounds().toFloat());
+
+    // Visual feedback for REAPER connection status (development mode)
+    #ifdef DEBUG
+    if (audioProcessor.isReaperHost)
+    {
+        // Green background tint = REAPER detected and connected via VST2
+        g.setColour(juce::Colours::green.withAlpha(0.1f));
+        g.fillRect(getLocalBounds());
+
+        // Test REAPER connection
+        if (audioProcessor.attemptReaperConnection())
+        {
+            g.setColour(juce::Colours::green);
+            g.drawText("REAPER VST2 Connected", 10, getHeight() - 25, 200, 20,
+                      juce::Justification::left);
+        }
+        else
+        {
+            g.setColour(juce::Colours::orange);
+            g.drawText("REAPER Detected (VST2)", 10, getHeight() - 25, 200, 20,
+                      juce::Justification::left);
+        }
+    }
+    #endif
 
     // Draw the track
     if (isPart(state, Part::DRUMS))
@@ -154,7 +181,7 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     }
     PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
     PPQ latencyBufferEnd = trackWindowStartPPQ + smoothedLatencyInPPQ();
-    
+
     // Update MidiProcessor's visual window bounds to prevent premature cleanup of visible events
     audioProcessor.setMidiProcessorVisualWindowBounds(trackWindowStartPPQ, trackWindowEndPPQ);
     highwayRenderer.paint(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ, latencyBufferEnd);
