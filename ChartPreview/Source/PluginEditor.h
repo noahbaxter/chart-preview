@@ -33,6 +33,22 @@ public:
     {
         printCallback();
 
+        // Handle debounced track changes
+        if (pendingTrackChange >= 0)
+        {
+            trackChangeDebounceCounter++;
+            // Wait for 10 frames (~166ms at 60fps) of no new changes before applying
+            if (trackChangeDebounceCounter >= 10)
+            {
+                // Apply the track change
+                state.setProperty("reaperTrack", pendingTrackChange, nullptr);
+                audioProcessor.invalidateReaperCache();
+                pendingTrackChange = -1;
+                trackChangeDebounceCounter = 0;
+                repaint();
+            }
+        }
+
         // Check for position changes (cursor movement when paused, playhead when playing)
         bool positionChanged = false;
 
@@ -120,6 +136,18 @@ public:
             auto autoHopoValue = autoHopoMenu.getSelectedId();
             state.setProperty("autoHopo", autoHopoValue, nullptr);
         }
+        else if (comboBoxThatHasChanged == &reaperTrackMenu)
+        {
+            auto trackValue = reaperTrackMenu.getSelectedId();
+
+            // Debounce track changes: don't apply immediately, wait for user to stop clicking
+            pendingTrackChange = trackValue;
+            trackChangeDebounceCounter = 0;  // Reset debounce counter
+
+            // NOTE: Don't invalidate cache here - let the debounce timer handle it
+            // This prevents double-invalidation which can cause race conditions
+            repaint();
+        }
 
         audioProcessor.refreshMidiDisplay();
     }
@@ -159,9 +187,14 @@ public:
         {
             bool buttonState = button->getToggleState();
             state.setProperty("dynamicZoom", buttonState ? 1 : 0, nullptr);
-            
+
             updateSliderVisibility();
             updateDisplaySizeFromZoomSlider();
+        }
+        else if (button == &clearLogsButton)
+        {
+            audioProcessor.clearDebugText();
+            consoleOutput.clear();
         }
         audioProcessor.refreshMidiDisplay();
     }
@@ -188,12 +221,13 @@ private:
     std::unique_ptr<juce::Drawable> reaperLogo;
 
     juce::Label chartZoomLabel;
-    juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu, autoHopoMenu;
+    juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu, autoHopoMenu, reaperTrackMenu;
     juce::ToggleButton starPowerToggle, kick2xToggle, dynamicsToggle, dynamicZoomToggle;
     juce::Slider chartZoomSliderPPQ, chartZoomSliderTime;
 
     juce::TextEditor consoleOutput;
     juce::ToggleButton debugToggle;
+    juce::TextButton clearLogsButton;
 
     //==============================================================================
 
@@ -218,6 +252,10 @@ private:
     bool lastPlayingState = false;
 
     PPQ displaySizeInPPQ = 1.5; // 4 beats (1 measure in 4/4)
+
+    // Track change debouncing
+    int pendingTrackChange = -1;  // -1 means no pending change
+    int trackChangeDebounceCounter = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
 

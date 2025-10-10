@@ -14,6 +14,7 @@
 #include "REAPER/ReaperIntegration.h"
 #include "Pipeline/MidiPipelineFactory.h"
 #include "Pipeline/MidiPipeline.h"
+#include "Pipeline/ReaperMidiPipeline.h"
 
 //==============================================================================
 ChartPreviewAudioProcessor::ChartPreviewAudioProcessor()
@@ -33,7 +34,8 @@ ChartPreviewAudioProcessor::ChartPreviewAudioProcessor()
     initializeDefaultState();
 
     // Create the default pipeline (will be recreated when REAPER is detected)
-    midiPipeline = MidiPipelineFactory::createPipeline(false, false, midiProcessor, nullptr, state);
+    midiPipeline = MidiPipelineFactory::createPipeline(false, false, midiProcessor, nullptr, state,
+                                                      [this](const juce::String& msg) { print(msg); });
 }
 
 ChartPreviewAudioProcessor::~ChartPreviewAudioProcessor()
@@ -56,6 +58,7 @@ void ChartPreviewAudioProcessor::initializeDefaultState()
     state.setProperty("dynamicZoom", 0, nullptr);
     state.setProperty("zoomPPQ", 2.5, nullptr);
     state.setProperty("zoomTime", 1.0, nullptr);
+    state.setProperty("reaperTrack", 1, nullptr); // Track 1 (0-indexed) = Track 1 in UI
 }
 
 void ChartPreviewAudioProcessor::setLatencyInSeconds(float latencyInSeconds)
@@ -65,7 +68,30 @@ void ChartPreviewAudioProcessor::setLatencyInSeconds(float latencyInSeconds)
     if (sampleRate > 0.0)
     {
         this->latencyInSamples = (uint)(latencyInSeconds * sampleRate);
-        setLatencySamples(this->latencyInSamples);
+
+        // In REAPER mode, don't report any latency to the host
+        // (we read timeline data directly, no buffer delay)
+        if (isReaperHost && reaperMidiProvider.isReaperApiAvailable())
+        {
+            setLatencySamples(0);
+        }
+        else
+        {
+            setLatencySamples(this->latencyInSamples);
+        }
+    }
+}
+
+void ChartPreviewAudioProcessor::invalidateReaperCache()
+{
+    if (midiPipeline)
+    {
+        // Cast to ReaperMidiPipeline and invalidate cache
+        auto* reaperPipeline = dynamic_cast<ReaperMidiPipeline*>(midiPipeline.get());
+        if (reaperPipeline)
+        {
+            reaperPipeline->invalidateCache();
+        }
     }
 }
 
@@ -97,15 +123,32 @@ void ChartPreviewAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, 
     isPlaying = positionInfo->getIsPlaying();
 
     // Recreate pipeline if REAPER was just detected
-    static bool lastReaperState = false;
-    if (isReaperHost != lastReaperState)
+    // NOTE: Must be per-instance, not static! Multiple instances need their own state tracking
+    if (isReaperHost != lastReaperConnected)
     {
-        lastReaperState = isReaperHost;
+        lastReaperConnected = isReaperHost;
         bool useReaperTimeline = isReaperHost && reaperMidiProvider.isReaperApiAvailable();
+
+        print("====================================");
+        print("=== PIPELINE MODE SWITCH ===");
+        print("isReaperHost: " + juce::String(isReaperHost ? "TRUE" : "FALSE"));
+        print("reaperApiAvailable: " + juce::String(reaperMidiProvider.isReaperApiAvailable() ? "TRUE" : "FALSE"));
+        print("useReaperTimeline: " + juce::String(useReaperTimeline ? "TRUE" : "FALSE"));
+
         midiPipeline = MidiPipelineFactory::createPipeline(isReaperHost, useReaperTimeline,
-                                                          midiProcessor, &reaperMidiProvider, state);
-        debugText += "Pipeline switched to " +
-                     juce::String(useReaperTimeline ? "REAPER" : "Standard") + " mode\n";
+                                                          midiProcessor, &reaperMidiProvider, state,
+                                                          [this](const juce::String& msg) { print(msg); });
+
+        if (useReaperTimeline)
+        {
+            print(">>> USING REAPER TIMELINE PIPELINE <<<");
+            print(">>> NO LATENCY, DIRECT TIMELINE ACCESS <<<");
+        }
+        else
+        {
+            print(">>> USING STANDARD MIDI BUFFER PIPELINE <<<");
+        }
+        print("====================================");
     }
 
     // Process using the pipeline
@@ -114,7 +157,22 @@ void ChartPreviewAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, 
         // Set the display window from the processor's stored value
         // (updated by editor when zoom changes)
         PPQ currentPos = positionInfo->getPpqPosition().orFallback(0.0);
-        midiPipeline->setDisplayWindow(currentPos, currentPos + displayWindowSize);
+        PPQ windowEnd = currentPos + displayWindowSize;
+
+        // Logging disabled for performance
+        // #ifdef DEBUG
+        // static PPQ lastLoggedPos = PPQ(-100.0);
+        // if (std::abs((currentPos - lastLoggedPos).toDouble()) > 0.1) // Log position changes
+        // {
+        //     print("=== DISPLAY WINDOW SET ===");
+        //     print("currentPos: " + juce::String(currentPos.toDouble(), 3));
+        //     print("displayWindowSize: " + juce::String(displayWindowSize.toDouble(), 3));
+        //     print("windowEnd: " + juce::String(windowEnd.toDouble(), 3));
+        //     lastLoggedPos = currentPos;
+        // }
+        // #endif
+
+        midiPipeline->setDisplayWindow(currentPos, windowEnd);
 
         midiPipeline->process(*positionInfo, buffer.getNumSamples(), getSampleRate());
 

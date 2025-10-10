@@ -74,7 +74,11 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     autoHopoMenu.addItemList(hopoModeLabels, 1);
     autoHopoMenu.addListener(this);
     addAndMakeVisible(autoHopoMenu);
-    
+
+    reaperTrackMenu.addItemList({"Track 1", "Track 2", "Track 3", "Track 4", "Track 5", "Track 6", "Track 7", "Track 8"}, 1);
+    reaperTrackMenu.addListener(this);
+    addAndMakeVisible(reaperTrackMenu);
+
     // Sliders
     chartZoomSliderPPQ.setRange(1.0, 8.0, 0.1);
     chartZoomSliderPPQ.setSliderStyle(juce::Slider::LinearVertical);
@@ -113,6 +117,11 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     debugToggle.setButtonText("Debug");
     debugToggle.addListener(this);
     addAndMakeVisible(debugToggle);
+
+    // Clear Logs button
+    clearLogsButton.setButtonText("Clear Logs");
+    clearLogsButton.addListener(this);
+    addAndMakeVisible(clearLogsButton);
 
     // Create console output
     consoleOutput.setMultiLine(true);
@@ -153,7 +162,18 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     kick2xToggle.setVisible(isPart(state, Part::DRUMS));
     dynamicsToggle.setVisible(isPart(state, Part::DRUMS));
     autoHopoMenu.setVisible(isPart(state, Part::GUITAR));
-    consoleOutput.setVisible(debugToggle.getToggleState());
+
+    // Hide latency menu in REAPER mode (no latency compensation needed)
+    // Show REAPER track selector only in REAPER mode
+    bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
+    latencyMenu.setVisible(!isReaperMode);
+    reaperTrackMenu.setVisible(isReaperMode);
+
+    #ifdef DEBUG
+    bool debugMode = debugToggle.getToggleState();
+    consoleOutput.setVisible(debugMode);
+    clearLogsButton.setVisible(debugMode);
+    #endif
 
     // Update display size if in time-based mode to account for tempo changes
     bool isDynamicZoom = (bool)state.getProperty("dynamicZoom");
@@ -209,6 +229,7 @@ void ChartPreviewAudioProcessorEditor::resized()
     drumTypeMenu.setBounds(230, 10, controlWidth, controlHeight);
     autoHopoMenu.setBounds(230, 10, controlWidth, controlHeight);
     debugToggle.setBounds(340, 10, controlWidth, controlHeight);
+    clearLogsButton.setBounds(450, 10, controlWidth, controlHeight);
 
     // Top row - right side controls (anchored to right edge)
     starPowerToggle.setBounds(getWidth() - 120, 10, controlWidth, controlHeight);
@@ -218,6 +239,7 @@ void ChartPreviewAudioProcessorEditor::resized()
     // Bottom right controls (anchored to bottom-right corner)
     framerateMenu.setBounds(getWidth() - 120, getHeight() - 30, controlWidth, controlHeight);
     latencyMenu.setBounds(getWidth() - 120, getHeight() - 55, controlWidth, controlHeight);
+    reaperTrackMenu.setBounds(getWidth() - 120, getHeight() - 55, controlWidth, controlHeight);
     
     // Zoom controls (anchored to bottom-right)
     chartZoomLabel.setBounds(getWidth() - 90, getHeight() - 270, 40, controlHeight);
@@ -275,6 +297,7 @@ void ChartPreviewAudioProcessorEditor::loadState()
     framerateMenu.setSelectedId((int)state["framerate"], juce::dontSendNotification);
     latencyMenu.setSelectedId((int)state["latency"], juce::dontSendNotification);
     autoHopoMenu.setSelectedId((int)state["autoHopo"], juce::dontSendNotification);
+    reaperTrackMenu.setSelectedId((int)state["reaperTrack"], juce::dontSendNotification);
 
     starPowerToggle.setToggleState((bool)state["starPower"], juce::dontSendNotification);
     kick2xToggle.setToggleState((bool)state["kick2x"], juce::dontSendNotification);

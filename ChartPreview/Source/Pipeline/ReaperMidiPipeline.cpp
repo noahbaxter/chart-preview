@@ -12,10 +12,12 @@
 
 ReaperMidiPipeline::ReaperMidiPipeline(MidiProcessor& processor,
                                        ReaperMidiProvider& provider,
-                                       juce::ValueTree& pluginState)
+                                       juce::ValueTree& pluginState,
+                                       std::function<void(const juce::String&)> printFunc)
     : midiProcessor(processor),
       reaperProvider(provider),
-      state(pluginState)
+      state(pluginState),
+      print(printFunc)
 {
 }
 
@@ -26,21 +28,62 @@ void ReaperMidiPipeline::process(const juce::AudioPlayHead::PositionInfo& positi
     if (!reaperProvider.isReaperApiAvailable())
         return;
 
-    currentPosition = position.getPpqPosition().orFallback(0.0);
-    playing = position.getIsPlaying();
+    PPQ newPosition = position.getPpqPosition().orFallback(0.0);
+    bool nowPlaying = position.getIsPlaying();
     double bpm = position.getBpm().orFallback(120.0);
+
+    // Check if playing state changed
+    bool playStateChanged = (nowPlaying != playing);
+
+    // Check if position jumped significantly (scrubbing when paused OR timeline jump during playback)
+    double positionDelta = std::abs((newPosition - currentPosition).toDouble());
+    bool positionChangedWhilePaused = !nowPlaying && positionDelta > 0.001;
+    bool largePositionJumpWhilePlaying = nowPlaying && positionDelta > 1.0; // > 1 beat = timeline jump
+
+    // Update current state
+    currentPosition = newPosition;
+    playing = nowPlaying;
+
+    // PAUSED MODE: Invalidate cache on position changes (user scrubbing)
+    // PLAYING MODE: Invalidate cache on large position jumps (user clicked elsewhere on timeline)
+    if (positionChangedWhilePaused || largePositionJumpWhilePlaying)
+    {
+        // Log scrubbing behavior (useful for testing)
+        static int scrubCount = 0;
+        if (print && (++scrubCount % 30 == 1)) // Log every 30th scrub to avoid spam
+        {
+            juce::String reason = positionChangedWhilePaused ? "Scrubbing" : "Timeline jump";
+            print("🔄 " + reason + " detected - cache invalidated (pos: " + juce::String(currentPosition.toDouble(), 2) + ")");
+        }
+        invalidateCache();
+    }
 
     // Calculate fetch window (larger than display for smooth scrolling)
     PPQ fetchWindowStart = currentPosition - PPQ(PREFETCH_BEHIND);
     PPQ fetchWindowEnd = currentPosition + displayWindowSize + PPQ(PREFETCH_AHEAD);
 
-    // Only fetch if we've moved beyond tolerance OR never fetched
-    bool needsFetch = (lastFetchedStart < PPQ(0.0)) ||
-                     (fetchWindowStart < lastFetchedStart - PPQ(FETCH_TOLERANCE)) ||
-                     (fetchWindowEnd > lastFetchedEnd + PPQ(FETCH_TOLERANCE));
+    // PLAYING MODE: Use conservative fetch threshold to avoid constant re-fetching
+    // Only fetch if we've moved significantly beyond tolerance OR never fetched OR forced
+    double fetchThreshold = playing ? FETCH_TOLERANCE_PLAYING : FETCH_TOLERANCE_PAUSED;
+    bool needsFetch = forceNextFetch ||
+                     (lastFetchedStart < PPQ(0.0)) ||
+                     (fetchWindowStart < lastFetchedStart - PPQ(fetchThreshold)) ||
+                     (fetchWindowEnd > lastFetchedEnd + PPQ(fetchThreshold));
 
     if (needsFetch)
     {
+        // Clear the force flag after using it
+        forceNextFetch = false;
+
+        // Log fetch behavior (useful for testing)
+        static PPQ lastLoggedFetchPos = PPQ(-100.0);
+        if (print && std::abs((currentPosition - lastLoggedFetchPos).toDouble()) > 1.0)
+        {
+            print("📦 " + juce::String(playing ? "Playing" : "Paused") +
+                  " - fetching range [" + juce::String(fetchWindowStart.toDouble(), 2) +
+                  " to " + juce::String(fetchWindowEnd.toDouble(), 2) + "]");
+            lastLoggedFetchPos = currentPosition;
+        }
         fetchTimelineData(fetchWindowStart, fetchWindowEnd);
     }
 
@@ -48,11 +91,20 @@ void ReaperMidiPipeline::process(const juce::AudioPlayHead::PositionInfo& positi
     processCachedNotesIntoState(currentPosition, bpm, sampleRate);
 
     // Clean up old data (keep some history for HOPO calculations)
-    cache.cleanup(currentPosition - PPQ(PREFETCH_BEHIND * 2));
+    // Don't clean up data we might still need for display
+    PPQ cleanupBehind = currentPosition - PPQ(PREFETCH_BEHIND * 3);
+    cache.cleanup(cleanupBehind);
 }
 
 bool ReaperMidiPipeline::needsRealtimeMidiBuffer() const
 {
+    // Log once on first call
+    static bool logged = false;
+    if (!logged && print)
+    {
+        print("ReaperMidiPipeline::needsRealtimeMidiBuffer() = FALSE (using timeline data)");
+        logged = true;
+    }
     return false; // REAPER pipeline uses timeline data, not realtime MIDI
 }
 
@@ -71,6 +123,53 @@ PPQ ReaperMidiPipeline::getCurrentPosition() const
 bool ReaperMidiPipeline::isPlaying() const
 {
     return playing;
+}
+
+void ReaperMidiPipeline::invalidateCache()
+{
+    cache.clear();
+    lastFetchedStart = PPQ(-1000.0);
+    lastFetchedEnd = PPQ(-1000.0);
+    forceNextFetch = true;  // Backup flag in case immediate fetch fails
+
+    // Also clear all note data from the MidiProcessor so old notes don't linger
+    {
+        const juce::ScopedLock lock(midiProcessor.noteStateMapLock);
+        for (auto& noteStateMap : midiProcessor.noteStateMapArray)
+        {
+            noteStateMap.clear();
+        }
+    }
+
+    // Clear gridlines too
+    {
+        const juce::ScopedLock lock(midiProcessor.gridlineMapLock);
+        midiProcessor.gridlineMap.clear();
+    }
+
+    if (print)
+    {
+        print("🔄 Cache invalidated - fetching immediately at position " + juce::String(currentPosition.toDouble(), 2));
+    }
+
+    // IMMEDIATELY fetch data for current position instead of waiting for next process() call
+    // This is crucial when paused, as processBlock might not be called frequently
+    PPQ fetchWindowStart = currentPosition - PPQ(PREFETCH_BEHIND);
+    PPQ fetchWindowEnd = currentPosition + displayWindowSize + PPQ(PREFETCH_AHEAD);
+
+    fetchTimelineData(fetchWindowStart, fetchWindowEnd);
+
+    // Process the newly fetched data into state immediately
+    // Use a reasonable default BPM if we don't have current tempo info
+    double bpm = 120.0;  // Default, will be updated on next process() call
+    double sampleRate = 48000.0;  // Default, will be updated on next process() call
+
+    processCachedNotesIntoState(currentPosition, bpm, sampleRate);
+
+    if (print)
+    {
+        print("✅ Immediate fetch complete - " + juce::String(cache.getNotesInRange(fetchWindowStart, fetchWindowEnd).size()) + " notes loaded");
+    }
 }
 
 void ReaperMidiPipeline::fetchTimelineData(PPQ start, PPQ end)
@@ -131,19 +230,90 @@ void ReaperMidiPipeline::fetchTimelineData(PPQ start, PPQ end)
         lastLoggedEndPPQ = fetchEnd;
     }
 
-    // Get notes from REAPER
-    // TODO: Add track index parameter to getNotesInRange
+    // Get configured track index from state (0-indexed, menu is 1-indexed)
+    int configuredTrackIndex = (int)state.getProperty("reaperTrack") - 1;
+
+    // Fetch notes from REAPER with retry logic for stability
     auto notes = reaperProvider.getNotesInRange(
         fetchStart.toDouble(),
-        fetchEnd.toDouble()
+        fetchEnd.toDouble(),
+        configuredTrackIndex
     );
 
-    if (shouldLog)
+    // Handle empty fetch results with consistency checking
+    if (notes.empty())
     {
-        // print("Fetched " + juce::String(notes.size()) + " notes");
+        // Check if this is the same range as our last empty fetch
+        bool sameRange = (fetchStart == lastEmptyFetchStart && fetchEnd == lastEmptyFetchEnd);
+
+        if (sameRange)
+        {
+            consecutiveEmptyFetches++;
+        }
+        else
+        {
+            // Different range, reset counter
+            consecutiveEmptyFetches = 1;
+            lastEmptyFetchStart = fetchStart;
+            lastEmptyFetchEnd = fetchEnd;
+        }
+
+        // If we have notes in cache but got 0 notes back, this might be a transient failure
+        bool cacheHasNotes = cache.hasNotesInRange(fetchStart, fetchEnd);
+
+        if (cacheHasNotes)
+        {
+            // Only trust the empty result after multiple consecutive confirmations
+            if (consecutiveEmptyFetches < EMPTY_FETCH_CONFIRMATION_COUNT)
+            {
+                if (print)
+                {
+                    print("⚠️  Fetch returned 0 notes but cache has notes - retry " +
+                          juce::String(consecutiveEmptyFetches) + "/" +
+                          juce::String(EMPTY_FETCH_CONFIRMATION_COUNT));
+                }
+
+                // Tiny delay to let REAPER finish any pending updates
+                juce::Thread::sleep(2);
+
+                notes = reaperProvider.getNotesInRange(
+                    fetchStart.toDouble(),
+                    fetchEnd.toDouble(),
+                    configuredTrackIndex
+                );
+
+                if (!notes.empty())
+                {
+                    // Retry succeeded! Reset counter
+                    consecutiveEmptyFetches = 0;
+                    if (print)
+                    {
+                        print("✅ Retry successful - got " + juce::String(notes.size()) + " notes");
+                    }
+                }
+
+                // Don't update cache with empty result yet - keep existing data
+                return;
+            }
+            else
+            {
+                // Multiple consecutive empty fetches - trust it, notes were probably deleted
+                if (print)
+                {
+                    print("🗑️  Confirmed empty after " + juce::String(EMPTY_FETCH_CONFIRMATION_COUNT) +
+                          " attempts - clearing cache");
+                }
+                // Fall through to update cache with empty result
+            }
+        }
+    }
+    else
+    {
+        // Got notes successfully - reset empty fetch counter
+        consecutiveEmptyFetches = 0;
     }
 
-    // Add to cache (doesn't duplicate existing notes)
+    // Update cache with the fetched data (even if empty, after confirmation)
     cache.addNotes(notes, fetchStart, fetchEnd);
 
     // Update fetched range
@@ -162,6 +332,18 @@ void ReaperMidiPipeline::processCachedNotesIntoState(PPQ currentPos, double bpm,
 
     // Get notes from cache for current window
     auto cachedNotes = cache.getNotesInRange(clearStart, clearEnd);
+
+    // Logging disabled for performance
+    // #ifdef DEBUG
+    // static int lastNoteCount = -1;
+    // if (print && cachedNotes.size() != lastNoteCount)
+    // {
+    //     print("=== PROCESS CACHED NOTES ===");
+    //     print("Got " + juce::String(cachedNotes.size()) + " cached notes for range " +
+    //           juce::String(clearStart.toDouble(), 2) + " to " + juce::String(clearEnd.toDouble(), 2));
+    //     lastNoteCount = cachedNotes.size();
+    // }
+    // #endif
 
     // Process modifiers first (affects gem type calculation)
     processModifierNotes(cachedNotes);
