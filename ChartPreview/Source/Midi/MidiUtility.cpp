@@ -229,7 +229,21 @@ Gem MidiUtility::getGuitarGemType(uint pitch, PPQ position, juce::ValueTree &sta
 {
     using Guitar = MidiPitchDefinitions::Guitar;
     SkillLevel skill = (SkillLevel)((int)state.getProperty("skillLevel"));
+    std::vector<uint> guitarPitches = getGuitarPitchesForSkill(skill);
+    uint currentColumn = getGuitarGemColumn(pitch, state);
     
+    // First, determine if this note is part of a chord
+    bool isPartOfChord = false;
+    for (uint otherPitch : guitarPitches)
+    {
+        if (otherPitch != pitch && isNoteHeldWithTolerance(otherPitch, position, noteStateMapArray, noteStateMapLock))
+        {
+            isPartOfChord = true;
+            break;
+        }
+    }
+
+    // Check for explicit modifiers
     bool modStrum = (isNoteHeld((int)Guitar::EASY_STRUM, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::EASY) ||
                     (isNoteHeld((int)Guitar::MEDIUM_STRUM, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::MEDIUM) ||
                     (isNoteHeld((int)Guitar::HARD_STRUM, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::HARD) ||
@@ -240,7 +254,6 @@ Gem MidiUtility::getGuitarGemType(uint pitch, PPQ position, juce::ValueTree &sta
                    (isNoteHeld((int)Guitar::HARD_HOPO, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::HARD) ||
                    (isNoteHeld((int)Guitar::EXPERT_HOPO, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::EXPERT);
 
-    // Check for explicit modifiers first
     if(modStrum)
     {
         return Gem::NOTE;
@@ -253,32 +266,19 @@ Gem MidiUtility::getGuitarGemType(uint pitch, PPQ position, juce::ValueTree &sta
     {
         return Gem::HOPO_GHOST;
     }
-    else
+    else // No explicit modifiers
     {
-        // No explicit modifiers - check for Auto HOPO
-        // First check if this note is part of a chord (multiple notes at same timestamp)
-        bool isPartOfChord = false;
-        uint currentColumn = getGuitarGemColumn(pitch, state);
-        
-        // Get valid guitar pitches for current skill level using helper function
-        std::vector<uint> guitarPitches = getGuitarPitchesForSkill(skill);
-        
-        // Check if any other guitar note is held within chord tolerance
-        for (uint otherPitch : guitarPitches)
+        // Chords are ALWAYS strums unless forced (cannot be auto-HOPO)
+        if (isPartOfChord)
         {
-            if (otherPitch != pitch && isNoteHeldWithTolerance(otherPitch, position, noteStateMapArray, noteStateMapLock))
-            {
-                isPartOfChord = true;
-                break;
-            }
+            return Gem::NOTE;
         }
-        
         // Only single notes can be Auto HOPOs
-        if (!isPartOfChord && shouldBeAutoHOPO(pitch, position, state, noteStateMapArray, noteStateMapLock))
+        else if (shouldBeAutoHOPO(pitch, position, state, noteStateMapArray, noteStateMapLock))
         {
             return Gem::HOPO_GHOST;
         }
-        
+
         return Gem::NOTE;
     }
 }
