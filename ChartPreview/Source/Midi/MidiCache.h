@@ -44,6 +44,12 @@ public:
     // Check if we have data for a given range
     bool hasDataForRange(PPQ start, PPQ end) const;
 
+    // Check if there are any notes in a given range
+    bool hasNotesInRange(PPQ start, PPQ end) const;
+
+    // Check if cache is empty
+    bool isEmpty() const;
+
     // Get the current cached range
     PPQ getCacheStartPPQ() const { return cacheStartPPQ; }
     PPQ getCacheEndPPQ() const { return cacheEndPPQ; }

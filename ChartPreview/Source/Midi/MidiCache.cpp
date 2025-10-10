@@ -122,3 +122,30 @@ bool MidiCache::hasDataForRange(PPQ start, PPQ end) const
     // Check if requested range is fully within our cached range
     return start >= cacheStartPPQ && end <= cacheEndPPQ;
 }
+
+bool MidiCache::hasNotesInRange(PPQ start, PPQ end) const
+{
+    const juce::ScopedLock lock(cacheLock);
+
+    // Check if there are any notes that overlap with this range
+    for (const auto& note : cache)
+    {
+        if (note.endPPQ >= start && note.startPPQ <= end)
+        {
+            return true;  // Found at least one note in range
+        }
+        // Can break early if notes are sorted and we've passed the range
+        else if (note.startPPQ > end)
+        {
+            break;
+        }
+    }
+
+    return false;  // No notes found in range
+}
+
+bool MidiCache::isEmpty() const
+{
+    const juce::ScopedLock lock(cacheLock);
+    return cache.empty();
+}
