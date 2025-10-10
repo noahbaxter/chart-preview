@@ -165,18 +165,35 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     // Draw the highway
     // Use current position (cursor when paused, playhead when playing)
     PPQ trackWindowStartPPQ = lastKnownPosition;
-    if (audioProcessor.isPlaying)
-    {
-        // Use smoothed tempo-aware latency to prevent jitter during tempo changes
-        PPQ smoothedLatency = smoothedLatencyInPPQ();
-        trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - smoothedLatency);
-    }
-    PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
-    PPQ latencyBufferEnd = trackWindowStartPPQ + smoothedLatencyInPPQ();
+    PPQ latencyBufferEnd = trackWindowStartPPQ;
 
-    // Update MidiProcessor's visual window bounds to prevent premature cleanup of visible events
-    audioProcessor.setMidiProcessorVisualWindowBounds(trackWindowStartPPQ, trackWindowEndPPQ);
-    highwayRenderer.paint(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ, latencyBufferEnd);
+    // In REAPER mode, read timeline data directly with no latency offset
+    // In other DAWs, use latency compensation for lookahead
+    if (audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable())
+    {
+        // REAPER mode: No latency offset, show exactly what's at the cursor
+        // The pipeline handles all data fetching in processBlock()
+        PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
+        latencyBufferEnd = trackWindowStartPPQ; // No latency in REAPER mode
+
+        highwayRenderer.paint(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ, latencyBufferEnd);
+    }
+    else
+    {
+        // Standard DAW mode: Use latency compensation
+        if (audioProcessor.isPlaying)
+        {
+            // Use smoothed tempo-aware latency to prevent jitter during tempo changes
+            PPQ smoothedLatency = smoothedLatencyInPPQ();
+            trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - smoothedLatency);
+        }
+        PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
+        latencyBufferEnd = trackWindowStartPPQ + smoothedLatencyInPPQ();
+
+        // Update MidiProcessor's visual window bounds to prevent premature cleanup of visible events
+        audioProcessor.setMidiProcessorVisualWindowBounds(trackWindowStartPPQ, trackWindowEndPPQ);
+        highwayRenderer.paint(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ, latencyBufferEnd);
+    }
 }
 
 void ChartPreviewAudioProcessorEditor::resized()
@@ -215,7 +232,7 @@ void ChartPreviewAudioProcessorEditor::resized()
 void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromZoomSlider()
 {
     bool isDynamicZoom = (bool)state.getProperty("dynamicZoom");
-    
+
     if (isDynamicZoom)
     {
         // Dynamic (PPQ-based) mode: slider directly represents PPQ (beats)
@@ -225,7 +242,7 @@ void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromZoomSlider()
     {
         // Time-based mode: slider represents seconds
         double timeInSeconds = chartZoomSliderTime.getValue();
-        
+
         // Convert to PPQ using current BPM
         if (audioProcessor.getPlayHead() == nullptr)
         {
@@ -245,6 +262,9 @@ void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromZoomSlider()
             }
         }
     }
+
+    // Sync the display size to the processor so processBlock can use it
+    audioProcessor.setDisplayWindowSize(displaySizeInPPQ);
 }
 
 void ChartPreviewAudioProcessorEditor::loadState()

@@ -9,8 +9,12 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <memory>
 #include "Midi/MidiProcessor.h"
 #include "Midi/ReaperMidiProvider.h"
+
+// Forward declarations
+class MidiPipeline;
 
 //==============================================================================
 /**
@@ -95,9 +99,31 @@ public:
     ReaperMidiProvider reaperMidiProvider;
     ReaperMidiProvider& getReaperMidiProvider() { return reaperMidiProvider; }
 
+    // Process REAPER timeline MIDI for a specific window (called from editor)
+    void processReaperTimelineMidi(PPQ startPPQ, PPQ endPPQ, double bpm, uint timeSignatureNumerator, uint timeSignatureDenominator);
+
+    // Get the current MIDI pipeline
+    MidiPipeline* getMidiPipeline() { return midiPipeline.get(); }
+
+    // Set display window size (called from editor)
+    void setDisplayWindowSize(PPQ size) { displayWindowSize = size; }
+    PPQ getDisplayWindowSize() const { return displayWindowSize; }
+
+    // Public state access for pipelines
+    juce::ValueTree& getState() { return state; }
+
+    // Public midiProcessor access for pipelines
+    MidiProcessor& getMidiProcessor() { return midiProcessor; }
+
   private:
     juce::ValueTree state;
     MidiProcessor midiProcessor;
+
+    // MIDI processing pipeline (created based on host)
+    std::unique_ptr<MidiPipeline> midiPipeline;
+
+    // Display window size (set by editor, used by pipeline)
+    PPQ displayWindowSize = PPQ(4.0);
 
     void initializeDefaultState();
 

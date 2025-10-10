@@ -88,6 +88,44 @@
               file="Source/Midi/ReaperMidiProvider.cpp"/>
         <FILE id="ReaperProvider2" name="ReaperMidiProvider.h" compile="0" resource="0"
               file="Source/Midi/ReaperMidiProvider.h"/>
+        <FILE id="MidiCache1" name="MidiCache.cpp" compile="1" resource="0"
+              file="Source/Midi/MidiCache.cpp"/>
+        <FILE id="MidiCache2" name="MidiCache.h" compile="0" resource="0"
+              file="Source/Midi/MidiCache.h"/>
+      </GROUP>
+      <GROUP id="{Pipeline1}" name="Pipeline">
+        <FILE id="MidiPipeline1" name="MidiPipeline.h" compile="0" resource="0"
+              file="Source/Pipeline/MidiPipeline.h"/>
+        <FILE id="StandardPipeline1" name="StandardMidiPipeline.cpp" compile="1" resource="0"
+              file="Source/Pipeline/StandardMidiPipeline.cpp"/>
+        <FILE id="StandardPipeline2" name="StandardMidiPipeline.h" compile="0" resource="0"
+              file="Source/Pipeline/StandardMidiPipeline.h"/>
+        <FILE id="ReaperPipeline1" name="ReaperMidiPipeline.cpp" compile="1" resource="0"
+              file="Source/Pipeline/ReaperMidiPipeline.cpp"/>
+        <FILE id="ReaperPipeline2" name="ReaperMidiPipeline.h" compile="0" resource="0"
+              file="Source/Pipeline/ReaperMidiPipeline.h"/>
+        <FILE id="PipelineFactory1" name="MidiPipelineFactory.cpp" compile="1" resource="0"
+              file="Source/Pipeline/MidiPipelineFactory.cpp"/>
+        <FILE id="PipelineFactory2" name="MidiPipelineFactory.h" compile="0" resource="0"
+              file="Source/Pipeline/MidiPipelineFactory.h"/>
+      </GROUP>
+      <GROUP id="{REAPER1}" name="REAPER">
+        <FILE id="ReaperVST2Ext1" name="ReaperVST2Extensions.cpp" compile="1" resource="0"
+              file="Source/REAPER/ReaperVST2Extensions.cpp"/>
+        <FILE id="ReaperVST2Ext2" name="ReaperVST2Extensions.h" compile="0" resource="0"
+              file="Source/REAPER/ReaperVST2Extensions.h"/>
+        <FILE id="ReaperVST3Ext1" name="ReaperVST3Extensions.cpp" compile="1" resource="0"
+              file="Source/REAPER/ReaperVST3Extensions.cpp"/>
+        <FILE id="ReaperVST3Ext2" name="ReaperVST3Extensions.h" compile="0" resource="0"
+              file="Source/REAPER/ReaperVST3Extensions.h"/>
+        <FILE id="ReaperIntegration1" name="ReaperIntegration.cpp" compile="1" resource="0"
+              file="Source/REAPER/ReaperIntegration.cpp"/>
+        <FILE id="ReaperIntegration2" name="ReaperIntegration.h" compile="0" resource="0"
+              file="Source/REAPER/ReaperIntegration.h"/>
+        <FILE id="ReaperTrackDetector1" name="ReaperTrackDetector.cpp" compile="1" resource="0"
+              file="Source/REAPER/ReaperTrackDetector.cpp"/>
+        <FILE id="ReaperTrackDetector2" name="ReaperTrackDetector.h" compile="0" resource="0"
+              file="Source/REAPER/ReaperTrackDetector.h"/>
       </GROUP>
       <GROUP id="{EFFC1A57-AA5E-2DEE-307B-5E9D2B4CE97B}" name="Renderers">
         <FILE id="FUkCrf" name="HighwayRenderer.cpp" compile="1" resource="0"

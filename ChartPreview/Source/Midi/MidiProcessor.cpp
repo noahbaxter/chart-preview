@@ -332,44 +332,23 @@ void MidiProcessor::refreshMidiDisplay()
     }
 }
 
-//================================================================================
-// REAPER LOOKAHEAD MIDI PROCESSING
-//================================================================================
-
-void MidiProcessor::processLookaheadMidi(ReaperMidiProvider* reaperMidiProvider,
-                                          PPQ currentPosition,
-                                          PPQ lookaheadRange,
-                                          double sampleRate,
-                                          double bpm)
+void MidiProcessor::clearNoteDataInRange(PPQ startPPQ, PPQ endPPQ)
 {
-    if (!reaperMidiProvider || !reaperMidiProvider->isReaperApiAvailable())
-        return;
+    const juce::ScopedLock lock(noteStateMapLock);
 
-    // Get notes from REAPER timeline in the lookahead range
-    PPQ startPPQ = currentPosition;
-    PPQ endPPQ = currentPosition + lookaheadRange;
-
-    auto reaperNotes = reaperMidiProvider->getNotesInRange(startPPQ.toDouble(), endPPQ.toDouble());
-
-    DBG("Processing " << reaperNotes.size() << " lookahead notes from REAPER timeline");
-
-    // Process each note from the timeline
-    for (const auto& reaperNote : reaperNotes)
+    // Clear notes in the specified PPQ range for all pitches
+    for (auto& noteStateMap : noteStateMapArray)
     {
-        if (reaperNote.muted) continue; // Skip muted notes
+        auto lower = noteStateMap.lower_bound(startPPQ);
+        auto upper = noteStateMap.upper_bound(endPPQ);
+        noteStateMap.erase(lower, upper);
+    }
 
-        // Create note-on message at note start
-        juce::MidiMessage noteOnMsg = juce::MidiMessage::noteOn(reaperNote.channel + 1,
-                                                                reaperNote.pitch,
-                                                                (juce::uint8)reaperNote.velocity);
-        PPQ noteStartPPQ = PPQ(reaperNote.startPPQ);
-        processNoteMessage(noteOnMsg, noteStartPPQ);
-
-        // Create note-off message at note end
-        juce::MidiMessage noteOffMsg = juce::MidiMessage::noteOff(reaperNote.channel + 1,
-                                                                  reaperNote.pitch,
-                                                                  (juce::uint8)0);
-        PPQ noteEndPPQ = PPQ(reaperNote.endPPQ);
-        processNoteMessage(noteOffMsg, noteEndPPQ);
+    // Also clear gridlines in this range
+    {
+        const juce::ScopedLock gridLock(gridlineMapLock);
+        auto lower = gridlineMap.lower_bound(startPPQ);
+        auto upper = gridlineMap.upper_bound(endPPQ);
+        gridlineMap.erase(lower, upper);
     }
 }

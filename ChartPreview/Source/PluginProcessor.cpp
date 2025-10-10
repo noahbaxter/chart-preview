@@ -9,6 +9,11 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "ReaperVST3.h"
+#include "REAPER/ReaperVST2Extensions.h"
+#include "REAPER/ReaperVST3Extensions.h"
+#include "REAPER/ReaperIntegration.h"
+#include "Pipeline/MidiPipelineFactory.h"
+#include "Pipeline/MidiPipeline.h"
 
 //==============================================================================
 ChartPreviewAudioProcessor::ChartPreviewAudioProcessor()
@@ -26,6 +31,9 @@ ChartPreviewAudioProcessor::ChartPreviewAudioProcessor()
 {
     debugText = "Plugin loaded at " + juce::Time::getCurrentTime().toString(true, true) + "\n";
     initializeDefaultState();
+
+    // Create the default pipeline (will be recreated when REAPER is detected)
+    midiPipeline = MidiPipelineFactory::createPipeline(false, false, midiProcessor, nullptr, state);
 }
 
 ChartPreviewAudioProcessor::~ChartPreviewAudioProcessor()
@@ -83,18 +91,41 @@ void ChartPreviewAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, 
     if (!positionInfo.hasValue())
         return;
 
-    // Get playhead position
+    // Get playhead position (for compatibility with editor)
     playheadPositionInSamples = static_cast<uint>(positionInfo->getTimeInSamples().orFallback(0));
     playheadPositionInPPQ = positionInfo->getPpqPosition().orFallback(0.0);
     isPlaying = positionInfo->getIsPlaying();
 
-    if (isPlaying)
+    // Recreate pipeline if REAPER was just detected
+    static bool lastReaperState = false;
+    if (isReaperHost != lastReaperState)
     {
-        midiProcessor.process(midiMessages,
-                              *positionInfo,
-                              buffer.getNumSamples(),
-                              latencyInSamples,
-                              getSampleRate());
+        lastReaperState = isReaperHost;
+        bool useReaperTimeline = isReaperHost && reaperMidiProvider.isReaperApiAvailable();
+        midiPipeline = MidiPipelineFactory::createPipeline(isReaperHost, useReaperTimeline,
+                                                          midiProcessor, &reaperMidiProvider, state);
+        debugText += "Pipeline switched to " +
+                     juce::String(useReaperTimeline ? "REAPER" : "Standard") + " mode\n";
+    }
+
+    // Process using the pipeline
+    if (midiPipeline)
+    {
+        // Set the display window from the processor's stored value
+        // (updated by editor when zoom changes)
+        PPQ currentPos = positionInfo->getPpqPosition().orFallback(0.0);
+        midiPipeline->setDisplayWindow(currentPos, currentPos + displayWindowSize);
+
+        midiPipeline->process(*positionInfo, buffer.getNumSamples(), getSampleRate());
+
+        // If the pipeline needs realtime MIDI, process it
+        if (midiPipeline->needsRealtimeMidiBuffer())
+        {
+            midiPipeline->processMidiBuffer(midiMessages, *positionInfo,
+                                           buffer.getNumSamples(),
+                                           latencyInSamples,
+                                           getSampleRate());
+        }
     }
 }
 //==============================================
@@ -214,107 +245,6 @@ bool ChartPreviewAudioProcessor::isBusesLayoutSupported(const BusesLayout &layou
 }
 #endif
 
-//==============================================================================
-// VST2 REAPER Integration
-class ChartPreviewVST2Extensions : public juce::VST2ClientExtensions
-{
-public:
-    ChartPreviewVST2Extensions(ChartPreviewAudioProcessor* proc) : processor(proc) {}
-
-    juce::pointer_sized_int handleVstPluginCanDo(juce::int32 index, juce::pointer_sized_int value, void* ptr, float opt) override
-    {
-        // Check if REAPER is asking about specific capabilities
-        if (ptr != nullptr)
-        {
-            juce::String capability = juce::String::fromUTF8((const char*)ptr);
-
-            // Advertise that we support REAPER extensions
-            if (capability == "reaper_vst_extensions")
-                return 1; // Yes, we support this
-            // Support Cockos VST extensions (main capability)
-            else if (capability == "hasCockosExtensions")
-                return 0xbeef0000; // Magic return value for Cockos extensions
-            // REAPER-specific capabilities
-            else if (capability == "hasCockosNoScrollUI")
-                return 1; // We support this
-            else if (capability == "hasCockosSampleAccurateAutomation")
-                return 1; // We support this
-            else if (capability == "hasCockosEmbeddedUI")
-                return 0; // We don't support embedded UI
-            else if (capability == "wantsChannelCountNotifications")
-                return 1; // We want channel count notifications
-        }
-
-        return 0; // Return 0 for "don't know"
-    }
-
-    juce::pointer_sized_int handleVstManufacturerSpecific(juce::int32 index, juce::pointer_sized_int value, void* ptr, float) override
-    {
-        // Handle REAPER custom plugin name query (effGetEffectName with 0x50)
-        if (index == 0x2d && value == 0x50 && ptr)
-        {
-            // Provide a custom name for this plugin instance
-            *(const char**)ptr = "Chart Preview (VST2)";
-            return 0xf00d; // Magic return value indicating we handled the name query
-        }
-
-        return 0;
-    }
-
-    // This is called once by the VST plug-in wrapper after its constructor
-    void handleVstHostCallbackAvailable(std::function<VstHostCallbackType>&& callback) override
-    {
-        // Store the callback for later use
-        hostCallback = std::move(callback);
-
-        // Try to get REAPER API through direct handshake
-        tryGetReaperApi();
-    }
-
-    void tryGetReaperApi()
-    {
-        if (!hostCallback)
-            return;
-
-        // REAPER's VST2 extension: Call audioMaster(NULL, 0xdeadbeef, 0xdeadf00d, 0, "FunctionName", 0.0)
-        // to get each function directly. Test by trying to get GetPlayState.
-        auto testResult = hostCallback(0xdeadbeef, 0xdeadf00d, 0, (void*)"GetPlayState", 0.0);
-
-        if (testResult != 0)
-        {
-            processor->isReaperHost = true;
-
-            // Store callback in static member so our wrapper function can access it
-            staticCallback = &hostCallback;
-
-            // Create a static function that can be used as a function pointer
-            static auto reaperApiWrapper = [](const char* funcname) -> void* {
-                if (!ChartPreviewVST2Extensions::staticCallback)
-                    return nullptr;
-
-                auto& callback = *ChartPreviewVST2Extensions::staticCallback;
-                auto result = callback(0xdeadbeef, 0xdeadf00d, 0, (void*)funcname, 0.0);
-                return (void*)result;
-            };
-
-            processor->reaperGetFunc = reaperApiWrapper;
-
-            // Initialize the REAPER MIDI provider
-            processor->reaperMidiProvider.initialize(processor->reaperGetFunc);
-            processor->debugText += "✅ REAPER API connected - MIDI timeline access ready\n";
-        }
-    }
-
-private:
-    ChartPreviewAudioProcessor* processor;
-    std::function<VstHostCallbackType> hostCallback;
-
-    // Static storage for the callback so our lambda can access it
-    static std::function<VstHostCallbackType>* staticCallback;
-};
-
-// Define static member
-std::function<ChartPreviewVST2Extensions::VstHostCallbackType>* ChartPreviewVST2Extensions::staticCallback = nullptr;
 
 juce::VST2ClientExtensions* ChartPreviewAudioProcessor::getVST2ClientExtensions()
 {
@@ -359,47 +289,6 @@ std::string ChartPreviewAudioProcessor::getHostInfo()
     return hostName.toStdString();
 }
 
-//==============================================================================
-// VST3 REAPER Integration
-#if JucePlugin_Build_VST3
-class ChartPreviewVST3Extensions : public juce::VST3ClientExtensions
-{
-public:
-    ChartPreviewVST3Extensions(ChartPreviewAudioProcessor* proc) : processor(proc) {}
-
-    // Called by JUCE when the host provides an IHostApplication
-    void setIHostApplication(Steinberg::FUnknown* host) override
-    {
-        if (!host)
-            return;
-
-        // Use FUnknownPtr for automatic COM handling (from reference project)
-        auto reaper = FUnknownPtr<IReaperHostApplication>(host);
-        if (reaper)
-        {
-            processor->isReaperHost = true;
-
-            // Create a wrapper function to call getReaperApi
-            // Store reaper interface in static variable for the function pointer
-            static FUnknownPtr<IReaperHostApplication> staticReaper = reaper;
-            static auto reaperApiWrapper = [](const char* funcname) -> void* {
-                if (!staticReaper)
-                    return nullptr;
-                return staticReaper->getReaperApi(funcname);
-            };
-
-            processor->reaperGetFunc = reaperApiWrapper;
-
-            // Initialize the REAPER MIDI provider
-            processor->reaperMidiProvider.initialize(processor->reaperGetFunc);
-            processor->debugText += "✅ REAPER API connected via VST3 - MIDI timeline access ready\n";
-        }
-    }
-
-private:
-    ChartPreviewAudioProcessor* processor;
-};
-#endif
 
 juce::VST3ClientExtensions* ChartPreviewAudioProcessor::getVST3ClientExtensions()
 {
@@ -412,6 +301,20 @@ juce::VST3ClientExtensions* ChartPreviewAudioProcessor::getVST3ClientExtensions(
 #else
     return nullptr;
 #endif
+}
+
+void ChartPreviewAudioProcessor::processReaperTimelineMidi(PPQ startPPQ, PPQ endPPQ, double bpm, uint timeSignatureNumerator, uint timeSignatureDenominator)
+{
+    // If using the new pipeline system, set the display window
+    if (midiPipeline)
+    {
+        midiPipeline->setDisplayWindow(startPPQ, endPPQ);
+    }
+    else
+    {
+        // Fallback to old method
+        ReaperIntegration::processReaperTimelineMidi(*this, startPPQ, endPPQ, bpm, timeSignatureNumerator, timeSignatureDenominator);
+    }
 }
 
 //==============================================================================

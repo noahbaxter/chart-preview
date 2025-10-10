@@ -101,6 +101,13 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getNotesInRa
 
     try
     {
+        // REAPER stores MIDI at 960 PPQ per quarter note internally
+        // VST playhead reports in quarter notes (1 PPQ = 1 QN)
+        // Convert our query range TO REAPER's 960 PPQ system for comparison
+        const double REAPER_PPQ_RESOLUTION = 960.0;
+        double reaperStartPPQ = startPPQ * REAPER_PPQ_RESOLUTION;
+        double reaperEndPPQ = endPPQ * REAPER_PPQ_RESOLUTION;
+
         // Get current project
         auto EnumProjects = (void*(*)(int, char*, int))getReaperApi("EnumProjects");
         if (!EnumProjects) return notes;
@@ -108,18 +115,47 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getNotesInRa
         void* project = EnumProjects(-1, nullptr, 0);
         if (!project) return notes;
 
+        // For now, just hardcode back to track index 1 (track 2 in UI)
+        // TODO: Make this configurable or auto-detect properly
+        auto GetTrack = (void*(*)(void*, int))getReaperApi("GetTrack");
+        if (!GetTrack) return notes;
+
+        // HARDCODED: Reading from first track (track 1 in REAPER UI)
+        // Track index 0 = track 1, index 1 = track 2, etc.
+        int targetTrackIndex = 0; // First track = PART DRUMS
+
+        void* targetTrack = GetTrack(project, targetTrackIndex);
+        if (!targetTrack)
+        {
+            juce::Logger::writeToLog("ERROR: Could not get track at index " + juce::String(targetTrackIndex));
+            return notes;
+        }
+
+        juce::String targetTrackName = "Track " + juce::String(targetTrackIndex + 1);
+
         // Count media items in project
         int itemCount = CountMediaItems(project);
+
+        int itemsChecked = 0;
+        int itemsOnTargetTrack = 0;
+        int midiItemsOnTargetTrack = 0;
 
         // Iterate through all media items
         for (int itemIdx = 0; itemIdx < itemCount; itemIdx++)
         {
             void* item = GetMediaItem(project, itemIdx);
             if (!item) continue;
+            itemsChecked++;
 
             // Get the active take for this item
             void* take = GetActiveTake(item);
             if (!take) continue;
+
+            // Check if this item belongs to our target track
+            void* itemTrack = GetMediaItemTake_Track(take);
+            if (itemTrack != targetTrack) continue; // Skip items not on target track
+
+            itemsOnTargetTrack++;
 
             // Check if this is a MIDI take by counting MIDI events
             int noteCount = 0, ccCount = 0, sysexCount = 0;
@@ -128,6 +164,8 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getNotesInRa
 
             if (noteCount == 0)
                 continue; // No MIDI notes
+
+            midiItemsOnTargetTrack++;
 
             // Read all MIDI notes from this take
             for (int noteIdx = 0; noteIdx < noteCount; noteIdx++)
@@ -139,16 +177,13 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getNotesInRa
                 if (MIDI_GetNote(take, noteIdx, &selected, &muted,
                                &notStartPPQ, &noteEndPPQ, &channel, &pitch, &velocity))
                 {
-                    // REAPER stores MIDI at 960 PPQ per quarter note internally
-                    // VST playhead reports in quarter notes (1 PPQ = 1 QN)
-                    // Convert: VST_PPQ = REAPER_PPQ / 960
-                    const double REAPER_PPQ_RESOLUTION = 960.0;
-                    double convertedStartPPQ = notStartPPQ / REAPER_PPQ_RESOLUTION;
-                    double convertedEndPPQ = noteEndPPQ / REAPER_PPQ_RESOLUTION;
-
-                    // Check if note overlaps with requested time range
-                    if (convertedEndPPQ >= startPPQ && convertedStartPPQ <= endPPQ)
+                    // Check if note overlaps with requested time range (in REAPER's 960 PPQ)
+                    if (noteEndPPQ >= reaperStartPPQ && notStartPPQ <= reaperEndPPQ)
                     {
+                        // Convert REAPER's 960 PPQ to VST quarter notes for return
+                        double convertedStartPPQ = notStartPPQ / REAPER_PPQ_RESOLUTION;
+                        double convertedEndPPQ = noteEndPPQ / REAPER_PPQ_RESOLUTION;
+
                         ReaperMidiNote note;
                         note.startPPQ = convertedStartPPQ;
                         note.endPPQ = convertedEndPPQ;
@@ -163,6 +198,18 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getNotesInRa
                 }
             }
         }
+
+        // Log summary statistics (using juce::Logger since we can't use print() here)
+        juce::String debugMsg = "=== REAPER MIDI Read Summary ===\n";
+        debugMsg += "  Queried PPQ range: " + juce::String(startPPQ) + " to " + juce::String(endPPQ) + "\n";
+        debugMsg += "  Target track index: " + juce::String(targetTrackIndex) + " (0-based) = Track " + juce::String(targetTrackIndex + 1) + " in UI\n";
+        debugMsg += "  Target track name: \"" + targetTrackName + "\"\n";
+        debugMsg += "  Total items in project: " + juce::String(itemCount) + "\n";
+        debugMsg += "  Items checked: " + juce::String(itemsChecked) + "\n";
+        debugMsg += "  Items on target track: " + juce::String(itemsOnTargetTrack) + "\n";
+        debugMsg += "  MIDI items on target track: " + juce::String(midiItemsOnTargetTrack) + "\n";
+        debugMsg += "  Notes found in range: " + juce::String(notes.size()) + "\n";
+        juce::Logger::writeToLog(debugMsg);
 
     }
     catch (...)

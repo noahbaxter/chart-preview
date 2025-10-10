@@ -13,8 +13,7 @@ using namespace Steinberg;
 // Now include REAPER VST3 interfaces with proper namespace context
 #include "../../../third_party/reaper-sdk/sdk/reaper_vst3_interfaces.h"
 
-// Define the interface IDs
-// DEF_CLASS_IID is defined in the REAPER header and needs to be called once per project
-DEF_CLASS_IID(IReaperHostApplication)
+// The interface ID definition is moved to ReaperVST3Extensions.cpp
+// to avoid duplicate symbol errors
 
 #endif // JucePlugin_Build_VST3

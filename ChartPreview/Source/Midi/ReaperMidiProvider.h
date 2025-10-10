@@ -41,6 +41,14 @@ public:
     // Check if transport is playing
     bool isPlaying();
 
+    // Get the REAPER API function pointer (for use with ReaperTrackDetector)
+    std::function<void*(const char*)> getReaperGetFunc() const {
+        if (getReaperApi) {
+            return [this](const char* funcname) -> void* { return getReaperApi(funcname); };
+        }
+        return nullptr;
+    }
+
 private:
     // REAPER API function pointers
     void* (*getReaperApi)(const char*) = nullptr;
