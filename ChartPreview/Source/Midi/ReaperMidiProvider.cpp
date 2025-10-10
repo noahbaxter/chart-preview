@@ -1,4 +1,5 @@
 #include "ReaperMidiProvider.h"
+#include "../REAPER/ReaperTrackDetector.h"
 
 ReaperMidiProvider::ReaperMidiProvider()
 {
@@ -10,7 +11,7 @@ ReaperMidiProvider::~ReaperMidiProvider()
     DBG("ReaperMidiProvider: Destroyed");
 }
 
-void ReaperMidiProvider::initialize(void* (*reaperGetApiFunc)(const char*))
+bool ReaperMidiProvider::initialize(void* (*reaperGetApiFunc)(const char*))
 {
     juce::ScopedLock lock(apiLock);
 
@@ -20,7 +21,7 @@ void ReaperMidiProvider::initialize(void* (*reaperGetApiFunc)(const char*))
     {
         DBG("ReaperMidiProvider: No REAPER API function provided");
         reaperApiInitialized = false;
-        return;
+        return false;
     }
 
     // Add safety check to prevent crashes with invalid function pointers
@@ -37,12 +38,15 @@ void ReaperMidiProvider::initialize(void* (*reaperGetApiFunc)(const char*))
         {
             DBG("ReaperMidiProvider: Failed to load required REAPER API functions");
         }
+
+        return reaperApiInitialized;
     }
     catch (...)
     {
         DBG("ReaperMidiProvider: CRASH PREVENTED - Invalid REAPER API function pointer");
         reaperApiInitialized = false;
         getReaperApi = nullptr;
+        return false;
     }
 }
 
@@ -90,12 +94,15 @@ bool ReaperMidiProvider::loadReaperApiFunctions()
     return success;
 }
 
-std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getNotesInRange(double startPPQ, double endPPQ)
+std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getNotesInRange(double startPPQ, double endPPQ, int trackIndex)
 {
     std::vector<ReaperMidiNote> notes;
 
     if (!reaperApiInitialized)
+    {
+        if (print) print("ReaperMidiProvider: API not initialized");
         return notes;
+    }
 
     juce::ScopedLock lock(apiLock);
 
@@ -108,30 +115,88 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getNotesInRa
         double reaperStartPPQ = startPPQ * REAPER_PPQ_RESOLUTION;
         double reaperEndPPQ = endPPQ * REAPER_PPQ_RESOLUTION;
 
+        // Minimal logging - only on significant position changes
+        static double lastLoggedStart = -1000.0;
+        bool shouldLog = std::abs(startPPQ - lastLoggedStart) > 5.0; // Only log every 5 QN
+        if (print && shouldLog)
+        {
+            print("=== REAPER API Query (@ " + juce::String(startPPQ, 1) + " QN) ===");
+            lastLoggedStart = startPPQ;
+        }
+
         // Get current project
         auto EnumProjects = (void*(*)(int, char*, int))getReaperApi("EnumProjects");
-        if (!EnumProjects) return notes;
+        if (!EnumProjects)
+        {
+            if (print) print("ERROR: Could not get EnumProjects API function");
+            return notes;
+        }
 
         void* project = EnumProjects(-1, nullptr, 0);
-        if (!project) return notes;
+        if (!project)
+        {
+            if (print) print("ERROR: Could not get current project");
+            return notes;
+        }
 
         // For now, just hardcode back to track index 1 (track 2 in UI)
         // TODO: Make this configurable or auto-detect properly
         auto GetTrack = (void*(*)(void*, int))getReaperApi("GetTrack");
-        if (!GetTrack) return notes;
+        if (!GetTrack)
+        {
+            if (print) print("ERROR: Could not get GetTrack API function");
+            return notes;
+        }
 
-        // HARDCODED: Reading from first track (track 1 in REAPER UI)
-        // Track index 0 = track 1, index 1 = track 2, etc.
-        int targetTrackIndex = 0; // First track = PART DRUMS
+        // Use provided track index, or auto-detect if not specified
+        int targetTrackIndex = trackIndex;
+        if (targetTrackIndex < 0)
+        {
+            // Auto-detect which track this plugin instance is on
+            targetTrackIndex = ReaperTrackDetector::detectPluginTrack(
+                [this](const char* funcname) -> void* { return getReaperApi(funcname); }
+            );
+
+            // If detection failed, default to track 0
+            if (targetTrackIndex < 0)
+            {
+                targetTrackIndex = 0;
+                if (print) print("WARNING: Could not detect plugin track, defaulting to track 0");
+            }
+            else
+            {
+                if (print)
+                {
+                    static int lastLoggedTrack = -1;
+                    if (targetTrackIndex != lastLoggedTrack)
+                    {
+                        print("Auto-detected plugin on track index " + juce::String(targetTrackIndex) +
+                              " (Track " + juce::String(targetTrackIndex + 1) + " in UI)");
+                        lastLoggedTrack = targetTrackIndex;
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (print)
+            {
+                static int lastLoggedTrack = -1;
+                if (targetTrackIndex != lastLoggedTrack)
+                {
+                    print("Using configured track index " + juce::String(targetTrackIndex) +
+                          " (Track " + juce::String(targetTrackIndex + 1) + " in UI)");
+                    lastLoggedTrack = targetTrackIndex;
+                }
+            }
+        }
 
         void* targetTrack = GetTrack(project, targetTrackIndex);
         if (!targetTrack)
         {
-            juce::Logger::writeToLog("ERROR: Could not get track at index " + juce::String(targetTrackIndex));
+            if (print) print("ERROR: Could not get track at index " + juce::String(targetTrackIndex));
             return notes;
         }
-
-        juce::String targetTrackName = "Track " + juce::String(targetTrackIndex + 1);
 
         // Count media items in project
         int itemCount = CountMediaItems(project);
@@ -144,30 +209,49 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getNotesInRa
         for (int itemIdx = 0; itemIdx < itemCount; itemIdx++)
         {
             void* item = GetMediaItem(project, itemIdx);
-            if (!item) continue;
+            if (!item)
+            {
+                if (print) print("  Item " + juce::String(itemIdx) + ": NULL item pointer");
+                continue;
+            }
             itemsChecked++;
 
             // Get the active take for this item
             void* take = GetActiveTake(item);
-            if (!take) continue;
+            if (!take)
+            {
+                if (print) print("  Item " + juce::String(itemIdx) + ": No active take");
+                continue;
+            }
 
             // Check if this item belongs to our target track
             void* itemTrack = GetMediaItemTake_Track(take);
-            if (itemTrack != targetTrack) continue; // Skip items not on target track
+
+            if (itemTrack != targetTrack)
+            {
+                continue; // Skip items not on target track
+            }
 
             itemsOnTargetTrack++;
 
             // Check if this is a MIDI take by counting MIDI events
             int noteCount = 0, ccCount = 0, sysexCount = 0;
-            if (MIDI_CountEvts(take, &noteCount, &ccCount, &sysexCount) == 0)
+            int countResult = MIDI_CountEvts(take, &noteCount, &ccCount, &sysexCount);
+
+            if (countResult == 0)
+            {
                 continue; // Not a MIDI take
+            }
 
             if (noteCount == 0)
+            {
                 continue; // No MIDI notes
+            }
 
             midiItemsOnTargetTrack++;
 
             // Read all MIDI notes from this take
+            int notesInRange = 0;
             for (int noteIdx = 0; noteIdx < noteCount; noteIdx++)
             {
                 bool selected = false, muted = false;
@@ -180,6 +264,8 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getNotesInRa
                     // Check if note overlaps with requested time range (in REAPER's 960 PPQ)
                     if (noteEndPPQ >= reaperStartPPQ && notStartPPQ <= reaperEndPPQ)
                     {
+                        notesInRange++;
+
                         // Convert REAPER's 960 PPQ to VST quarter notes for return
                         double convertedStartPPQ = notStartPPQ / REAPER_PPQ_RESOLUTION;
                         double convertedEndPPQ = noteEndPPQ / REAPER_PPQ_RESOLUTION;
@@ -197,19 +283,14 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getNotesInRa
                     }
                 }
             }
+
         }
 
-        // Log summary statistics (using juce::Logger since we can't use print() here)
-        juce::String debugMsg = "=== REAPER MIDI Read Summary ===\n";
-        debugMsg += "  Queried PPQ range: " + juce::String(startPPQ) + " to " + juce::String(endPPQ) + "\n";
-        debugMsg += "  Target track index: " + juce::String(targetTrackIndex) + " (0-based) = Track " + juce::String(targetTrackIndex + 1) + " in UI\n";
-        debugMsg += "  Target track name: \"" + targetTrackName + "\"\n";
-        debugMsg += "  Total items in project: " + juce::String(itemCount) + "\n";
-        debugMsg += "  Items checked: " + juce::String(itemsChecked) + "\n";
-        debugMsg += "  Items on target track: " + juce::String(itemsOnTargetTrack) + "\n";
-        debugMsg += "  MIDI items on target track: " + juce::String(midiItemsOnTargetTrack) + "\n";
-        debugMsg += "  Notes found in range: " + juce::String(notes.size()) + "\n";
-        juce::Logger::writeToLog(debugMsg);
+        // Log summary only if we found notes or had issues
+        if (print && shouldLog)
+        {
+            print("  Found " + juce::String(notes.size()) + " notes from " + juce::String(midiItemsOnTargetTrack) + " MIDI items");
+        }
 
     }
     catch (...)

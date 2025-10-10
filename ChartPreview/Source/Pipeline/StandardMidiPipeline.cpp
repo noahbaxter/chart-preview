@@ -27,6 +27,13 @@ void StandardMidiPipeline::process(const juce::AudioPlayHead::PositionInfo& posi
 
 bool StandardMidiPipeline::needsRealtimeMidiBuffer() const
 {
+    // Log once on first call
+    static bool logged = false;
+    if (!logged)
+    {
+        juce::Logger::writeToLog("StandardMidiPipeline::needsRealtimeMidiBuffer() = TRUE (using MIDI buffer)");
+        logged = true;
+    }
     return true; // Standard pipeline needs realtime MIDI from DAW
 }
 

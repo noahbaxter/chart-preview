@@ -28,6 +28,6 @@ private:
     ChartPreviewAudioProcessor* processor;
     std::function<VstHostCallbackType> hostCallback;
 
-    // Static storage for the callback so our lambda can access it
-    static std::function<VstHostCallbackType>* staticCallback;
+    // Per-instance storage for callbacks (keyed by processor pointer)
+    static std::map<ChartPreviewAudioProcessor*, std::function<VstHostCallbackType>*> instanceCallbacks;
 };

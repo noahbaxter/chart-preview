@@ -15,7 +15,11 @@ public:
     ~ReaperMidiProvider();
 
     // Initialize with REAPER API function getter (from VST2 integration)
-    void initialize(void* (*reaperGetApiFunc)(const char*));
+    // Returns true if initialization succeeded
+    bool initialize(void* (*reaperGetApiFunc)(const char*));
+
+    // Set print callback for debug logging
+    void setPrintCallback(std::function<void(const juce::String&)> printFunc) { print = printFunc; }
 
     // Check if REAPER API is available and working
     bool isReaperApiAvailable() const { return reaperApiInitialized; }
@@ -32,7 +36,8 @@ public:
     };
 
     // Get notes from current project at specified time range
-    std::vector<ReaperMidiNote> getNotesInRange(double startPPQ, double endPPQ);
+    // trackIndex: 0-based track index (-1 = auto-detect)
+    std::vector<ReaperMidiNote> getNotesInRange(double startPPQ, double endPPQ, int trackIndex = -1);
 
     // Get current playback/cursor positions
     double getCurrentPlayPosition();
@@ -75,4 +80,5 @@ private:
     bool isItemInTimeRange(void* item, double startPPQ, double endPPQ);
 
     juce::CriticalSection apiLock;
+    std::function<void(const juce::String&)> print; // Debug logging callback
 };

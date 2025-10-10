@@ -24,6 +24,7 @@ public:
         bool useReaperTimeline,
         MidiProcessor& midiProcessor,
         ReaperMidiProvider* reaperProvider,
-        juce::ValueTree& state
+        juce::ValueTree& state,
+        std::function<void(const juce::String&)> printFunc = nullptr
     );
 };

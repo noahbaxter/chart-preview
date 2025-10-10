@@ -48,10 +48,12 @@ public:
     // Set visual window bounds for conservative cleanup during tempo changes
     void setMidiProcessorVisualWindowBounds(PPQ startPPQ, PPQ endPPQ) { midiProcessor.setVisualWindowBounds(startPPQ, endPPQ); }
     void refreshMidiDisplay() { midiProcessor.refreshMidiDisplay(); }
+    void invalidateReaperCache();  // Clear cache and force re-fetch (for track changes)
 
     // Debug
     juce::String debugText;
     void print(const juce::String &line) { debugText += line + "\n"; }
+    void clearDebugText() { debugText.clear(); }
     
     // Overrides
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
@@ -124,6 +126,9 @@ public:
 
     // Display window size (set by editor, used by pipeline)
     PPQ displayWindowSize = PPQ(4.0);
+
+    // Track REAPER connection state per-instance (not static!)
+    bool lastReaperConnected = false;
 
     void initializeDefaultState();
 

@@ -11,7 +11,7 @@
 #include "../PluginProcessor.h"
 
 // Define static member
-std::function<ChartPreviewVST2Extensions::VstHostCallbackType>* ChartPreviewVST2Extensions::staticCallback = nullptr;
+std::map<ChartPreviewAudioProcessor*, std::function<ChartPreviewVST2Extensions::VstHostCallbackType>*> ChartPreviewVST2Extensions::instanceCallbacks;
 
 ChartPreviewVST2Extensions::ChartPreviewVST2Extensions(ChartPreviewAudioProcessor* proc)
     : processor(proc)
@@ -80,23 +80,50 @@ void ChartPreviewVST2Extensions::tryGetReaperApi()
     {
         processor->isReaperHost = true;
 
-        // Store callback in static member so our wrapper function can access it
-        staticCallback = &hostCallback;
+        // Store callback in per-instance map so our wrapper function can access it
+        instanceCallbacks[processor] = &hostCallback;
 
-        // Create a static function that can be used as a function pointer
-        static auto reaperApiWrapper = [](const char* funcname) -> void* {
-            if (!ChartPreviewVST2Extensions::staticCallback)
-                return nullptr;
-
-            auto& callback = *ChartPreviewVST2Extensions::staticCallback;
-            auto result = callback(0xdeadbeef, 0xdeadf00d, 0, (void*)funcname, 0.0);
-            return (void*)result;
+        // Create a wrapper function that looks up the correct callback for this processor
+        // The wrapper is stored as a stateless lambda that can be converted to a function pointer
+        // We store the processor pointer in the map and look it up when needed
+        auto wrapperFunc = +[](const char* funcname) -> void* {
+            // Try each instance's callback until we find one that works
+            // In most cases, this will be the first one tried
+            for (auto& pair : ChartPreviewVST2Extensions::instanceCallbacks)
+            {
+                if (pair.second)
+                {
+                    auto& callback = *pair.second;
+                    // Test if this callback works by calling it
+                    auto result = callback(0xdeadbeef, 0xdeadf00d, 0, (void*)funcname, 0.0);
+                    if (result != 0)
+                        return (void*)result;
+                }
+            }
+            return nullptr;
         };
 
-        processor->reaperGetFunc = reaperApiWrapper;
+        processor->reaperGetFunc = wrapperFunc;
 
-        // Initialize the REAPER MIDI provider
-        processor->reaperMidiProvider.initialize(processor->reaperGetFunc);
-        processor->debugText += "✅ REAPER API connected - MIDI timeline access ready\n";
+        // Initialize the REAPER MIDI provider with retry logic
+        bool initialized = processor->reaperMidiProvider.initialize(processor->reaperGetFunc);
+
+        // Retry once if initialization failed (handles race conditions)
+        if (!initialized)
+        {
+            processor->debugText += "⚠️  REAPER API initialization failed, retrying...\n";
+            juce::Thread::sleep(50); // Brief delay
+            initialized = processor->reaperMidiProvider.initialize(processor->reaperGetFunc);
+        }
+
+        if (initialized)
+        {
+            processor->reaperMidiProvider.setPrintCallback([this](const juce::String& msg) { processor->print(msg); });
+            processor->debugText += "✅ REAPER API connected - MIDI timeline access ready\n";
+        }
+        else
+        {
+            processor->debugText += "❌ REAPER API initialization failed after retry\n";
+        }
     }
 }

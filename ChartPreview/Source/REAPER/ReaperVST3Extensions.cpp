@@ -10,6 +10,7 @@
 #include "ReaperVST3Extensions.h"
 #include "../PluginProcessor.h"
 #include "../ReaperVST3.h"
+#include <map>
 
 #if JucePlugin_Build_VST3
 
@@ -32,20 +33,47 @@ void ChartPreviewVST3Extensions::setIHostApplication(Steinberg::FUnknown* host)
     {
         processor->isReaperHost = true;
 
-        // Create a wrapper function to call getReaperApi
-        // Store reaper interface in static variable for the function pointer
-        static FUnknownPtr<IReaperHostApplication> staticReaper = reaper;
-        static auto reaperApiWrapper = [](const char* funcname) -> void* {
-            if (!staticReaper)
-                return nullptr;
-            return staticReaper->getReaperApi(funcname);
+        // Store the REAPER interface per-instance using a map
+        // This allows multiple plugin instances to work simultaneously
+        static std::map<ChartPreviewAudioProcessor*, FUnknownPtr<IReaperHostApplication>> reaperInstances;
+        reaperInstances[processor] = reaper;
+
+        // Create a wrapper function that looks up the correct instance
+        processor->reaperGetFunc = [](const char* funcname) -> void* {
+            // Find the processor in the map by iterating and trying each one
+            // In practice, REAPER calls this from the audio thread of the correct instance
+            for (auto& pair : reaperInstances)
+            {
+                if (pair.second)
+                {
+                    void* result = pair.second->getReaperApi(funcname);
+                    if (result)
+                        return result;
+                }
+            }
+            return nullptr;
         };
 
-        processor->reaperGetFunc = reaperApiWrapper;
+        // Initialize the REAPER MIDI provider with retry logic
+        bool initialized = processor->reaperMidiProvider.initialize(processor->reaperGetFunc);
 
-        // Initialize the REAPER MIDI provider
-        processor->reaperMidiProvider.initialize(processor->reaperGetFunc);
-        processor->debugText += "✅ REAPER API connected via VST3 - MIDI timeline access ready\n";
+        // Retry once if initialization failed (handles race conditions)
+        if (!initialized)
+        {
+            processor->debugText += "⚠️  REAPER API initialization failed, retrying...\n";
+            juce::Thread::sleep(50); // Brief delay
+            initialized = processor->reaperMidiProvider.initialize(processor->reaperGetFunc);
+        }
+
+        if (initialized)
+        {
+            processor->reaperMidiProvider.setPrintCallback([this](const juce::String& msg) { processor->print(msg); });
+            processor->debugText += "✅ REAPER API connected via VST3 - MIDI timeline access ready\n";
+        }
+        else
+        {
+            processor->debugText += "❌ REAPER API initialization failed after retry\n";
+        }
     }
 }
 
