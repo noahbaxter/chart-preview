@@ -297,31 +297,29 @@ void ReaperMidiPipeline::fetchTimelineData(PPQ start, PPQ end)
 
 void ReaperMidiPipeline::processCachedNotesIntoState(PPQ currentPos, double bpm, double sampleRate)
 {
-    // Clear the visible range in noteStateMapArray
+    // Get notes from cache for current window
     PPQ clearStart = currentPos - PPQ(PREFETCH_BEHIND);
     PPQ clearEnd = currentPos + displayWindowSize + PPQ(PREFETCH_AHEAD);
-    midiProcessor.clearNoteDataInRange(clearStart, clearEnd);
-
-    // Get notes from cache for current window
     auto cachedNotes = cache.getNotesInRange(clearStart, clearEnd);
 
-    // Logging disabled for performance
-    // #ifdef DEBUG
-    // static int lastNoteCount = -1;
-    // if (print && cachedNotes.size() != lastNoteCount)
-    // {
-    //     print("=== PROCESS CACHED NOTES ===");
-    //     print("Got " + juce::String(cachedNotes.size()) + " cached notes for range " +
-    //           juce::String(clearStart.toDouble(), 2) + " to " + juce::String(clearEnd.toDouble(), 2));
-    //     lastNoteCount = cachedNotes.size();
-    // }
-    // #endif
+    // CRITICAL: Hold the lock for the ENTIRE clear+write operation!
+    // This prevents race conditions where the renderer could read an empty noteStateMapArray
+    // between the clear and write operations (which was causing intermittent black screens).
+    {
+        const juce::ScopedLock lock(midiProcessor.noteStateMapLock);
 
-    // Process modifiers first (affects gem type calculation)
-    processModifierNotes(cachedNotes);
+        // Clear the range
+        for (auto& noteStateMap : midiProcessor.noteStateMapArray)
+        {
+            auto lower = noteStateMap.lower_bound(clearStart);
+            auto upper = noteStateMap.upper_bound(clearEnd);
+            noteStateMap.erase(lower, upper);
+        }
 
-    // Then process playable notes
-    processPlayableNotes(cachedNotes, bpm, sampleRate);
+        // Immediately write new data while still holding the lock
+        processModifierNotes(cachedNotes);
+        processPlayableNotes(cachedNotes, bpm, sampleRate);
+    }
 
     // Get time signature from position info (or default to 4/4)
     // Note: JUCE doesn't provide time signature directly, so we default to 4/4
@@ -383,11 +381,9 @@ void ReaperMidiPipeline::processModifierNotes(const std::vector<MidiCache::Cache
         if (!isModifier) continue;
 
         // Add modifier to note state map (no gem type needed for modifiers)
-        {
-            const juce::ScopedLock lock(midiProcessor.noteStateMapLock);
-            midiProcessor.noteStateMapArray[note.pitch][note.startPPQ] = NoteData(note.velocity, Gem::NONE);
-            midiProcessor.noteStateMapArray[note.pitch][note.endPPQ - PPQ(1)] = NoteData(0, Gem::NONE);
-        }
+        // NOTE: Caller must hold noteStateMapLock
+        midiProcessor.noteStateMapArray[note.pitch][note.startPPQ] = NoteData(note.velocity, Gem::NONE);
+        midiProcessor.noteStateMapArray[note.pitch][note.endPPQ - PPQ(1)] = NoteData(0, Gem::NONE);
     }
 }
 
@@ -431,11 +427,9 @@ void ReaperMidiPipeline::processPlayableNotes(const std::vector<MidiCache::Cache
         }
 
         // Add to note state map
-        {
-            const juce::ScopedLock lock(midiProcessor.noteStateMapLock);
-            midiProcessor.noteStateMapArray[note.pitch][note.startPPQ] = NoteData(note.velocity, gemType);
-            midiProcessor.noteStateMapArray[note.pitch][note.endPPQ - PPQ(1)] = NoteData(0, Gem::NONE);
-        }
+        // NOTE: Caller must hold noteStateMapLock
+        midiProcessor.noteStateMapArray[note.pitch][note.startPPQ] = NoteData(note.velocity, gemType);
+        midiProcessor.noteStateMapArray[note.pitch][note.endPPQ - PPQ(1)] = NoteData(0, Gem::NONE);
     }
 }
 
