@@ -27,7 +27,7 @@ public:
                 uint blockSize,
                 double sampleRate) override;
 
-    bool needsRealtimeMidiBuffer() const override;
+    bool needsRealtimeMidiBuffer() const override { return false; }  // REAPER pipeline reads from timeline, not buffer
 
     void setDisplayWindow(PPQ start, PPQ end) override;
 

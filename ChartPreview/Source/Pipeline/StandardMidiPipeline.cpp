@@ -49,7 +49,7 @@ void StandardMidiPipeline::processMidiBuffer(juce::MidiBuffer& midiMessages,
                                             uint latencySamples,
                                             double sampleRate)
 {
-    // This is the existing MIDI processing logic from processBlock
+    // Process MIDI buffer through MidiProcessor
     if (position.getIsPlaying())
     {
         midiProcessor.process(midiMessages,

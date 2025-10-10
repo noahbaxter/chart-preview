@@ -93,6 +93,10 @@
         <FILE id="MidiCache2" name="MidiCache.h" compile="0" resource="0"
               file="Source/Midi/MidiCache.h"/>
       </GROUP>
+      <GROUP id="{DebugTools1}" name="DebugTools">
+        <FILE id="Logger1" name="Logger.h" compile="0" resource="0"
+              file="Source/DebugTools/Logger.h"/>
+      </GROUP>
       <GROUP id="{Pipeline1}" name="Pipeline">
         <FILE id="MidiPipeline1" name="MidiPipeline.h" compile="0" resource="0"
               file="Source/Pipeline/MidiPipeline.h"/>

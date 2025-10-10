@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "../Utils/PPQ.h"
 #include "../Utils/Utils.h"
+#include "../DebugTools/Logger.h"
 
 /**
  * Provides MIDI note data directly from REAPER's timeline for scrubbing and lookahead.
@@ -18,8 +19,8 @@ public:
     // Returns true if initialization succeeded
     bool initialize(void* (*reaperGetApiFunc)(const char*));
 
-    // Set print callback for debug logging
-    void setPrintCallback(std::function<void(const juce::String&)> printFunc) { print = printFunc; }
+    // Set debug logger
+    void setLogger(DebugTools::Logger* loggerPtr) { logger = loggerPtr; }
 
     // Check if REAPER API is available and working
     bool isReaperApiAvailable() const { return reaperApiInitialized; }
@@ -73,6 +74,7 @@ private:
     int (*MIDI_CountEvts)(void* take, int* notecnt, int* ccevtcnt, int* textsyxevtcnt) = nullptr;
     bool (*MIDI_GetNote)(void* take, int noteidx, bool* selected, bool* muted,
                         double* startppq, double* endppq, int* chan, int* pitch, int* vel) = nullptr;
+    double (*MIDI_GetProjQNFromPPQPos)(void* take, double ppqpos) = nullptr;
 
     // Helper methods
     bool loadReaperApiFunctions();
@@ -80,5 +82,5 @@ private:
     bool isItemInTimeRange(void* item, double startPPQ, double endPPQ);
 
     juce::CriticalSection apiLock;
-    std::function<void(const juce::String&)> print; // Debug logging callback
+    DebugTools::Logger* logger = nullptr;  // Optional debug logger
 };

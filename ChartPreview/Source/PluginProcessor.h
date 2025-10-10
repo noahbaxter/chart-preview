@@ -12,6 +12,7 @@
 #include <memory>
 #include "Midi/MidiProcessor.h"
 #include "Midi/ReaperMidiProvider.h"
+#include "DebugTools/Logger.h"
 
 // Forward declarations
 class MidiPipeline;
@@ -54,7 +55,7 @@ public:
     juce::String debugText;
     void print(const juce::String &line) { debugText += line + "\n"; }
     void clearDebugText() { debugText.clear(); }
-    
+
     // Overrides
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -117,9 +118,13 @@ public:
     // Public midiProcessor access for pipelines
     MidiProcessor& getMidiProcessor() { return midiProcessor; }
 
+    // Debug logger access
+    DebugTools::Logger& getDebugLogger() { return debugLogger; }
+
   private:
     juce::ValueTree state;
     MidiProcessor midiProcessor;
+    DebugTools::Logger debugLogger;
 
     // MIDI processing pipeline (created based on host)
     std::unique_ptr<MidiPipeline> midiPipeline;

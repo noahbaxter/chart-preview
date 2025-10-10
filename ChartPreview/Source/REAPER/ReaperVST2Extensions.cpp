@@ -118,7 +118,7 @@ void ChartPreviewVST2Extensions::tryGetReaperApi()
 
         if (initialized)
         {
-            processor->reaperMidiProvider.setPrintCallback([this](const juce::String& msg) { processor->print(msg); });
+            processor->reaperMidiProvider.setLogger(&processor->getDebugLogger());
             processor->debugText += "✅ REAPER API connected - MIDI timeline access ready\n";
         }
         else

@@ -96,18 +96,6 @@ void ReaperMidiPipeline::process(const juce::AudioPlayHead::PositionInfo& positi
     cache.cleanup(cleanupBehind);
 }
 
-bool ReaperMidiPipeline::needsRealtimeMidiBuffer() const
-{
-    // Log once on first call
-    static bool logged = false;
-    if (!logged && print)
-    {
-        print("ReaperMidiPipeline::needsRealtimeMidiBuffer() = FALSE (using timeline data)");
-        logged = true;
-    }
-    return false; // REAPER pipeline uses timeline data, not realtime MIDI
-}
-
 void ReaperMidiPipeline::setDisplayWindow(PPQ start, PPQ end)
 {
     displayWindowStart = start;
@@ -266,13 +254,6 @@ void ReaperMidiPipeline::fetchTimelineData(PPQ start, PPQ end)
             // Only trust the empty result after multiple consecutive confirmations
             if (consecutiveEmptyFetches < EMPTY_FETCH_CONFIRMATION_COUNT)
             {
-                if (print)
-                {
-                    print("⚠️  Fetch returned 0 notes but cache has notes - retry " +
-                          juce::String(consecutiveEmptyFetches) + "/" +
-                          juce::String(EMPTY_FETCH_CONFIRMATION_COUNT));
-                }
-
                 // Tiny delay to let REAPER finish any pending updates
                 juce::Thread::sleep(2);
 
@@ -286,10 +267,6 @@ void ReaperMidiPipeline::fetchTimelineData(PPQ start, PPQ end)
                 {
                     // Retry succeeded! Reset counter
                     consecutiveEmptyFetches = 0;
-                    if (print)
-                    {
-                        print("✅ Retry successful - got " + juce::String(notes.size()) + " notes");
-                    }
                 }
 
                 // Don't update cache with empty result yet - keep existing data
@@ -298,11 +275,6 @@ void ReaperMidiPipeline::fetchTimelineData(PPQ start, PPQ end)
             else
             {
                 // Multiple consecutive empty fetches - trust it, notes were probably deleted
-                if (print)
-                {
-                    print("🗑️  Confirmed empty after " + juce::String(EMPTY_FETCH_CONFIRMATION_COUNT) +
-                          " attempts - clearing cache");
-                }
                 // Fall through to update cache with empty result
             }
         }

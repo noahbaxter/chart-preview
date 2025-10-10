@@ -67,7 +67,7 @@ void ChartPreviewVST3Extensions::setIHostApplication(Steinberg::FUnknown* host)
 
         if (initialized)
         {
-            processor->reaperMidiProvider.setPrintCallback([this](const juce::String& msg) { processor->print(msg); });
+            processor->reaperMidiProvider.setLogger(&processor->getDebugLogger());
             processor->debugText += "✅ REAPER API connected via VST3 - MIDI timeline access ready\n";
         }
         else

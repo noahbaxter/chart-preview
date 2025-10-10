@@ -27,7 +27,8 @@ ChartPreviewAudioProcessor::ChartPreviewAudioProcessor()
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
                        ),
-       midiProcessor(state)
+       midiProcessor(state),
+       debugLogger([this](const juce::String& msg) { print(msg); })
 #endif
 {
     debugText = "Plugin loaded at " + juce::Time::getCurrentTime().toString(true, true) + "\n";
