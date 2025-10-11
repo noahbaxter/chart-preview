@@ -49,7 +49,7 @@ public:
 
 private:
     juce::ValueTree &state;
-    
+
     PPQ calculatePPQSegment(uint samples, double bpm, double sampleRate);
     void cleanupOldEvents(PPQ startPPQ, PPQ endPPQ, PPQ latencyPPQ);
     

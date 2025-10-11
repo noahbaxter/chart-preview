@@ -56,9 +56,7 @@ void ChartPreviewAudioProcessor::initializeDefaultState()
     state.setProperty("starPower", 1, nullptr);
     state.setProperty("kick2x", 1, nullptr);
     state.setProperty("dynamics", 1, nullptr);
-    state.setProperty("dynamicZoom", 0, nullptr);
-    state.setProperty("zoomPPQ", 2.5, nullptr);
-    state.setProperty("zoomTime", 1.0, nullptr);
+    state.setProperty("zoomTime", 1.2, nullptr);
     state.setProperty("reaperTrack", 1, nullptr); // Track 1 (0-indexed) = Track 1 in UI
 }
 

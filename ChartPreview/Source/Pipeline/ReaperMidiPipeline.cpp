@@ -403,6 +403,9 @@ void ReaperMidiPipeline::processPlayableNotes(const std::vector<MidiCache::Cache
         validPlayablePitches = MidiUtility::getGuitarPitchesForSkill(currentSkill);
     }
 
+    // Track guitar note positions for chord fixing (set automatically handles uniqueness)
+    std::set<PPQ> guitarNotePositions;
+
     for (const auto& note : notes)
     {
         if (note.muted) continue;
@@ -419,6 +422,7 @@ void ReaperMidiPipeline::processPlayableNotes(const std::vector<MidiCache::Cache
             if (isPart(state, Part::GUITAR))
             {
                 gemType = midiProcessor.getGuitarGemType(note.pitch, note.startPPQ);
+                guitarNotePositions.insert(note.startPPQ);
             }
             else if (isPart(state, Part::DRUMS))
             {
@@ -431,6 +435,15 @@ void ReaperMidiPipeline::processPlayableNotes(const std::vector<MidiCache::Cache
         // NOTE: Caller must hold noteStateMapLock
         midiProcessor.noteStateMapArray[note.pitch][note.startPPQ] = NoteData(note.velocity, gemType);
         midiProcessor.noteStateMapArray[note.pitch][note.endPPQ - PPQ(1)] = NoteData(0, Gem::NONE);
+    }
+
+    // Fix chord HOPOs for guitar (after all notes are added)
+    if (isPart(state, Part::GUITAR) && !guitarNotePositions.empty())
+    {
+        std::vector<PPQ> positions(guitarNotePositions.begin(), guitarNotePositions.end());
+        MidiUtility::fixChordHOPOs(positions, currentSkill,
+                                   midiProcessor.noteStateMapArray,
+                                   midiProcessor.noteStateMapLock);
     }
 }
 

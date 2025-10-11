@@ -407,8 +407,52 @@ bool MidiUtility::shouldBeAutoHOPO(uint pitch, PPQ position, juce::ValueTree &st
     return true;
 }
 
-std::vector<SustainEvent> MidiUtility::detectLanes(uint laneType, PPQ startPPQ, PPQ endPPQ, uint laneVelocity, 
-                                                    juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, 
+void MidiUtility::fixChordHOPOs(const std::vector<PPQ>& positions, SkillLevel skill,
+                                NoteStateMapArray &noteStateMapArray,
+                                juce::CriticalSection &noteStateMapLock)
+{
+    std::vector<uint> guitarPitches = getGuitarPitchesForSkill(skill);
+
+    for (PPQ position : positions)
+    {
+        // Count notes at this position
+        int noteCount = 0;
+        const juce::ScopedLock lock(noteStateMapLock);
+
+        for (uint guitarPitch : guitarPitches)
+        {
+            if (isNoteHeldWithTolerance(guitarPitch, position, noteStateMapArray, noteStateMapLock))
+            {
+                noteCount++;
+            }
+        }
+
+        // If chord (2+ notes), fix any HOPOs
+        if (noteCount >= 2)
+        {
+            PPQ searchStart = position - CHORD_TOLERANCE;
+            PPQ searchEnd = position + CHORD_TOLERANCE;
+
+            for (uint guitarPitch : guitarPitches)
+            {
+                auto& noteStateMap = noteStateMapArray[guitarPitch];
+                auto lower = noteStateMap.lower_bound(searchStart);
+                auto upper = noteStateMap.upper_bound(searchEnd);
+
+                for (auto it = lower; it != upper; ++it)
+                {
+                    if (it->second.velocity > 0 && it->second.gemType == Gem::HOPO_GHOST)
+                    {
+                        it->second.gemType = Gem::NOTE;
+                    }
+                }
+            }
+        }
+    }
+}
+
+std::vector<SustainEvent> MidiUtility::detectLanes(uint laneType, PPQ startPPQ, PPQ endPPQ, uint laneVelocity,
+                                                    juce::ValueTree &state, NoteStateMapArray &noteStateMapArray,
                                                     juce::CriticalSection &noteStateMapLock)
 {
     using Drums = MidiPitchDefinitions::Drums;
