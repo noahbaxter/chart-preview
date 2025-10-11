@@ -89,9 +89,13 @@ DO NOT DISTRIBUTE
 /third_party/*
 !/third_party/README.md
 !/third_party/.gitkeep
+!/third_party/reaper-sdk/
+/third_party/reaper-sdk/*
+!/third_party/reaper-sdk/sdk/
+/third_party/reaper-sdk/sdk/*
+!/third_party/reaper-sdk/sdk/reaper_vst3_interfaces.h
 
 # Legacy patterns (can be removed after confirming no issues)
-**/third_party/reaper-sdk/
 **/third_party/vst2sdk/
 **/third_party/sws/
 **/third_party/JUCE-reaper-embedded-fx-gui/

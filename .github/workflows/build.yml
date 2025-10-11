@@ -42,15 +42,12 @@ jobs:
         echo "JUCE installed at C:\JUCE"
         dir "C:\JUCE"
 
-    - name: Install REAPER SDK
+    - name: Setup REAPER SDK headers
       run: |
-        echo "Downloading REAPER SDK..."
-        Invoke-WebRequest -Uri "https://www.reaper.fm/sdk/plugin/reaper_plugin_sdk.zip" -OutFile "reaper_sdk.zip"
-        echo "Extracting REAPER SDK..."
-        Expand-Archive -Path "reaper_sdk.zip" -DestinationPath "third_party"
-        echo "Renaming SDK directory..."
-        Rename-Item -Path "third_party\reaper_plugin" -NewName "reaper-sdk"
-        echo "REAPER SDK installed"
+        echo "Copying REAPER VST3 interface header from .ci directory..."
+        mkdir -p third_party\reaper-sdk\sdk
+        copy ".ci\reaper-headers\reaper_vst3_interfaces.h" "third_party\reaper-sdk\sdk\"
+        echo "REAPER SDK header installed"
         dir "third_party\reaper-sdk\sdk"
 
     - name: Apply JUCE patches for REAPER integration
@@ -227,15 +224,12 @@ jobs:
         echo "JUCE installed at /Applications/JUCE"
         ls -la /Applications/JUCE/
 
-    - name: Install REAPER SDK
+    - name: Setup REAPER SDK headers
       run: |
-        echo "Downloading REAPER SDK..."
-        curl -L "https://www.reaper.fm/sdk/plugin/reaper_plugin_sdk.zip" -o reaper_sdk.zip
-        echo "Extracting REAPER SDK..."
-        mkdir -p third_party
-        unzip reaper_sdk.zip -d third_party/
-        mv third_party/reaper_plugin third_party/reaper-sdk
-        echo "REAPER SDK installed"
+        echo "Copying REAPER VST3 interface header from .ci directory..."
+        mkdir -p third_party/reaper-sdk/sdk
+        cp .ci/reaper-headers/reaper_vst3_interfaces.h third_party/reaper-sdk/sdk/
+        echo "REAPER SDK header installed"
         ls -la third_party/reaper-sdk/sdk/
 
     - name: Apply JUCE patches for REAPER integration
@@ -436,15 +430,12 @@ jobs:
         echo "Checking if Projucer exists..."
         ls -la /opt/JUCE/Projucer || echo "Projucer not found"
 
-    - name: Install REAPER SDK
+    - name: Setup REAPER SDK headers
       run: |
-        echo "Downloading REAPER SDK..."
-        wget -O reaper_sdk.zip "https://www.reaper.fm/sdk/plugin/reaper_plugin_sdk.zip"
-        echo "Extracting REAPER SDK..."
-        mkdir -p third_party
-        unzip reaper_sdk.zip -d third_party/
-        mv third_party/reaper_plugin third_party/reaper-sdk
-        echo "REAPER SDK installed"
+        echo "Copying REAPER VST3 interface header from .ci directory..."
+        mkdir -p third_party/reaper-sdk/sdk
+        cp .ci/reaper-headers/reaper_vst3_interfaces.h third_party/reaper-sdk/sdk/
+        echo "REAPER SDK header installed"
         ls -la third_party/reaper-sdk/sdk/
 
     - name: Apply JUCE patches for REAPER integration
