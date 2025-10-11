@@ -196,13 +196,6 @@ public:
             audioProcessor.clearDebugText();
             consoleOutput.clear();
         }
-        #ifdef DEBUG
-        else if (button == &debugToggle)
-        {
-            bool debugEnabled = button->getToggleState();
-            audioProcessor.setDebugEnabled(debugEnabled);
-        }
-        #endif
         audioProcessor.refreshMidiDisplay();
     }
 

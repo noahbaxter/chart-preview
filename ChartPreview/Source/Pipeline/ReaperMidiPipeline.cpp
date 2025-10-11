@@ -327,8 +327,9 @@ void ReaperMidiPipeline::processCachedNotesIntoState(PPQ currentPos, double bpm,
     uint timeSignatureNumerator = 4;
     uint timeSignatureDenominator = 4;
 
-    // Build gridlines for visible range
-    buildGridlines(currentPos, currentPos + displayWindowSize,
+    // Build gridlines for the ENTIRE highway range (not just visible window)
+    // This ensures we always have gridlines ready as we scroll forward
+    buildGridlines(currentPos, currentPos + PPQ(MAX_HIGHWAY_LENGTH),
                   timeSignatureNumerator, timeSignatureDenominator);
 }
 
@@ -437,51 +438,147 @@ void ReaperMidiPipeline::buildGridlines(PPQ startPPQ, PPQ endPPQ,
                                         uint timeSignatureNumerator,
                                         uint timeSignatureDenominator)
 {
-    // Find the nearest measure boundary before startPPQ to start gridline placement
-    double measureLength = static_cast<double>(timeSignatureNumerator) * (4.0 / timeSignatureDenominator);
-    double measureStart = std::floor(startPPQ.toDouble() / measureLength) * measureLength;
-    PPQ gridlineStartPPQ = PPQ(measureStart);
+    // Find measure boundaries by detecting when the measure NUMBER changes
+    // Then use binary search to find the exact PPQ position of each boundary
 
+    const juce::ScopedLock lock(midiProcessor.gridlineMapLock);
+
+    PPQ scanStart = std::max(PPQ(0.0), startPPQ - PPQ(2.0));
+    PPQ scanEnd = endPPQ;
+
+    std::map<double, Gridline> newGridlines;
+
+    // First pass: Detect measure boundaries by scanning at 0.25 PPQ intervals
+    double lastPPQ = scanStart.toDouble();
+    auto lastPos = reaperProvider.getMusicalPositionAtPPQ(lastPPQ);
+    int lastMeasure = lastPos.measure;
+
+    for (double ppq = scanStart.toDouble() + 0.25; ppq <= scanEnd.toDouble(); ppq += 0.25)
     {
-        const juce::ScopedLock lock(midiProcessor.gridlineMapLock);
+        auto currentPos = reaperProvider.getMusicalPositionAtPPQ(ppq);
+        int currentMeasure = currentPos.measure;
 
-        // Clear existing gridlines in range
-        auto it = midiProcessor.gridlineMap.begin();
-        while (it != midiProcessor.gridlineMap.end())
+        // Did we cross a measure boundary?
+        if (currentMeasure != lastMeasure)
         {
-            if (it->first >= startPPQ && it->first <= endPPQ)
+            // Binary search to find the EXACT PPQ where measure changes
+            double searchStart = lastPPQ;
+            double searchEnd = ppq;
+            double measureBoundaryPPQ = ppq;
+
+            // Binary search with 0.001 PPQ precision
+            for (int i = 0; i < 10; i++)  // 10 iterations = ~0.001 PPQ precision
             {
-                it = midiProcessor.gridlineMap.erase(it);
+                double midPPQ = (searchStart + searchEnd) / 2.0;
+                auto midPos = reaperProvider.getMusicalPositionAtPPQ(midPPQ);
+
+                if (midPos.measure == lastMeasure)
+                {
+                    searchStart = midPPQ;  // Measure boundary is after this point
+                }
+                else
+                {
+                    searchEnd = midPPQ;  // Measure boundary is before/at this point
+                    measureBoundaryPPQ = midPPQ;
+                }
+            }
+
+            // Add measure gridline at the found boundary
+            newGridlines[measureBoundaryPPQ] = Gridline::MEASURE;
+
+            // Now add beat/half-beat gridlines MATHEMATICALLY within this measure
+            // Get the time signature at this measure
+            auto measureStartPos = reaperProvider.getMusicalPositionAtPPQ(measureBoundaryPPQ);
+            int beatsInMeasure = measureStartPos.timesig_num;
+            int timesigDenom = measureStartPos.timesig_denom;
+
+            // Calculate measure length in quarter notes (PPQ)
+            // e.g., 4/4 = 4 beats, 3/4 = 3 beats, 6/8 = 3 beats (6 eighth notes = 3 quarter notes)
+            double measureLengthInQuarterNotes = static_cast<double>(beatsInMeasure) * (4.0 / timesigDenom);
+
+            // Get tempo at this position to convert quarter notes to actual PPQ distance
+            double bpm = measureStartPos.bpm;
+
+            // In REAPER's internal timeline, the PPQ distance for one quarter note varies with tempo
+            // We need to find the actual PPQ distance by sampling
+            double oneQuarterNoteAhead = measureBoundaryPPQ + 1.0;  // Estimate
+            auto oneQNPos = reaperProvider.getMusicalPositionAtPPQ(oneQuarterNoteAhead);
+
+            // Refine: find where fullBeats increases by exactly 1.0
+            double quarterNotePPQDistance = 1.0;  // Default fallback
+            if (std::abs(oneQNPos.fullBeats - measureStartPos.fullBeats - 1.0) > 0.1)
+            {
+                // Need to search for the actual quarter note distance
+                double searchStart = measureBoundaryPPQ;
+                double searchEnd = measureBoundaryPPQ + 2.0;
+                for (int i = 0; i < 10; i++)
+                {
+                    double midPPQ = (searchStart + searchEnd) / 2.0;
+                    auto midPos = reaperProvider.getMusicalPositionAtPPQ(midPPQ);
+                    double beatDiff = midPos.fullBeats - measureStartPos.fullBeats;
+
+                    if (beatDiff < 1.0)
+                        searchStart = midPPQ;
+                    else if (beatDiff > 1.0)
+                        searchEnd = midPPQ;
+                    else
+                    {
+                        quarterNotePPQDistance = midPPQ - measureBoundaryPPQ;
+                        break;
+                    }
+                }
+                quarterNotePPQDistance = searchEnd - measureBoundaryPPQ;
             }
             else
             {
-                ++it;
+                quarterNotePPQDistance = oneQuarterNoteAhead - measureBoundaryPPQ;
+            }
+
+            // Now calculate the actual measure length in PPQ
+            double measureLengthPPQ = measureLengthInQuarterNotes * quarterNotePPQDistance;
+
+            // Place gridlines at 0.5 quarter note intervals throughout the measure
+            for (double relativeQN = 0.5; relativeQN < measureLengthInQuarterNotes; relativeQN += 0.5)
+            {
+                double gridlinePPQ = measureBoundaryPPQ + (relativeQN * quarterNotePPQDistance);
+
+                // Determine gridline type based on position
+                if (std::abs(std::fmod(relativeQN, 1.0)) < 0.01)
+                {
+                    newGridlines[gridlinePPQ] = Gridline::BEAT;
+                }
+                else
+                {
+                    newGridlines[gridlinePPQ] = Gridline::HALF_BEAT;
+                }
+            }
+
+            lastMeasure = currentMeasure;
+        }
+
+        lastPPQ = ppq;
+    }
+
+    // Add all new gridlines to the map (only if not already present)
+    for (const auto& entry : newGridlines)
+    {
+        PPQ gridlinePPQ = PPQ(entry.first);
+
+        // Only add if we don't already have a gridline very close to this position
+        bool alreadyExists = false;
+        for (const auto& existing : midiProcessor.gridlineMap)
+        {
+            if (std::abs((gridlinePPQ - existing.first).toDouble()) < 0.02)
+            {
+                alreadyExists = true;
+                break;
             }
         }
 
-        // Place gridlines for all half-beat boundaries in the visible range
-        for (double ppq = gridlineStartPPQ.toDouble(); ppq <= endPPQ.toDouble(); ppq += 0.5)
+        if (!alreadyExists)
         {
-            PPQ gridlinePPQ = PPQ(ppq);
-
-            // Skip if outside the actual range
-            if (gridlinePPQ < startPPQ)
-                continue;
-
-            // Determine gridline type based on position relative to measure start
-            double relativePosition = ppq - measureStart;
-            if (std::abs(std::fmod(relativePosition, measureLength)) < 0.001)
-            {
-                midiProcessor.gridlineMap[gridlinePPQ] = Gridline::MEASURE;
-            }
-            else if (std::abs(std::fmod(relativePosition, 1.0)) < 0.001)
-            {
-                midiProcessor.gridlineMap[gridlinePPQ] = Gridline::BEAT;
-            }
-            else
-            {
-                midiProcessor.gridlineMap[gridlinePPQ] = Gridline::HALF_BEAT;
-            }
+            midiProcessor.gridlineMap[gridlinePPQ] = entry.second;
         }
     }
 }
+

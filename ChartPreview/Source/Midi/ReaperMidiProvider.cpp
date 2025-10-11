@@ -55,6 +55,12 @@ bool ReaperMidiProvider::loadReaperApiFunctions()
     MIDI_GetNote = (bool(*)(void*, int, bool*, bool*, double*, double*, int*, int*, int*))getReaperApi("MIDI_GetNote");
     MIDI_GetProjQNFromPPQPos = (double(*)(void*, double))getReaperApi("MIDI_GetProjQNFromPPQPos");
 
+    // Load TimeMap functions for bar/beat calculations
+    TimeMap2_QNToTime = (double(*)(void*, double))getReaperApi("TimeMap2_QNToTime");
+    TimeMap2_timeToQN = (double(*)(void*, double))getReaperApi("TimeMap2_timeToQN");
+    TimeMap2_timeToBeats = (double(*)(void*, double, int*, int*, double*, int*))getReaperApi("TimeMap2_timeToBeats");
+    TimeMap_GetDividedBpmAtTime = (double(*)(double))getReaperApi("TimeMap_GetDividedBpmAtTime");
+
     // Check that critical functions loaded successfully
     bool success = (CountMediaItems != nullptr &&
                    GetMediaItem != nullptr &&
@@ -64,7 +70,9 @@ bool ReaperMidiProvider::loadReaperApiFunctions()
                    GetPlayState != nullptr &&
                    MIDI_CountEvts != nullptr &&
                    MIDI_GetNote != nullptr &&
-                   MIDI_GetProjQNFromPPQPos != nullptr);
+                   MIDI_GetProjQNFromPPQPos != nullptr &&
+                   TimeMap2_QNToTime != nullptr &&
+                   TimeMap2_timeToBeats != nullptr);
 
     return success;
 }
@@ -368,4 +376,61 @@ bool ReaperMidiProvider::isItemInTimeRange(void* item, double startPPQ, double e
     // This could be enhanced to check item timing
     // For now, we check each take's MIDI content directly
     return true; // Simplified for now
+}
+
+ReaperMidiProvider::MusicalPosition ReaperMidiProvider::getMusicalPositionAtPPQ(double ppq)
+{
+    MusicalPosition result;
+    result.measure = 0;
+    result.beatInMeasure = 0.0;
+    result.fullBeats = ppq;  // Fallback: treat PPQ as beats
+    result.timesig_num = 4;
+    result.timesig_denom = 4;
+    result.bpm = 120.0;
+
+    if (!reaperApiInitialized || !TimeMap2_QNToTime || !TimeMap2_timeToBeats)
+        return result;
+
+    juce::ScopedLock lock(apiLock);
+
+    try
+    {
+        // Get current project
+        auto EnumProjects = (void*(*)(int, char*, int))getReaperApi("EnumProjects");
+        if (!EnumProjects) return result;
+
+        void* project = EnumProjects(-1, nullptr, 0);
+        if (!project) return result;
+
+        // Convert QN (our PPQ) to time in seconds
+        double timeInSeconds = TimeMap2_QNToTime(project, ppq);
+
+        // Query REAPER for the musical position AT THIS EXACT TIME
+        // This accounts for ALL time signature changes before this point
+        int measure = 0;
+        int cml = 4;  // current measure length (time sig numerator)
+        double fullbeats = 0.0;
+        int cdenom = 4;  // time sig denominator
+
+        double beatInMeasure = TimeMap2_timeToBeats(project, timeInSeconds,
+                                                      &measure, &cml, &fullbeats, &cdenom);
+
+        result.measure = measure;
+        result.beatInMeasure = beatInMeasure;
+        result.fullBeats = fullbeats;
+        result.timesig_num = cml;
+        result.timesig_denom = cdenom;
+
+        // Get BPM at this time
+        if (TimeMap_GetDividedBpmAtTime)
+        {
+            result.bpm = TimeMap_GetDividedBpmAtTime(timeInSeconds);
+        }
+    }
+    catch (...)
+    {
+        // Return fallback result on error
+    }
+
+    return result;
 }
