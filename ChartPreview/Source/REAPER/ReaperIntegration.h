@@ -22,7 +22,7 @@ public:
         PPQ startPPQ,
         PPQ endPPQ,
         double bpm,
-        uint timeSignatureNumerator,
-        uint timeSignatureDenominator
+        juce::uint32 timeSignatureNumerator,
+        juce::uint32 timeSignatureDenominator
     );
 };

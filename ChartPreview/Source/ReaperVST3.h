@@ -11,7 +11,7 @@
 using namespace Steinberg;
 
 // Now include REAPER VST3 interfaces with proper namespace context
-#include "../../../third_party/reaper-sdk/sdk/reaper_vst3_interfaces.h"
+#include "../../third_party/reaper-sdk/sdk/reaper_vst3_interfaces.h"
 
 // The interface ID definition is moved to ReaperVST3Extensions.cpp
 // to avoid duplicate symbol errors

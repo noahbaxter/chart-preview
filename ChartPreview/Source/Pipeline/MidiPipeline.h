@@ -19,7 +19,7 @@ public:
 
     // Main processing function - called from audio thread
     virtual void process(const juce::AudioPlayHead::PositionInfo& position,
-                        uint blockSize,
+                        juce::uint32 blockSize,
                         double sampleRate) = 0;
 
     // Indicates if this pipeline needs the realtime MIDI buffer
@@ -34,8 +34,8 @@ public:
     // Process the realtime MIDI buffer (only for StandardMidiPipeline)
     virtual void processMidiBuffer(juce::MidiBuffer& midiMessages,
                                   const juce::AudioPlayHead::PositionInfo& position,
-                                  uint blockSize,
-                                  uint latencySamples,
+                                  juce::uint32 blockSize,
+                                  juce::uint32 latencySamples,
                                   double sampleRate) {}
 
     // Get the current playhead position
