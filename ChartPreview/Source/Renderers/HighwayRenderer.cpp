@@ -316,7 +316,7 @@ juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float p
 juce::Rectangle<float> HighwayRenderer::getGuitarGridlineRect(float position)
 {
     // Use same positioning as guitar open note (column 0) but with GRIDLINE_SIZE
-    float normY1 = 0.73;
+    float normY1 = 0.745;
     float normY2 = 0.234;
     float normX1 = 0.16;
     float normX2 = 0.34;
@@ -337,7 +337,7 @@ juce::Rectangle<float> HighwayRenderer::getGuitarGridlineRect(float position)
 juce::Rectangle<float> HighwayRenderer::getDrumGridlineRect(float position)
 {
     // Use same positioning as drum kick note (column 0) but with GRIDLINE_SIZE
-    float normY1 = 0.735;
+    float normY1 = 0.75;
     float normY2 = 0.239;
     float normX1 = 0.16;
     float normX2 = 0.34;
