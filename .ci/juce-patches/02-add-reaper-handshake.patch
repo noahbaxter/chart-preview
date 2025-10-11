@@ -1,9 +1,12 @@
+diff --git a/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST2.cpp b/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST2.cpp
+index 6a865e3..d9d05fc 100644
 --- a/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST2.cpp
 +++ b/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST2.cpp
-@@ -2119,6 +2119,17 @@ public:
+@@ -2129,6 +2129,18 @@ namespace
                          });
                      }
-
+ 
++
 +                    // Try to get REAPER API functions if we're in REAPER
 +                    // This attempts the standard REAPER handshake using the magic numbers
 +                    auto reaperGetFunc = (void*(*)(const char*))audioMaster(nullptr, 0xdeadbeef, 0xdeadf00d, 0, nullptr, 0.0);
@@ -15,6 +18,6 @@
 +                            callbackHandler->handleReaperApi(reaperGetFunc);
 +                        }
 +                    }
-+
                      return aEffect;
                  }
+             }

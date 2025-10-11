@@ -1,6 +1,8 @@
+diff --git a/modules/juce_audio_processors/utilities/juce_VST2ClientExtensions.h b/modules/juce_audio_processors/utilities/juce_VST2ClientExtensions.h
+index f29fcbc..b635c08 100644
 --- a/modules/juce_audio_processors/utilities/juce_VST2ClientExtensions.h
 +++ b/modules/juce_audio_processors/utilities/juce_VST2ClientExtensions.h
-@@ -67,6 +67,12 @@ struct VST2ClientExtensions
+@@ -76,6 +76,12 @@ struct VST2ClientExtensions
          You can use the supplied function to query the VST host.
      */
      virtual void handleVstHostCallbackAvailable (std::function<VstHostCallbackType>&& callback);
@@ -11,5 +13,5 @@
 +    */
 +    virtual void handleReaperApi (void* (*reaperGetFunc)(const char*)) {}
  };
-
+ 
  using VSTCallbackHandler [[deprecated ("replace with VST2ClientExtensions")]] = VST2ClientExtensions;
