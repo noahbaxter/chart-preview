@@ -46,7 +46,9 @@ jobs:
       shell: cmd
       run: |
         echo "Applying JUCE patches..."
-        cd C:\JUCE
+        cd /D C:\JUCE
+        echo "Current directory: %CD%"
+        dir modules | findstr juce
         git init
         git config user.email "ci@github.com"
         git config user.name "GitHub Actions"
