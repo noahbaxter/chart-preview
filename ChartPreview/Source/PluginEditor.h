@@ -50,28 +50,20 @@ public:
             }
         }
 
-        // Check for position changes (cursor movement when paused, playhead when playing)
-        bool positionChanged = false;
-
+        // Track position changes for render logic
         if (auto* playHead = audioProcessor.getPlayHead()) {
             auto positionInfo = playHead->getPosition();
             if (positionInfo.hasValue()) {
                 PPQ currentPosition = PPQ(positionInfo->getPpqPosition().orFallback(0.0));
                 bool isCurrentlyPlaying = positionInfo->getIsPlaying();
 
-                // Check if position or playing state changed
-                if (currentPosition != lastKnownPosition || isCurrentlyPlaying != lastPlayingState) {
-                    lastKnownPosition = currentPosition;
-                    lastPlayingState = isCurrentlyPlaying;
-                    positionChanged = true;
-                }
+                // Update tracked position and playing state
+                lastKnownPosition = currentPosition;
+                lastPlayingState = isCurrentlyPlaying;
             }
         }
 
-        // Repaint if playing or if position changed while paused
-        if (audioProcessor.isPlaying || positionChanged) {
-            repaint();
-        }
+        repaint();
     }
 
     void paint (juce::Graphics&) override;
