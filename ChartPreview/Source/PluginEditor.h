@@ -13,6 +13,7 @@
 #include "Midi/MidiInterpreter.h"
 #include "Renderers/HighwayRenderer.h"
 #include "Utils/Utils.h"
+#include "Utils/TimeConverter.h"
 
 //==============================================================================
 /**
@@ -154,20 +155,7 @@ public:
 
     void sliderValueChanged(juce::Slider *slider) override
     {
-        if (slider == &chartZoomSliderPPQ)
-        {
-            state.setProperty("zoomPPQ", slider->getValue(), nullptr);
-            updateDisplaySizeFromZoomSlider();
-
-            // In REAPER mode, invalidate cache to immediately fetch new data window
-            if (audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable())
-            {
-                audioProcessor.invalidateReaperCache();
-            }
-
-            repaint();
-        }
-        else if (slider == &chartZoomSliderTime)
+        if (slider == &chartZoomSliderTime)
         {
             state.setProperty("zoomTime", slider->getValue(), nullptr);
             updateDisplaySizeFromZoomSlider();
@@ -198,14 +186,6 @@ public:
         {
             bool buttonState = button->getToggleState();
             state.setProperty("dynamics", buttonState ? 1 : 0, nullptr);
-        }
-        else if (button == &dynamicZoomToggle)
-        {
-            bool buttonState = button->getToggleState();
-            state.setProperty("dynamicZoom", buttonState ? 1 : 0, nullptr);
-
-            updateSliderVisibility();
-            updateDisplaySizeFromZoomSlider();
         }
         else if (button == &clearLogsButton)
         {
@@ -239,8 +219,8 @@ private:
     juce::Label chartZoomLabel;
     juce::Label versionLabel;
     juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu, autoHopoMenu, reaperTrackMenu;
-    juce::ToggleButton starPowerToggle, kick2xToggle, dynamicsToggle, dynamicZoomToggle;
-    juce::Slider chartZoomSliderPPQ, chartZoomSliderTime;
+    juce::ToggleButton starPowerToggle, kick2xToggle, dynamicsToggle;
+    juce::Slider chartZoomSliderTime;
 
     juce::TextEditor consoleOutput;
     juce::ToggleButton debugToggle;
@@ -252,23 +232,22 @@ private:
     void initMenus();
     void loadState();
     void updateDisplaySizeFromZoomSlider();
-    void updateSliderVisibility();
     void applyLatencySetting(int latencyValue);
+
+    void paintReaperMode(juce::Graphics& g);
+    void paintStandardMode(juce::Graphics& g);
 
     float latencyInSeconds = 0.0;
     
     // Resize constraints
     juce::ComponentBoundsConstrainer constrainer;
-    
-    // Dirty checking state
-    mutable PPQ lastDisplayStartPPQ = 0.0;
-    mutable bool lastIsPlaying = false;
 
     // Position tracking for cursor vs playhead separation
     PPQ lastKnownPosition = 0.0;
     bool lastPlayingState = false;
 
-    PPQ displaySizeInPPQ = 1.5; // 4 beats (1 measure in 4/4)
+    PPQ displaySizeInPPQ = 1.5; // Only used for MIDI window fetching
+    double displayWindowTimeSeconds = 1.0; // Actual render window time in seconds
 
     // Track change debouncing
     int pendingTrackChange = -1;  // -1 means no pending change
@@ -276,21 +255,9 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
 
-    // Position helpers
-
-    int currentPlayheadPositionInSamples()
-    {
-        return audioProcessor.playheadPositionInSamples;
-    }
-
-    PPQ currentPlayheadPositionInPPQ()
-    {
-        return PPQ(audioProcessor.playheadPositionInPPQ);
-    }
-
+    // Latency tracking
     PPQ defaultLatencyInPPQ = 0.0;
     double defaultBPM = 120.0;
-    PPQ defaultDisplaySizeInPPQ = 4.0; // 4 beats
 
     PPQ latencyInPPQ()
     {

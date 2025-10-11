@@ -82,14 +82,8 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     reaperTrackMenu.addListener(this);
     addAndMakeVisible(reaperTrackMenu);
 
-    // Sliders
-    chartZoomSliderPPQ.setRange(1.0, 8.0, 0.1);
-    chartZoomSliderPPQ.setSliderStyle(juce::Slider::LinearVertical);
-    chartZoomSliderPPQ.setTextBoxStyle(juce::Slider::TextBoxAbove, false, 50, 20);
-    chartZoomSliderPPQ.addListener(this);
-    addAndMakeVisible(chartZoomSliderPPQ);
-    
-    chartZoomSliderTime.setRange(0.4, 2.0, 0.05);
+    // Zoom slider (time-based only)
+    chartZoomSliderTime.setRange(0.4, 2.5, 0.05);
     chartZoomSliderTime.setSliderStyle(juce::Slider::LinearVertical);
     chartZoomSliderTime.setTextBoxStyle(juce::Slider::TextBoxAbove, false, 50, 20);
     chartZoomSliderTime.addListener(this);
@@ -106,10 +100,6 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     addAndMakeVisible(versionLabel);
 
     // Toggles
-    dynamicZoomToggle.setButtonText("Dynamic");
-    dynamicZoomToggle.addListener(this);
-    addAndMakeVisible(dynamicZoomToggle);
-
     starPowerToggle.setButtonText("Star Power");
     starPowerToggle.addListener(this);
     addAndMakeVisible(starPowerToggle);
@@ -185,45 +175,103 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     clearLogsButton.setVisible(debugMode);
     #endif
 
-    // Update display size if in time-based mode to account for tempo changes
-    bool isDynamicZoom = (bool)state.getProperty("dynamicZoom");
-    if (!isDynamicZoom && audioProcessor.isPlaying)
+    // Draw the highway - delegate to mode-specific rendering
+    if (isReaperMode)
     {
-        updateDisplaySizeFromZoomSlider();
-    }
-
-    // Draw the highway
-    // Use current position (cursor when paused, playhead when playing)
-    PPQ trackWindowStartPPQ = lastKnownPosition;
-    PPQ latencyBufferEnd = trackWindowStartPPQ;
-
-    // In REAPER mode, read timeline data directly with no latency offset
-    // In other DAWs, use latency compensation for lookahead
-    if (audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable())
-    {
-        // REAPER mode: No latency offset, show exactly what's at the cursor
-        // The pipeline handles all data fetching in processBlock()
-        PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
-        latencyBufferEnd = trackWindowStartPPQ; // No latency in REAPER mode
-
-        highwayRenderer.paint(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ, latencyBufferEnd);
+        paintReaperMode(g);
     }
     else
     {
-        // Standard DAW mode: Use latency compensation
-        if (audioProcessor.isPlaying)
-        {
-            // Use smoothed tempo-aware latency to prevent jitter during tempo changes
-            PPQ smoothedLatency = smoothedLatencyInPPQ();
-            trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - smoothedLatency);
-        }
-        PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
-        latencyBufferEnd = trackWindowStartPPQ + smoothedLatencyInPPQ();
-
-        // Update MidiProcessor's visual window bounds to prevent premature cleanup of visible events
-        audioProcessor.setMidiProcessorVisualWindowBounds(trackWindowStartPPQ, trackWindowEndPPQ);
-        highwayRenderer.paint(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ, latencyBufferEnd);
+        paintStandardMode(g);
     }
+}
+
+void ChartPreviewAudioProcessorEditor::paintReaperMode(juce::Graphics& g)
+{
+    // Use current position (cursor when paused, playhead when playing)
+    PPQ trackWindowStartPPQ = lastKnownPosition;
+    PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
+    PPQ latencyBufferEnd = trackWindowStartPPQ; // No latency in REAPER mode
+
+    // Extend window for notes behind cursor
+    PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
+
+    // Generate PPQ-based windows from MidiInterpreter
+    TrackWindow ppqTrackWindow = midiInterpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
+    SustainWindow ppqSustainWindow = midiInterpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
+    GridlineMap ppqGridlineMap = midiInterpreter.generateGridlineWindow(extendedStart, trackWindowEndPPQ);
+
+    // Create a lambda that uses REAPER's timeline conversion (handles ALL tempo changes)
+    auto& reaperProvider = audioProcessor.getReaperMidiProvider();
+    auto ppqToTime = [&reaperProvider](double ppq) { return reaperProvider.ppqToTime(ppq); };
+
+    // Convert everything to time-based (seconds from cursor)
+    PPQ cursorPPQ = trackWindowStartPPQ;  // Cursor is at the strikeline
+    TimeBasedTrackWindow timeTrackWindow = TimeConverter::convertTrackWindow(ppqTrackWindow, cursorPPQ, ppqToTime);
+    TimeBasedSustainWindow timeSustainWindow = TimeConverter::convertSustainWindow(ppqSustainWindow, cursorPPQ, ppqToTime);
+    TimeBasedGridlineMap timeGridlineMap = TimeConverter::convertGridlineMap(ppqGridlineMap, cursorPPQ, ppqToTime);
+
+    // Use the constant time window from the slider (in seconds)
+    // Window is anchored at the strikeline (time 0), extending forward into the future
+    double windowStartTime = 0.0;
+    double windowEndTime = displayWindowTimeSeconds;
+
+    highwayRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime);
+}
+
+void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
+{
+    // Use current position (cursor when paused, playhead when playing)
+    PPQ trackWindowStartPPQ = lastKnownPosition;
+
+    // Apply latency compensation when playing
+    if (audioProcessor.isPlaying)
+    {
+        // Use smoothed tempo-aware latency to prevent jitter during tempo changes
+        PPQ smoothedLatency = smoothedLatencyInPPQ();
+        trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - smoothedLatency);
+    }
+
+    PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
+    PPQ latencyBufferEnd = trackWindowStartPPQ + smoothedLatencyInPPQ();
+
+    // Update MidiProcessor's visual window bounds to prevent premature cleanup of visible events
+    audioProcessor.setMidiProcessorVisualWindowBounds(trackWindowStartPPQ, trackWindowEndPPQ);
+
+    // In non-REAPER mode, use current BPM from playhead (no tempo map available)
+    double currentBPM = 120.0;
+    if (audioProcessor.getPlayHead())
+    {
+        auto positionInfo = audioProcessor.getPlayHead()->getPosition();
+        if (positionInfo.hasValue())
+        {
+            currentBPM = positionInfo->getBpm().orFallback(120.0);
+        }
+    }
+
+    // Extend window for notes behind cursor
+    PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
+
+    // Generate PPQ-based windows from MidiInterpreter
+    TrackWindow ppqTrackWindow = midiInterpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
+    SustainWindow ppqSustainWindow = midiInterpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
+    GridlineMap ppqGridlineMap = midiInterpreter.generateGridlineWindow(extendedStart, trackWindowEndPPQ);
+
+    // Simple constant BPM conversion for non-REAPER mode
+    auto ppqToTime = [currentBPM](double ppq) { return ppq * (60.0 / currentBPM); };
+
+    // Convert everything to time-based (seconds from cursor)
+    PPQ cursorPPQ = trackWindowStartPPQ;
+    TimeBasedTrackWindow timeTrackWindow = TimeConverter::convertTrackWindow(ppqTrackWindow, cursorPPQ, ppqToTime);
+    TimeBasedSustainWindow timeSustainWindow = TimeConverter::convertSustainWindow(ppqSustainWindow, cursorPPQ, ppqToTime);
+    TimeBasedGridlineMap timeGridlineMap = TimeConverter::convertGridlineMap(ppqGridlineMap, cursorPPQ, ppqToTime);
+
+    // Use the constant time window from the slider (in seconds)
+    // Window is anchored at the strikeline (time 0), extending forward into the future
+    double windowStartTime = 0.0;
+    double windowEndTime = displayWindowTimeSeconds;
+
+    highwayRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime);
 }
 
 void ChartPreviewAudioProcessorEditor::resized()
@@ -253,9 +301,7 @@ void ChartPreviewAudioProcessorEditor::resized()
     
     // Zoom controls (anchored to bottom-right)
     chartZoomLabel.setBounds(getWidth() - 90, getHeight() - 270, 40, controlHeight);
-    chartZoomSliderPPQ.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
     chartZoomSliderTime.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
-    dynamicZoomToggle.setBounds(getWidth() - 120, getHeight() - 90, 80, controlHeight);
 
     // Version label (bottom-left, next to REAPER logo)
     const int versionWidth = 60;
@@ -268,37 +314,12 @@ void ChartPreviewAudioProcessorEditor::resized()
 
 void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromZoomSlider()
 {
-    bool isDynamicZoom = (bool)state.getProperty("dynamicZoom");
+    // Slider directly represents seconds for rendering
+    displayWindowTimeSeconds = chartZoomSliderTime.getValue();
 
-    if (isDynamicZoom)
-    {
-        // Dynamic (PPQ-based) mode: slider directly represents PPQ (beats)
-        displaySizeInPPQ = PPQ(chartZoomSliderPPQ.getValue());
-    }
-    else
-    {
-        // Time-based mode: slider represents seconds
-        double timeInSeconds = chartZoomSliderTime.getValue();
-
-        // Convert to PPQ using current BPM
-        if (audioProcessor.getPlayHead() == nullptr)
-        {
-            displaySizeInPPQ = PPQ(timeInSeconds * (120.0 / 60.0)); // Default 120 BPM
-        }
-        else
-        {
-            auto positionInfo = audioProcessor.getPlayHead()->getPosition();
-            if (positionInfo.hasValue())
-            {
-                double bpm = positionInfo->getBpm().orFallback(120.0);
-                displaySizeInPPQ = PPQ(timeInSeconds * (bpm / 60.0));
-            }
-            else
-            {
-                displaySizeInPPQ = PPQ(timeInSeconds * (120.0 / 60.0));
-            }
-        }
-    }
+    // Use a generous worst-case PPQ window for MIDI fetching to prevent pop-in at extreme tempos
+    const double WORST_CASE_PPQ_WINDOW = 30.0;  // quarter notes
+    displaySizeInPPQ = PPQ(WORST_CASE_PPQ_WINDOW);
 
     // Sync the display size to the processor so processBlock can use it
     audioProcessor.setDisplayWindowSize(displaySizeInPPQ);
@@ -317,21 +338,18 @@ void ChartPreviewAudioProcessorEditor::loadState()
     starPowerToggle.setToggleState((bool)state["starPower"], juce::dontSendNotification);
     kick2xToggle.setToggleState((bool)state["kick2x"], juce::dontSendNotification);
     dynamicsToggle.setToggleState((bool)state["dynamics"], juce::dontSendNotification);
-    dynamicZoomToggle.setToggleState((bool)state["dynamicZoom"], juce::dontSendNotification);
 
-    chartZoomSliderPPQ.setValue((double)state["zoomPPQ"], juce::dontSendNotification);
     chartZoomSliderTime.setValue((double)state["zoomTime"], juce::dontSendNotification);
 
     // Apply side-effects that your listeners would normally do
     applyLatencySetting((int)state["latency"]);
-    int fr = ((int)state["framerate"] == 1) ? 15 : 
-             ((int)state["framerate"] == 2) ? 30 : 
-             ((int)state["framerate"] == 3) ? 60 : 
-             ((int)state["framerate"] == 4) ? 120 : 
+    int fr = ((int)state["framerate"] == 1) ? 15 :
+             ((int)state["framerate"] == 2) ? 30 :
+             ((int)state["framerate"] == 3) ? 60 :
+             ((int)state["framerate"] == 4) ? 120 :
              ((int)state["framerate"] == 5) ? 144 : 60;
     startTimerHz(fr);
 
-    updateSliderVisibility();
     updateDisplaySizeFromZoomSlider();
 }
 
@@ -346,14 +364,6 @@ void ChartPreviewAudioProcessorEditor::applyLatencySetting(int latencyValue)
     default: latencyInSeconds = 0.500; break;
     }
     audioProcessor.setLatencyInSeconds(latencyInSeconds);
-}
-
-void ChartPreviewAudioProcessorEditor::updateSliderVisibility()
-{
-    bool isDynamicZoom = (bool)state.getProperty("dynamicZoom");
-    
-    chartZoomSliderPPQ.setVisible(isDynamicZoom);
-    chartZoomSliderTime.setVisible(!isDynamicZoom);
 }
 
 juce::ComponentBoundsConstrainer* ChartPreviewAudioProcessorEditor::getConstrainer()

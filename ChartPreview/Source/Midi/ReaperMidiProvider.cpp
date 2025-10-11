@@ -434,3 +434,26 @@ ReaperMidiProvider::MusicalPosition ReaperMidiProvider::getMusicalPositionAtPPQ(
 
     return result;
 }
+
+double ReaperMidiProvider::ppqToTime(double ppq)
+{
+    if (!reaperApiInitialized || !TimeMap2_QNToTime)
+        return ppq * (60.0 / 120.0);  // Default 120 BPM fallback
+
+    juce::ScopedLock lock(apiLock);
+
+    try
+    {
+        auto EnumProjects = (void*(*)(int, char*, int))getReaperApi("EnumProjects");
+        if (!EnumProjects) return ppq * (60.0 / 120.0);
+
+        void* project = EnumProjects(-1, nullptr, 0);
+        if (!project) return ppq * (60.0 / 120.0);
+
+        return TimeMap2_QNToTime(project, ppq);
+    }
+    catch (...)
+    {
+        return ppq * (60.0 / 120.0);
+    }
+}

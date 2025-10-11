@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "../Utils/PPQ.h"
 #include "../Utils/Utils.h"
+#include "../Utils/TimeConverter.h"
 #include "../DebugTools/Logger.h"
 
 /**
@@ -59,6 +60,10 @@ public:
 
     // Get musical position (bar/beat) at a given PPQ position
     MusicalPosition getMusicalPositionAtPPQ(double ppq);
+
+    // Convert PPQ (quarter note position) to absolute time in seconds
+    // This uses REAPER's timeline which handles ALL tempo changes correctly
+    double ppqToTime(double ppq);
 
     // Get the REAPER API function pointer (for use with ReaperTrackDetector)
     std::function<void*(const char*)> getReaperGetFunc() const {

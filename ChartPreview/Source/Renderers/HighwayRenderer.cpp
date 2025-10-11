@@ -21,26 +21,21 @@ HighwayRenderer::~HighwayRenderer()
 {
 }
 
-void HighwayRenderer::paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ, PPQ latencyBufferEnd)
+void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime)
 {
-    TrackWindow trackWindow = midiInterpreter.generateTrackWindow(trackWindowStartPPQ, trackWindowEndPPQ);
-    SustainWindow sustainWindow = midiInterpreter.generateSustainWindow(trackWindowStartPPQ, trackWindowEndPPQ, latencyBufferEnd);
-    
-    // Testing with fake MIDI data
-    // trackWindow = generateFakeTrackWindow(trackWindowStartPPQ, trackWindowEndPPQ);
-    // trackWindow = generateFullFakeTrackWindow(trackWindowStartPPQ, trackWindowEndPPQ);
-    // sustainWindow = generateFakeSustainWindow(trackWindowStartPPQ, trackWindowEndPPQ);
-
     // Set the drawing area dimensions from the graphics context
     auto clipBounds = g.getClipBounds();
     width = clipBounds.getWidth();
     height = clipBounds.getHeight();
-    
+
+    // Calculate the total time window
+    double windowTimeSpan = windowEndTime - windowStartTime;
+
     // Repopulate drawCallMap
     drawCallMap.clear();
-    drawNotesFromMap(g, trackWindow, trackWindowStartPPQ, displaySizeInPPQ);
-    drawSustainFromWindow(g, sustainWindow, trackWindowStartPPQ, displaySizeInPPQ);
-    drawGridlinesFromMap(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ);
+    drawNotesFromMap(g, trackWindow, windowStartTime, windowEndTime);
+    drawSustainFromWindow(g, sustainWindow, windowStartTime, windowEndTime);
+    drawGridlinesFromMap(g, gridlines, windowStartTime, windowEndTime);
 
     // Draw layer by layer, then column by column within each layer
     for (const auto& drawOrder : drawCallMap)
@@ -56,25 +51,35 @@ void HighwayRenderer::paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trac
     }
 }
 
-void HighwayRenderer::drawNotesFromMap(juce::Graphics &g, const TrackWindow& trackWindow, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ)
+void HighwayRenderer::drawNotesFromMap(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, double windowStartTime, double windowEndTime)
 {
-    for (auto &frameItem : trackWindow)
+    double windowTimeSpan = windowEndTime - windowStartTime;
+
+    for (const auto &frameItem : trackWindow)
     {
-        PPQ framePosition = frameItem.first;
-        float normalizedPosition = (framePosition.toDouble() - trackWindowStartPPQ.toDouble()) / (float)displaySizeInPPQ.toDouble();
-        drawFrame(frameItem.second, normalizedPosition, framePosition);
+        double frameTime = frameItem.first;  // Time in seconds from cursor
+
+        // Don't render notes in the past (below the strikeline at time 0)
+        if (frameTime < 0.0) continue;
+
+        // Normalize position: 0 = far (window start), 1 = near (window end/strikeline)
+        float normalizedPosition = (float)((frameTime - windowStartTime) / windowTimeSpan);
+
+        drawFrame(frameItem.second, normalizedPosition, frameTime);
     }
 }
 
-void HighwayRenderer::drawGridlinesFromMap(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ)
+void HighwayRenderer::drawGridlinesFromMap(juce::Graphics &g, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime)
 {
-    GridlineMap gridlineWindow = midiInterpreter.generateGridlineWindow(trackWindowStartPPQ, trackWindowEndPPQ);
-    for (const auto &gridlineItem : gridlineWindow)
-    {
-        PPQ gridlinePPQ = gridlineItem.first;
-        Gridline gridlineType = gridlineItem.second;
+    double windowTimeSpan = windowEndTime - windowStartTime;
 
-        float normalizedPosition = (gridlinePPQ.toDouble() - trackWindowStartPPQ.toDouble()) / displaySizeInPPQ.toDouble();
+    for (const auto &gridline : gridlines)
+    {
+        double gridlineTime = gridline.time;  // Time in seconds from cursor
+        Gridline gridlineType = gridline.type;
+
+        // Normalize position: 0 = far (window start), 1 = near (window end/strikeline)
+        float normalizedPosition = (float)((gridlineTime - windowStartTime) / windowTimeSpan);
 
         if (normalizedPosition >= 0.0f && normalizedPosition <= 1.0f)
         {
@@ -112,7 +117,7 @@ void HighwayRenderer::drawGridline(juce::Graphics& g, float position, juce::Imag
 }
 
 
-void HighwayRenderer::drawFrame(const std::array<Gem,LANE_COUNT> &gems, float position, PPQ framePosition)
+void HighwayRenderer::drawFrame(const TimeBasedTrackFrame &gems, float position, double frameTime)
 {
     uint drawSequence[] = {0, 6, 1, 2, 3, 4, 5};
     for (int i = 0; i < gems.size(); i++)
@@ -120,12 +125,12 @@ void HighwayRenderer::drawFrame(const std::array<Gem,LANE_COUNT> &gems, float po
         int gemColumn = drawSequence[i];
         if (gems[gemColumn] != Gem::NONE)
         {
-            drawGem(gemColumn, gems[gemColumn], position, framePosition);
+            drawGem(gemColumn, gems[gemColumn], position, frameTime);
         }
     }
 }
 
-void HighwayRenderer::drawGem(uint gemColumn, Gem gem, float position, PPQ framePosition)
+void HighwayRenderer::drawGem(uint gemColumn, Gem gem, float position, double frameTime)
 {
     juce::Rectangle<float> glyphRect;
     juce::Image* glyphImage;
@@ -135,7 +140,8 @@ void HighwayRenderer::drawGem(uint gemColumn, Gem gem, float position, PPQ frame
     {
         glyphRect = getGuitarGlyphRect(gemColumn, position);
         bool starPowerActive = state.getProperty("starPower");
-        bool spNoteHeld = midiInterpreter.isNoteHeld((int)MidiPitchDefinitions::Guitar::SP, framePosition);
+        // TODO: Need to convert frameTime back to PPQ for star power check, or pass SP state differently
+        bool spNoteHeld = false; // Temporarily disabled
         glyphImage = assetManager.getGuitarGlyphImage(gem, gemColumn, starPowerActive, spNoteHeld);
         barNote = isBarNote(gemColumn, Part::GUITAR);
     }
@@ -143,7 +149,8 @@ void HighwayRenderer::drawGem(uint gemColumn, Gem gem, float position, PPQ frame
     {
         glyphRect = getDrumGlyphRect(gemColumn, position);
         bool starPowerActive = state.getProperty("starPower");
-        bool spNoteHeld = midiInterpreter.isNoteHeld((int)MidiPitchDefinitions::Drums::SP, framePosition);
+        // TODO: Need to convert frameTime back to PPQ for star power check, or pass SP state differently
+        bool spNoteHeld = false; // Temporarily disabled
         glyphImage = assetManager.getDrumGlyphImage(gem, gemColumn, starPowerActive, spNoteHeld);
         barNote = isBarNote(gemColumn, Part::DRUMS);
     }
@@ -410,40 +417,45 @@ juce::Rectangle<float> HighwayRenderer::createPerspectiveGlyphRect(float positio
 //==============================================================================
 // Sustain Rendering
 
-void HighwayRenderer::drawSustainFromWindow(juce::Graphics &g, const SustainWindow& sustainWindow, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ)
+void HighwayRenderer::drawSustainFromWindow(juce::Graphics &g, const TimeBasedSustainWindow& sustainWindow, double windowStartTime, double windowEndTime)
 {
     for (const auto& sustain : sustainWindow)
     {
-        drawSustain(sustain, trackWindowStartPPQ, displaySizeInPPQ);
+        drawSustain(sustain, windowStartTime, windowEndTime);
     }
 }
 
-void HighwayRenderer::drawSustain(const SustainEvent& sustain, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ)
+void HighwayRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime)
 {
+    double windowTimeSpan = windowEndTime - windowStartTime;
+
+    // Don't render sustains that end before the strikeline (time 0)
+    if (sustain.endTime < 0.0) return;
+
+    // Clip sustain start to the strikeline if it extends into the past
+    double clippedStartTime = std::max(0.0, sustain.startTime);
+
     // Calculate normalized positions for start and end of sustain
-    float startPosition = (sustain.startPPQ.toDouble() - trackWindowStartPPQ.toDouble()) / displaySizeInPPQ.toDouble();
-    float endPosition = (sustain.endPPQ.toDouble() - trackWindowStartPPQ.toDouble()) / displaySizeInPPQ.toDouble();
-    
+    float startPosition = (float)((clippedStartTime - windowStartTime) / windowTimeSpan);
+    float endPosition = (float)((sustain.endTime - windowStartTime) / windowTimeSpan);
+
     // Only draw sustains that are visible in our window
     if (endPosition < 0.0f || startPosition > 1.0f) return;
-    
+
     // Clamp to visible area
     startPosition = std::max(0.0f, startPosition);
     endPosition = std::min(1.0f, endPosition);
-    
-    // Get the sustain rectangle
-    
+
     // Get sustain image based on gem column and star power state
     bool starPowerActive = state.getProperty("starPower");
-    bool spNoteHeld = midiInterpreter.isNoteHeld((int)MidiPitchDefinitions::Guitar::SP, sustain.startPPQ);
+    // TODO: Need to pass SP state differently for time-based rendering
+    bool spNoteHeld = false; // Temporarily disabled
     auto colour = assetManager.getLaneColour(sustain.gemColumn, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS, starPowerActive && spNoteHeld);
-    // juce::Image* sustainImage = assetManager.getSustainImage(sustain.gemColumn, starPowerActive, spNoteHeld);
-    // if (sustainImage == nullptr) return;
-    
+
     // Calculate opacity (average of start and end positions)
     float avgPosition = (startPosition + endPosition) / 2.0f;
     float baseOpacity = calculateOpacity(avgPosition);
-    
+
     // Lanes and sustains render differently
     float opacity, sustainWidth;
     DrawOrder sustainDrawOrder;
@@ -460,7 +472,7 @@ void HighwayRenderer::drawSustain(const SustainEvent& sustain, PPQ trackWindowSt
             sustainDrawOrder = (sustain.gemColumn == 0) ? DrawOrder::BAR : DrawOrder::SUSTAIN;
             break;
     }
-    
+
     drawCallMap[sustainDrawOrder][sustain.gemColumn].push_back([=](juce::Graphics &g) {
         drawPerspectiveSustainFlat(g, sustain.gemColumn, startPosition, endPosition, opacity, sustainWidth, colour);
     });
