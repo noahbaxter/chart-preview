@@ -158,11 +158,27 @@ public:
         {
             state.setProperty("zoomPPQ", slider->getValue(), nullptr);
             updateDisplaySizeFromZoomSlider();
+
+            // In REAPER mode, invalidate cache to immediately fetch new data window
+            if (audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable())
+            {
+                audioProcessor.invalidateReaperCache();
+            }
+
+            repaint();
         }
         else if (slider == &chartZoomSliderTime)
         {
             state.setProperty("zoomTime", slider->getValue(), nullptr);
             updateDisplaySizeFromZoomSlider();
+
+            // In REAPER mode, invalidate cache to immediately fetch new data window
+            if (audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable())
+            {
+                audioProcessor.invalidateReaperCache();
+            }
+
+            repaint();
         }
     }
 
