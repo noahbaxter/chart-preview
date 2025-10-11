@@ -21,7 +21,7 @@ HighwayRenderer::~HighwayRenderer()
 {
 }
 
-void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime)
+void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime, bool isPlaying)
 {
     // Set the drawing area dimensions from the graphics context
     auto clipBounds = g.getClipBounds();
@@ -30,6 +30,9 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
 
     // Calculate the total time window
     double windowTimeSpan = windowEndTime - windowStartTime;
+
+    // Update sustain states for active animations
+    updateSustainStates(sustainWindow);
 
     // Repopulate drawCallMap
     drawCallMap.clear();
@@ -49,6 +52,11 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
             }
         }
     }
+
+    // Draw hit animations on top of everything
+    if (isPlaying){ detectAndTriggerHitAnimations(trackWindow, windowStartTime, windowEndTime); }
+    drawHitAnimations(g);
+    hitAnimationManager.advanceAllFrames();
 }
 
 void HighwayRenderer::drawNotesFromMap(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, double windowStartTime, double windowEndTime)
@@ -197,7 +205,7 @@ juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float
     bool isOpen = isBarNote(gemColumn, Part::GUITAR);
     if (isOpen)
     {
-        normY1 = 0.73;
+        normY1 = 0.745;
         normY2 = 0.234;
         normX1 = 0.16;
         normX2 = 0.34;
@@ -209,19 +217,17 @@ juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float
     {
         normWidth1 = 0.125;
         normWidth2 = 0.065;
-        normY1 = 0.71;
+        normY1 = 0.73;
         normY2 = 0.22;
         scaler = GEM_SIZE;
         if (gemColumn == 1)
         {
-            normX1 = 0.227;
+            normX1 = 0.20;
             normX2 = 0.363;
-            normWidth1 = 0.105;
-            normWidth2 = 0.055;
         }
         else if (gemColumn == 2)
         {
-            normX1 = 0.322;
+            normX1 = 0.320;
             normX2 = 0.412;
         }
         else if (gemColumn == 3)
@@ -231,12 +237,12 @@ juce::Rectangle<float> HighwayRenderer::getGuitarGlyphRect(uint gemColumn, float
         }
         else if (gemColumn == 4)
         {
-            normX1 = 0.555;
+            normX1 = 0.557;
             normX2 = 0.524;
         }
         else if (gemColumn == 5)
         {
-            normX1 = 0.670;
+            normX1 = 0.673;
             normX2 = 0.580;
         }
     }
@@ -258,7 +264,7 @@ juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float p
     bool isKick = isBarNote(gemColumn, Part::DRUMS);
     if (isKick)
     {
-        normY1 = 0.735;
+        normY1 = 0.75;
         normY2 = 0.239;
         normX1 = 0.16;
         normX2 = 0.34;
@@ -270,12 +276,12 @@ juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float p
     {
         normWidth1 = 0.147;
         normWidth2 = 0.0714;
-        normY1 = 0.70;
+        normY1 = 0.72;
         normY2 = 0.22;
         scaler = GEM_SIZE;
         if (gemColumn == 1)
         {
-            normX1 = 0.222;
+            normX1 = 0.21;
             normX2 = 0.37;
         }
         else if (gemColumn == 2)
@@ -290,7 +296,7 @@ juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float p
         }
         else if (gemColumn == 4)
         {
-            normX1 = 0.630;
+            normX1 = 0.640;
             normX2 = 0.564;
         }
     }
@@ -730,6 +736,186 @@ juce::Image HighwayRenderer::createOffscreenSustainImage(const juce::Path& trape
     graphics.excludeClipRegion(trapezoid.getBounds().toNearestInt());
     graphics.fillPath(startCap);
     graphics.fillPath(endCap);
-    
+
     return image;
+}
+
+//==============================================================================
+// Hit Animation Detection & Rendering
+
+void HighwayRenderer::detectAndTriggerHitAnimations(const TimeBasedTrackWindow& trackWindow, double windowStartTime, double windowEndTime)
+{
+    // Strikeline is at time 0 (current playback position)
+    // For each column, find the closest note that has passed the strikeline
+    // If it's a new note (different from last frame), trigger the animation
+
+    std::array<double, 7> closestPastNotePerColumn = {999.0, 999.0, 999.0, 999.0, 999.0, 999.0, 999.0};
+
+    // Find the closest note that has just crossed (or is at) the strikeline for each column
+    for (const auto &frameItem : trackWindow)
+    {
+        double frameTime = frameItem.first;  // Time in seconds from cursor
+        const auto& gems = frameItem.second;
+
+        // We only care about notes that have crossed or are at the strikeline (frameTime <= 0)
+        // And are close enough to be considered "just hit" (within a small past window)
+        if (frameTime <= 0.0 && frameTime >= -0.05)  // 50ms past window
+        {
+            for (uint gemColumn = 0; gemColumn < gems.size(); ++gemColumn)
+            {
+                if (gems[gemColumn] != Gem::NONE)
+                {
+                    // This note is past the strikeline - check if it's the closest one
+                    if (std::abs(frameTime) < std::abs(closestPastNotePerColumn[gemColumn]))
+                    {
+                        closestPastNotePerColumn[gemColumn] = frameTime;
+                    }
+                }
+            }
+        }
+    }
+
+    // Now trigger animations for any column where we found a new note
+    for (uint gemColumn = 0; gemColumn < closestPastNotePerColumn.size(); ++gemColumn)
+    {
+        // If we found a note (not 999.0) and it's different from the last one we processed
+        if (closestPastNotePerColumn[gemColumn] < 999.0 &&
+            closestPastNotePerColumn[gemColumn] != lastNoteTimePerColumn[gemColumn])
+        {
+            // This is a new note! Trigger the animation
+            lastNoteTimePerColumn[gemColumn] = closestPastNotePerColumn[gemColumn];
+
+            if (isPart(state, Part::GUITAR))
+            {
+                if (gemColumn == 0) {
+                    // Open note (kick for guitar)
+                    hitAnimationManager.triggerKick(true, false);
+                } else if (gemColumn >= 1 && gemColumn <= 5) {
+                    // Regular fret (1=green, 2=red, 3=yellow, 4=blue, 5=orange)
+                    hitAnimationManager.triggerHit(gemColumn, false);
+                }
+            }
+            else // Part::DRUMS
+            {
+                if (gemColumn == 0) {
+                    // Regular kick
+                    hitAnimationManager.triggerKick(false, false);
+                } else if (gemColumn == 6) {
+                    // 2x kick
+                    hitAnimationManager.triggerKick(false, true);
+                } else if (gemColumn >= 1 && gemColumn <= 4) {
+                    // Drum pads
+                    hitAnimationManager.triggerHit(gemColumn, false);
+                }
+            }
+        }
+    }
+}
+
+void HighwayRenderer::updateSustainStates(const TimeBasedSustainWindow& sustainWindow)
+{
+    // Strikeline is at time 0 (current playback position)
+    // Check if each lane is currently in a sustain (sustain crosses the strikeline)
+    std::array<bool, 6> lanesSustaining = {false, false, false, false, false, false};
+
+    for (const auto& sustain : sustainWindow)
+    {
+        // Sustain is active at the strikeline if startTime <= 0 <= endTime
+        if (sustain.startTime <= 0.0 && sustain.endTime >= 0.0)
+        {
+            // Only track sustains (not lanes)
+            if (sustain.sustainType == SustainType::SUSTAIN && sustain.gemColumn < lanesSustaining.size())
+            {
+                lanesSustaining[sustain.gemColumn] = true;
+            }
+        }
+    }
+
+    // Update sustain state for each lane
+    for (size_t lane = 0; lane < lanesSustaining.size(); ++lane)
+    {
+        hitAnimationManager.setSustainState(static_cast<int>(lane), lanesSustaining[lane]);
+    }
+}
+
+void HighwayRenderer::drawHitAnimations(juce::Graphics &g)
+{
+    const auto& animations = hitAnimationManager.getActiveAnimations();
+
+    // Strikeline is where notes are when frameTime = 0 (at the cursor position)
+    float strikelinePosition = 0.0f;
+
+    for (const auto& anim : animations)
+    {
+        if (!anim.isActive()) continue;
+
+        if (anim.isKick)
+        {
+            // Draw kick animation at kick position (gemColumn 0 or 6)
+            auto kickFrame = assetManager.getKickAnimationFrame(anim.currentFrame);
+            if (kickFrame)
+            {
+                juce::Rectangle<float> kickRect;
+                if (isPart(state, Part::GUITAR)) {
+                    kickRect = getGuitarGlyphRect(0, strikelinePosition);
+                } else {
+                    kickRect = getDrumGlyphRect(anim.is2xKick ? 6 : 0, strikelinePosition);
+                }
+
+                // Scale up the animation (wider and MUCH taller to match the bar note height)
+                kickRect = kickRect.withSizeKeepingCentre(kickRect.getWidth() * 1.3f, kickRect.getHeight() * 4.2f);
+
+                g.setOpacity(1.0f);
+
+                // Apply purple tint for open notes on guitar
+                if (isPart(state, Part::GUITAR))
+                {
+                    // Create a purple-tinted version of the image
+                    juce::Colour purpleTint = juce::Colour(180, 120, 220);
+
+                    // Draw with color overlay using ColourGradient or direct tinting
+                    g.setColour(purpleTint);
+                    g.setOpacity(0.5f);
+                    g.drawImage(*kickFrame, kickRect, juce::RectanglePlacement::stretchToFit, false);
+                    g.setOpacity(1.0f);
+                    g.drawImage(*kickFrame, kickRect, juce::RectanglePlacement::stretchToFit, false);
+                }
+                else
+                {
+                    g.drawImage(*kickFrame, kickRect);
+                }
+            }
+        }
+        else
+        {
+            // Draw fret hit animation (flash + flare)
+            auto hitFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
+            Part currentPart = isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS;
+            auto flareImage = assetManager.getHitFlareImage(anim.lane, currentPart);
+
+            juce::Rectangle<float> hitRect;
+            if (currentPart == Part::GUITAR) {
+                hitRect = getGuitarGlyphRect(anim.lane, strikelinePosition);
+            } else {
+                hitRect = getDrumGlyphRect(anim.lane, strikelinePosition);
+            }
+
+            // Scale up the animation (wider and much taller)
+            hitRect = hitRect.withSizeKeepingCentre(hitRect.getWidth() * 1.6f, hitRect.getHeight() * 2.8f);
+
+            // Draw the flash frame
+            if (hitFrame)
+            {
+                g.setOpacity(0.8f);
+                g.drawImage(*hitFrame, hitRect);
+            }
+
+            // Draw the colored flare on top (with tint for the lane color)
+            if (flareImage && anim.currentFrame <= 3)  // Only show flare for first 3 frames
+            {
+                g.setOpacity(0.6f);
+                g.drawImage(*flareImage, hitRect);
+            }
+        }
+    }
 }

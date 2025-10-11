@@ -90,6 +90,30 @@ public:
     juce::Image* getSustainWhiteImage() { return &sustainWhiteImage; }
     juce::Image* getSustainYellowImage() { return &sustainYellowImage; }
 
+    // Hit animation graphics
+    juce::Image* getHitAnimationFrame(int frameNumber) {
+        if (frameNumber >= 1 && frameNumber <= 5) return &hitAnimationFrames[frameNumber - 1];
+        return nullptr;
+    }
+    juce::Image* getHitFlareImage(uint gemColumn, Part part) {
+        // Map gemColumn to flare index based on color
+        // Flare array: [0]=green, [1]=red, [2]=yellow, [3]=blue, [4]=orange
+        // Guitar: 1=green, 2=red, 3=yellow, 4=blue, 5=orange -> direct mapping (column-1)
+        // Drums:  1=red, 2=yellow, 3=blue, 4=green -> needs remapping
+        if (part == Part::GUITAR && gemColumn >= 1 && gemColumn <= 5) {
+            return &hitFlareImages[gemColumn - 1];
+        } else if (part == Part::DRUMS && gemColumn >= 1 && gemColumn <= 4) {
+            // Drum mapping: 1=red->1, 2=yellow->2, 3=blue->3, 4=green->0
+            uint flareIndex = (gemColumn == 4) ? 0 : gemColumn;
+            return &hitFlareImages[flareIndex];
+        }
+        return nullptr;
+    }
+    juce::Image* getKickAnimationFrame(int frameNumber) {
+        if (frameNumber >= 1 && frameNumber <= 7) return &kickAnimationFrames[frameNumber - 1];
+        return nullptr;
+    }
+
 private:
     void initAssets();
 
@@ -149,4 +173,9 @@ private:
     juce::Image sustainRedImage;
     juce::Image sustainWhiteImage;
     juce::Image sustainYellowImage;
+
+    // Hit animation graphics
+    juce::Image hitAnimationFrames[5];  // hit_1.png through hit_5.png
+    juce::Image hitFlareImages[5];      // hit_flare_blue/green/orange/red/yellow
+    juce::Image kickAnimationFrames[7]; // hit_kick_1.png through hit_kick_7.png
 };

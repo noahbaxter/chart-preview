@@ -71,6 +71,23 @@
             file="Assets/track_guitar.png"/>
       <FILE id="logoReaper" name="logo-reaper.svg" compile="0" resource="1"
             file="Assets/logo-reaper.svg"/>
+      <FILE id="hit1" name="hit_1.png" compile="0" resource="1" file="Assets/hit_1.png"/>
+      <FILE id="hit2" name="hit_2.png" compile="0" resource="1" file="Assets/hit_2.png"/>
+      <FILE id="hit3" name="hit_3.png" compile="0" resource="1" file="Assets/hit_3.png"/>
+      <FILE id="hit4" name="hit_4.png" compile="0" resource="1" file="Assets/hit_4.png"/>
+      <FILE id="hit5" name="hit_5.png" compile="0" resource="1" file="Assets/hit_5.png"/>
+      <FILE id="hitFlareBlue" name="hit_flare_blue.png" compile="0" resource="1" file="Assets/hit_flare_blue.png"/>
+      <FILE id="hitFlareGreen" name="hit_flare_green.png" compile="0" resource="1" file="Assets/hit_flare_green.png"/>
+      <FILE id="hitFlareOrange" name="hit_flare_orange.png" compile="0" resource="1" file="Assets/hit_flare_orange.png"/>
+      <FILE id="hitFlareRed" name="hit_flare_red.png" compile="0" resource="1" file="Assets/hit_flare_red.png"/>
+      <FILE id="hitFlareYellow" name="hit_flare_yellow.png" compile="0" resource="1" file="Assets/hit_flare_yellow.png"/>
+      <FILE id="hitKick1" name="hit_kick_1.png" compile="0" resource="1" file="Assets/hit_kick_1.png"/>
+      <FILE id="hitKick2" name="hit_kick_2.png" compile="0" resource="1" file="Assets/hit_kick_2.png"/>
+      <FILE id="hitKick3" name="hit_kick_3.png" compile="0" resource="1" file="Assets/hit_kick_3.png"/>
+      <FILE id="hitKick4" name="hit_kick_4.png" compile="0" resource="1" file="Assets/hit_kick_4.png"/>
+      <FILE id="hitKick5" name="hit_kick_5.png" compile="0" resource="1" file="Assets/hit_kick_5.png"/>
+      <FILE id="hitKick6" name="hit_kick_6.png" compile="0" resource="1" file="Assets/hit_kick_6.png"/>
+      <FILE id="hitKick7" name="hit_kick_7.png" compile="0" resource="1" file="Assets/hit_kick_7.png"/>
     </GROUP>
     <GROUP id="{577BFFED-2E98-5329-03C4-711F74395056}" name="Source">
       <GROUP id="{DE1AE764-3F26-9AE7-E8D2-54A14F69655C}" name="Midi">
@@ -140,6 +157,8 @@
               file="Source/Renderers/AssetManager.cpp"/>
         <FILE id="AssetManagerH" name="AssetManager.h" compile="0" resource="0"
               file="Source/Renderers/AssetManager.h"/>
+        <FILE id="HitAnimMgr" name="HitAnimationManager.h" compile="0" resource="0"
+              file="Source/Renderers/HitAnimationManager.h"/>
       </GROUP>
       <GROUP id="{55EA985F-5ACA-CAC9-2027-97AEF2CDFFC7}" name="Utils">
         <FILE id="vXWw8v" name="PPQ.h" compile="0" resource="0" file="Source/Utils/PPQ.h"/>

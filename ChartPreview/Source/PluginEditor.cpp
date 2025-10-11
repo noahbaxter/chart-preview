@@ -216,7 +216,7 @@ void ChartPreviewAudioProcessorEditor::paintReaperMode(juce::Graphics& g)
     double windowStartTime = 0.0;
     double windowEndTime = displayWindowTimeSeconds;
 
-    highwayRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime);
+    highwayRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
 }
 
 void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
@@ -271,7 +271,7 @@ void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
     double windowStartTime = 0.0;
     double windowEndTime = displayWindowTimeSeconds;
 
-    highwayRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime);
+    highwayRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
 }
 
 void ChartPreviewAudioProcessorEditor::resized()
