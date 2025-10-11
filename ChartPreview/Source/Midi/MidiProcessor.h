@@ -3,6 +3,9 @@
 #include "../Utils/Utils.h"
 #include "MidiUtility.h"
 
+// Forward declaration to avoid circular dependency
+class ReaperMidiProvider;
+
 class MidiProcessor
 {
 public:
@@ -36,10 +39,17 @@ public:
     // Recalculate gem types for all existing notes (called when settings change)
     void refreshMidiDisplay();
 
+    // Clear note data in a specific PPQ range (for REAPER timeline refresh)
+    void clearNoteDataInRange(PPQ startPPQ, PPQ endPPQ);
+
+    // Gem type calculation (exposed for REAPER timeline processing)
+    Gem getGuitarGemType(uint pitch, PPQ position);
+    Gem getDrumGemType(uint pitch, PPQ position, Dynamic dynamic);
+
 
 private:
     juce::ValueTree &state;
-    
+
     PPQ calculatePPQSegment(uint samples, double bpm, double sampleRate);
     void cleanupOldEvents(PPQ startPPQ, PPQ endPPQ, PPQ latencyPPQ);
     
@@ -57,10 +67,8 @@ private:
     // HOPO calculation moved from MidiInterpreter
     bool isNoteHeld(uint pitch, PPQ position);
     uint getGuitarGemColumn(uint pitch);
-    Gem getGuitarGemType(uint pitch, PPQ position);
     uint getDrumGemColumn(uint pitch);
-    Gem getDrumGemType(uint pitch, PPQ position, Dynamic dynamic);
-    
+
     // Visual window bounds for conservative cleanup
     PPQ visualWindowStartPPQ = PPQ(0.0);
     PPQ visualWindowEndPPQ = PPQ(0.0);

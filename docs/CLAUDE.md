@@ -1,78 +1,48 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working with this repository.
 
 ## IMPORTANT: Git Commit Guidelines
 
-**NEVER add co-authoring or "Generated with Claude Code" to commit messages unless explicitly requested by the user.**
+**NEVER add co-authoring or "Generated with Claude Code" to commit messages unless explicitly requested.**
 
-When creating commits, use ONLY the user's requested message format without any additional attribution or co-authoring lines.
+## CRITICAL: Use Local JUCE Submodule Only
+
+**DO NOT reference /Applications/JUCE** - This project uses a custom JUCE submodule with REAPER modifications.
+
+**ALWAYS use**: `third_party/JUCE/` for all JUCE source code references.
+
+When researching JUCE implementation details:
+1. Check `third_party/JUCE/modules/` first
+2. Refer to `/docs/` for project-specific documentation
+3. Only use web searches if local resources are insufficient
+4. Document findings in `/docs/` for future reference
 
 ## Project Overview
 
-Chart Preview is a VST/AU plugin for DAWs that visualizes MIDI notes as rhythm game charts (similar to Clone Hero/YARG). It's built with JUCE framework and designed for Windows, macOS, and Linux platforms.
+Chart Preview is a VST/AU plugin that visualizes MIDI notes as rhythm game charts (Clone Hero/YARG style). Built with JUCE for Windows, macOS, and Linux.
 
 ## Development Commands
 
 ### Building the Plugin
 
-**Cross-Platform CI/CD (Automated)**
-GitHub Actions automatically builds for all platforms on push to any branch:
-- **Windows**: VST3 plugin (optimized, ~2.5MB)
-- **macOS**: Universal binary VST3 + AU (x86_64 + arm64, ~6.7MB) 
-- **Linux**: VST3 plugin (~4.4MB)
+**CI/CD**: GitHub Actions builds all platforms automatically (Windows VST3 ~2.5MB, macOS universal VST3+AU ~6.7MB, Linux VST3 ~4.4MB)
 
-Artifacts are automatically generated and downloadable from GitHub Actions.
+**Local REAPER Testing** (macOS): `cd ChartPreview && ./build-scripts/build-local-test.sh [--open-reaper]`
+  - Builds VST2 + VST3 in Debug mode
+  - Installs to plugin folders
+  - Use `--open-reaper` flag to force quit & reopen REAPER
+  - For local testing only - doesn't affect CI
 
-**Local Development**
+**macOS Release**: `./build-scripts/build-macos-release.sh`
+**Windows**: Use `ChartPreview/Builds/VisualStudio2022/ChartPreview.sln`
+**Linux**: `./build-linux.sh` or `make -j$(nproc) CONFIG=Release` in `Builds/LinuxMakefile/`
 
-**macOS (Primary Development)**
-```bash
-cd ChartPreview
-./build.sh
-```
+### Projucer
+Main file: `ChartPreview.jucer`. Build script auto-regenerates platform projects, or manual: `/Applications/JUCE/Projucer.app --resave`
 
-The build script handles:
-- Regenerating Xcode project from Projucer if needed
-- Building VST3 format by default
-- Installing to `~/Library/Audio/Plug-Ins/VST3/`
-- Opening REAPER test project automatically
-- Closing REAPER before build to avoid file locks
-
-**Build Types:**
-- `vst` (default): VST3 plugin
-- `standalone`: Standalone application  
-- `au`: Audio Unit plugin
-
-**Windows**
-Use Visual Studio 2022 project at `ChartPreview/Builds/VisualStudio2022/ChartPreview.sln`
-
-**Linux**
-```bash
-cd ChartPreview
-chmod +x build-linux.sh
-./build-linux.sh
-```
-
-Or manually:
-```bash
-cd ChartPreview/Builds/LinuxMakefile
-make -j$(nproc) CONFIG=Release
-```
-
-Requirements: JUCE 8.0.0, system dependencies (libcurl, libfreetype, etc.)
-
-### Projucer Integration
-
-The main project file is `ChartPreview/ChartPreview.jucer`. When modified:
-- The build script automatically regenerates platform projects
-- Manual regeneration: `/Applications/JUCE/Projucer.app/Contents/MacOS/Projucer --resave "ChartPreview.jucer"`
-
-### Testing Setup
-
-- REAPER project: `reaper-test/reaper-test.rpp`
-- Ableton project: `ableton-test Project/ableton-test.als`
-- Test MIDI: `reaper-test/notes.mid`
+### Testing
+REAPER: `examples/reaper/`, Ableton: `examples/ableton/`
 
 ## Architecture
 
@@ -80,45 +50,32 @@ The main project file is `ChartPreview/ChartPreview.jucer`. When modified:
 
 **Audio Processing Chain:**
 1. `ChartPreviewAudioProcessor` - Main plugin processor
-2. `MidiProcessor` - Processes MIDI events and maintains note state
-3. `MidiInterpreter` - Converts MIDI data to visual chart elements
-4. `HighwayRenderer` - Renders the chart visualization
-5. `ChartPreviewAudioProcessorEditor` - UI and real-time display
+2. **REAPER Mode**: `ReaperMidiPipeline` - Direct timeline MIDI access via REAPER API
+3. **Standard Mode**: `MidiProcessor` - Processes MIDI buffer events
+4. `MidiInterpreter` - Converts MIDI data to visual chart elements
+5. `HighwayRenderer` - Renders the chart visualization
+6. `ChartPreviewAudioProcessorEditor` - UI and real-time display
 
 **Key Data Structures:**
-- `NoteStateMapArray` - Tracks held notes across all MIDI pitches
+- `NoteStateMapArray` - Tracks held notes across all MIDI pitches (thread-safe)
 - `TrackWindow` - Frame-based chart data for rendering window
 - `SustainWindow` - Sustain note data for rendering window
-- `GridlineMap` - Beat/measure grid timing information
-- `SustainList` - Sustain note information (for guitar)
+- `GridlineMap` - Beat/measure grid timing information (thread-safe)
+- `MidiCache` - Cached REAPER timeline MIDI data with smart invalidation
 
-### Threading Model
+### Threading & Race Condition Prevention
+**CRITICAL**: Audio thread processes MIDI, GUI thread renders. Thread-safe with `juce::CriticalSection`.
 
-- **Audio Thread**: Processes MIDI, updates note states and gridlines
-- **GUI Thread**: Renders visualization, handles UI interactions
-- **Thread Safety**: Uses `juce::CriticalSection` for `gridlineMap` access
+**Race Condition Fix (v0.8.6)**: `ReaperMidiPipeline::processCachedNotesIntoState` holds `noteStateMapLock` for the ENTIRE clear+write operation. This prevents the renderer from reading an empty `noteStateMapArray` between the clear and write steps (which caused intermittent black screens).
 
-### Timing System
+**Pattern**: Always use atomic clear+write when updating shared data structures read by the rendering thread.
 
-All timing uses **PPQ (Pulses Per Quarter)** for tempo-independent calculations:
-- MIDI events stored with PPQ timestamps
-- Rendering window calculated in PPQ space
-- Latency compensation applied in PPQ
+### Timing
+All timing uses **PPQ (Pulses Per Quarter)** for tempo-independence.
 
-### Instrument Support
-
-**Drums (Feature Complete)**
-- Normal and Pro drums modes
-- Ghost notes and accents (dynamics)
-- 2x kick support
-- Cymbal vs tom differentiation
-- Lanes (completed - tremolo/cymbal swells)
-
-**Guitar (Feature Complete)**
-- Open notes and tap notes supported
-- HOPOs (hammer-ons/pull-offs) with configurable timing
-- Sustain notes with rounded cap rendering
-- Lanes (completed - trill/tremolo sections)
+### Instruments
+**Drums**: Normal/Pro modes, ghost notes, accents, 2x kick, cymbal/tom differentiation, lanes
+**Guitar**: Open notes, tap notes, HOPOs (configurable), sustains, lanes
 
 ## Important Implementation Details
 
@@ -129,32 +86,12 @@ Defined in `Utils.h` as `MidiPitchDefinitions`:
 - Multiple difficulty levels (Easy, Medium, Hard, Expert)
 - Special pitches for star power, dynamics, lanes
 
-### Asset Management
-
-- Graphics assets in `ChartPreview/Assets/`
-- Audio assets in `ChartPreview/Audio/`
-- Assets are embedded in compiled binaries (verified in CI)
-- `AssetManager` handles loading and caching
-- Perspective rendering for 3D highway effect
-- Draw call optimization using `DrawCallMap`
-
-### Windows Compatibility
-
-Includes Windows-specific typedef in `Utils.h`:
-```cpp
-#if defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(_MSC_VER)
-    typedef unsigned int uint;
-#endif
-```
-
-### Performance Considerations
-
-- 60 FPS rendering by default (configurable: 15/30/60 FPS)
+### Assets & Performance
+- Assets in `Assets/` and `Audio/`, embedded in binaries
+- 60 FPS default (configurable: 15/30/60/120/144)
 - Latency compensation with multi-buffer smoothing
-- Chart zoom affects visible note count (400ms to 1.5s)
-- Draw call batching with column-based ordering
-- Offscreen compositing for complex sustain/lane rendering
-- Perspective-aware coordinate caching
+- Draw call batching, offscreen compositing, perspective-aware caching
+- **Debug logging optimization**: Conditional string concatenation only when debug console is open (prevents performance degradation)
 
 ## State Management
 
@@ -167,46 +104,37 @@ Plugin state stored in `juce::ValueTree` with properties:
 
 ## Development Status
 
-Current version: **v0.8.5 (beta testing phase)**
+**Current**: v0.8.7 (REAPER optimization update - COMPLETE)
+**Next**: v0.9.0 (UX polish - REAPER mode toggle, hit animations, default settings)
+**See**: `docs/UPCOMING_FEATURES.md` for priority roadmap, `docs/TODO.md` for full backlog
 
-See `docs/TODO.md` for comprehensive priority-ranked backlog based on beta tester feedback.
+### Recent Completions (v0.8.7 - REAPER Optimization Update)
+- REAPER timeline integration via VST2/VST3 extensions
+- Modular pipeline architecture (ReaperMidiPipeline vs StandardMidiPipeline)
+- MIDI caching system with smart invalidation
+- Multi-instance support with per-instance API storage
+- Time-based rendering refactor with unified tempo handling (absolute position-based)
+- REAPER gridline alignment fixed with time signature change handling
+- Tempo-change stretching eliminated (no more jarring visual glitches)
+- Chord HOPO rendering bug fixed in both pipelines
+- Sync issues eliminated (absolute position-based rendering)
+- Version display added to plugin UI
+- Centralized debug logging system (DebugTools::Logger)
 
-### Recent Completions (v0.8.5)
-- ✅ PPQ-based timing system conversion
-- ✅ Latency compensation with multi-buffer smoothing
-- ✅ Grid visual polish (beat/half-beat/measure markers)
-- ✅ Cross-platform CI/CD pipeline with artifact verification
-- ✅ Linux build support with full dependency management
-- ✅ Windows artifact optimization (debug symbol removal)
-- ✅ Sustain note implementation with rounded cap rendering
-- ✅ Resizable VST with fixed aspect ratio
-- ✅ Chord detection tolerance (10-tick grouping)
-- ✅ **Lanes System Overhaul** - Complete rewrite with perspective-aware coordinates and offscreen compositing
-- ✅ **Coordinate System Refactor** - Dedicated lane coordinate functions for consistent spacing
-- ✅ HOPO mode configuration system
+### Previous Completions (v0.8.6)
+- Race condition fix preventing intermittent black screens
+- Debug logging performance optimization
 
-### Beta Testing Insights
+### Previous Completions (v0.8.5)
+PPQ timing, latency compensation, CI/CD pipeline, Linux support, sustain rendering, resizable VST, lanes system overhaul, HOPO configuration
 
-**Primary Tester:** Invontor (main contributor/QA)  
-**Current Status:** Drums fully usable with quirks, Guitar less usable due to bugs
+### Beta Testing (Invontor - main tester)
+**Status**: Core functionality solid, ready for UX polish phase
 
-**Critical Issues Identified:**
-- Force strum/HOPO markers only apply to first note (should cover all notes underneath)
-- Sync issues varying between plugin restarts/instances
-- Sustain length rendering inaccuracies
-- Plugin loading failures in some Reaper versions
+**Completed Fixes**: All critical rendering issues (bar positioning, tempo stretching, sync timing)
+**UX Feedback**: REAPER mode toggle, default HOPO 170 ticks, wider kicks, hit animations, persistent window sizing
 
-**User Experience Feedback:**
-- Default HOPO setting should be 170 ticks (most accurate for modern games)
-- Kicks should be wider to match other games' visual conventions
-- Hit animations/effects needed (users find lack of feedback jarring)
-- Window sizing not persistent across project loads
-
-### Current Priorities
-- **P0 (Critical)**: Fix force marker coverage, sync consistency, plugin loading
-- **P1 (High)**: Default settings improvements, visual polish, hit animations  
-- **P2 (Medium)**: Reaper integration, performance optimization
-- **P3 (Future)**: Advanced features (Pro Guitar, Real Drums, etc.)
+**Current Focus**: UX polish (mode toggle, defaults, animations) → Audio features (metronome, clicks, samples) → Advanced features (BRE, extended memory)
 
 ## File Structure Notes
 
@@ -220,17 +148,6 @@ See `docs/TODO.md` for comprehensive priority-ranked backlog based on beta teste
 - CI/CD configuration in `.github/workflows/build.yml`
 - `DO NOT DISTRIBUTE/` contains additional development assets
 
-## Build System Details
+## Build System
 
-### CI/CD Pipeline
-- **Triggers**: Any push to any branch, all pull requests
-- **Platforms**: Windows Server 2022, macOS 14, Ubuntu 22.04
-- **Optimization**: Windows artifacts exclude debug symbols (~92% size reduction)
-- **Verification**: Automatic validation of embedded resources and dependencies
-- **Caching**: JUCE installations and build artifacts cached for faster builds
-- **Distribution**: Downloadable artifacts for each platform automatically generated
-
-### Platform-Specific Notes
-- **Windows**: Uses MSBuild with Visual Studio 2022, produces optimized VST3 DLL
-- **macOS**: Uses Xcode with universal binary support, produces both VST3 and AU
-- **Linux**: Uses Make with system package dependencies, produces VST3 bundle
+**CI/CD**: Triggers on all pushes/PRs. Windows (VS2022, optimized), macOS (Xcode, universal VST3+AU), Linux (Make, VST3). Artifacts cached and auto-generated.

@@ -1,4 +1,6 @@
 #include "MidiProcessor.h"
+#include "ReaperMidiProvider.h"
+#include <set>
 
 MidiProcessor::MidiProcessor(juce::ValueTree &state) : state(state)
 {
@@ -195,14 +197,22 @@ void MidiProcessor::processMidiMessages(juce::MidiBuffer &midiMessages, PPQ star
     });
     
     // Process all messages in order
+    // Track positions where we need to fix chord HOPOs (process after all notes at that position)
+    std::set<PPQ> positionsNeedingChordFix;
+
     for (const auto& noteMsg : noteMessages) {
         processNoteMessage(noteMsg.message, noteMsg.position);
-        
-        // If this guitar note forms a chord, fix any HOPOs at the same timestamp
+
+        // If this guitar note forms a chord, mark position for fixing after all notes processed
         if (noteMsg.message.isNoteOn() && isPart(state, Part::GUITAR)) {
-            if (isChordFormed(noteMsg.pitch, noteMsg.position)) {
-                fixChordHOPOs(noteMsg.pitch, noteMsg.position);
-            }
+            positionsNeedingChordFix.insert(noteMsg.position);
+        }
+    }
+
+    // Now fix all chord HOPOs after all notes have been inserted
+    for (PPQ position : positionsNeedingChordFix) {
+        if (isChordFormed(0, position)) { // pitch doesn't matter for isChordFormed check
+            fixChordHOPOs(0, position); // pitch doesn't matter for fixChordHOPOs
         }
     }
 }
@@ -211,12 +221,12 @@ void MidiProcessor::processNoteMessage(const juce::MidiMessage &midiMessage, PPQ
 {
     uint noteNumber = midiMessage.getNoteNumber();
     uint velocity = midiMessage.isNoteOn() ? midiMessage.getVelocity() : 0;
-    
+
     // Ensure notes that stop and start at the same PPQ are processed in correct order
     if (midiMessage.isNoteOff()) {
         messagePPQ -= PPQ(1); // Smallest possible PPQ unit
     }
-    
+
     // Calculate the final Gem type at MIDI processing time
     Gem gemType = Gem::NONE;
     if (velocity > 0) {
@@ -235,16 +245,18 @@ void MidiProcessor::processNoteMessage(const juce::MidiMessage &midiMessage, PPQ
 bool MidiProcessor::isChordFormed(uint pitch, PPQ position)
 {
     std::vector<uint> guitarPitches = MidiUtility::getGuitarPitchesForSkill((SkillLevel)((int)state.getProperty("skillLevel")));
-    
+
     int chordNoteCount = 0;
     const juce::ScopedLock lock(noteStateMapLock);
     for (uint guitarPitch : guitarPitches) {
         if (MidiUtility::isNoteHeldWithTolerance(guitarPitch, position, noteStateMapArray, noteStateMapLock)) {
             chordNoteCount++;
-            if (chordNoteCount >= 2) return true; // 2+ notes = chord
+            if (chordNoteCount >= 2) {
+                return true; // 2+ notes = chord
+            }
         }
     }
-    
+
     return false;
 }
 
@@ -253,14 +265,14 @@ void MidiProcessor::fixChordHOPOs(uint pitch, PPQ position)
     // Get all guitar pitches and find the chord notes
     std::vector<uint> guitarPitches = MidiUtility::getGuitarPitchesForSkill((SkillLevel)((int)state.getProperty("skillLevel")));
     std::vector<uint> chordPitches;
-    
+
     const juce::ScopedLock lock(noteStateMapLock);
     for (uint guitarPitch : guitarPitches) {
         if (MidiUtility::isNoteHeldWithTolerance(guitarPitch, position, noteStateMapArray, noteStateMapLock)) {
             chordPitches.push_back(guitarPitch);
         }
     }
-    
+
     // Fix any HOPOs in the chord
     for (uint chordPitch : chordPitches) {
         auto& noteStateMap = noteStateMapArray[chordPitch];
@@ -268,10 +280,10 @@ void MidiProcessor::fixChordHOPOs(uint pitch, PPQ position)
         // Find notes within chord tolerance of this position
         PPQ searchStart = position - CHORD_TOLERANCE;
         PPQ searchEnd = position + CHORD_TOLERANCE;
-        
+
         auto lower = noteStateMap.lower_bound(searchStart);
         auto upper = noteStateMap.upper_bound(searchEnd);
-        
+
         for (auto it = lower; it != upper; ++it) {
             if (it->second.velocity > 0 && it->second.gemType == Gem::HOPO_GHOST) {
                 // Change HOPO to regular note since it's part of a chord
@@ -305,17 +317,17 @@ Gem MidiProcessor::getDrumGemType(uint pitch, PPQ position, Dynamic dynamic)
 void MidiProcessor::refreshMidiDisplay()
 {
     const juce::ScopedLock lock(noteStateMapLock);
-    
+
     // Iterate through all pitches and all notes
     for (uint pitch = 0; pitch < 128; pitch++)
     {
         NoteStateMap& noteStateMap = noteStateMapArray[pitch];
-        
+
         for (auto& noteEntry : noteStateMap)
         {
             PPQ position = noteEntry.first;
             NoteData& noteData = noteEntry.second;
-            
+
             // Only recalculate for note-on events
             if (noteData.velocity > 0)
             {
@@ -328,5 +340,26 @@ void MidiProcessor::refreshMidiDisplay()
                 }
             }
         }
+    }
+}
+
+void MidiProcessor::clearNoteDataInRange(PPQ startPPQ, PPQ endPPQ)
+{
+    const juce::ScopedLock lock(noteStateMapLock);
+
+    // Clear notes in the specified PPQ range for all pitches
+    for (auto& noteStateMap : noteStateMapArray)
+    {
+        auto lower = noteStateMap.lower_bound(startPPQ);
+        auto upper = noteStateMap.upper_bound(endPPQ);
+        noteStateMap.erase(lower, upper);
+    }
+
+    // Also clear gridlines in this range
+    {
+        const juce::ScopedLock gridLock(gridlineMapLock);
+        auto lower = gridlineMap.lower_bound(startPPQ);
+        auto upper = gridlineMap.upper_bound(endPPQ);
+        gridlineMap.erase(lower, upper);
     }
 }

@@ -37,10 +37,15 @@ public:
     static bool isSustainedModifierPitch(uint pitch);
     
     // Lane detection functions
-    static std::vector<SustainEvent> detectLanes(uint laneType, PPQ startPPQ, PPQ endPPQ, uint laneVelocity, 
-                                                  juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, 
+    static std::vector<SustainEvent> detectLanes(uint laneType, PPQ startPPQ, PPQ endPPQ, uint laneVelocity,
+                                                  juce::ValueTree &state, NoteStateMapArray &noteStateMapArray,
                                                   juce::CriticalSection &noteStateMapLock);
-    
+
+    // Chord HOPO fixing (ensures chords are never mixed HOPO/strum)
+    static void fixChordHOPOs(const std::vector<PPQ>& positions, SkillLevel skill,
+                              NoteStateMapArray &noteStateMapArray,
+                              juce::CriticalSection &noteStateMapLock);
+
     // Gem appearance utility
     static Gem getDrumGlyph(bool cymbal, bool dynamicsEnabled, Dynamic dynamic)
     {

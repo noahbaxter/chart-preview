@@ -69,6 +69,29 @@ void AssetManager::initAssets()
     sustainRedImage = juce::ImageCache::getFromMemory(BinaryData::sustain_red_png, BinaryData::sustain_red_pngSize);
     sustainWhiteImage = juce::ImageCache::getFromMemory(BinaryData::sustain_white_png, BinaryData::sustain_white_pngSize);
     sustainYellowImage = juce::ImageCache::getFromMemory(BinaryData::sustain_yellow_png, BinaryData::sustain_yellow_pngSize);
+
+    // Hit animation frames
+    hitAnimationFrames[0] = juce::ImageCache::getFromMemory(BinaryData::hit_1_png, BinaryData::hit_1_pngSize);
+    hitAnimationFrames[1] = juce::ImageCache::getFromMemory(BinaryData::hit_2_png, BinaryData::hit_2_pngSize);
+    hitAnimationFrames[2] = juce::ImageCache::getFromMemory(BinaryData::hit_3_png, BinaryData::hit_3_pngSize);
+    hitAnimationFrames[3] = juce::ImageCache::getFromMemory(BinaryData::hit_4_png, BinaryData::hit_4_pngSize);
+    hitAnimationFrames[4] = juce::ImageCache::getFromMemory(BinaryData::hit_5_png, BinaryData::hit_5_pngSize);
+
+    // Hit flare images (blue=4, green=1, orange=5, red=2, yellow=3)
+    hitFlareImages[0] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_green_png, BinaryData::hit_flare_green_pngSize);
+    hitFlareImages[1] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_red_png, BinaryData::hit_flare_red_pngSize);
+    hitFlareImages[2] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_yellow_png, BinaryData::hit_flare_yellow_pngSize);
+    hitFlareImages[3] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_blue_png, BinaryData::hit_flare_blue_pngSize);
+    hitFlareImages[4] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_orange_png, BinaryData::hit_flare_orange_pngSize);
+
+    // Kick animation frames
+    kickAnimationFrames[0] = juce::ImageCache::getFromMemory(BinaryData::hit_kick_1_png, BinaryData::hit_kick_1_pngSize);
+    kickAnimationFrames[1] = juce::ImageCache::getFromMemory(BinaryData::hit_kick_2_png, BinaryData::hit_kick_2_pngSize);
+    kickAnimationFrames[2] = juce::ImageCache::getFromMemory(BinaryData::hit_kick_3_png, BinaryData::hit_kick_3_pngSize);
+    kickAnimationFrames[3] = juce::ImageCache::getFromMemory(BinaryData::hit_kick_4_png, BinaryData::hit_kick_4_pngSize);
+    kickAnimationFrames[4] = juce::ImageCache::getFromMemory(BinaryData::hit_kick_5_png, BinaryData::hit_kick_5_pngSize);
+    kickAnimationFrames[5] = juce::ImageCache::getFromMemory(BinaryData::hit_kick_6_png, BinaryData::hit_kick_6_pngSize);
+    kickAnimationFrames[6] = juce::ImageCache::getFromMemory(BinaryData::hit_kick_7_png, BinaryData::hit_kick_7_pngSize);
 }
 
 juce::Image* AssetManager::getGuitarGlyphImage(Gem gem, uint gemColumn, bool starPowerActive, bool spNoteHeld)

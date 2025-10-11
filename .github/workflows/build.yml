@@ -28,7 +28,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        submodules: recursive
         lfs: true
         
     - name: Setup MSBuild
@@ -42,7 +41,24 @@ jobs:
         Expand-Archive -Path "juce.zip" -DestinationPath "C:\"
         echo "JUCE installed at C:\JUCE"
         dir "C:\JUCE"
-      
+
+    - name: Apply JUCE patches for REAPER integration
+      shell: cmd
+      run: |
+        echo "Applying JUCE patches..."
+        cd C:\JUCE
+        git init
+        git config user.email "ci@github.com"
+        git config user.name "GitHub Actions"
+        git add .
+        git commit -m "Initial JUCE 8.0.0"
+        echo "Applying patch 01-add-reaper-api-handler.patch..."
+        git apply "%GITHUB_WORKSPACE%\.ci\juce-patches\01-add-reaper-api-handler.patch" || (echo "Failed to apply patch 01" && exit /b 1)
+        echo "Applying patch 02-add-reaper-handshake.patch..."
+        git apply "%GITHUB_WORKSPACE%\.ci\juce-patches\02-add-reaper-handshake.patch" || (echo "Failed to apply patch 02" && exit /b 1)
+        echo "✅ All patches applied successfully"
+        git diff --stat
+
     - name: Cache JUCE
       uses: actions/cache@v4
       with:
@@ -172,7 +188,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        submodules: recursive
         lfs: true
         
     - name: Use latest Xcode
@@ -190,7 +205,23 @@ jobs:
         sudo cp -r /tmp/JUCE/* /Applications/JUCE/
         echo "JUCE installed at /Applications/JUCE"
         ls -la /Applications/JUCE/
-        
+
+    - name: Apply JUCE patches for REAPER integration
+      run: |
+        echo "Applying JUCE patches..."
+        cd /Applications/JUCE
+        sudo git init
+        sudo git config user.email "ci@github.com"
+        sudo git config user.name "GitHub Actions"
+        sudo git add .
+        sudo git commit -m "Initial JUCE 8.0.0"
+        echo "Applying patch 01-add-reaper-api-handler.patch..."
+        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/01-add-reaper-api-handler.patch" || (echo "Failed to apply patch 01" && exit 1)
+        echo "Applying patch 02-add-reaper-handshake.patch..."
+        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/02-add-reaper-handshake.patch" || (echo "Failed to apply patch 02" && exit 1)
+        echo "✅ All patches applied successfully"
+        sudo git diff --stat
+
     - name: Cache JUCE
       uses: actions/cache@v4
       with:
@@ -322,7 +353,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        submodules: recursive
         lfs: true
         
     - name: Install system dependencies
@@ -366,7 +396,23 @@ jobs:
         ls -la /opt/JUCE/modules/ || echo "Modules directory not found"
         echo "Checking if Projucer exists..."
         ls -la /opt/JUCE/Projucer || echo "Projucer not found"
-        
+
+    - name: Apply JUCE patches for REAPER integration
+      run: |
+        echo "Applying JUCE patches..."
+        cd /opt/JUCE
+        sudo git init
+        sudo git config user.email "ci@github.com"
+        sudo git config user.name "GitHub Actions"
+        sudo git add .
+        sudo git commit -m "Initial JUCE 8.0.0"
+        echo "Applying patch 01-add-reaper-api-handler.patch..."
+        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/01-add-reaper-api-handler.patch" || (echo "Failed to apply patch 01" && exit 1)
+        echo "Applying patch 02-add-reaper-handshake.patch..."
+        sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/02-add-reaper-handshake.patch" || (echo "Failed to apply patch 02" && exit 1)
+        echo "✅ All patches applied successfully"
+        sudo git diff --stat
+
     - name: Cache JUCE
       uses: actions/cache@v4
       with:

@@ -8,6 +8,13 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "ReaperVST3.h"
+#include "REAPER/ReaperVST2Extensions.h"
+#include "REAPER/ReaperVST3Extensions.h"
+#include "REAPER/ReaperIntegration.h"
+#include "Pipeline/MidiPipelineFactory.h"
+#include "Pipeline/MidiPipeline.h"
+#include "Pipeline/ReaperMidiPipeline.h"
 
 //==============================================================================
 ChartPreviewAudioProcessor::ChartPreviewAudioProcessor()
@@ -19,11 +26,17 @@ ChartPreviewAudioProcessor::ChartPreviewAudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       ), 
-       midiProcessor(state)
+                       ),
+       midiProcessor(state),
+       debugLogger([this](const juce::String& msg) { print(msg); })
 #endif
 {
+    debugText = "Plugin loaded at " + juce::Time::getCurrentTime().toString(true, true) + "\n";
     initializeDefaultState();
+
+    // Create the default pipeline (will be recreated when REAPER is detected)
+    midiPipeline = MidiPipelineFactory::createPipeline(false, false, midiProcessor, nullptr, state,
+                                                      [this](const juce::String& msg) { print(msg); });
 }
 
 ChartPreviewAudioProcessor::~ChartPreviewAudioProcessor()
@@ -40,12 +53,12 @@ void ChartPreviewAudioProcessor::initializeDefaultState()
     state.setProperty("framerate", 3, nullptr); // 60 FPS
     state.setProperty("latency", 2, nullptr);   // 500 ms
     state.setProperty("autoHopo", (int)HopoMode::OFF, nullptr);
+    state.setProperty("hitIndicators", 1, nullptr);
     state.setProperty("starPower", 1, nullptr);
     state.setProperty("kick2x", 1, nullptr);
     state.setProperty("dynamics", 1, nullptr);
-    state.setProperty("dynamicZoom", 0, nullptr);
-    state.setProperty("zoomPPQ", 2.5, nullptr);
-    state.setProperty("zoomTime", 1.0, nullptr);
+    state.setProperty("speedTime", 1.0, nullptr);
+    state.setProperty("reaperTrack", 1, nullptr); // Track 1 (0-indexed) = Track 1 in UI
 }
 
 void ChartPreviewAudioProcessor::setLatencyInSeconds(float latencyInSeconds)
@@ -55,7 +68,30 @@ void ChartPreviewAudioProcessor::setLatencyInSeconds(float latencyInSeconds)
     if (sampleRate > 0.0)
     {
         this->latencyInSamples = (uint)(latencyInSeconds * sampleRate);
-        setLatencySamples(this->latencyInSamples);
+
+        // In REAPER mode, don't report any latency to the host
+        // (we read timeline data directly, no buffer delay)
+        if (isReaperHost && reaperMidiProvider.isReaperApiAvailable())
+        {
+            setLatencySamples(0);
+        }
+        else
+        {
+            setLatencySamples(this->latencyInSamples);
+        }
+    }
+}
+
+void ChartPreviewAudioProcessor::invalidateReaperCache()
+{
+    if (midiPipeline)
+    {
+        // Cast to ReaperMidiPipeline and invalidate cache
+        auto* reaperPipeline = dynamic_cast<ReaperMidiPipeline*>(midiPipeline.get());
+        if (reaperPipeline)
+        {
+            reaperPipeline->invalidateCache();
+        }
     }
 }
 
@@ -81,18 +117,73 @@ void ChartPreviewAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, 
     if (!positionInfo.hasValue())
         return;
 
-    // Get playhead position
+    // Get playhead position (for compatibility with editor)
     playheadPositionInSamples = static_cast<uint>(positionInfo->getTimeInSamples().orFallback(0));
     playheadPositionInPPQ = positionInfo->getPpqPosition().orFallback(0.0);
     isPlaying = positionInfo->getIsPlaying();
 
-    if (isPlaying)
+    // Recreate pipeline if REAPER was just detected
+    // NOTE: Must be per-instance, not static! Multiple instances need their own state tracking
+    if (isReaperHost != lastReaperConnected)
     {
-        midiProcessor.process(midiMessages,
-                              *positionInfo,
-                              buffer.getNumSamples(),
-                              latencyInSamples,
-                              getSampleRate());
+        lastReaperConnected = isReaperHost;
+        bool useReaperTimeline = isReaperHost && reaperMidiProvider.isReaperApiAvailable();
+
+        print("====================================");
+        print("=== PIPELINE MODE SWITCH ===");
+        print("isReaperHost: " + juce::String(isReaperHost ? "TRUE" : "FALSE"));
+        print("reaperApiAvailable: " + juce::String(reaperMidiProvider.isReaperApiAvailable() ? "TRUE" : "FALSE"));
+        print("useReaperTimeline: " + juce::String(useReaperTimeline ? "TRUE" : "FALSE"));
+
+        midiPipeline = MidiPipelineFactory::createPipeline(isReaperHost, useReaperTimeline,
+                                                          midiProcessor, &reaperMidiProvider, state,
+                                                          [this](const juce::String& msg) { print(msg); });
+
+        if (useReaperTimeline)
+        {
+            print(">>> USING REAPER TIMELINE PIPELINE <<<");
+            print(">>> NO LATENCY, DIRECT TIMELINE ACCESS <<<");
+        }
+        else
+        {
+            print(">>> USING STANDARD MIDI BUFFER PIPELINE <<<");
+        }
+        print("====================================");
+    }
+
+    // Process using the pipeline
+    if (midiPipeline)
+    {
+        // Set the display window from the processor's stored value
+        // (updated by editor when zoom changes)
+        PPQ currentPos = positionInfo->getPpqPosition().orFallback(0.0);
+        PPQ windowEnd = currentPos + displayWindowSize;
+
+        // Logging disabled for performance
+        // #ifdef DEBUG
+        // static PPQ lastLoggedPos = PPQ(-100.0);
+        // if (std::abs((currentPos - lastLoggedPos).toDouble()) > 0.1) // Log position changes
+        // {
+        //     print("=== DISPLAY WINDOW SET ===");
+        //     print("currentPos: " + juce::String(currentPos.toDouble(), 3));
+        //     print("displayWindowSize: " + juce::String(displayWindowSize.toDouble(), 3));
+        //     print("windowEnd: " + juce::String(windowEnd.toDouble(), 3));
+        //     lastLoggedPos = currentPos;
+        // }
+        // #endif
+
+        midiPipeline->setDisplayWindow(currentPos, windowEnd);
+
+        midiPipeline->process(*positionInfo, buffer.getNumSamples(), getSampleRate());
+
+        // If the pipeline needs realtime MIDI, process it
+        if (midiPipeline->needsRealtimeMidiBuffer())
+        {
+            midiPipeline->processMidiBuffer(midiMessages, *positionInfo,
+                                           buffer.getNumSamples(),
+                                           latencyInSamples,
+                                           getSampleRate());
+        }
     }
 }
 //==============================================
@@ -211,6 +302,78 @@ bool ChartPreviewAudioProcessor::isBusesLayoutSupported(const BusesLayout &layou
 #endif
 }
 #endif
+
+
+juce::VST2ClientExtensions* ChartPreviewAudioProcessor::getVST2ClientExtensions()
+{
+    // Create VST2 extensions instance on demand
+    if (!vst2Extensions)
+        vst2Extensions = std::make_unique<ChartPreviewVST2Extensions>(this);
+
+    return vst2Extensions.get();
+}
+
+bool ChartPreviewAudioProcessor::attemptReaperConnection()
+{
+    if (!isReaperHost || !reaperGetFunc)
+        return false;
+
+    // Test the connection by getting a simple REAPER function
+    auto GetPlayState = (int(*)())reaperGetFunc("GetPlayState");
+    if (GetPlayState)
+    {
+        DBG("Successfully connected to REAPER API via VST2!");
+        return true;
+    }
+
+    return false;
+}
+
+void* ChartPreviewAudioProcessor::getReaperApi(const char* funcname)
+{
+    if (reaperGetFunc)
+        return reaperGetFunc(funcname);
+    return nullptr;
+}
+
+
+std::string ChartPreviewAudioProcessor::getHostInfo()
+{
+    // Try to get host information
+    juce::String hostName = getPlayHead() ? "Unknown Host" : "No PlayHead";
+
+    // JUCE doesn't provide a direct way to get host name in VST2, but we can infer it
+    // from various clues or wait for the REAPER-specific handshake
+    return hostName.toStdString();
+}
+
+
+juce::VST3ClientExtensions* ChartPreviewAudioProcessor::getVST3ClientExtensions()
+{
+#if JucePlugin_Build_VST3
+    // Create VST3 extensions instance on demand
+    if (!vst3Extensions)
+        vst3Extensions = std::make_unique<ChartPreviewVST3Extensions>(this);
+
+    return vst3Extensions.get();
+#else
+    return nullptr;
+#endif
+}
+
+void ChartPreviewAudioProcessor::processReaperTimelineMidi(PPQ startPPQ, PPQ endPPQ, double bpm, uint timeSignatureNumerator, uint timeSignatureDenominator)
+{
+    // If using the new pipeline system, set the display window
+    if (midiPipeline)
+    {
+        midiPipeline->setDisplayWindow(startPPQ, endPPQ);
+    }
+    else
+    {
+        // Fallback to old method
+        ReaperIntegration::processReaperTimelineMidi(*this, startPPQ, endPPQ, bpm, timeSignatureNumerator, timeSignatureDenominator);
+    }
+}
 
 //==============================================================================
 // This creates new instances of the plugin..

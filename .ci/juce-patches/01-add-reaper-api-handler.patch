@@ -1,0 +1,15 @@
+--- a/modules/juce_audio_processors/utilities/juce_VST2ClientExtensions.h
++++ b/modules/juce_audio_processors/utilities/juce_VST2ClientExtensions.h
+@@ -67,6 +67,12 @@ struct VST2ClientExtensions
+         You can use the supplied function to query the VST host.
+     */
+     virtual void handleVstHostCallbackAvailable (std::function<VstHostCallbackType>&& callback);
++
++    /** This is called if the host is REAPER and provides API functions.
++        The function pointer can be used to get REAPER API functions by name.
++        @param reaperGetFunc A function pointer to get REAPER API functions
++    */
++    virtual void handleReaperApi (void* (*reaperGetFunc)(const char*)) {}
+ };
+
+ using VSTCallbackHandler [[deprecated ("replace with VST2ClientExtensions")]] = VST2ClientExtensions;

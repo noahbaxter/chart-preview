@@ -9,6 +9,9 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+// Version number
+static constexpr const char* CHART_PREVIEW_VERSION = "v0.9.0";
+
 //==============================================================================
 ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewAudioProcessor &p, juce::ValueTree &state)
     : AudioProcessorEditor(&p),
@@ -43,6 +46,9 @@ void ChartPreviewAudioProcessorEditor::initAssets()
     backgroundImage = juce::ImageCache::getFromMemory(BinaryData::background_png, BinaryData::background_pngSize);
     trackDrumImage = juce::ImageCache::getFromMemory(BinaryData::track_drum_png, BinaryData::track_drum_pngSize);
     trackGuitarImage = juce::ImageCache::getFromMemory(BinaryData::track_guitar_png, BinaryData::track_guitar_pngSize);
+
+    // Load REAPER logo SVG
+    reaperLogo = juce::Drawable::createFromImageData(BinaryData::logoreaper_svg, BinaryData::logoreaper_svgSize);
 }
 
 void ChartPreviewAudioProcessorEditor::initMenus()
@@ -71,27 +77,32 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     autoHopoMenu.addItemList(hopoModeLabels, 1);
     autoHopoMenu.addListener(this);
     addAndMakeVisible(autoHopoMenu);
-    
-    // Sliders
-    chartZoomSliderPPQ.setRange(1.0, 8.0, 0.1);
-    chartZoomSliderPPQ.setSliderStyle(juce::Slider::LinearVertical);
-    chartZoomSliderPPQ.setTextBoxStyle(juce::Slider::TextBoxAbove, false, 50, 20);
-    chartZoomSliderPPQ.addListener(this);
-    addAndMakeVisible(chartZoomSliderPPQ);
-    
-    chartZoomSliderTime.setRange(0.4, 2.0, 0.05);
-    chartZoomSliderTime.setSliderStyle(juce::Slider::LinearVertical);
-    chartZoomSliderTime.setTextBoxStyle(juce::Slider::TextBoxAbove, false, 50, 20);
-    chartZoomSliderTime.addListener(this);
-    addAndMakeVisible(chartZoomSliderTime);
 
-    chartZoomLabel.setText("Zoom", juce::dontSendNotification);
-    addAndMakeVisible(chartZoomLabel);
-    
+    reaperTrackMenu.addItemList({"Track 1", "Track 2", "Track 3", "Track 4", "Track 5", "Track 6", "Track 7", "Track 8"}, 1);
+    reaperTrackMenu.addListener(this);
+    addAndMakeVisible(reaperTrackMenu);
+
+    // Speed slider (time-based only)
+    chartSpeedSlider.setRange(0.4, 2.5, 0.05);
+    chartSpeedSlider.setSliderStyle(juce::Slider::LinearVertical);
+    chartSpeedSlider.setTextBoxStyle(juce::Slider::TextBoxAbove, false, 50, 20);
+    chartSpeedSlider.addListener(this);
+    addAndMakeVisible(chartSpeedSlider);
+
+    chartSpeedLabel.setText("Speed", juce::dontSendNotification);
+    addAndMakeVisible(chartSpeedLabel);
+
+    // Version label
+    versionLabel.setText(CHART_PREVIEW_VERSION, juce::dontSendNotification);
+    versionLabel.setJustificationType(juce::Justification::centredLeft);
+    versionLabel.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.6f));
+    versionLabel.setFont(juce::Font(10.0f));
+    addAndMakeVisible(versionLabel);
+
     // Toggles
-    dynamicZoomToggle.setButtonText("Dynamic");
-    dynamicZoomToggle.addListener(this);
-    addAndMakeVisible(dynamicZoomToggle);
+    hitIndicatorsToggle.setButtonText("Hit Indicators");
+    hitIndicatorsToggle.addListener(this);
+    addAndMakeVisible(hitIndicatorsToggle);
 
     starPowerToggle.setButtonText("Star Power");
     starPowerToggle.addListener(this);
@@ -105,20 +116,41 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     dynamicsToggle.addListener(this);
     addAndMakeVisible(dynamicsToggle);
 
-    // // Debug toggle
-    // debugToggle.setButtonText("Debug");
-    // addAndMakeVisible(debugToggle);
+    #ifdef DEBUG
+    // Debug toggle
+    debugToggle.setButtonText("Debug");
+    debugToggle.addListener(this);
+    addAndMakeVisible(debugToggle);
 
-    // // Create console output
-    // consoleOutput.setMultiLine(true);
-    // consoleOutput.setReadOnly(true);
-    // addAndMakeVisible(consoleOutput);
+    // Clear Logs button
+    clearLogsButton.setButtonText("Clear Logs");
+    clearLogsButton.addListener(this);
+    addAndMakeVisible(clearLogsButton);
+
+    // Create console output
+    consoleOutput.setMultiLine(true);
+    consoleOutput.setReadOnly(true);
+    addAndMakeVisible(consoleOutput);
+    #endif
 }
 
 //==============================================================================
 void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.drawImage(backgroundImage, getLocalBounds().toFloat());
+
+    // Visual feedback for REAPER connection status
+    if (audioProcessor.isReaperHost && audioProcessor.attemptReaperConnection())
+    {
+        // Draw REAPER logo in bottom left corner
+        if (reaperLogo)
+        {
+            const int logoSize = 24;
+            const int margin = 10;
+            juce::Rectangle<float> logoBounds(margin, getHeight() - logoSize - margin, logoSize, logoSize);
+            reaperLogo->drawWithin(g, logoBounds, juce::RectanglePlacement::centred, 0.8f);
+        }
+    }
 
     // Draw the track
     if (isPart(state, Part::DRUMS))
@@ -130,33 +162,121 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
         g.drawImage(trackGuitarImage, juce::Rectangle<float>(0, 0, getWidth(), getHeight()), juce::RectanglePlacement::centred);
     }
 
+    // Hit indicators toggle is always visible for both guitar and drums
     drumTypeMenu.setVisible(isPart(state, Part::DRUMS));
     kick2xToggle.setVisible(isPart(state, Part::DRUMS));
     dynamicsToggle.setVisible(isPart(state, Part::DRUMS));
     autoHopoMenu.setVisible(isPart(state, Part::GUITAR));
-    consoleOutput.setVisible(debugToggle.getToggleState());
 
-    // Update display size if in time-based mode to account for tempo changes
-    bool isDynamicZoom = (bool)state.getProperty("dynamicZoom");
-    if (!isDynamicZoom && audioProcessor.isPlaying)
+    // Hide latency menu in REAPER mode (no latency compensation needed)
+    // Show REAPER track selector only in REAPER mode
+    bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
+    latencyMenu.setVisible(!isReaperMode);
+    reaperTrackMenu.setVisible(isReaperMode);
+
+    #ifdef DEBUG
+    bool debugMode = debugToggle.getToggleState();
+    consoleOutput.setVisible(debugMode);
+    clearLogsButton.setVisible(debugMode);
+    #endif
+
+    // Draw the highway - delegate to mode-specific rendering
+    if (isReaperMode)
     {
-        updateDisplaySizeFromZoomSlider();
+        paintReaperMode(g);
     }
+    else
+    {
+        paintStandardMode(g);
+    }
+}
 
-    // Draw the highway
-    PPQ trackWindowStartPPQ = currentPlayheadPositionInPPQ();
+void ChartPreviewAudioProcessorEditor::paintReaperMode(juce::Graphics& g)
+{
+    // Use current position (cursor when paused, playhead when playing)
+    PPQ trackWindowStartPPQ = lastKnownPosition;
+    PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
+    PPQ latencyBufferEnd = trackWindowStartPPQ; // No latency in REAPER mode
+
+    // Extend window for notes behind cursor
+    PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
+
+    // Generate PPQ-based windows from MidiInterpreter
+    TrackWindow ppqTrackWindow = midiInterpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
+    SustainWindow ppqSustainWindow = midiInterpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
+    GridlineMap ppqGridlineMap = midiInterpreter.generateGridlineWindow(extendedStart, trackWindowEndPPQ);
+
+    // Create a lambda that uses REAPER's timeline conversion (handles ALL tempo changes)
+    auto& reaperProvider = audioProcessor.getReaperMidiProvider();
+    auto ppqToTime = [&reaperProvider](double ppq) { return reaperProvider.ppqToTime(ppq); };
+
+    // Convert everything to time-based (seconds from cursor)
+    PPQ cursorPPQ = trackWindowStartPPQ;  // Cursor is at the strikeline
+    TimeBasedTrackWindow timeTrackWindow = TimeConverter::convertTrackWindow(ppqTrackWindow, cursorPPQ, ppqToTime);
+    TimeBasedSustainWindow timeSustainWindow = TimeConverter::convertSustainWindow(ppqSustainWindow, cursorPPQ, ppqToTime);
+    TimeBasedGridlineMap timeGridlineMap = TimeConverter::convertGridlineMap(ppqGridlineMap, cursorPPQ, ppqToTime);
+
+    // Use the constant time window from the slider (in seconds)
+    // Window is anchored at the strikeline (time 0), extending forward into the future
+    double windowStartTime = 0.0;
+    double windowEndTime = displayWindowTimeSeconds;
+
+    highwayRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
+}
+
+void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
+{
+    // Use current position (cursor when paused, playhead when playing)
+    PPQ trackWindowStartPPQ = lastKnownPosition;
+
+    // Apply latency compensation when playing
     if (audioProcessor.isPlaying)
     {
         // Use smoothed tempo-aware latency to prevent jitter during tempo changes
         PPQ smoothedLatency = smoothedLatencyInPPQ();
         trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - smoothedLatency);
     }
+
     PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
     PPQ latencyBufferEnd = trackWindowStartPPQ + smoothedLatencyInPPQ();
-    
+
     // Update MidiProcessor's visual window bounds to prevent premature cleanup of visible events
     audioProcessor.setMidiProcessorVisualWindowBounds(trackWindowStartPPQ, trackWindowEndPPQ);
-    highwayRenderer.paint(g, trackWindowStartPPQ, trackWindowEndPPQ, displaySizeInPPQ, latencyBufferEnd);
+
+    // In non-REAPER mode, use current BPM from playhead (no tempo map available)
+    double currentBPM = 120.0;
+    if (audioProcessor.getPlayHead())
+    {
+        auto positionInfo = audioProcessor.getPlayHead()->getPosition();
+        if (positionInfo.hasValue())
+        {
+            currentBPM = positionInfo->getBpm().orFallback(120.0);
+        }
+    }
+
+    // Extend window for notes behind cursor
+    PPQ extendedStart = trackWindowStartPPQ - displaySizeInPPQ;
+
+    // Generate PPQ-based windows from MidiInterpreter
+    TrackWindow ppqTrackWindow = midiInterpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
+    SustainWindow ppqSustainWindow = midiInterpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
+    GridlineMap ppqGridlineMap = midiInterpreter.generateGridlineWindow(extendedStart, trackWindowEndPPQ);
+
+    // Simple constant BPM conversion for non-REAPER mode
+    auto ppqToTime = [currentBPM](double ppq) { return ppq * (60.0 / currentBPM); };
+
+    // Convert everything to time-based (seconds from cursor)
+    PPQ cursorPPQ = trackWindowStartPPQ;
+    TimeBasedTrackWindow timeTrackWindow = TimeConverter::convertTrackWindow(ppqTrackWindow, cursorPPQ, ppqToTime);
+    TimeBasedSustainWindow timeSustainWindow = TimeConverter::convertSustainWindow(ppqSustainWindow, cursorPPQ, ppqToTime);
+    TimeBasedGridlineMap timeGridlineMap = TimeConverter::convertGridlineMap(ppqGridlineMap, cursorPPQ, ppqToTime);
+
+    // Use the constant time window from the slider (in seconds)
+    // Window is anchored at the strikeline (time 0), extending forward into the future
+    double windowStartTime = 0.0;
+    double windowEndTime = displayWindowTimeSeconds;
+
+    highwayRenderer.paint(g, timeTrackWindow, timeSustainWindow, timeGridlineMap, windowStartTime, windowEndTime, audioProcessor.isPlaying);
 }
 
 void ChartPreviewAudioProcessorEditor::resized()
@@ -172,59 +292,43 @@ void ChartPreviewAudioProcessorEditor::resized()
     drumTypeMenu.setBounds(230, 10, controlWidth, controlHeight);
     autoHopoMenu.setBounds(230, 10, controlWidth, controlHeight);
     debugToggle.setBounds(340, 10, controlWidth, controlHeight);
+    clearLogsButton.setBounds(450, 10, controlWidth, controlHeight);
 
     // Top row - right side controls (anchored to right edge)
-    starPowerToggle.setBounds(getWidth() - 120, 10, controlWidth, controlHeight);
-    kick2xToggle.setBounds(getWidth() - 120, 35, controlWidth, controlHeight);
-    dynamicsToggle.setBounds(getWidth() - 120, 60, controlWidth, controlHeight);
+    hitIndicatorsToggle.setBounds(getWidth() - 120, 10, controlWidth, controlHeight);
+    starPowerToggle.setBounds(getWidth() - 120, 35, controlWidth, controlHeight);
+    kick2xToggle.setBounds(getWidth() - 120, 60, controlWidth, controlHeight);
+    dynamicsToggle.setBounds(getWidth() - 120, 85, controlWidth, controlHeight);
 
     // Bottom right controls (anchored to bottom-right corner)
     framerateMenu.setBounds(getWidth() - 120, getHeight() - 30, controlWidth, controlHeight);
     latencyMenu.setBounds(getWidth() - 120, getHeight() - 55, controlWidth, controlHeight);
+    reaperTrackMenu.setBounds(getWidth() - 120, getHeight() - 55, controlWidth, controlHeight);
     
-    // Zoom controls (anchored to bottom-right)
-    chartZoomLabel.setBounds(getWidth() - 90, getHeight() - 270, 40, controlHeight);
-    chartZoomSliderPPQ.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
-    chartZoomSliderTime.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
-    dynamicZoomToggle.setBounds(getWidth() - 120, getHeight() - 90, 80, controlHeight);
+    // Speed controls (anchored to bottom-right)
+    chartSpeedLabel.setBounds(getWidth() - 90, getHeight() - 270, 40, controlHeight);
+    chartSpeedSlider.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
+
+    // Version label (bottom-left, next to REAPER logo)
+    const int versionWidth = 60;
+    const int versionHeight = 15;
+    versionLabel.setBounds(45, getHeight() - versionHeight - 12, versionWidth, versionHeight);
 
     // Console output (responsive width and height)
     consoleOutput.setBounds(margin, 40, getWidth() - (2 * margin), getHeight() - 50);
 }
 
-void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromZoomSlider()
+void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
 {
-    bool isDynamicZoom = (bool)state.getProperty("dynamicZoom");
-    
-    if (isDynamicZoom)
-    {
-        // Dynamic (PPQ-based) mode: slider directly represents PPQ (beats)
-        displaySizeInPPQ = PPQ(chartZoomSliderPPQ.getValue());
-    }
-    else
-    {
-        // Time-based mode: slider represents seconds
-        double timeInSeconds = chartZoomSliderTime.getValue();
-        
-        // Convert to PPQ using current BPM
-        if (audioProcessor.getPlayHead() == nullptr)
-        {
-            displaySizeInPPQ = PPQ(timeInSeconds * (120.0 / 60.0)); // Default 120 BPM
-        }
-        else
-        {
-            auto positionInfo = audioProcessor.getPlayHead()->getPosition();
-            if (positionInfo.hasValue())
-            {
-                double bpm = positionInfo->getBpm().orFallback(120.0);
-                displaySizeInPPQ = PPQ(timeInSeconds * (bpm / 60.0));
-            }
-            else
-            {
-                displaySizeInPPQ = PPQ(timeInSeconds * (120.0 / 60.0));
-            }
-        }
-    }
+    // Slider directly represents seconds for rendering
+    displayWindowTimeSeconds = chartSpeedSlider.getValue();
+
+    // Use a generous worst-case PPQ window for MIDI fetching to prevent pop-in at extreme tempos
+    const double WORST_CASE_PPQ_WINDOW = 30.0;  // quarter notes
+    displaySizeInPPQ = PPQ(WORST_CASE_PPQ_WINDOW);
+
+    // Sync the display size to the processor so processBlock can use it
+    audioProcessor.setDisplayWindowSize(displaySizeInPPQ);
 }
 
 void ChartPreviewAudioProcessorEditor::loadState()
@@ -235,26 +339,25 @@ void ChartPreviewAudioProcessorEditor::loadState()
     framerateMenu.setSelectedId((int)state["framerate"], juce::dontSendNotification);
     latencyMenu.setSelectedId((int)state["latency"], juce::dontSendNotification);
     autoHopoMenu.setSelectedId((int)state["autoHopo"], juce::dontSendNotification);
+    reaperTrackMenu.setSelectedId((int)state["reaperTrack"], juce::dontSendNotification);
 
+    hitIndicatorsToggle.setToggleState((bool)state["hitIndicators"], juce::dontSendNotification);
     starPowerToggle.setToggleState((bool)state["starPower"], juce::dontSendNotification);
     kick2xToggle.setToggleState((bool)state["kick2x"], juce::dontSendNotification);
     dynamicsToggle.setToggleState((bool)state["dynamics"], juce::dontSendNotification);
-    dynamicZoomToggle.setToggleState((bool)state["dynamicZoom"], juce::dontSendNotification);
 
-    chartZoomSliderPPQ.setValue((double)state["zoomPPQ"], juce::dontSendNotification);
-    chartZoomSliderTime.setValue((double)state["zoomTime"], juce::dontSendNotification);
+    chartSpeedSlider.setValue((double)state["speedTime"], juce::dontSendNotification);
 
     // Apply side-effects that your listeners would normally do
     applyLatencySetting((int)state["latency"]);
-    int fr = ((int)state["framerate"] == 1) ? 15 : 
-             ((int)state["framerate"] == 2) ? 30 : 
-             ((int)state["framerate"] == 3) ? 60 : 
-             ((int)state["framerate"] == 4) ? 120 : 
+    int fr = ((int)state["framerate"] == 1) ? 15 :
+             ((int)state["framerate"] == 2) ? 30 :
+             ((int)state["framerate"] == 3) ? 60 :
+             ((int)state["framerate"] == 4) ? 120 :
              ((int)state["framerate"] == 5) ? 144 : 60;
     startTimerHz(fr);
 
-    updateSliderVisibility();
-    updateDisplaySizeFromZoomSlider();
+    updateDisplaySizeFromSpeedSlider();
 }
 
 void ChartPreviewAudioProcessorEditor::applyLatencySetting(int latencyValue)
@@ -268,14 +371,6 @@ void ChartPreviewAudioProcessorEditor::applyLatencySetting(int latencyValue)
     default: latencyInSeconds = 0.500; break;
     }
     audioProcessor.setLatencyInSeconds(latencyInSeconds);
-}
-
-void ChartPreviewAudioProcessorEditor::updateSliderVisibility()
-{
-    bool isDynamicZoom = (bool)state.getProperty("dynamicZoom");
-    
-    chartZoomSliderPPQ.setVisible(isDynamicZoom);
-    chartZoomSliderTime.setVisible(!isDynamicZoom);
 }
 
 juce::ComponentBoundsConstrainer* ChartPreviewAudioProcessorEditor::getConstrainer()

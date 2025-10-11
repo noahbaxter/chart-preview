@@ -13,7 +13,9 @@
 #include <JuceHeader.h>
 #include "../Midi/MidiInterpreter.h"
 #include "../Utils/Utils.h"
+#include "../Utils/TimeConverter.h"
 #include "AssetManager.h"
+#include "HitAnimationManager.h"
 
 
 class HighwayRenderer
@@ -22,12 +24,16 @@ class HighwayRenderer
         HighwayRenderer(juce::ValueTree &state, MidiInterpreter &midiInterpreter);
         ~HighwayRenderer();
 
-        void paint(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ, PPQ latencyBufferEnd);
+        void paint(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, const TimeBasedSustainWindow& sustainWindow, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime, bool isPlaying = true);
 
     private:
         juce::ValueTree &state;
         MidiInterpreter &midiInterpreter;
         AssetManager assetManager;
+        HitAnimationManager hitAnimationManager;
+
+        // Track the last note time per column to ensure every note triggers an animation
+        std::array<double, 7> lastNoteTimePerColumn = {-999.0, -999.0, -999.0, -999.0, -999.0, -999.0, -999.0};
 
         uint width = 0, height = 0;
 
@@ -55,15 +61,19 @@ class HighwayRenderer
         }
 
         DrawCallMap drawCallMap;
-        void drawGridlinesFromMap(juce::Graphics &g, PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ, PPQ displaySizeInPPQ);
+        void drawGridlinesFromMap(juce::Graphics &g, const TimeBasedGridlineMap& gridlines, double windowStartTime, double windowEndTime);
         void drawGridline(juce::Graphics &g, float position, juce::Image *markerImage, Gridline gridlineType);
 
-        void drawNotesFromMap(juce::Graphics &g, const TrackWindow& trackWindow, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ);
-        void drawFrame(const std::array<Gem, LANE_COUNT> &gems, float position, PPQ framePosition);
-        void drawGem(uint gemColumn, Gem gem, float position, PPQ framePosition);
-        
-        void drawSustainFromWindow(juce::Graphics &g, const SustainWindow& sustainWindow, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ);
-        void drawSustain(const SustainEvent& sustain, PPQ trackWindowStartPPQ, PPQ displaySizeInPPQ);
+        void drawNotesFromMap(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, double windowStartTime, double windowEndTime);
+        void drawFrame(const TimeBasedTrackFrame &gems, float position, double frameTime);
+        void drawGem(uint gemColumn, Gem gem, float position, double frameTime);
+
+        void detectAndTriggerHitAnimations(const TimeBasedTrackWindow& trackWindow, double windowStartTime, double windowEndTime);
+        void updateSustainStates(const TimeBasedSustainWindow& sustainWindow);
+        void drawHitAnimations(juce::Graphics &g);
+
+        void drawSustainFromWindow(juce::Graphics &g, const TimeBasedSustainWindow& sustainWindow, double windowStartTime, double windowEndTime);
+        void drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime);
         juce::Rectangle<float> getSustainRect(uint gemColumn, float startPosition, float endPosition);
         void drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour);
         std::pair<juce::Rectangle<float>, juce::Rectangle<float>> getSustainPositionRects(uint gemColumn, float startPosition, float endPosition);

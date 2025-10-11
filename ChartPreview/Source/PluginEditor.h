@@ -13,6 +13,7 @@
 #include "Midi/MidiInterpreter.h"
 #include "Renderers/HighwayRenderer.h"
 #include "Utils/Utils.h"
+#include "Utils/TimeConverter.h"
 
 //==============================================================================
 /**
@@ -32,7 +33,37 @@ public:
     void timerCallback() override
     {
         printCallback();
-        if (audioProcessor.isPlaying) { repaint(); }
+
+        // Handle debounced track changes
+        if (pendingTrackChange >= 0)
+        {
+            trackChangeDebounceCounter++;
+            // Wait for 10 frames (~166ms at 60fps) of no new changes before applying
+            if (trackChangeDebounceCounter >= 10)
+            {
+                // Apply the track change
+                state.setProperty("reaperTrack", pendingTrackChange, nullptr);
+                audioProcessor.invalidateReaperCache();
+                pendingTrackChange = -1;
+                trackChangeDebounceCounter = 0;
+                repaint();
+            }
+        }
+
+        // Track position changes for render logic
+        if (auto* playHead = audioProcessor.getPlayHead()) {
+            auto positionInfo = playHead->getPosition();
+            if (positionInfo.hasValue()) {
+                PPQ currentPosition = PPQ(positionInfo->getPpqPosition().orFallback(0.0));
+                bool isCurrentlyPlaying = positionInfo->getIsPlaying();
+
+                // Update tracked position and playing state
+                lastKnownPosition = currentPosition;
+                lastPlayingState = isCurrentlyPlaying;
+            }
+        }
+
+        repaint();
     }
 
     void paint (juce::Graphics&) override;
@@ -98,27 +129,47 @@ public:
             auto autoHopoValue = autoHopoMenu.getSelectedId();
             state.setProperty("autoHopo", autoHopoValue, nullptr);
         }
+        else if (comboBoxThatHasChanged == &reaperTrackMenu)
+        {
+            auto trackValue = reaperTrackMenu.getSelectedId();
+
+            // Debounce track changes: don't apply immediately, wait for user to stop clicking
+            pendingTrackChange = trackValue;
+            trackChangeDebounceCounter = 0;  // Reset debounce counter
+
+            // NOTE: Don't invalidate cache here - let the debounce timer handle it
+            // This prevents double-invalidation which can cause race conditions
+            repaint();
+        }
 
         audioProcessor.refreshMidiDisplay();
     }
 
     void sliderValueChanged(juce::Slider *slider) override
     {
-        if (slider == &chartZoomSliderPPQ)
+        if (slider == &chartSpeedSlider)
         {
-            state.setProperty("zoomPPQ", slider->getValue(), nullptr);
-            updateDisplaySizeFromZoomSlider();
-        }
-        else if (slider == &chartZoomSliderTime)
-        {
-            state.setProperty("zoomTime", slider->getValue(), nullptr);
-            updateDisplaySizeFromZoomSlider();
+            state.setProperty("speedTime", slider->getValue(), nullptr);
+            updateDisplaySizeFromSpeedSlider();
+
+            // In REAPER mode, invalidate cache to immediately fetch new data window
+            if (audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable())
+            {
+                audioProcessor.invalidateReaperCache();
+            }
+
+            repaint();
         }
     }
 
     void buttonClicked(juce::Button * button) override
     {
-        if (button == &starPowerToggle)
+        if (button == &hitIndicatorsToggle)
+        {
+            bool buttonState = button->getToggleState();
+            state.setProperty("hitIndicators", buttonState ? 1 : 0, nullptr);
+        }
+        else if (button == &starPowerToggle)
         {
             bool buttonState = button->getToggleState();
             state.setProperty("starPower", buttonState ? 1 : 0, nullptr);
@@ -133,13 +184,10 @@ public:
             bool buttonState = button->getToggleState();
             state.setProperty("dynamics", buttonState ? 1 : 0, nullptr);
         }
-        else if (button == &dynamicZoomToggle)
+        else if (button == &clearLogsButton)
         {
-            bool buttonState = button->getToggleState();
-            state.setProperty("dynamicZoom", buttonState ? 1 : 0, nullptr);
-            
-            updateSliderVisibility();
-            updateDisplaySizeFromZoomSlider();
+            audioProcessor.clearDebugText();
+            consoleOutput.clear();
         }
         audioProcessor.refreshMidiDisplay();
     }
@@ -163,52 +211,50 @@ private:
     juce::Image backgroundImage;
     juce::Image trackDrumImage;
     juce::Image trackGuitarImage;
+    std::unique_ptr<juce::Drawable> reaperLogo;
 
-    juce::Label chartZoomLabel;
-    juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu, autoHopoMenu;
-    juce::ToggleButton starPowerToggle, kick2xToggle, dynamicsToggle, dynamicZoomToggle;
-    juce::Slider chartZoomSliderPPQ, chartZoomSliderTime;
+    juce::Label chartSpeedLabel;
+    juce::Label versionLabel;
+    juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu, autoHopoMenu, reaperTrackMenu;
+    juce::ToggleButton hitIndicatorsToggle, starPowerToggle, kick2xToggle, dynamicsToggle;
+    juce::Slider chartSpeedSlider;
 
     juce::TextEditor consoleOutput;
     juce::ToggleButton debugToggle;
+    juce::TextButton clearLogsButton;
 
     //==============================================================================
 
     void initAssets();
     void initMenus();
     void loadState();
-    void updateDisplaySizeFromZoomSlider();
-    void updateSliderVisibility();
+    void updateDisplaySizeFromSpeedSlider();
     void applyLatencySetting(int latencyValue);
+
+    void paintReaperMode(juce::Graphics& g);
+    void paintStandardMode(juce::Graphics& g);
 
     float latencyInSeconds = 0.0;
     
     // Resize constraints
     juce::ComponentBoundsConstrainer constrainer;
-    
-    // Dirty checking state
-    mutable PPQ lastDisplayStartPPQ = 0.0;
-    mutable bool lastIsPlaying = false;
 
-    PPQ displaySizeInPPQ = 1.5; // 4 beats (1 measure in 4/4)
+    // Position tracking for cursor vs playhead separation
+    PPQ lastKnownPosition = 0.0;
+    bool lastPlayingState = false;
+
+    PPQ displaySizeInPPQ = 1.5; // Only used for MIDI window fetching
+    double displayWindowTimeSeconds = 1.0; // Actual render window time in seconds
+
+    // Track change debouncing
+    int pendingTrackChange = -1;  // -1 means no pending change
+    int trackChangeDebounceCounter = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
 
-    // Position helpers
-
-    int currentPlayheadPositionInSamples()
-    {
-        return audioProcessor.playheadPositionInSamples;
-    }
-
-    PPQ currentPlayheadPositionInPPQ()
-    {
-        return PPQ(audioProcessor.playheadPositionInPPQ);
-    }
-
+    // Latency tracking
     PPQ defaultLatencyInPPQ = 0.0;
     double defaultBPM = 120.0;
-    PPQ defaultDisplaySizeInPPQ = 4.0; // 4 beats
 
     PPQ latencyInPPQ()
     {
@@ -306,11 +352,12 @@ private:
 
     void printCallback()
     {
-        consoleOutput.clear();
-        // consoleOutput.moveCaretToEnd();
-
-        consoleOutput.insertTextAtCaret(audioProcessor.debugText);
-        audioProcessor.debugText.clear();
+        if (!audioProcessor.debugText.isEmpty())
+        {
+            consoleOutput.moveCaretToEnd();
+            consoleOutput.insertTextAtCaret(audioProcessor.debugText);
+            audioProcessor.debugText.clear();
+        }
     }
 
     // void printMidiMessages()
