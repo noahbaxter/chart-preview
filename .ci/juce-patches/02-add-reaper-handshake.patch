@@ -1,0 +1,20 @@
+--- a/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST2.cpp
++++ b/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST2.cpp
+@@ -2119,6 +2119,17 @@ public:
+                         });
+                     }
+
++                    // Try to get REAPER API functions if we're in REAPER
++                    // This attempts the standard REAPER handshake using the magic numbers
++                    auto reaperGetFunc = (void*(*)(const char*))audioMaster(nullptr, 0xdeadbeef, 0xdeadf00d, 0, nullptr, 0.0);
++                    if (reaperGetFunc)
++                    {
++                        // We have the REAPER API! Now pass it to the plugin if it wants it
++                        if (auto* callbackHandler = processorPtr->getVST2ClientExtensions())
++                        {
++                            callbackHandler->handleReaperApi(reaperGetFunc);
++                        }
++                    }
++
+                     return aEffect;
+                 }

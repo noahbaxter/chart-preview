@@ -162,6 +162,7 @@
       </GROUP>
       <GROUP id="{55EA985F-5ACA-CAC9-2027-97AEF2CDFFC7}" name="Utils">
         <FILE id="vXWw8v" name="PPQ.h" compile="0" resource="0" file="Source/Utils/PPQ.h"/>
+        <FILE id="TimeConv1" name="TimeConverter.h" compile="0" resource="0" file="Source/Utils/TimeConverter.h"/>
         <FILE id="a2lIAo" name="Utils.h" compile="0" resource="0" file="Source/Utils/Utils.h"/>
       </GROUP>
       <FILE id="PZm7UN" name="PluginProcessor.cpp" compile="1" resource="0"

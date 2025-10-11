@@ -1,3 +1,0 @@
-[submodule "ChartPreview/third_party/JUCE"]
-	path = ChartPreview/third_party/JUCE
-	url = https://github.com/juce-framework/JUCE.git

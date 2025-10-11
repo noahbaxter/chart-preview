@@ -50,20 +50,25 @@ REAPER: `examples/reaper/`, Ableton: `examples/ableton/`
 
 **Audio Processing Chain:**
 1. `ChartPreviewAudioProcessor` - Main plugin processor
-2. `MidiProcessor` - Processes MIDI events and maintains note state
-3. `MidiInterpreter` - Converts MIDI data to visual chart elements
-4. `HighwayRenderer` - Renders the chart visualization
-5. `ChartPreviewAudioProcessorEditor` - UI and real-time display
+2. **REAPER Mode**: `ReaperMidiPipeline` - Direct timeline MIDI access via REAPER API
+3. **Standard Mode**: `MidiProcessor` - Processes MIDI buffer events
+4. `MidiInterpreter` - Converts MIDI data to visual chart elements
+5. `HighwayRenderer` - Renders the chart visualization
+6. `ChartPreviewAudioProcessorEditor` - UI and real-time display
 
 **Key Data Structures:**
-- `NoteStateMapArray` - Tracks held notes across all MIDI pitches
+- `NoteStateMapArray` - Tracks held notes across all MIDI pitches (thread-safe)
 - `TrackWindow` - Frame-based chart data for rendering window
 - `SustainWindow` - Sustain note data for rendering window
-- `GridlineMap` - Beat/measure grid timing information
-- `SustainList` - Sustain note information (for guitar)
+- `GridlineMap` - Beat/measure grid timing information (thread-safe)
+- `MidiCache` - Cached REAPER timeline MIDI data with smart invalidation
 
-### Threading
-Audio thread processes MIDI, GUI thread renders. Thread-safe with `juce::CriticalSection`.
+### Threading & Race Condition Prevention
+**CRITICAL**: Audio thread processes MIDI, GUI thread renders. Thread-safe with `juce::CriticalSection`.
+
+**Race Condition Fix (v0.8.6)**: `ReaperMidiPipeline::processCachedNotesIntoState` holds `noteStateMapLock` for the ENTIRE clear+write operation. This prevents the renderer from reading an empty `noteStateMapArray` between the clear and write steps (which caused intermittent black screens).
+
+**Pattern**: Always use atomic clear+write when updating shared data structures read by the rendering thread.
 
 ### Timing
 All timing uses **PPQ (Pulses Per Quarter)** for tempo-independence.
@@ -83,9 +88,10 @@ Defined in `Utils.h` as `MidiPitchDefinitions`:
 
 ### Assets & Performance
 - Assets in `Assets/` and `Audio/`, embedded in binaries
-- 60 FPS default (configurable: 15/30/60)
+- 60 FPS default (configurable: 15/30/60/120/144)
 - Latency compensation with multi-buffer smoothing
 - Draw call batching, offscreen compositing, perspective-aware caching
+- **Debug logging optimization**: Conditional string concatenation only when debug console is open (prevents performance degradation)
 
 ## State Management
 
@@ -98,19 +104,37 @@ Plugin state stored in `juce::ValueTree` with properties:
 
 ## Development Status
 
-**Current**: v0.8.5 (beta testing)
-**See**: `docs/TODO.md` for detailed backlog
+**Current**: v0.8.7 (REAPER optimization update - COMPLETE)
+**Next**: v0.9.0 (UX polish - REAPER mode toggle, hit animations, default settings)
+**See**: `docs/UPCOMING_FEATURES.md` for priority roadmap, `docs/TODO.md` for full backlog
 
-### Recent Completions
+### Recent Completions (v0.8.7 - REAPER Optimization Update)
+- REAPER timeline integration via VST2/VST3 extensions
+- Modular pipeline architecture (ReaperMidiPipeline vs StandardMidiPipeline)
+- MIDI caching system with smart invalidation
+- Multi-instance support with per-instance API storage
+- Time-based rendering refactor with unified tempo handling (absolute position-based)
+- REAPER gridline alignment fixed with time signature change handling
+- Tempo-change stretching eliminated (no more jarring visual glitches)
+- Chord HOPO rendering bug fixed in both pipelines
+- Sync issues eliminated (absolute position-based rendering)
+- Version display added to plugin UI
+- Centralized debug logging system (DebugTools::Logger)
+
+### Previous Completions (v0.8.6)
+- Race condition fix preventing intermittent black screens
+- Debug logging performance optimization
+
+### Previous Completions (v0.8.5)
 PPQ timing, latency compensation, CI/CD pipeline, Linux support, sustain rendering, resizable VST, lanes system overhaul, HOPO configuration
 
 ### Beta Testing (Invontor - main tester)
-**Status**: Drums usable with quirks, Guitar has bugs
+**Status**: Core functionality solid, ready for UX polish phase
 
-**Critical Issues**: Force marker coverage, sync inconsistency, sustain accuracy, plugin loading failures
-**UX Feedback**: Default HOPO 170 ticks, wider kicks, hit animations needed, persistent window sizing
+**Completed Fixes**: All critical rendering issues (bar positioning, tempo stretching, sync timing)
+**UX Feedback**: REAPER mode toggle, default HOPO 170 ticks, wider kicks, hit animations, persistent window sizing
 
-**Priorities**: P0 (force markers, sync, loading) → P1 (defaults, visuals, animations) → P2 (REAPER integration, performance) → P3 (Pro Guitar, Real Drums)
+**Current Focus**: UX polish (mode toggle, defaults, animations) → Audio features (metronome, clicks, samples) → Advanced features (BRE, extended memory)
 
 ## File Structure Notes
 
