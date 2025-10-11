@@ -849,9 +849,9 @@ void HighwayRenderer::drawHitAnimations(juce::Graphics &g)
     {
         if (!anim.isActive()) continue;
 
-        if (anim.isKick)
+        if (anim.isBar)
         {
-            // Draw kick animation at kick position (gemColumn 0 or 6)
+            // Draw bar animation at bar position (gemColumn 0 for open/kick, or 6 for 2x kick)
             auto kickFrame = assetManager.getKickAnimationFrame(anim.currentFrame);
             if (kickFrame)
             {

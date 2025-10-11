@@ -19,16 +19,16 @@ public:
      * Represents an active hit animation on a specific lane.
      */
     struct HitAnimation {
-        int currentFrame = 0;  // 0 = no animation, 1-5 for hit, 1-7 for kick
-        bool isKick = false;   // true for kick, false for standard fret
-        int lane = 0;          // 0-4 for guitar (green, red, yellow, blue, orange), 0 for kick
-        bool isOpen = false;   // true for open notes (purple kick flash)
+        int currentFrame = 0;  // 0 = no animation, 1-5 for hit, 1-7 for bar
+        bool isBar = false;    // true for bar note (kick/open), false for standard fret
+        int lane = 0;          // 0-4 for guitar (green, red, yellow, blue, orange), 0 for bar
+        bool isOpen = false;   // true for open notes (purple bar flash for guitar)
         bool is2xKick = false; // true for 2x kick (different color)
         bool inSustain = false; // true if currently in a sustain (holds at frame 1)
 
         void reset() {
             currentFrame = 0;
-            isKick = false;
+            isBar = false;
             lane = 0;
             isOpen = false;
             is2xKick = false;
@@ -47,16 +47,16 @@ public:
                 return;
             }
 
-            int maxFrames = isKick ? KICK_ANIMATION_FRAMES : HIT_ANIMATION_FRAMES;
+            int maxFrames = isBar ? KICK_ANIMATION_FRAMES : HIT_ANIMATION_FRAMES;
             currentFrame++;
             if (currentFrame > maxFrames) {
                 reset();
             }
         }
 
-        void trigger(bool kick, int laneIndex, bool open = false, bool twoXKick = false) {
+        void trigger(bool bar, int laneIndex, bool open = false, bool twoXKick = false) {
             currentFrame = 1;  // Start at frame 1
-            isKick = kick;
+            isBar = bar;
             lane = laneIndex;
             isOpen = open;
             is2xKick = twoXKick;
