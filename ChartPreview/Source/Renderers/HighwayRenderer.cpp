@@ -53,10 +53,14 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
         }
     }
 
-    // Draw hit animations on top of everything
-    if (isPlaying){ detectAndTriggerHitAnimations(trackWindow, windowStartTime, windowEndTime); }
-    drawHitAnimations(g);
-    hitAnimationManager.advanceAllFrames();
+    // Draw hit animations on top of everything (if enabled)
+    bool hitIndicatorsEnabled = state.getProperty("hitIndicators");
+    if (hitIndicatorsEnabled)
+    {
+        if (isPlaying){ detectAndTriggerHitAnimations(trackWindow, windowStartTime, windowEndTime); }
+        drawHitAnimations(g);
+        hitAnimationManager.advanceAllFrames();
+    }
 }
 
 void HighwayRenderer::drawNotesFromMap(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, double windowStartTime, double windowEndTime)
@@ -281,8 +285,8 @@ juce::Rectangle<float> HighwayRenderer::getDrumGlyphRect(uint gemColumn, float p
         scaler = GEM_SIZE;
         if (gemColumn == 1)
         {
-            normX1 = 0.21;
-            normX2 = 0.37;
+            normX1 = 0.22;
+            normX2 = 0.365;
         }
         else if (gemColumn == 2)
         {

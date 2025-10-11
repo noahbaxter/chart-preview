@@ -147,10 +147,10 @@ public:
 
     void sliderValueChanged(juce::Slider *slider) override
     {
-        if (slider == &chartZoomSliderTime)
+        if (slider == &chartSpeedSlider)
         {
-            state.setProperty("zoomTime", slider->getValue(), nullptr);
-            updateDisplaySizeFromZoomSlider();
+            state.setProperty("speedTime", slider->getValue(), nullptr);
+            updateDisplaySizeFromSpeedSlider();
 
             // In REAPER mode, invalidate cache to immediately fetch new data window
             if (audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable())
@@ -164,7 +164,12 @@ public:
 
     void buttonClicked(juce::Button * button) override
     {
-        if (button == &starPowerToggle)
+        if (button == &hitIndicatorsToggle)
+        {
+            bool buttonState = button->getToggleState();
+            state.setProperty("hitIndicators", buttonState ? 1 : 0, nullptr);
+        }
+        else if (button == &starPowerToggle)
         {
             bool buttonState = button->getToggleState();
             state.setProperty("starPower", buttonState ? 1 : 0, nullptr);
@@ -208,11 +213,11 @@ private:
     juce::Image trackGuitarImage;
     std::unique_ptr<juce::Drawable> reaperLogo;
 
-    juce::Label chartZoomLabel;
+    juce::Label chartSpeedLabel;
     juce::Label versionLabel;
     juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu, autoHopoMenu, reaperTrackMenu;
-    juce::ToggleButton starPowerToggle, kick2xToggle, dynamicsToggle;
-    juce::Slider chartZoomSliderTime;
+    juce::ToggleButton hitIndicatorsToggle, starPowerToggle, kick2xToggle, dynamicsToggle;
+    juce::Slider chartSpeedSlider;
 
     juce::TextEditor consoleOutput;
     juce::ToggleButton debugToggle;
@@ -223,7 +228,7 @@ private:
     void initAssets();
     void initMenus();
     void loadState();
-    void updateDisplaySizeFromZoomSlider();
+    void updateDisplaySizeFromSpeedSlider();
     void applyLatencySetting(int latencyValue);
 
     void paintReaperMode(juce::Graphics& g);

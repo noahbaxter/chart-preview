@@ -82,15 +82,15 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     reaperTrackMenu.addListener(this);
     addAndMakeVisible(reaperTrackMenu);
 
-    // Zoom slider (time-based only)
-    chartZoomSliderTime.setRange(0.4, 2.5, 0.05);
-    chartZoomSliderTime.setSliderStyle(juce::Slider::LinearVertical);
-    chartZoomSliderTime.setTextBoxStyle(juce::Slider::TextBoxAbove, false, 50, 20);
-    chartZoomSliderTime.addListener(this);
-    addAndMakeVisible(chartZoomSliderTime);
+    // Speed slider (time-based only)
+    chartSpeedSlider.setRange(0.4, 2.5, 0.05);
+    chartSpeedSlider.setSliderStyle(juce::Slider::LinearVertical);
+    chartSpeedSlider.setTextBoxStyle(juce::Slider::TextBoxAbove, false, 50, 20);
+    chartSpeedSlider.addListener(this);
+    addAndMakeVisible(chartSpeedSlider);
 
-    chartZoomLabel.setText("Zoom", juce::dontSendNotification);
-    addAndMakeVisible(chartZoomLabel);
+    chartSpeedLabel.setText("Speed", juce::dontSendNotification);
+    addAndMakeVisible(chartSpeedLabel);
 
     // Version label
     versionLabel.setText(CHART_PREVIEW_VERSION, juce::dontSendNotification);
@@ -100,6 +100,10 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     addAndMakeVisible(versionLabel);
 
     // Toggles
+    hitIndicatorsToggle.setButtonText("Hit Indicators");
+    hitIndicatorsToggle.addListener(this);
+    addAndMakeVisible(hitIndicatorsToggle);
+
     starPowerToggle.setButtonText("Star Power");
     starPowerToggle.addListener(this);
     addAndMakeVisible(starPowerToggle);
@@ -158,6 +162,7 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
         g.drawImage(trackGuitarImage, juce::Rectangle<float>(0, 0, getWidth(), getHeight()), juce::RectanglePlacement::centred);
     }
 
+    // Hit indicators toggle is always visible for both guitar and drums
     drumTypeMenu.setVisible(isPart(state, Part::DRUMS));
     kick2xToggle.setVisible(isPart(state, Part::DRUMS));
     dynamicsToggle.setVisible(isPart(state, Part::DRUMS));
@@ -290,18 +295,19 @@ void ChartPreviewAudioProcessorEditor::resized()
     clearLogsButton.setBounds(450, 10, controlWidth, controlHeight);
 
     // Top row - right side controls (anchored to right edge)
-    starPowerToggle.setBounds(getWidth() - 120, 10, controlWidth, controlHeight);
-    kick2xToggle.setBounds(getWidth() - 120, 35, controlWidth, controlHeight);
-    dynamicsToggle.setBounds(getWidth() - 120, 60, controlWidth, controlHeight);
+    hitIndicatorsToggle.setBounds(getWidth() - 120, 10, controlWidth, controlHeight);
+    starPowerToggle.setBounds(getWidth() - 120, 35, controlWidth, controlHeight);
+    kick2xToggle.setBounds(getWidth() - 120, 60, controlWidth, controlHeight);
+    dynamicsToggle.setBounds(getWidth() - 120, 85, controlWidth, controlHeight);
 
     // Bottom right controls (anchored to bottom-right corner)
     framerateMenu.setBounds(getWidth() - 120, getHeight() - 30, controlWidth, controlHeight);
     latencyMenu.setBounds(getWidth() - 120, getHeight() - 55, controlWidth, controlHeight);
     reaperTrackMenu.setBounds(getWidth() - 120, getHeight() - 55, controlWidth, controlHeight);
     
-    // Zoom controls (anchored to bottom-right)
-    chartZoomLabel.setBounds(getWidth() - 90, getHeight() - 270, 40, controlHeight);
-    chartZoomSliderTime.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
+    // Speed controls (anchored to bottom-right)
+    chartSpeedLabel.setBounds(getWidth() - 90, getHeight() - 270, 40, controlHeight);
+    chartSpeedSlider.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
 
     // Version label (bottom-left, next to REAPER logo)
     const int versionWidth = 60;
@@ -312,10 +318,10 @@ void ChartPreviewAudioProcessorEditor::resized()
     consoleOutput.setBounds(margin, 40, getWidth() - (2 * margin), getHeight() - 50);
 }
 
-void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromZoomSlider()
+void ChartPreviewAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
 {
     // Slider directly represents seconds for rendering
-    displayWindowTimeSeconds = chartZoomSliderTime.getValue();
+    displayWindowTimeSeconds = chartSpeedSlider.getValue();
 
     // Use a generous worst-case PPQ window for MIDI fetching to prevent pop-in at extreme tempos
     const double WORST_CASE_PPQ_WINDOW = 30.0;  // quarter notes
@@ -335,11 +341,12 @@ void ChartPreviewAudioProcessorEditor::loadState()
     autoHopoMenu.setSelectedId((int)state["autoHopo"], juce::dontSendNotification);
     reaperTrackMenu.setSelectedId((int)state["reaperTrack"], juce::dontSendNotification);
 
+    hitIndicatorsToggle.setToggleState((bool)state["hitIndicators"], juce::dontSendNotification);
     starPowerToggle.setToggleState((bool)state["starPower"], juce::dontSendNotification);
     kick2xToggle.setToggleState((bool)state["kick2x"], juce::dontSendNotification);
     dynamicsToggle.setToggleState((bool)state["dynamics"], juce::dontSendNotification);
 
-    chartZoomSliderTime.setValue((double)state["zoomTime"], juce::dontSendNotification);
+    chartSpeedSlider.setValue((double)state["speedTime"], juce::dontSendNotification);
 
     // Apply side-effects that your listeners would normally do
     applyLatencySetting((int)state["latency"]);
@@ -350,7 +357,7 @@ void ChartPreviewAudioProcessorEditor::loadState()
              ((int)state["framerate"] == 5) ? 144 : 60;
     startTimerHz(fr);
 
-    updateDisplaySizeFromZoomSlider();
+    updateDisplaySizeFromSpeedSlider();
 }
 
 void ChartPreviewAudioProcessorEditor::applyLatencySetting(int latencyValue)
