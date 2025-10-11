@@ -59,6 +59,14 @@ jobs:
         echo "✅ All patches applied successfully"
         git diff --stat
 
+    - name: Create JUCE symlink for Projucer
+      shell: cmd
+      run: |
+        echo "Creating junction from CI JUCE location to expected third_party path..."
+        mkdir third_party
+        mklink /J third_party\JUCE C:\JUCE
+        dir third_party\
+
     - name: Cache JUCE
       uses: actions/cache@v4
       with:
@@ -221,6 +229,13 @@ jobs:
         sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/02-add-reaper-handshake.patch" || (echo "Failed to apply patch 02" && exit 1)
         echo "✅ All patches applied successfully"
         sudo git diff --stat
+
+    - name: Create JUCE symlink for Projucer
+      run: |
+        echo "Creating symlink from CI JUCE location to expected third_party path..."
+        mkdir -p third_party
+        ln -s /Applications/JUCE third_party/JUCE
+        ls -la third_party/
 
     - name: Cache JUCE
       uses: actions/cache@v4
@@ -412,6 +427,13 @@ jobs:
         sudo git apply "$GITHUB_WORKSPACE/.ci/juce-patches/02-add-reaper-handshake.patch" || (echo "Failed to apply patch 02" && exit 1)
         echo "✅ All patches applied successfully"
         sudo git diff --stat
+
+    - name: Create JUCE symlink for Projucer
+      run: |
+        echo "Creating symlink from CI JUCE location to expected third_party path..."
+        mkdir -p third_party
+        ln -s /opt/JUCE third_party/JUCE
+        ls -la third_party/
 
     - name: Cache JUCE
       uses: actions/cache@v4
