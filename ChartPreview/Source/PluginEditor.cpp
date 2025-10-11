@@ -9,6 +9,9 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+// Version number
+static constexpr const char* CHART_PREVIEW_VERSION = "v0.8.7";
+
 //==============================================================================
 ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewAudioProcessor &p, juce::ValueTree &state)
     : AudioProcessorEditor(&p),
@@ -94,7 +97,14 @@ void ChartPreviewAudioProcessorEditor::initMenus()
 
     chartZoomLabel.setText("Zoom", juce::dontSendNotification);
     addAndMakeVisible(chartZoomLabel);
-    
+
+    // Version label
+    versionLabel.setText(CHART_PREVIEW_VERSION, juce::dontSendNotification);
+    versionLabel.setJustificationType(juce::Justification::centredLeft);
+    versionLabel.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.6f));
+    versionLabel.setFont(juce::Font(10.0f));
+    addAndMakeVisible(versionLabel);
+
     // Toggles
     dynamicZoomToggle.setButtonText("Dynamic");
     dynamicZoomToggle.addListener(this);
@@ -246,6 +256,11 @@ void ChartPreviewAudioProcessorEditor::resized()
     chartZoomSliderPPQ.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
     chartZoomSliderTime.setBounds(getWidth() - 120, getHeight() - 240, controlWidth, 150);
     dynamicZoomToggle.setBounds(getWidth() - 120, getHeight() - 90, 80, controlHeight);
+
+    // Version label (bottom-left, next to REAPER logo)
+    const int versionWidth = 60;
+    const int versionHeight = 15;
+    versionLabel.setBounds(45, getHeight() - versionHeight - 12, versionWidth, versionHeight);
 
     // Console output (responsive width and height)
     consoleOutput.setBounds(margin, 40, getWidth() - (2 * margin), getHeight() - 50);

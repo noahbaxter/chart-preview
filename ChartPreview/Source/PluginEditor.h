@@ -196,6 +196,13 @@ public:
             audioProcessor.clearDebugText();
             consoleOutput.clear();
         }
+        #ifdef DEBUG
+        else if (button == &debugToggle)
+        {
+            bool debugEnabled = button->getToggleState();
+            audioProcessor.setDebugEnabled(debugEnabled);
+        }
+        #endif
         audioProcessor.refreshMidiDisplay();
     }
 
@@ -221,6 +228,7 @@ private:
     std::unique_ptr<juce::Drawable> reaperLogo;
 
     juce::Label chartZoomLabel;
+    juce::Label versionLabel;
     juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu, autoHopoMenu, reaperTrackMenu;
     juce::ToggleButton starPowerToggle, kick2xToggle, dynamicsToggle, dynamicZoomToggle;
     juce::Slider chartZoomSliderPPQ, chartZoomSliderTime;
