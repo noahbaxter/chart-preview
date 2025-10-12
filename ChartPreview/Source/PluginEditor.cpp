@@ -10,7 +10,7 @@
 #include "PluginEditor.h"
 
 // Version number
-static constexpr const char* CHART_PREVIEW_VERSION = "v0.9.1";
+static constexpr const char* CHART_PREVIEW_VERSION = "v0.9.2";
 
 //==============================================================================
 ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewAudioProcessor &p, juce::ValueTree &state)
@@ -90,6 +90,19 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     reaperTrackInput.setWantsKeyboardFocus(true);
     reaperTrackInput.setSelectAllWhenFocused(true);  // Auto-select all on click
     addAndMakeVisible(reaperTrackInput);
+
+    // Latency offset input (-2000 to +2000ms for REAPER, 0 to +2000ms for normal)
+    latencyOffsetLabel.setText("Offset (ms):", juce::dontSendNotification);
+    latencyOffsetLabel.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(latencyOffsetLabel);
+
+    latencyOffsetInput.setInputRestrictions(5, "-0123456789");  // Max 5 chars, numbers and minus sign
+    latencyOffsetInput.setJustification(juce::Justification::centred);
+    latencyOffsetInput.setText("0", false);
+    latencyOffsetInput.addListener(this);
+    latencyOffsetInput.setWantsKeyboardFocus(true);
+    latencyOffsetInput.setSelectAllWhenFocused(true);
+    addAndMakeVisible(latencyOffsetInput);
 
     // Speed slider (time-based only)
     chartSpeedSlider.setRange(0.4, 2.5, 0.05);
@@ -205,6 +218,24 @@ void ChartPreviewAudioProcessorEditor::paintReaperMode(juce::Graphics& g)
 {
     // Use current position (cursor when paused, playhead when playing)
     PPQ trackWindowStartPPQ = lastKnownPosition;
+
+    // Apply latency offset to shift display position
+    // Positive offset = MORE delay (notes appear higher/further from strikeline)
+    // Negative offset = LESS delay (notes appear lower/closer to strikeline)
+    int latencyOffsetMs = (int)state.getProperty("latencyOffsetMs");
+    if (audioProcessor.getPlayHead())
+    {
+        auto positionInfo = audioProcessor.getPlayHead()->getPosition();
+        if (positionInfo.hasValue())
+        {
+            double bpm = positionInfo->getBpm().orFallback(120.0);
+            double latencyOffsetSeconds = latencyOffsetMs / 1000.0;
+            double latencyOffsetBeats = latencyOffsetSeconds * (bpm / 60.0);
+            // Subtract to shift display backward (positive offset = see more future notes)
+            trackWindowStartPPQ = trackWindowStartPPQ - PPQ(latencyOffsetBeats);
+        }
+    }
+
     PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
     PPQ latencyBufferEnd = trackWindowStartPPQ; // No latency in REAPER mode
 
@@ -245,6 +276,22 @@ void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
         // Use smoothed tempo-aware latency to prevent jitter during tempo changes
         PPQ smoothedLatency = smoothedLatencyInPPQ();
         trackWindowStartPPQ = std::max(PPQ(0.0), trackWindowStartPPQ - smoothedLatency);
+    }
+
+    // Apply latency offset to shift display position (positive only for standard mode)
+    // Positive offset = MORE delay (notes appear higher/further from strikeline)
+    int latencyOffsetMs = std::max(0, (int)state.getProperty("latencyOffsetMs"));
+    if (audioProcessor.getPlayHead())
+    {
+        auto positionInfo = audioProcessor.getPlayHead()->getPosition();
+        if (positionInfo.hasValue())
+        {
+            double bpm = positionInfo->getBpm().orFallback(120.0);
+            double latencyOffsetSeconds = latencyOffsetMs / 1000.0;
+            double latencyOffsetBeats = latencyOffsetSeconds * (bpm / 60.0);
+            // Subtract to shift display backward (positive offset = see more future notes)
+            trackWindowStartPPQ = trackWindowStartPPQ - PPQ(latencyOffsetBeats);
+        }
     }
 
     PPQ trackWindowEndPPQ = trackWindowStartPPQ + displaySizeInPPQ;
@@ -317,6 +364,10 @@ void ChartPreviewAudioProcessorEditor::resized()
     // REAPER track input (label + text box)
     reaperTrackLabel.setBounds(getWidth() - 120, getHeight() - 55, 45, controlHeight);
     reaperTrackInput.setBounds(getWidth() - 70, getHeight() - 55, 50, controlHeight);
+
+    // Latency offset input (label + text box) - positioned below track input or latency menu
+    latencyOffsetLabel.setBounds(getWidth() - 120, getHeight() - 80, 75, controlHeight);
+    latencyOffsetInput.setBounds(getWidth() - 40, getHeight() - 80, 60, controlHeight);
     
     // Speed controls (anchored to bottom-right)
     chartSpeedLabel.setBounds(getWidth() - 90, getHeight() - 270, 40, controlHeight);
@@ -357,6 +408,10 @@ void ChartPreviewAudioProcessorEditor::loadState()
     int trackNumber = (int)state["reaperTrack"];
     if (trackNumber < 1) trackNumber = 1;
     reaperTrackInput.setText(juce::String(trackNumber), false);
+
+    // Load latency offset
+    int latencyOffsetMs = (int)state["latencyOffsetMs"];
+    latencyOffsetInput.setText(juce::String(latencyOffsetMs), false);
 
     hitIndicatorsToggle.setToggleState((bool)state["hitIndicators"], juce::dontSendNotification);
     starPowerToggle.setToggleState((bool)state["starPower"], juce::dontSendNotification);

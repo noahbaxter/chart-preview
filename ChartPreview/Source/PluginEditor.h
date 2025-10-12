@@ -60,15 +60,34 @@ public:
                 PPQ currentPosition = PPQ(positionInfo->getPpqPosition().orFallback(0.0));
                 bool isCurrentlyPlaying = positionInfo->getIsPlaying();
 
+                // Track position changes for cache invalidation
+                bool positionChanged = std::abs((currentPosition - lastKnownPosition).toDouble()) > 0.001;
+
                 // Update tracked position and playing state
                 lastKnownPosition = currentPosition;
                 lastPlayingState = isCurrentlyPlaying;
 
-                // In REAPER mode, continuously invalidate cache to pick up MIDI edits in real-time
-                // This allows the highway to react to changes even when paused (including track changes)
+                // In REAPER mode, invalidate cache ONLY when:
+                // 1. Position changed (user scrubbing/moving playhead)
+                // 2. Periodically to catch MIDI edits (throttled to ~200ms intervals)
                 if (isReaperMode && !isCurrentlyPlaying)
                 {
-                    audioProcessor.invalidateReaperCache();
+                    if (positionChanged)
+                    {
+                        // Position changed - invalidate immediately
+                        audioProcessor.invalidateReaperCache();
+                        lastCacheInvalidationTime = juce::Time::getMillisecondCounter();
+                    }
+                    else
+                    {
+                        // Position stable - throttled invalidation for MIDI edit detection
+                        auto currentTime = juce::Time::getMillisecondCounter();
+                        if (currentTime - lastCacheInvalidationTime >= 50)  // 50ms throttle
+                        {
+                            audioProcessor.invalidateReaperCache();
+                            lastCacheInvalidationTime = currentTime;
+                        }
+                    }
                 }
             }
         }
@@ -198,6 +217,11 @@ public:
             // Deselect the text box (unfocus)
             reaperTrackInput.giveAwayKeyboardFocus();
         }
+        else if (&editor == &latencyOffsetInput)
+        {
+            applyLatencyOffsetChange();
+            latencyOffsetInput.giveAwayKeyboardFocus();
+        }
     }
 
     void textEditorFocusLost(juce::TextEditor& editor) override
@@ -205,6 +229,10 @@ public:
         if (&editor == &reaperTrackInput)
         {
             applyTrackNumberChange();
+        }
+        else if (&editor == &latencyOffsetInput)
+        {
+            applyLatencyOffsetChange();
         }
     }
 
@@ -215,6 +243,12 @@ public:
             // Restore previous value and unfocus
             reaperTrackInput.setText(juce::String((int)state["reaperTrack"]), false);
             reaperTrackInput.giveAwayKeyboardFocus();
+        }
+        else if (&editor == &latencyOffsetInput)
+        {
+            // Restore previous value and unfocus
+            latencyOffsetInput.setText(juce::String((int)state["latencyOffsetMs"]), false);
+            latencyOffsetInput.giveAwayKeyboardFocus();
         }
     }
 
@@ -231,6 +265,35 @@ public:
         {
             // Invalid value, restore previous
             reaperTrackInput.setText(juce::String((int)state["reaperTrack"]), false);
+        }
+    }
+
+    void applyLatencyOffsetChange()
+    {
+        int offsetValue = latencyOffsetInput.getText().getIntValue();
+
+        // Get pipeline type to determine valid range
+        bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
+        int minValue = isReaperMode ? -2000 : 0;
+        int maxValue = 2000;
+
+        if (offsetValue >= minValue && offsetValue <= maxValue)
+        {
+            state.setProperty("latencyOffsetMs", offsetValue, nullptr);
+            audioProcessor.refreshMidiDisplay();
+
+            // In REAPER mode, invalidate cache to immediately apply offset
+            if (isReaperMode)
+            {
+                audioProcessor.invalidateReaperCache();
+            }
+
+            repaint();
+        }
+        else
+        {
+            // Invalid value, restore previous
+            latencyOffsetInput.setText(juce::String((int)state["latencyOffsetMs"]), false);
         }
     }
 
@@ -256,6 +319,40 @@ public:
                 {
                     reaperTrackInput.setText(juce::String(currentTrack - 1), false);
                     applyTrackNumberChange();
+                }
+                return true;
+            }
+        }
+
+        // Handle arrow keys for latency offset when text box has focus
+        if (latencyOffsetInput.hasKeyboardFocus(true))
+        {
+            int currentOffset = latencyOffsetInput.getText().getIntValue();
+
+            // Get pipeline type to determine valid range
+            bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
+            int minValue = isReaperMode ? -2000 : 0;
+            int maxValue = 2000;
+
+            if (key == juce::KeyPress::upKey)
+            {
+                if (currentOffset < maxValue)
+                {
+                    int newValue = currentOffset + 10;  // Increment by 10ms
+                    if (newValue > maxValue) newValue = maxValue;
+                    latencyOffsetInput.setText(juce::String(newValue), false);
+                    applyLatencyOffsetChange();
+                }
+                return true;
+            }
+            else if (key == juce::KeyPress::downKey)
+            {
+                if (currentOffset > minValue)
+                {
+                    int newValue = currentOffset - 10;  // Decrement by 10ms
+                    if (newValue < minValue) newValue = minValue;
+                    latencyOffsetInput.setText(juce::String(newValue), false);
+                    applyLatencyOffsetChange();
                 }
                 return true;
             }
@@ -288,6 +385,7 @@ private:
     juce::Label chartSpeedLabel;
     juce::Label versionLabel;
     juce::Label reaperTrackLabel;
+    juce::Label latencyOffsetLabel;
     juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu, autoHopoMenu;
 
     // Custom TextEditor that passes arrow keys to parent
@@ -307,6 +405,7 @@ private:
     };
 
     TrackNumberEditor reaperTrackInput;
+    TrackNumberEditor latencyOffsetInput;
     juce::ToggleButton hitIndicatorsToggle, starPowerToggle, kick2xToggle, dynamicsToggle;
     juce::Slider chartSpeedSlider;
 
@@ -340,6 +439,9 @@ private:
     // Track change debouncing
     int pendingTrackChange = -1;  // -1 means no pending change
     int trackChangeDebounceCounter = 0;
+
+    // Cache invalidation throttling (for REAPER MIDI edit detection)
+    juce::uint32 lastCacheInvalidationTime = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
 
