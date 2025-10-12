@@ -10,7 +10,7 @@
 #include "PluginEditor.h"
 
 // Version number
-static constexpr const char* CHART_PREVIEW_VERSION = "v0.9.0";
+static constexpr const char* CHART_PREVIEW_VERSION = "v0.9.1";
 
 //==============================================================================
 ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewAudioProcessor &p, juce::ValueTree &state)
@@ -78,9 +78,18 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     autoHopoMenu.addListener(this);
     addAndMakeVisible(autoHopoMenu);
 
-    reaperTrackMenu.addItemList({"Track 1", "Track 2", "Track 3", "Track 4", "Track 5", "Track 6", "Track 7", "Track 8"}, 1);
-    reaperTrackMenu.addListener(this);
-    addAndMakeVisible(reaperTrackMenu);
+    // REAPER track number input (1-999)
+    reaperTrackLabel.setText("Track:", juce::dontSendNotification);
+    reaperTrackLabel.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(reaperTrackLabel);
+
+    reaperTrackInput.setInputRestrictions(3, "0123456789");  // Max 3 digits, numbers only
+    reaperTrackInput.setJustification(juce::Justification::centred);
+    reaperTrackInput.setText("1", false);
+    reaperTrackInput.addListener(this);
+    reaperTrackInput.setWantsKeyboardFocus(true);
+    reaperTrackInput.setSelectAllWhenFocused(true);  // Auto-select all on click
+    addAndMakeVisible(reaperTrackInput);
 
     // Speed slider (time-based only)
     chartSpeedSlider.setRange(0.4, 2.5, 0.05);
@@ -172,7 +181,8 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     // Show REAPER track selector only in REAPER mode
     bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
     latencyMenu.setVisible(!isReaperMode);
-    reaperTrackMenu.setVisible(isReaperMode);
+    reaperTrackLabel.setVisible(isReaperMode);
+    reaperTrackInput.setVisible(isReaperMode);
 
     #ifdef DEBUG
     bool debugMode = debugToggle.getToggleState();
@@ -303,7 +313,10 @@ void ChartPreviewAudioProcessorEditor::resized()
     // Bottom right controls (anchored to bottom-right corner)
     framerateMenu.setBounds(getWidth() - 120, getHeight() - 30, controlWidth, controlHeight);
     latencyMenu.setBounds(getWidth() - 120, getHeight() - 55, controlWidth, controlHeight);
-    reaperTrackMenu.setBounds(getWidth() - 120, getHeight() - 55, controlWidth, controlHeight);
+
+    // REAPER track input (label + text box)
+    reaperTrackLabel.setBounds(getWidth() - 120, getHeight() - 55, 45, controlHeight);
+    reaperTrackInput.setBounds(getWidth() - 70, getHeight() - 55, 50, controlHeight);
     
     // Speed controls (anchored to bottom-right)
     chartSpeedLabel.setBounds(getWidth() - 90, getHeight() - 270, 40, controlHeight);
@@ -339,7 +352,11 @@ void ChartPreviewAudioProcessorEditor::loadState()
     framerateMenu.setSelectedId((int)state["framerate"], juce::dontSendNotification);
     latencyMenu.setSelectedId((int)state["latency"], juce::dontSendNotification);
     autoHopoMenu.setSelectedId((int)state["autoHopo"], juce::dontSendNotification);
-    reaperTrackMenu.setSelectedId((int)state["reaperTrack"], juce::dontSendNotification);
+
+    // Load REAPER track number
+    int trackNumber = (int)state["reaperTrack"];
+    if (trackNumber < 1) trackNumber = 1;
+    reaperTrackInput.setText(juce::String(trackNumber), false);
 
     hitIndicatorsToggle.setToggleState((bool)state["hitIndicators"], juce::dontSendNotification);
     starPowerToggle.setToggleState((bool)state["starPower"], juce::dontSendNotification);

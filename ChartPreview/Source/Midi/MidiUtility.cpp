@@ -411,6 +411,7 @@ void MidiUtility::fixChordHOPOs(const std::vector<PPQ>& positions, SkillLevel sk
                                 NoteStateMapArray &noteStateMapArray,
                                 juce::CriticalSection &noteStateMapLock)
 {
+    using Guitar = MidiPitchDefinitions::Guitar;
     std::vector<uint> guitarPitches = getGuitarPitchesForSkill(skill);
 
     for (PPQ position : positions)
@@ -427,23 +428,33 @@ void MidiUtility::fixChordHOPOs(const std::vector<PPQ>& positions, SkillLevel sk
             }
         }
 
-        // If chord (2+ notes), fix any HOPOs
+        // If chord (2+ notes), fix any AUTO-HOPOs (but preserve forced HOPOs)
         if (noteCount >= 2)
         {
             PPQ searchStart = position - CHORD_TOLERANCE;
             PPQ searchEnd = position + CHORD_TOLERANCE;
 
-            for (uint guitarPitch : guitarPitches)
-            {
-                auto& noteStateMap = noteStateMapArray[guitarPitch];
-                auto lower = noteStateMap.lower_bound(searchStart);
-                auto upper = noteStateMap.upper_bound(searchEnd);
+            // Check if there's a forced HOPO modifier at this position
+            bool hasForcedHOPO = (isNoteHeld((int)Guitar::EASY_HOPO, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::EASY) ||
+                                 (isNoteHeld((int)Guitar::MEDIUM_HOPO, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::MEDIUM) ||
+                                 (isNoteHeld((int)Guitar::HARD_HOPO, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::HARD) ||
+                                 (isNoteHeld((int)Guitar::EXPERT_HOPO, position, noteStateMapArray, noteStateMapLock) && skill == SkillLevel::EXPERT);
 
-                for (auto it = lower; it != upper; ++it)
+            // Only convert HOPOs to strums if they're NOT forced by a modifier
+            if (!hasForcedHOPO)
+            {
+                for (uint guitarPitch : guitarPitches)
                 {
-                    if (it->second.velocity > 0 && it->second.gemType == Gem::HOPO_GHOST)
+                    auto& noteStateMap = noteStateMapArray[guitarPitch];
+                    auto lower = noteStateMap.lower_bound(searchStart);
+                    auto upper = noteStateMap.upper_bound(searchEnd);
+
+                    for (auto it = lower; it != upper; ++it)
                     {
-                        it->second.gemType = Gem::NOTE;
+                        if (it->second.velocity > 0 && it->second.gemType == Gem::HOPO_GHOST)
+                        {
+                            it->second.gemType = Gem::NOTE;
+                        }
                     }
                 }
             }

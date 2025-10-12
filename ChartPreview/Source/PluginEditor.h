@@ -18,11 +18,12 @@
 //==============================================================================
 /**
 */
-class ChartPreviewAudioProcessorEditor  : 
+class ChartPreviewAudioProcessorEditor  :
     public juce::AudioProcessorEditor,
     private juce::ComboBox::Listener,
     private juce::Slider::Listener,
     private juce::ToggleButton::Listener,
+    private juce::TextEditor::Listener,
     private juce::Timer
 {
 public:
@@ -50,6 +51,8 @@ public:
             }
         }
 
+        bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
+
         // Track position changes for render logic
         if (auto* playHead = audioProcessor.getPlayHead()) {
             auto positionInfo = playHead->getPosition();
@@ -60,6 +63,13 @@ public:
                 // Update tracked position and playing state
                 lastKnownPosition = currentPosition;
                 lastPlayingState = isCurrentlyPlaying;
+
+                // In REAPER mode, continuously invalidate cache to pick up MIDI edits in real-time
+                // This allows the highway to react to changes even when paused (including track changes)
+                if (isReaperMode && !isCurrentlyPlaying)
+                {
+                    audioProcessor.invalidateReaperCache();
+                }
             }
         }
 
@@ -129,18 +139,6 @@ public:
             auto autoHopoValue = autoHopoMenu.getSelectedId();
             state.setProperty("autoHopo", autoHopoValue, nullptr);
         }
-        else if (comboBoxThatHasChanged == &reaperTrackMenu)
-        {
-            auto trackValue = reaperTrackMenu.getSelectedId();
-
-            // Debounce track changes: don't apply immediately, wait for user to stop clicking
-            pendingTrackChange = trackValue;
-            trackChangeDebounceCounter = 0;  // Reset debounce counter
-
-            // NOTE: Don't invalidate cache here - let the debounce timer handle it
-            // This prevents double-invalidation which can cause race conditions
-            repaint();
-        }
 
         audioProcessor.refreshMidiDisplay();
     }
@@ -192,6 +190,80 @@ public:
         audioProcessor.refreshMidiDisplay();
     }
 
+    void textEditorReturnKeyPressed(juce::TextEditor& editor) override
+    {
+        if (&editor == &reaperTrackInput)
+        {
+            applyTrackNumberChange();
+            // Deselect the text box (unfocus)
+            reaperTrackInput.giveAwayKeyboardFocus();
+        }
+    }
+
+    void textEditorFocusLost(juce::TextEditor& editor) override
+    {
+        if (&editor == &reaperTrackInput)
+        {
+            applyTrackNumberChange();
+        }
+    }
+
+    void textEditorEscapeKeyPressed(juce::TextEditor& editor) override
+    {
+        if (&editor == &reaperTrackInput)
+        {
+            // Restore previous value and unfocus
+            reaperTrackInput.setText(juce::String((int)state["reaperTrack"]), false);
+            reaperTrackInput.giveAwayKeyboardFocus();
+        }
+    }
+
+    void applyTrackNumberChange()
+    {
+        int trackValue = reaperTrackInput.getText().getIntValue();
+        if (trackValue >= 1 && trackValue <= 999)
+        {
+            pendingTrackChange = trackValue;
+            trackChangeDebounceCounter = 0;
+            repaint();
+        }
+        else
+        {
+            // Invalid value, restore previous
+            reaperTrackInput.setText(juce::String((int)state["reaperTrack"]), false);
+        }
+    }
+
+    bool keyPressed(const juce::KeyPress& key) override
+    {
+        // Handle arrow keys for track number when text box has focus
+        if (reaperTrackInput.hasKeyboardFocus(true))
+        {
+            int currentTrack = reaperTrackInput.getText().getIntValue();
+
+            if (key == juce::KeyPress::upKey)
+            {
+                if (currentTrack < 999)
+                {
+                    reaperTrackInput.setText(juce::String(currentTrack + 1), false);
+                    applyTrackNumberChange();
+                }
+                return true;
+            }
+            else if (key == juce::KeyPress::downKey)
+            {
+                if (currentTrack > 1)
+                {
+                    reaperTrackInput.setText(juce::String(currentTrack - 1), false);
+                    applyTrackNumberChange();
+                }
+                return true;
+            }
+        }
+
+        return false;
+    }
+
 private:
     juce::ValueTree& state;
 
@@ -215,7 +287,26 @@ private:
 
     juce::Label chartSpeedLabel;
     juce::Label versionLabel;
-    juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu, autoHopoMenu, reaperTrackMenu;
+    juce::Label reaperTrackLabel;
+    juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu, autoHopoMenu;
+
+    // Custom TextEditor that passes arrow keys to parent
+    class TrackNumberEditor : public juce::TextEditor
+    {
+    public:
+        bool keyPressed(const juce::KeyPress& key) override
+        {
+            // Let parent handle arrow keys for track navigation
+            if (key == juce::KeyPress::upKey || key == juce::KeyPress::downKey)
+            {
+                if (auto* parent = getParentComponent())
+                    return parent->keyPressed(key);
+            }
+            return juce::TextEditor::keyPressed(key);
+        }
+    };
+
+    TrackNumberEditor reaperTrackInput;
     juce::ToggleButton hitIndicatorsToggle, starPowerToggle, kick2xToggle, dynamicsToggle;
     juce::Slider chartSpeedSlider;
 
