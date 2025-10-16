@@ -113,15 +113,15 @@ enum class Gridline
 };
 
 // Tempo and time signature change event (used for REAPER tempo map queries)
-struct TempoChange
+struct TempoTimeSignatureEvent
 {
     PPQ ppqPosition;           // Musical position (beats)
     double bpm;                // Tempo in beats per minute
     int timeSigNumerator;      // Time signature numerator (e.g., 4 in 4/4)
     int timeSigDenominator;    // Time signature denominator (e.g., 4 in 4/4)
 
-    TempoChange() : ppqPosition(0.0), bpm(120.0), timeSigNumerator(4), timeSigDenominator(4) {}
-    TempoChange(PPQ ppq, double tempo, int sigNum, int sigDenom)
+    TempoTimeSignatureEvent() : ppqPosition(0.0), bpm(120.0), timeSigNumerator(4), timeSigDenominator(4) {}
+    TempoTimeSignatureEvent(PPQ ppq, double tempo, int sigNum, int sigDenom)
         : ppqPosition(ppq), bpm(tempo), timeSigNumerator(sigNum), timeSigDenominator(sigDenom) {}
 };
 

@@ -298,6 +298,94 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getNotesInRa
     return notes;
 }
 
+std::vector<TempoTimeSignatureEvent> ReaperMidiProvider::getTempoTimeSignatureEventsInRange(double startPPQ, double endPPQ)
+{
+    std::vector<TempoTimeSignatureEvent> events;
+
+    if (!reaperApiInitialized || !TimeMap2_QNToTime)
+    {
+        if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "Tempo/TimeSig API not initialized");
+        return events;
+    }
+
+    juce::ScopedLock lock(apiLock);
+
+    try
+    {
+        // Get current project
+        auto EnumProjects = (void*(*)(int, char*, int))getReaperApi("EnumProjects");
+        if (!EnumProjects) return events;
+
+        void* project = EnumProjects(-1, nullptr, 0);
+        if (!project) return events;
+
+        // Load REAPER tempo marker enumeration APIs
+        auto CountTempoTimeSigMarkers = (int(*)(void*))getReaperApi("CountTempoTimeSigMarkers");
+        auto GetTempoTimeSigMarker = (bool(*)(void*, int, double*, int*, double*, double*, int*, int*, bool*))
+            getReaperApi("GetTempoTimeSigMarker");
+        auto FindTempoTimeSigMarker = (int(*)(void*, double))getReaperApi("FindTempoTimeSigMarker");
+
+        if (!CountTempoTimeSigMarkers || !GetTempoTimeSigMarker || !FindTempoTimeSigMarker)
+        {
+            if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "Tempo marker APIs not available");
+            return events;
+        }
+
+        // Convert startPPQ to time to find the marker
+        double startTime = TimeMap2_QNToTime(project, startPPQ);
+        double endTime = TimeMap2_QNToTime(project, endPPQ);
+
+        // Find the marker at or before startTime (to get context)
+        int startMarkerIdx = FindTempoTimeSigMarker(project, startTime);
+        int markerCount = CountTempoTimeSigMarkers(project);
+
+        if (markerCount == 0)
+        {
+            // No tempo markers - use default 120 BPM, 4/4
+            events.push_back(TempoTimeSignatureEvent(PPQ(0.0), 120.0, 4, 4));
+            return events;
+        }
+
+        // Iterate through markers starting from the one before/at startTime
+        for (int markerIdx = startMarkerIdx; markerIdx < markerCount; markerIdx++)
+        {
+            double timepos = 0.0;
+            int measurepos = 0;
+            double beatpos = 0.0;
+            double bpm = 120.0;
+            int timesig_num = 4;
+            int timesig_denom = 4;
+            bool lineartempo = false;
+
+            if (GetTempoTimeSigMarker(project, markerIdx, &timepos, &measurepos, &beatpos,
+                                     &bpm, &timesig_num, &timesig_denom, &lineartempo))
+            {
+                // Stop if this marker is beyond our end time
+                if (timepos > endTime)
+                    break;
+
+                // Convert time position to PPQ
+                double ppq = TimeMap2_timeToQN(project, timepos);
+
+                events.push_back(TempoTimeSignatureEvent(PPQ(ppq), bpm, timesig_num, timesig_denom));
+            }
+        }
+
+        if (logger && !events.empty())
+        {
+            logger->log(DebugTools::LogCategory::ReaperAPI,
+                       "Found " + juce::String(events.size()) + " tempo/timesig markers in range [" +
+                       juce::String(startPPQ, 1) + ", " + juce::String(endPPQ, 1) + "] PPQ");
+        }
+    }
+    catch (...)
+    {
+        // Silently handle exceptions
+    }
+
+    return events;
+}
+
 double ReaperMidiProvider::getCurrentPlayPosition()
 {
     if (!reaperApiInitialized || !GetPlayPosition2Ex)

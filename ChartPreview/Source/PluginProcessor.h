@@ -42,8 +42,6 @@ public:
     void setLatencyInSeconds(float latencyInSeconds);
     
     NoteStateMapArray& getNoteStateMapArray() { return midiProcessor.noteStateMapArray; }
-    GridlineMap& getGridlineMap() { return midiProcessor.gridlineMap; }
-    juce::CriticalSection& getGridlineMapLock() { return midiProcessor.gridlineMapLock; }
     juce::CriticalSection& getNoteStateMapLock() { return midiProcessor.noteStateMapLock; }
     
     // Set visual window bounds for conservative cleanup during tempo changes

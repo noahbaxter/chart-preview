@@ -21,9 +21,7 @@ void MidiProcessor::process(juce::MidiBuffer &midiMessages,
     PPQ startPPQ = *ppqPosition;
     // Calculate end PPQ position using host BPM
     PPQ endPPQ = startPPQ + calculatePPQSegment(blockSizeInSamples, *bpm, sampleRate);
-    
-    buildGridlineMap(startPPQ, endPPQ, timeSig->numerator, timeSig->denominator);
-    
+
     // Use stable host BPM for latency calculation (for audio processing cleanup)
     PPQ latencyPPQ = calculatePPQSegment(latencyInSamples, *bpm, sampleRate);
 
@@ -32,52 +30,6 @@ void MidiProcessor::process(juce::MidiBuffer &midiMessages,
     
     // Update last processed PPQ for cleanup tracking
     lastProcessedPPQ = std::max(endPPQ, lastProcessedPPQ);
-}
-
-//================================================================================
-// GRIDLINES
-//================================================================================
-
-void MidiProcessor::buildGridlineMap(PPQ startPPQ, PPQ endPPQ, uint initialTimeSignatureNumerator, uint initialTimeSignatureDenominator)
-{
-    // Check if time signature has changed
-    if (initialTimeSignatureNumerator != lastTimeSignatureNumerator || 
-        initialTimeSignatureDenominator != lastTimeSignatureDenominator)
-    {
-        lastTimeSignatureChangePPQ = startPPQ;
-        lastTimeSignatureNumerator = initialTimeSignatureNumerator;
-        lastTimeSignatureDenominator = initialTimeSignatureDenominator;
-    }
-    
-    // Place gridlines for any boundaries that fall within this buffer
-    double measureLength = static_cast<double>(initialTimeSignatureNumerator) * (4.0 / initialTimeSignatureDenominator);
-    double relativeStart = (startPPQ - lastTimeSignatureChangePPQ).toDouble();
-    double relativeEnd = (endPPQ - lastTimeSignatureChangePPQ).toDouble();
-    
-    const juce::ScopedLock lock(gridlineMapLock);
-    
-    // Find first half-beat boundary at or after relativeStart
-    double firstHalfBeat = std::ceil(relativeStart / 0.5) * 0.5;
-    
-    // Place gridlines for all half-beat boundaries in this buffer
-    for (double relativePPQ = firstHalfBeat; relativePPQ <= relativeEnd; relativePPQ += 0.5)
-    {
-        PPQ gridlinePPQ = lastTimeSignatureChangePPQ + PPQ(relativePPQ);
-        
-        // Determine gridline type based on position relative to time signature start
-        if (std::abs(std::fmod(relativePPQ, measureLength)) < 0.001)
-        {
-            gridlineMap[gridlinePPQ] = Gridline::MEASURE;
-        }
-        else if (std::abs(std::fmod(relativePPQ, 1.0)) < 0.001)
-        {
-            gridlineMap[gridlinePPQ] = Gridline::BEAT;
-        }
-        else
-        {
-            gridlineMap[gridlinePPQ] = Gridline::HALF_BEAT;
-        }
-    }
 }
 
 PPQ MidiProcessor::calculatePPQSegment(uint samples, double bpm, double sampleRate)
@@ -134,20 +86,6 @@ void MidiProcessor::cleanupOldEvents(PPQ startPPQ, PPQ endPPQ, PPQ latencyPPQ)
             auto upper = noteStateMap.upper_bound(conservativeEndPPQ);
             noteStateMap.erase(upper, noteStateMap.end());
         }
-    }
-
-    // Erase gridlines in PPQ range
-    {
-        const juce::ScopedLock lock(gridlineMapLock);
-        auto lower = gridlineMap.upper_bound(conservativeStartPPQ);
-        if (lower != gridlineMap.begin())
-        {
-            --lower;
-            gridlineMap.erase(gridlineMap.begin(), lower);
-        }
-
-        auto upper = gridlineMap.upper_bound(conservativeEndPPQ);
-        gridlineMap.erase(upper, gridlineMap.end());
     }
 }
 
@@ -353,13 +291,5 @@ void MidiProcessor::clearNoteDataInRange(PPQ startPPQ, PPQ endPPQ)
         auto lower = noteStateMap.lower_bound(startPPQ);
         auto upper = noteStateMap.upper_bound(endPPQ);
         noteStateMap.erase(lower, upper);
-    }
-
-    // Also clear gridlines in this range
-    {
-        const juce::ScopedLock gridLock(gridlineMapLock);
-        auto lower = gridlineMap.lower_bound(startPPQ);
-        auto upper = gridlineMap.upper_bound(endPPQ);
-        gridlineMap.erase(lower, upper);
     }
 }

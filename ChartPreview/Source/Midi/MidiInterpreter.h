@@ -17,12 +17,10 @@
 class MidiInterpreter
 {
 	public:
-		MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, GridlineMap &gridlineMap, juce::CriticalSection &gridlineMapLock, juce::CriticalSection &noteStateMapLock);
+		MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, juce::CriticalSection &noteStateMapLock);
 		~MidiInterpreter();
 
 		NoteStateMapArray &noteStateMapArray;
-		GridlineMap &gridlineMap;
-		juce::CriticalSection &gridlineMapLock;
 		juce::CriticalSection &noteStateMapLock;
 
 		bool isNoteHeld(uint pitch, PPQ position)
@@ -30,7 +28,6 @@ class MidiInterpreter
 			return MidiUtility::isNoteHeld(pitch, position, noteStateMapArray, noteStateMapLock);
 		}
 
-		GridlineMap generateGridlineWindow(PPQ trackWindowStart, PPQ trackWindowEnd);
 		TrackWindow generateTrackWindow(PPQ trackWindowStart, PPQ trackWindowEnd);
 		SustainWindow generateSustainWindow(PPQ trackWindowStart, PPQ trackWindowEnd, PPQ latencyBufferEnd);
 		TrackFrame generateEmptyTrackFrame();

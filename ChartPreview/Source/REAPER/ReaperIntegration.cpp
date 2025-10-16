@@ -243,38 +243,6 @@ void ReaperIntegration::processReaperTimelineMidi(
         processor.print("Current skill level: " + juce::String((int)currentSkill));
     }
 
-    // Build gridlines for the visible range
-    // Find the nearest measure boundary before startPPQ to start gridline placement
-    double measureLength = static_cast<double>(timeSignatureNumerator) * (4.0 / timeSignatureDenominator);
-    double measureStart = std::floor(startPPQ.toDouble() / measureLength) * measureLength;
-    PPQ gridlineStartPPQ = PPQ(measureStart);
-
-    {
-        const juce::ScopedLock lock(midiProcessor.gridlineMapLock);
-
-        // Place gridlines for all half-beat boundaries in the visible range
-        for (double ppq = gridlineStartPPQ.toDouble(); ppq <= endPPQ.toDouble(); ppq += 0.5)
-        {
-            PPQ gridlinePPQ = PPQ(ppq);
-
-            // Skip if outside the actual range
-            if (gridlinePPQ < startPPQ)
-                continue;
-
-            // Determine gridline type based on position relative to measure start
-            double relativePosition = ppq - measureStart;
-            if (std::abs(std::fmod(relativePosition, measureLength)) < 0.001)
-            {
-                midiProcessor.gridlineMap[gridlinePPQ] = Gridline::MEASURE;
-            }
-            else if (std::abs(std::fmod(relativePosition, 1.0)) < 0.001)
-            {
-                midiProcessor.gridlineMap[gridlinePPQ] = Gridline::BEAT;
-            }
-            else
-            {
-                midiProcessor.gridlineMap[gridlinePPQ] = Gridline::HALF_BEAT;
-            }
-        }
-    }
+    // NOTE: Gridlines are now generated on-demand in the rendering code (GridlineGenerator)
+    // No need to pre-build them here
 }

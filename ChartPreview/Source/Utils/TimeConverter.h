@@ -18,9 +18,9 @@
 #include "PPQ.h"
 
 //==============================================================================
-// TEMPO CHANGE MAP - Similar structure to NoteStateMap
+// TEMPO TIME SIGNATURE MAP - Similar structure to NoteStateMap
 
-using TempoChangeMap = std::map<PPQ, TempoChange>;
+using TempoTimeSignatureMap = std::map<PPQ, TempoTimeSignatureEvent>;
 
 //==============================================================================
 // TIME-BASED DATA STRUCTURES (for rendering)

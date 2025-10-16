@@ -1,6 +1,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include "../Utils/Utils.h"
+#include "../Utils/TimeConverter.h"
 #include "MidiUtility.h"
 
 // Forward declaration to avoid circular dependency
@@ -18,8 +19,8 @@ public:
                  double sampleRate);
 
     NoteStateMapArray noteStateMapArray;
-    GridlineMap gridlineMap;
-    mutable juce::CriticalSection gridlineMapLock;
+    TempoTimeSignatureMap tempoTimeSignatureMap;
+    mutable juce::CriticalSection tempoTimeSignatureMapLock;
     mutable juce::CriticalSection noteStateMapLock;
     PPQ lastProcessedPPQ = 0.0;
 
@@ -52,11 +53,6 @@ private:
 
     PPQ calculatePPQSegment(uint samples, double bpm, double sampleRate);
     void cleanupOldEvents(PPQ startPPQ, PPQ endPPQ, PPQ latencyPPQ);
-    
-    PPQ lastTimeSignatureChangePPQ = 0.0;
-    uint lastTimeSignatureNumerator = 4;
-    uint lastTimeSignatureDenominator = 4;
-    void buildGridlineMap(PPQ startPPQ, PPQ endPPQ, uint initialTimeSignatureNumerator, uint initialTimeSignatureDenominator);
     
     const uint maxNumMessagesPerBlock = 256;
     void processMidiMessages(juce::MidiBuffer &midiMessages, PPQ startPPQ, double sampleRate, double bpm);

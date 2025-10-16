@@ -17,7 +17,7 @@ ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewA
     : AudioProcessorEditor(&p),
       state(state),
       audioProcessor(p),
-      midiInterpreter(state, audioProcessor.getNoteStateMapArray(), audioProcessor.getGridlineMap(), audioProcessor.getGridlineMapLock(), audioProcessor.getNoteStateMapLock()),
+      midiInterpreter(state, audioProcessor.getNoteStateMapArray(), audioProcessor.getNoteStateMapLock()),
       highwayRenderer(state, midiInterpreter)
 {
     // Set up resize constraints
@@ -245,17 +245,26 @@ void ChartPreviewAudioProcessorEditor::paintReaperMode(juce::Graphics& g)
     // Generate PPQ-based windows from MidiInterpreter
     TrackWindow ppqTrackWindow = midiInterpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
     SustainWindow ppqSustainWindow = midiInterpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
-    GridlineMap ppqGridlineMap = midiInterpreter.generateGridlineWindow(extendedStart, trackWindowEndPPQ);
 
     // Create a lambda that uses REAPER's timeline conversion (handles ALL tempo changes)
     auto& reaperProvider = audioProcessor.getReaperMidiProvider();
     auto ppqToTime = [&reaperProvider](double ppq) { return reaperProvider.ppqToTime(ppq); };
 
+    // Get tempo/timesig map from MidiProcessor (make a copy to avoid holding lock)
+    TempoTimeSignatureMap tempoTimeSigMap;
+    {
+        const juce::ScopedLock lock(audioProcessor.getMidiProcessor().tempoTimeSignatureMapLock);
+        tempoTimeSigMap = audioProcessor.getMidiProcessor().tempoTimeSignatureMap;
+    }
+
     // Convert everything to time-based (seconds from cursor)
     PPQ cursorPPQ = trackWindowStartPPQ;  // Cursor is at the strikeline
     TimeBasedTrackWindow timeTrackWindow = TimeConverter::convertTrackWindow(ppqTrackWindow, cursorPPQ, ppqToTime);
     TimeBasedSustainWindow timeSustainWindow = TimeConverter::convertSustainWindow(ppqSustainWindow, cursorPPQ, ppqToTime);
-    TimeBasedGridlineMap timeGridlineMap = TimeConverter::convertGridlineMap(ppqGridlineMap, cursorPPQ, ppqToTime);
+
+    // Generate gridlines on-the-fly from tempo/timesig map
+    TimeBasedGridlineMap timeGridlineMap = GridlineGenerator::generateGridlines(
+        tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
 
     // Use the constant time window from the slider (in seconds)
     // Window is anchored at the strikeline (time 0), extending forward into the future
@@ -317,16 +326,30 @@ void ChartPreviewAudioProcessorEditor::paintStandardMode(juce::Graphics& g)
     // Generate PPQ-based windows from MidiInterpreter
     TrackWindow ppqTrackWindow = midiInterpreter.generateTrackWindow(extendedStart, trackWindowEndPPQ);
     SustainWindow ppqSustainWindow = midiInterpreter.generateSustainWindow(extendedStart, trackWindowEndPPQ, latencyBufferEnd);
-    GridlineMap ppqGridlineMap = midiInterpreter.generateGridlineWindow(extendedStart, trackWindowEndPPQ);
 
     // Simple constant BPM conversion for non-REAPER mode
     auto ppqToTime = [currentBPM](double ppq) { return ppq * (60.0 / currentBPM); };
+
+    // Create a simple tempo/timesig map for standard mode (default 120 BPM, 4/4)
+    TempoTimeSignatureMap tempoTimeSigMap;
+    {
+        const juce::ScopedLock lock(audioProcessor.getMidiProcessor().tempoTimeSignatureMapLock);
+        tempoTimeSigMap = audioProcessor.getMidiProcessor().tempoTimeSignatureMap;
+
+        // If empty, add a default 4/4, currentBPM event at the start
+        if (tempoTimeSigMap.empty()) {
+            tempoTimeSigMap[PPQ(0.0)] = TempoTimeSignatureEvent(PPQ(0.0), currentBPM, 4, 4);
+        }
+    }
 
     // Convert everything to time-based (seconds from cursor)
     PPQ cursorPPQ = trackWindowStartPPQ;
     TimeBasedTrackWindow timeTrackWindow = TimeConverter::convertTrackWindow(ppqTrackWindow, cursorPPQ, ppqToTime);
     TimeBasedSustainWindow timeSustainWindow = TimeConverter::convertSustainWindow(ppqSustainWindow, cursorPPQ, ppqToTime);
-    TimeBasedGridlineMap timeGridlineMap = TimeConverter::convertGridlineMap(ppqGridlineMap, cursorPPQ, ppqToTime);
+
+    // Generate gridlines on-the-fly from tempo/timesig map
+    TimeBasedGridlineMap timeGridlineMap = GridlineGenerator::generateGridlines(
+        tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
 
     // Use the constant time window from the slider (in seconds)
     // Window is anchored at the strikeline (time 0), extending forward into the future

@@ -43,10 +43,10 @@ public:
 
 private:
     void fetchTimelineData(PPQ start, PPQ end);
+    void fetchTempoTimeSignatureEvents(PPQ start, PPQ end);
     void processCachedNotesIntoState(PPQ currentPos, double bpm, double sampleRate);
     void processModifierNotes(const std::vector<MidiCache::CachedNote>& notes);
     void processPlayableNotes(const std::vector<MidiCache::CachedNote>& notes, double bpm, double sampleRate);
-    void buildGridlines(PPQ startPPQ, PPQ endPPQ, uint timeSignatureNumerator, uint timeSignatureDenominator);
 
     MidiProcessor& midiProcessor;
     ReaperMidiProvider& reaperProvider;
