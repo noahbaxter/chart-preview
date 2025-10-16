@@ -119,10 +119,12 @@ struct TempoTimeSignatureEvent
     double bpm;                // Tempo in beats per minute
     int timeSigNumerator;      // Time signature numerator (e.g., 4 in 4/4)
     int timeSigDenominator;    // Time signature denominator (e.g., 4 in 4/4)
+    bool timeSigReset;         // True if this event explicitly changed the time signature (reset measure anchor). False if carried forward from previous.
 
-    TempoTimeSignatureEvent() : ppqPosition(0.0), bpm(120.0), timeSigNumerator(4), timeSigDenominator(4) {}
-    TempoTimeSignatureEvent(PPQ ppq, double tempo, int sigNum, int sigDenom)
-        : ppqPosition(ppq), bpm(tempo), timeSigNumerator(sigNum), timeSigDenominator(sigDenom) {}
+    TempoTimeSignatureEvent()
+        : ppqPosition(0.0), bpm(120.0), timeSigNumerator(4), timeSigDenominator(4), timeSigReset(true) {}
+    TempoTimeSignatureEvent(PPQ ppq, double tempo, int sigNum, int sigDenom, bool sigReset = true)
+        : ppqPosition(ppq), bpm(tempo), timeSigNumerator(sigNum), timeSigDenominator(sigDenom), timeSigReset(sigReset) {}
 };
 
 enum class SustainType

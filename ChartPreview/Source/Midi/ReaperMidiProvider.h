@@ -41,10 +41,10 @@ public:
     // trackIndex: 0-based track index (-1 = auto-detect)
     std::vector<ReaperMidiNote> getNotesInRange(double startPPQ, double endPPQ, int trackIndex = -1);
 
-    // Get tempo and time signature events in a PPQ range
-    // Returns all tempo/timesig changes in the range, PLUS at least one event before startPPQ
-    // (to provide context for the current tempo/timesig at startPPQ)
-    std::vector<TempoTimeSignatureEvent> getTempoTimeSignatureEventsInRange(double startPPQ, double endPPQ);
+    // Get ALL tempo and time signature events in the entire session
+    // Useful for bulk fetching to minimize API calls
+    // Returns events sorted by PPQ position
+    std::vector<TempoTimeSignatureEvent> getAllTempoTimeSignatureEvents();
 
     // Get current playback/cursor positions
     double getCurrentPlayPosition();

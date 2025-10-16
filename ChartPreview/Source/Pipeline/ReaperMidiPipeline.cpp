@@ -136,12 +136,11 @@ void ReaperMidiPipeline::invalidateCache()
         midiProcessor.tempoTimeSignatureMap.clear();
     }
 
-    if (print)
-    {
-        print("🔄 Cache invalidated - fetching immediately at position " + juce::String(currentPosition.toDouble(), 2));
-    }
+    // IMMEDIATELY fetch all tempo/timesig events (one-time bulk fetch for the entire session)
+    // This is more efficient than fetching per-frame
+    fetchAllTempoTimeSignatureEvents();
 
-    // IMMEDIATELY fetch data for current position instead of waiting for next process() call
+    // IMMEDIATELY fetch MIDI data for current position instead of waiting for next process() call
     // This is crucial when paused, as processBlock might not be called frequently
     PPQ fetchWindowStart = currentPosition - PPQ(PREFETCH_BEHIND);
     PPQ fetchWindowEnd = currentPosition + displayWindowSize + PPQ(PREFETCH_AHEAD);
@@ -154,11 +153,6 @@ void ReaperMidiPipeline::invalidateCache()
     double sampleRate = 48000.0;  // Default, will be updated on next process() call
 
     processCachedNotesIntoState(currentPosition, bpm, sampleRate);
-
-    if (print)
-    {
-        print("✅ Immediate fetch complete - " + juce::String(cache.getNotesInRange(fetchWindowStart, fetchWindowEnd).size()) + " notes loaded");
-    }
 }
 
 void ReaperMidiPipeline::fetchTimelineData(PPQ start, PPQ end)
@@ -296,16 +290,14 @@ void ReaperMidiPipeline::fetchTimelineData(PPQ start, PPQ end)
         lastFetchedEnd = fetchEnd;
 }
 
-void ReaperMidiPipeline::fetchTempoTimeSignatureEvents(PPQ start, PPQ end)
+void ReaperMidiPipeline::fetchAllTempoTimeSignatureEvents()
 {
-    // Query REAPER for tempo/timesig events in this range
-    auto events = reaperProvider.getTempoTimeSignatureEventsInRange(
-        start.toDouble(),
-        end.toDouble()
-    );
+    // Query REAPER for ALL tempo/timesig events in the session (one-time bulk fetch)
+    auto events = reaperProvider.getAllTempoTimeSignatureEvents();
 
     // Store in MidiProcessor's tempoTimeSignatureMap
     const juce::ScopedLock lock(midiProcessor.tempoTimeSignatureMapLock);
+    midiProcessor.tempoTimeSignatureMap.clear();
     for (const auto& event : events)
     {
         midiProcessor.tempoTimeSignatureMap[event.ppqPosition] = event;
@@ -338,25 +330,12 @@ void ReaperMidiPipeline::processCachedNotesIntoState(PPQ currentPos, double bpm,
         processPlayableNotes(cachedNotes, bpm, sampleRate);
     }
 
-    // Fetch tempo/timesig events for the display window only
-    PPQ fetchStart = currentPos - PPQ(PREFETCH_BEHIND);
-    PPQ fetchEnd = currentPos + displayWindowSize + PPQ(PREFETCH_AHEAD);
-    fetchTempoTimeSignatureEvents(fetchStart, fetchEnd);
-
-    // Cleanup tempo/timesig events outside the window (keep only what's needed)
-    {
-        const juce::ScopedLock lock(midiProcessor.tempoTimeSignatureMapLock);
-        auto& map = midiProcessor.tempoTimeSignatureMap;
-
-        // Keep the event right before fetchStart (so we know current tempo/timesig context)
-        auto lower = map.lower_bound(fetchStart);
-        if (lower != map.begin()) --lower;
-        map.erase(map.begin(), lower);
-
-        // Remove everything after fetchEnd
-        auto upper = map.upper_bound(fetchEnd);
-        map.erase(upper, map.end());
-    }
+    // Note: Tempo/timesig events are fetched once via fetchAllTempoTimeSignatureEvents()
+    // (called on session load or when markers change), not per-frame for efficiency.
+    // The entire tempo map is cached in midiProcessor.tempoTimeSignatureMap.
+    //
+    // Cleanup is minimal: we only keep events within the extended window
+    // (GridlineGenerator will use the full cached map for queries)
 }
 
 void ReaperMidiPipeline::processModifierNotes(const std::vector<MidiCache::CachedNote>& notes)

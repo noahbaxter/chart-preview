@@ -298,13 +298,13 @@ std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getNotesInRa
     return notes;
 }
 
-std::vector<TempoTimeSignatureEvent> ReaperMidiProvider::getTempoTimeSignatureEventsInRange(double startPPQ, double endPPQ)
+std::vector<TempoTimeSignatureEvent> ReaperMidiProvider::getAllTempoTimeSignatureEvents()
 {
     std::vector<TempoTimeSignatureEvent> events;
 
     if (!reaperApiInitialized || !TimeMap2_QNToTime)
     {
-        if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "Tempo/TimeSig API not initialized");
+        if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "Tempo/TimeSig API not initialized for getAllTempoTimeSignatureEvents");
         return events;
     }
 
@@ -323,31 +323,29 @@ std::vector<TempoTimeSignatureEvent> ReaperMidiProvider::getTempoTimeSignatureEv
         auto CountTempoTimeSigMarkers = (int(*)(void*))getReaperApi("CountTempoTimeSigMarkers");
         auto GetTempoTimeSigMarker = (bool(*)(void*, int, double*, int*, double*, double*, int*, int*, bool*))
             getReaperApi("GetTempoTimeSigMarker");
-        auto FindTempoTimeSigMarker = (int(*)(void*, double))getReaperApi("FindTempoTimeSigMarker");
 
-        if (!CountTempoTimeSigMarkers || !GetTempoTimeSigMarker || !FindTempoTimeSigMarker)
+        if (!CountTempoTimeSigMarkers || !GetTempoTimeSigMarker)
         {
-            if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "Tempo marker APIs not available");
+            if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "Tempo marker APIs not available for getAllTempoTimeSignatureEvents");
             return events;
         }
 
-        // Convert startPPQ to time to find the marker
-        double startTime = TimeMap2_QNToTime(project, startPPQ);
-        double endTime = TimeMap2_QNToTime(project, endPPQ);
-
-        // Find the marker at or before startTime (to get context)
-        int startMarkerIdx = FindTempoTimeSigMarker(project, startTime);
         int markerCount = CountTempoTimeSigMarkers(project);
 
         if (markerCount == 0)
         {
-            // No tempo markers - use default 120 BPM, 4/4
+            // No tempo markers - return default 120 BPM, 4/4
             events.push_back(TempoTimeSignatureEvent(PPQ(0.0), 120.0, 4, 4));
             return events;
         }
 
-        // Iterate through markers starting from the one before/at startTime
-        for (int markerIdx = startMarkerIdx; markerIdx < markerCount; markerIdx++)
+        // State carryforward: track current tempo/timesig in case a marker only changes one
+        double currentBpm = 120.0;
+        int currentTimeSigNum = 4;
+        int currentTimeSigDenom = 4;
+
+        // Linear iteration through all markers - O(M) API calls total, no binary searches
+        for (int markerIdx = 0; markerIdx < markerCount; markerIdx++)
         {
             double timepos = 0.0;
             int measurepos = 0;
@@ -360,22 +358,32 @@ std::vector<TempoTimeSignatureEvent> ReaperMidiProvider::getTempoTimeSignatureEv
             if (GetTempoTimeSigMarker(project, markerIdx, &timepos, &measurepos, &beatpos,
                                      &bpm, &timesig_num, &timesig_denom, &lineartempo))
             {
-                // Stop if this marker is beyond our end time
-                if (timepos > endTime)
-                    break;
-
-                // Convert time position to PPQ
+                // Convert time position to PPQ - ONCE per marker
                 double ppq = TimeMap2_timeToQN(project, timepos);
 
-                events.push_back(TempoTimeSignatureEvent(PPQ(ppq), bpm, timesig_num, timesig_denom));
+                // Track if this marker explicitly sets a time signature (for measure anchor reset)
+                bool timeSigReset = false;
+
+                // Use carried-forward state if this marker didn't change a value
+                // (REAPER may return default values (120, 4, 4) if unchanged)
+                if (bpm > 0.0)
+                    currentBpm = bpm;
+                if (timesig_num > 0 && timesig_denom > 0)
+                {
+                    currentTimeSigNum = timesig_num;
+                    currentTimeSigDenom = timesig_denom;
+                    timeSigReset = true;  // Event explicitly provided time sig - reset measure anchor
+                }
+
+                // Always add the event with effective values (current state)
+                events.push_back(TempoTimeSignatureEvent(PPQ(ppq), currentBpm, currentTimeSigNum, currentTimeSigDenom, timeSigReset));
             }
         }
 
-        if (logger && !events.empty())
+        if (logger)
         {
             logger->log(DebugTools::LogCategory::ReaperAPI,
-                       "Found " + juce::String(events.size()) + " tempo/timesig markers in range [" +
-                       juce::String(startPPQ, 1) + ", " + juce::String(endPPQ, 1) + "] PPQ");
+                       "getAllTempoTimeSignatureEvents: Found " + juce::String(events.size()) + " total tempo/timesig markers");
         }
     }
     catch (...)
