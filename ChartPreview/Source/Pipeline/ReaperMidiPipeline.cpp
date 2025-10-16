@@ -90,10 +90,11 @@ void ReaperMidiPipeline::process(const juce::AudioPlayHead::PositionInfo& positi
     // Process cached notes into noteStateMapArray
     processCachedNotesIntoState(currentPosition, bpm, sampleRate);
 
-    // Clean up old data (keep some history for HOPO calculations)
-    // Don't clean up data we might still need for display
-    PPQ cleanupBehind = currentPosition - PPQ(PREFETCH_BEHIND * 3);
-    cache.cleanup(cleanupBehind);
+    // Clean up old data (only keep what's needed for current visual window)
+    // This ensures no data accumulation beyond the visible range
+    PPQ cleanupStart = currentPosition - PPQ(PREFETCH_BEHIND);
+    PPQ cleanupEnd = currentPosition + displayWindowSize + PPQ(PREFETCH_AHEAD);
+    cache.cleanupOutsideRange(cleanupStart, cleanupEnd);
 }
 
 void ReaperMidiPipeline::setDisplayWindow(PPQ start, PPQ end)
@@ -327,9 +328,25 @@ void ReaperMidiPipeline::processCachedNotesIntoState(PPQ currentPos, double bpm,
     uint timeSignatureNumerator = 4;
     uint timeSignatureDenominator = 4;
 
-    // Build gridlines for the ENTIRE highway range (not just visible window)
-    // This ensures we always have gridlines ready as we scroll forward
-    buildGridlines(currentPos, currentPos + PPQ(MAX_HIGHWAY_LENGTH),
+    // Build gridlines only for the visible window to prevent accumulation of data
+    // This ensures only necessary gridlines are maintained for the current display
+    PPQ gridlineStart = currentPos - PPQ(PREFETCH_BEHIND);
+    PPQ gridlineEnd = currentPos + displayWindowSize + PPQ(PREFETCH_AHEAD);
+    
+    // Clean up gridlines outside the current display range before building new ones
+    {
+        const juce::ScopedLock lock(midiProcessor.gridlineMapLock);
+        auto lower = midiProcessor.gridlineMap.upper_bound(gridlineStart);
+        if (lower != midiProcessor.gridlineMap.begin()) {
+            --lower; // Keep one before the range to ensure continuity
+            midiProcessor.gridlineMap.erase(midiProcessor.gridlineMap.begin(), lower);
+        }
+        
+        auto upper = midiProcessor.gridlineMap.upper_bound(gridlineEnd);
+        midiProcessor.gridlineMap.erase(upper, midiProcessor.gridlineMap.end());
+    }
+    
+    buildGridlines(gridlineStart, gridlineEnd,
                   timeSignatureNumerator, timeSignatureDenominator);
 }
 

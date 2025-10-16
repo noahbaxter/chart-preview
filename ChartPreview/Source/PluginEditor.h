@@ -60,35 +60,16 @@ public:
                 PPQ currentPosition = PPQ(positionInfo->getPpqPosition().orFallback(0.0));
                 bool isCurrentlyPlaying = positionInfo->getIsPlaying();
 
-                // Track position changes for cache invalidation
-                bool positionChanged = std::abs((currentPosition - lastKnownPosition).toDouble()) > 0.001;
-
                 // Update tracked position and playing state
                 lastKnownPosition = currentPosition;
                 lastPlayingState = isCurrentlyPlaying;
 
-                // In REAPER mode, invalidate cache ONLY when:
-                // 1. Position changed (user scrubbing/moving playhead)
-                // 2. Periodically to catch MIDI edits (throttled to ~200ms intervals)
-                if (isReaperMode && !isCurrentlyPlaying)
-                {
-                    if (positionChanged)
-                    {
-                        // Position changed - invalidate immediately
-                        audioProcessor.invalidateReaperCache();
-                        lastCacheInvalidationTime = juce::Time::getMillisecondCounter();
-                    }
-                    else
-                    {
-                        // Position stable - throttled invalidation for MIDI edit detection
-                        auto currentTime = juce::Time::getMillisecondCounter();
-                        if (currentTime - lastCacheInvalidationTime >= 50)  // 50ms throttle
-                        {
-                            audioProcessor.invalidateReaperCache();
-                            lastCacheInvalidationTime = currentTime;
-                        }
-                    }
-                }
+                // // In REAPER mode, continuously invalidate cache to pick up MIDI edits in real-time
+                // // This allows the highway to react to changes even when paused (including track changes)
+                // if (isReaperMode && !isCurrentlyPlaying)
+                // {
+                //     audioProcessor.invalidateReaperCache();
+                // }
             }
         }
 

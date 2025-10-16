@@ -38,6 +38,9 @@ public:
     // Remove old notes before a certain position (cleanup)
     void cleanup(PPQ beforePosition);
 
+    // Remove notes outside a specific range (cleanup for REAPER mode)
+    void cleanupOutsideRange(PPQ start, PPQ end);
+
     // Clear all cached data
     void clear();
 

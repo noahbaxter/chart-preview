@@ -81,8 +81,8 @@ private:
     // Fetch parameters
     static constexpr double FETCH_TOLERANCE_PLAYING = 0.25;  // Re-fetch when moved 0.25 PPQ during playback
     static constexpr double FETCH_TOLERANCE_PAUSED = 0.1;    // More sensitive when paused (but invalidate is primary)
-    static constexpr double PREFETCH_AHEAD = 8.0;            // Fetch 8 beats ahead (~2 measures)
-    static constexpr double PREFETCH_BEHIND = 4.0;           // Keep 4 beats behind (~1 measure)
+    static constexpr double PREFETCH_AHEAD = 2.0;            // Fetch 2 beats ahead (minimize data accumulation in REAPER mode)
+    static constexpr double PREFETCH_BEHIND = 1.0;           // Keep 1 beat behind (minimize data accumulation in REAPER mode)
     static constexpr double MAX_HIGHWAY_LENGTH = 16.0;       // Maximum highway length in PPQ (16 beats = ~4 measures at 4/4)
 
     // Debug logging control

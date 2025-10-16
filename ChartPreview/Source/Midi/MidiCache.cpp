@@ -103,6 +103,29 @@ void MidiCache::cleanup(PPQ beforePosition)
     }
 }
 
+void MidiCache::cleanupOutsideRange(PPQ start, PPQ end)
+{
+    const juce::ScopedLock lock(cacheLock);
+
+    // Remove notes that are completely outside the range [start, end]
+    cache.erase(
+        std::remove_if(cache.begin(), cache.end(),
+            [start, end](const CachedNote& note) {
+                return (note.endPPQ < start || note.startPPQ > end);
+            }),
+        cache.end()
+    );
+
+    // Update cache range based on remaining notes
+    if (!cache.empty()) {
+        cacheStartPPQ = cache.front().startPPQ;
+        cacheEndPPQ = cache.back().endPPQ;
+    } else {
+        cacheStartPPQ = PPQ(-1.0);
+        cacheEndPPQ = PPQ(-1.0);
+    }
+}
+
 void MidiCache::clear()
 {
     const juce::ScopedLock lock(cacheLock);
