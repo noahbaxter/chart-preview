@@ -65,12 +65,21 @@ public:
                 lastKnownPosition = currentPosition;
                 lastPlayingState = isCurrentlyPlaying;
 
-                // // In REAPER mode, continuously invalidate cache to pick up MIDI edits in real-time
-                // // This allows the highway to react to changes even when paused (including track changes)
-                // if (isReaperMode && !isCurrentlyPlaying)
-                // {
-                //     audioProcessor.invalidateReaperCache();
-                // }
+                // In REAPER mode, throttled cache invalidation while paused to pick up MIDI edits in real-time
+                // Throttled to ~20 Hz (every 3 frames at 60 FPS) to keep responsiveness without overwhelming the host
+                if (isReaperMode && !isCurrentlyPlaying)
+                {
+                    paused_frameCounterSinceLastInvalidation++;
+                    if (paused_frameCounterSinceLastInvalidation >= 3)
+                    {
+                        paused_frameCounterSinceLastInvalidation = 0;
+                        audioProcessor.invalidateReaperCache();
+                    }
+                }
+                else
+                {
+                    paused_frameCounterSinceLastInvalidation = 0;  // Reset when playing
+                }
             }
         }
 
@@ -422,8 +431,8 @@ private:
     int pendingTrackChange = -1;  // -1 means no pending change
     int trackChangeDebounceCounter = 0;
 
-    // Cache invalidation throttling (for REAPER MIDI edit detection)
-    juce::uint32 lastCacheInvalidationTime = 0;
+    // Cache invalidation throttling (for REAPER MIDI edit detection while paused)
+    int paused_frameCounterSinceLastInvalidation = 0;  // Throttle to ~20 Hz (every 3 frames at 60 FPS)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
 

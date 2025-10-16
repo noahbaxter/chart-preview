@@ -17,6 +17,7 @@
 #include "../Utils/Utils.h"
 #include "../Utils/PPQ.h"
 #include "../Utils/TimeConverter.h"
+#include "../Utils/TempoTimeSignatureEventHelper.h"
 
 class GridlineGenerator
 {
@@ -53,6 +54,9 @@ public:
         auto it = tempoTimeSigMap.upper_bound(startPPQ);
         if (it != tempoTimeSigMap.begin()) --it;
 
+        // Find the last time signature reset before startPPQ (for measure anchor)
+        PPQ measureAnchor = TempoTimeSignatureEventHelper::getLastTimeSigResetPosition(tempoTimeSigMap, startPPQ);
+
         // Generate gridlines for each tempo/timesig section
         while (it != tempoTimeSigMap.end())
         {
@@ -64,9 +68,18 @@ public:
             PPQ sectionEnd = (nextIt != tempoTimeSigMap.end()) ? nextIt->first : endPPQ;
             sectionEnd = std::min(sectionEnd, endPPQ);
 
+            // Determine measure anchor for this section
+            // Reset if this event explicitly changed the time signature, otherwise carry forward
+            PPQ sectionMeasureAnchor = measureAnchor;
+            if (event.timeSigReset)
+            {
+                sectionMeasureAnchor = event.ppqPosition;
+                measureAnchor = event.ppqPosition;
+            }
+
             // Generate gridlines for this section
             generateGridlinesForSection(result, sectionStart, sectionEnd, cursorPPQ, cursorTime,
-                                       event.ppqPosition, event.bpm,
+                                       sectionMeasureAnchor, event.bpm,
                                        event.timeSigNumerator, event.timeSigDenominator,
                                        ppqToTime);
 
