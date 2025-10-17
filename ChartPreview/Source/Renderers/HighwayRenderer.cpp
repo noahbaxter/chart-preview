@@ -851,8 +851,15 @@ void HighwayRenderer::drawHitAnimations(juce::Graphics &g)
         if (anim.isBar)
         {
             // Draw bar animation at bar position (gemColumn 0 for open/kick, or 6 for 2x kick)
-            auto kickFrame = assetManager.getKickAnimationFrame(anim.currentFrame);
-            if (kickFrame)
+            // For guitar open notes, use the open animation frames; otherwise use kick frames
+            juce::Image* animFrame = nullptr;
+            if (isPart(state, Part::GUITAR) && anim.isOpen) {
+                animFrame = assetManager.getOpenAnimationFrame(anim.currentFrame);
+            } else {
+                animFrame = assetManager.getKickAnimationFrame(anim.currentFrame);
+            }
+
+            if (animFrame)
             {
                 juce::Rectangle<float> kickRect;
                 if (isPart(state, Part::GUITAR)) {
@@ -865,24 +872,7 @@ void HighwayRenderer::drawHitAnimations(juce::Graphics &g)
                 kickRect = kickRect.withSizeKeepingCentre(kickRect.getWidth() * 1.3f, kickRect.getHeight() * 4.2f);
 
                 g.setOpacity(1.0f);
-
-                // Apply purple tint for open notes on guitar
-                if (isPart(state, Part::GUITAR))
-                {
-                    // Create a purple-tinted version of the image
-                    juce::Colour purpleTint = juce::Colour(180, 120, 220);
-
-                    // Draw with color overlay using ColourGradient or direct tinting
-                    g.setColour(purpleTint);
-                    g.setOpacity(0.5f);
-                    g.drawImage(*kickFrame, kickRect, juce::RectanglePlacement::stretchToFit, false);
-                    g.setOpacity(1.0f);
-                    g.drawImage(*kickFrame, kickRect, juce::RectanglePlacement::stretchToFit, false);
-                }
-                else
-                {
-                    g.drawImage(*kickFrame, kickRect);
-                }
+                g.drawImage(*animFrame, kickRect);
             }
         }
         else

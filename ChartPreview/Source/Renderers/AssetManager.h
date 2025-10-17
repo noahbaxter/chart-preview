@@ -113,6 +113,10 @@ public:
         if (frameNumber >= 1 && frameNumber <= 7) return &kickAnimationFrames[frameNumber - 1];
         return nullptr;
     }
+    juce::Image* getOpenAnimationFrame(int frameNumber) {
+        if (frameNumber >= 1 && frameNumber <= 7) return &openAnimationFrames[frameNumber - 1];
+        return nullptr;
+    }
 
 private:
     void initAssets();
@@ -175,7 +179,8 @@ private:
     juce::Image sustainYellowImage;
 
     // Hit animation graphics
-    juce::Image hitAnimationFrames[5];  // hit_1.png through hit_5.png
-    juce::Image hitFlareImages[5];      // hit_flare_blue/green/orange/red/yellow
-    juce::Image kickAnimationFrames[7]; // hit_kick_1.png through hit_kick_7.png
+    juce::Image hitAnimationFrames[5];   // hit_1.png through hit_5.png
+    juce::Image hitFlareImages[5];       // hit_flare_blue/green/orange/red/yellow
+    juce::Image kickAnimationFrames[7];  // hit_kick_1.png through hit_kick_7.png
+    juce::Image openAnimationFrames[7];  // hit_open_1.png through hit_open_7.png
 };

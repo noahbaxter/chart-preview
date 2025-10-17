@@ -88,6 +88,13 @@
       <FILE id="hitKick5" name="hit_kick_5.png" compile="0" resource="1" file="Assets/hit_kick_5.png"/>
       <FILE id="hitKick6" name="hit_kick_6.png" compile="0" resource="1" file="Assets/hit_kick_6.png"/>
       <FILE id="hitKick7" name="hit_kick_7.png" compile="0" resource="1" file="Assets/hit_kick_7.png"/>
+      <FILE id="hitOpen1" name="hit_open_1.png" compile="0" resource="1" file="Assets/hit_open_1.png"/>
+      <FILE id="hitOpen2" name="hit_open_2.png" compile="0" resource="1" file="Assets/hit_open_2.png"/>
+      <FILE id="hitOpen3" name="hit_open_3.png" compile="0" resource="1" file="Assets/hit_open_3.png"/>
+      <FILE id="hitOpen4" name="hit_open_4.png" compile="0" resource="1" file="Assets/hit_open_4.png"/>
+      <FILE id="hitOpen5" name="hit_open_5.png" compile="0" resource="1" file="Assets/hit_open_5.png"/>
+      <FILE id="hitOpen6" name="hit_open_6.png" compile="0" resource="1" file="Assets/hit_open_6.png"/>
+      <FILE id="hitOpen7" name="hit_open_7.png" compile="0" resource="1" file="Assets/hit_open_7.png"/>
     </GROUP>
     <GROUP id="{577BFFED-2E98-5329-03C4-711F74395056}" name="Source">
       <GROUP id="{DE1AE764-3F26-9AE7-E8D2-54A14F69655C}" name="Midi">

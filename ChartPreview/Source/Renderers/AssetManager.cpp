@@ -92,6 +92,15 @@ void AssetManager::initAssets()
     kickAnimationFrames[4] = juce::ImageCache::getFromMemory(BinaryData::hit_kick_5_png, BinaryData::hit_kick_5_pngSize);
     kickAnimationFrames[5] = juce::ImageCache::getFromMemory(BinaryData::hit_kick_6_png, BinaryData::hit_kick_6_pngSize);
     kickAnimationFrames[6] = juce::ImageCache::getFromMemory(BinaryData::hit_kick_7_png, BinaryData::hit_kick_7_pngSize);
+
+    // Open animation frames (guitar open notes)
+    openAnimationFrames[0] = juce::ImageCache::getFromMemory(BinaryData::hit_open_1_png, BinaryData::hit_open_1_pngSize);
+    openAnimationFrames[1] = juce::ImageCache::getFromMemory(BinaryData::hit_open_2_png, BinaryData::hit_open_2_pngSize);
+    openAnimationFrames[2] = juce::ImageCache::getFromMemory(BinaryData::hit_open_3_png, BinaryData::hit_open_3_pngSize);
+    openAnimationFrames[3] = juce::ImageCache::getFromMemory(BinaryData::hit_open_4_png, BinaryData::hit_open_4_pngSize);
+    openAnimationFrames[4] = juce::ImageCache::getFromMemory(BinaryData::hit_open_5_png, BinaryData::hit_open_5_pngSize);
+    openAnimationFrames[5] = juce::ImageCache::getFromMemory(BinaryData::hit_open_6_png, BinaryData::hit_open_6_pngSize);
+    openAnimationFrames[6] = juce::ImageCache::getFromMemory(BinaryData::hit_open_7_png, BinaryData::hit_open_7_pngSize);
 }
 
 juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive)
