@@ -352,6 +352,33 @@ public:
         return false;
     }
 
+    void mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override
+    {
+        // Ignore scroll on text input fields
+        if (reaperTrackInput.isMouseOver(true) || latencyOffsetInput.isMouseOver(true))
+            return;
+
+        // Get the current playhead position
+        if (auto* playHead = audioProcessor.getPlayHead())
+        {
+            auto positionInfo = playHead->getPosition();
+            if (positionInfo.hasValue())
+            {
+                double currentPPQ = positionInfo->getPpqPosition().orFallback(0.0);
+                double jumpBeats = event.mods.isShiftDown() ? SCROLL_SHIFT_BEATS : SCROLL_NORMAL_BEATS;
+
+                // Note: when shift is held, deltaY might be in deltaX instead
+                double wheelDelta = wheel.deltaY != 0.0 ? wheel.deltaY : wheel.deltaX;
+                double jumpAmount = wheelDelta * jumpBeats;
+
+                double newPPQ = currentPPQ + jumpAmount;
+                newPPQ = std::max(0.0, newPPQ);  // Clamp to 0
+
+                audioProcessor.requestTimelinePositionChange(PPQ(newPPQ));
+            }
+        }
+    }
+
 private:
     juce::ValueTree& state;
 
@@ -433,6 +460,10 @@ private:
 
     // Cache invalidation throttling (for REAPER MIDI edit detection while paused)
     int paused_frameCounterSinceLastInvalidation = 0;  // Throttle to ~20 Hz (every 3 frames at 60 FPS)
+
+    // Scroll wheel timeline control
+    static constexpr double SCROLL_NORMAL_BEATS = 2.0;   // Normal scroll: quarter note
+    static constexpr double SCROLL_SHIFT_BEATS = 0.5;     // Shift+scroll: full beat
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChartPreviewAudioProcessorEditor)
 

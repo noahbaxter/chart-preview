@@ -119,6 +119,9 @@ public:
     // Debug logger access
     DebugTools::Logger& getDebugLogger() { return debugLogger; }
 
+    // Timeline position control for scroll wheel seeking
+    void requestTimelinePositionChange(PPQ newPosition);
+
   private:
     juce::ValueTree state;
     MidiProcessor midiProcessor;

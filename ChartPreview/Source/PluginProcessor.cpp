@@ -376,6 +376,21 @@ void ChartPreviewAudioProcessor::processReaperTimelineMidi(PPQ startPPQ, PPQ end
     }
 }
 
+void ChartPreviewAudioProcessor::requestTimelinePositionChange(PPQ newPosition)
+{
+    if (isReaperHost && reaperMidiProvider.isReaperApiAvailable())
+    {
+        // Use REAPER's SetEditCurPos to move the edit cursor
+        if (auto* reaper_SetEditCurPos = (void(*)(double, bool, bool))getReaperApi("SetEditCurPos"))
+        {
+            double timeInSeconds = reaperMidiProvider.ppqToTime(newPosition.toDouble());
+            reaper_SetEditCurPos(timeInSeconds, true, false);
+        }
+    }
+    // For non-REAPER hosts, we can't directly control playback position
+    // This is a limitation of the plugin API - only the host can set playback position
+}
+
 //==============================================================================
 // This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

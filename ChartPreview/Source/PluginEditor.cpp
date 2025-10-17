@@ -10,7 +10,7 @@
 #include "PluginEditor.h"
 
 // Version number
-static constexpr const char* CHART_PREVIEW_VERSION = "v0.9.3";
+static constexpr const char* CHART_PREVIEW_VERSION = "v0.9.4";
 
 //==============================================================================
 ChartPreviewAudioProcessorEditor::ChartPreviewAudioProcessorEditor(ChartPreviewAudioProcessor &p, juce::ValueTree &state)
