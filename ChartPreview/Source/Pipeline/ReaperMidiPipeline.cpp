@@ -37,24 +37,16 @@ void ReaperMidiPipeline::process(const juce::AudioPlayHead::PositionInfo& positi
 
     // Check if position jumped significantly (scrubbing when paused OR timeline jump during playback)
     double positionDelta = std::abs((newPosition - currentPosition).toDouble());
-    bool positionChangedWhilePaused = !nowPlaying && positionDelta > 0.001;
-    bool largePositionJumpWhilePlaying = nowPlaying && positionDelta > 1.0; // > 1 beat = timeline jump
-
+    bool positionChanged = positionDelta > 0.001;
+    
     // Update current state
     currentPosition = newPosition;
     playing = nowPlaying;
 
-    // PAUSED MODE: Invalidate cache on position changes (user scrubbing)
-    // PLAYING MODE: Invalidate cache on large position jumps (user clicked elsewhere on timeline)
-    if (positionChangedWhilePaused || largePositionJumpWhilePlaying)
+    // Only invalidate cache if MIDI changed 
+    // or palyhead position changed while paused
+    if (checkMidiHashChanged() || positionChanged)
     {
-        // Log scrubbing behavior (useful for testing)
-        static int scrubCount = 0;
-        if (print && (++scrubCount % 30 == 1)) // Log every 30th scrub to avoid spam
-        {
-            juce::String reason = positionChangedWhilePaused ? "Scrubbing" : "Timeline jump";
-            print("🔄 " + reason + " detected - cache invalidated (pos: " + juce::String(currentPosition.toDouble(), 2) + ")");
-        }
         invalidateCache();
     }
 
@@ -450,6 +442,21 @@ void ReaperMidiPipeline::processPlayableNotes(const std::vector<MidiCache::Cache
                                    midiProcessor.noteStateMapArray,
                                    midiProcessor.noteStateMapLock);
     }
+}
+
+bool ReaperMidiPipeline::checkMidiHashChanged()
+{
+    int configuredTrackIndex = (int)state.getProperty("reaperTrack") - 1;
+    int trackIndex = targetTrackIndex >= 0 ? targetTrackIndex : configuredTrackIndex;
+
+    std::string currentHash = reaperProvider.getTrackHash(trackIndex, true);  // notesonly=true
+    if (currentHash != previousMidiHash)
+    {
+        previousMidiHash = currentHash;
+        return true;
+    }
+
+    return false;
 }
 
 

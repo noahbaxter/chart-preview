@@ -49,6 +49,7 @@ private:
     void processCachedNotesIntoState(PPQ currentPos, double bpm, double sampleRate);
     void processModifierNotes(const std::vector<MidiCache::CachedNote>& notes);
     void processPlayableNotes(const std::vector<MidiCache::CachedNote>& notes, double bpm, double sampleRate);
+    bool checkMidiHashChanged();
 
     MidiProcessor& midiProcessor;
     ReaperMidiProvider& reaperProvider;
@@ -56,6 +57,7 @@ private:
     std::function<void(const juce::String&)> print;
 
     MidiCache cache;
+    std::string previousMidiHash;  // Hash from last poll (for detecting MIDI edits)
 
     // Track fetched ranges
     PPQ lastFetchedStart{-1000.0};

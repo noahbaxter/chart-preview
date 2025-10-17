@@ -46,6 +46,11 @@ public:
     // Returns events sorted by PPQ position
     std::vector<TempoTimeSignatureEvent> getAllTempoTimeSignatureEvents();
 
+    // Get hash of MIDI data on track - changes only when MIDI changes
+    // Useful for efficient polling to detect MIDI edits
+    // notesonly: if true, only changes when notes change (ignores CC changes)
+    std::string getTrackHash(int trackIndex, bool notesonly = true);
+
     // Get current playback/cursor positions
     double getCurrentPlayPosition();
     double getCurrentCursorPosition();
@@ -98,6 +103,7 @@ private:
     bool (*MIDI_GetNote)(void* take, int noteidx, bool* selected, bool* muted,
                         double* startppq, double* endppq, int* chan, int* pitch, int* vel) = nullptr;
     double (*MIDI_GetProjQNFromPPQPos)(void* take, double ppqpos) = nullptr;
+    bool (*MIDI_GetTrackHash)(void* track, bool notesonly, char* hashOut, int hashOut_sz) = nullptr;
 
     // TimeMap API functions for bar/beat calculations
     double (*TimeMap2_QNToTime)(void* proj, double qn) = nullptr;

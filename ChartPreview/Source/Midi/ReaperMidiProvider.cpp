@@ -54,6 +54,7 @@ bool ReaperMidiProvider::loadReaperApiFunctions()
     MIDI_CountEvts = (int(*)(void*, int*, int*, int*))getReaperApi("MIDI_CountEvts");
     MIDI_GetNote = (bool(*)(void*, int, bool*, bool*, double*, double*, int*, int*, int*))getReaperApi("MIDI_GetNote");
     MIDI_GetProjQNFromPPQPos = (double(*)(void*, double))getReaperApi("MIDI_GetProjQNFromPPQPos");
+    MIDI_GetTrackHash = (bool(*)(void*, bool, char*, int))getReaperApi("MIDI_GetTrackHash");
 
     // Load TimeMap functions for bar/beat calculations
     TimeMap2_QNToTime = (double(*)(void*, double))getReaperApi("TimeMap2_QNToTime");
@@ -551,5 +552,47 @@ double ReaperMidiProvider::ppqToTime(double ppq)
     catch (...)
     {
         return ppq * (60.0 / 120.0);
+    }
+}
+
+std::string ReaperMidiProvider::getTrackHash(int trackIndex, bool notesonly)
+{
+    std::string emptyHash;
+
+    if (!reaperApiInitialized || !MIDI_GetTrackHash)
+    {
+        return emptyHash;
+    }
+
+    juce::ScopedLock lock(apiLock);
+
+    try
+    {
+        // Get current project
+        auto EnumProjects = (void*(*)(int, char*, int))getReaperApi("EnumProjects");
+        if (!EnumProjects) return emptyHash;
+
+        void* project = EnumProjects(-1, nullptr, 0);
+        if (!project) return emptyHash;
+
+        // Get track
+        auto GetTrack = (void*(*)(void*, int))getReaperApi("GetTrack");
+        if (!GetTrack) return emptyHash;
+
+        void* track = GetTrack(project, trackIndex);
+        if (!track) return emptyHash;
+
+        // Get hash for this track
+        char hashBuffer[256];
+        if (MIDI_GetTrackHash(track, notesonly, hashBuffer, sizeof(hashBuffer)))
+        {
+            return std::string(hashBuffer);
+        }
+
+        return emptyHash;
+    }
+    catch (...)
+    {
+        return emptyHash;
     }
 }
