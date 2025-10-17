@@ -37,15 +37,18 @@ void ReaperMidiPipeline::process(const juce::AudioPlayHead::PositionInfo& positi
 
     // Check if position jumped significantly (scrubbing when paused OR timeline jump during playback)
     double positionDelta = std::abs((newPosition - currentPosition).toDouble());
-    bool positionChanged = positionDelta > 0.001;
-    
+    bool positionChanged = positionDelta > 1.0;
+
     // Update current state
     currentPosition = newPosition;
     playing = nowPlaying;
 
-    // Only invalidate cache if MIDI changed 
-    // or palyhead position changed while paused
-    if (checkMidiHashChanged() || positionChanged)
+    // Only invalidate cache when:
+    // 1. MIDI actually changed (detected via hash, only checked when paused)
+    // 2. Position moved enough that we need more data to display
+    // Only check hash when paused - avoid constant polling while playing
+    bool midiChanged = !nowPlaying && checkMidiHashChanged();
+    if (midiChanged || positionChanged)
     {
         invalidateCache();
     }
