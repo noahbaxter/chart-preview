@@ -66,7 +66,7 @@ class HighwayRenderer
 
         void drawNotesFromMap(juce::Graphics &g, const TimeBasedTrackWindow& trackWindow, double windowStartTime, double windowEndTime);
         void drawFrame(const TimeBasedTrackFrame &gems, float position, double frameTime);
-        void drawGem(uint gemColumn, Gem gem, float position, double frameTime);
+        void drawGem(uint gemColumn, const GemWrapper& gemMods, float position, double frameTime);
 
         void detectAndTriggerHitAnimations(const TimeBasedTrackWindow& trackWindow, double windowStartTime, double windowEndTime);
         void updateSustainStates(const TimeBasedSustainWindow& sustainWindow);

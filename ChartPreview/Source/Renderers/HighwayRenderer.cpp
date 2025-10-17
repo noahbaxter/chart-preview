@@ -135,14 +135,14 @@ void HighwayRenderer::drawFrame(const TimeBasedTrackFrame &gems, float position,
     for (int i = 0; i < gems.size(); i++)
     {
         int gemColumn = drawSequence[i];
-        if (gems[gemColumn] != Gem::NONE)
+        if (gems[gemColumn].gem != Gem::NONE)
         {
             drawGem(gemColumn, gems[gemColumn], position, frameTime);
         }
     }
 }
 
-void HighwayRenderer::drawGem(uint gemColumn, Gem gem, float position, double frameTime)
+void HighwayRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float position, double frameTime)
 {
     juce::Rectangle<float> glyphRect;
     juce::Image* glyphImage;
@@ -152,18 +152,14 @@ void HighwayRenderer::drawGem(uint gemColumn, Gem gem, float position, double fr
     {
         glyphRect = getGuitarGlyphRect(gemColumn, position);
         bool starPowerActive = state.getProperty("starPower");
-        // TODO: Need to convert frameTime back to PPQ for star power check, or pass SP state differently
-        bool spNoteHeld = false; // Temporarily disabled
-        glyphImage = assetManager.getGuitarGlyphImage(gem, gemColumn, starPowerActive, spNoteHeld);
+        glyphImage = assetManager.getGuitarGlyphImage(gemWrapper, gemColumn, starPowerActive);
         barNote = isBarNote(gemColumn, Part::GUITAR);
     }
     else // if (isPart(state, Part::DRUMS))
     {
         glyphRect = getDrumGlyphRect(gemColumn, position);
         bool starPowerActive = state.getProperty("starPower");
-        // TODO: Need to convert frameTime back to PPQ for star power check, or pass SP state differently
-        bool spNoteHeld = false; // Temporarily disabled
-        glyphImage = assetManager.getDrumGlyphImage(gem, gemColumn, starPowerActive, spNoteHeld);
+        glyphImage = assetManager.getDrumGlyphImage(gemWrapper, gemColumn, starPowerActive);
         barNote = isBarNote(gemColumn, Part::DRUMS);
     }
 
@@ -186,11 +182,11 @@ void HighwayRenderer::drawGem(uint gemColumn, Gem gem, float position, double fr
             draw(g, glyphImage, glyphRect, opacity);
         });
     }
-    
-    juce::Image* overlayImage = assetManager.getOverlayImage(gem, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS);
+
+    juce::Image* overlayImage = assetManager.getOverlayImage(gemWrapper.gem, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS);
     if (overlayImage != nullptr)
     {
-        juce::Rectangle<float> overlayRect = getOverlayGlyphRect(gem, glyphRect);
+        juce::Rectangle<float> overlayRect = getOverlayGlyphRect(gemWrapper.gem, glyphRect);
 
         drawCallMap[DrawOrder::OVERLAY][gemColumn].push_back([=](juce::Graphics &g) {
             draw(g, overlayImage, overlayRect, opacity);
@@ -456,11 +452,10 @@ void HighwayRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     startPosition = std::max(0.0f, startPosition);
     endPosition = std::min(1.0f, endPosition);
 
-    // Get sustain image based on gem column and star power state
+    // Get sustain color based on gem column and star power state
     bool starPowerActive = state.getProperty("starPower");
-    // TODO: Need to pass SP state differently for time-based rendering
-    bool spNoteHeld = false; // Temporarily disabled
-    auto colour = assetManager.getLaneColour(sustain.gemColumn, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS, starPowerActive && spNoteHeld);
+    bool shouldBeWhite = starPowerActive && sustain.gemType.starPower;
+    auto colour = assetManager.getLaneColour(sustain.gemColumn, isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS, shouldBeWhite);
 
     // Calculate opacity (average of start and end positions)
     float avgPosition = (startPosition + endPosition) / 2.0f;
@@ -767,7 +762,7 @@ void HighwayRenderer::detectAndTriggerHitAnimations(const TimeBasedTrackWindow& 
         {
             for (uint gemColumn = 0; gemColumn < gems.size(); ++gemColumn)
             {
-                if (gems[gemColumn] != Gem::NONE)
+                if (gems[gemColumn].gem != Gem::NONE)
                 {
                     // This note is past the strikeline - check if it's the closest one
                     if (std::abs(frameTime) < std::abs(closestPastNotePerColumn[gemColumn]))

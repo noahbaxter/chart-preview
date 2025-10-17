@@ -98,6 +98,15 @@ enum class Gem
     CYM_ACCENT,
 };
 
+struct GemWrapper
+{
+    Gem gem;
+    bool starPower;
+
+    GemWrapper() : gem(Gem::NONE), starPower(false) {}
+    GemWrapper(Gem g, bool sp = false) : gem(g), starPower(sp) {}
+};
+
 enum class Dynamic
 {
     NONE=0,
@@ -141,7 +150,7 @@ struct SustainEvent
     PPQ endPPQ;
     uint gemColumn;
     SustainType sustainType;
-    Gem gemType;
+    GemWrapper gemType;
 };
 
 //==============================================================================
@@ -162,7 +171,7 @@ struct NoteData
 
 using NoteStateMap = std::map<PPQ, NoteData>;
 using NoteStateMapArray = std::array<NoteStateMap, 128>;
-using TrackFrame = std::array<Gem, LANE_COUNT>; // All the simultaneous notes at a moment in time
+using TrackFrame = std::array<GemWrapper, LANE_COUNT>; // All the simultaneous notes at a moment in time
 using TrackWindow = std::map<PPQ, TrackFrame>;  // All the frames in the track window
 using SustainWindow = std::vector<SustainEvent>; // Active sustains in the track window
 using GridlineMap = std::map<PPQ, Gridline>;

@@ -83,7 +83,7 @@ TrackWindow MidiInterpreter::generateFakeTrackWindow(PPQ trackWindowStart, PPQ t
             {
                 fakeTrackWindow[position] = generateEmptyTrackFrame();
             }
-            fakeTrackWindow[position][lane] = Gem::NOTE;
+            fakeTrackWindow[position][lane] = GemWrapper(Gem::NOTE, false);
         }
     }
 
@@ -150,12 +150,15 @@ SustainWindow MidiInterpreter::generateSustainWindow(PPQ trackWindowStart, PPQ t
                     if (duration >= MIN_SUSTAIN_LENGTH) {
                         uint gemColumn = MidiUtility::getGuitarGemColumn(pitch, state);
                         if (gemColumn < LANE_COUNT) {
+                            // Check if star power is held at the start of this sustain
+                            bool isSpHeld = isNoteHeld(static_cast<uint>(Guitar::SP), notePPQ);
+
                             SustainEvent sustain;
                             sustain.startPPQ = notePPQ;
                             sustain.endPPQ = noteOffPPQ;
                             sustain.gemColumn = gemColumn;
                             sustain.sustainType = SustainType::SUSTAIN;
-                            sustain.gemType = it->second.gemType;
+                            sustain.gemType = GemWrapper(it->second.gemType, isSpHeld);
                             sustainWindow.push_back(sustain);
                         }
                     }
@@ -181,7 +184,7 @@ SustainWindow MidiInterpreter::generateFakeSustains(PPQ trackWindowStartPPQ, PPQ
         sustain.startPPQ = trackWindowStartPPQ;
         sustain.endPPQ = trackWindowEndPPQ;
         sustain.gemColumn = lane;
-        sustain.gemType = Gem::NOTE;
+        sustain.gemType = GemWrapper(Gem::NOTE, false);
         sustain.sustainType = SustainType::LANE;
         fakeSustainWindow.push_back(sustain);
     }
@@ -192,15 +195,15 @@ SustainWindow MidiInterpreter::generateFakeSustains(PPQ trackWindowStartPPQ, PPQ
 TrackFrame MidiInterpreter::generateEmptyTrackFrame()
 {
     TrackFrame frame = {
-                   //| Guitar  |   Drums   |   Real Drums
-                   //| -------------------------------------
-        Gem::NONE, //| Open    |   Kick    |
-        Gem::NONE, //| Fret 1  |   Lane 1  |
-        Gem::NONE, //| Fret 2  |   Lane 2  |
-        Gem::NONE, //| Fret 3  |   Lane 3  |
-        Gem::NONE, //| Fret 4  |   Lane 4  |
-        Gem::NONE, //| Fret 5  |   Lane 5  |
-        Gem::NONE, //| Fret 6  |   2x Kick |
+                           //| Guitar  |   Drums   |   Real Drums
+                           //| -------------------------------------
+        GemWrapper(), //| Open    |   Kick    |
+        GemWrapper(), //| Fret 1  |   Lane 1  |
+        GemWrapper(), //| Fret 2  |   Lane 2  |
+        GemWrapper(), //| Fret 3  |   Lane 3  |
+        GemWrapper(), //| Fret 4  |   Lane 4  |
+        GemWrapper(), //| Fret 5  |   Lane 5  |
+        GemWrapper(), //| Fret 6  |   2x Kick |
     };
 
     return frame;
@@ -210,7 +213,10 @@ void MidiInterpreter::addGuitarEventToFrame(TrackFrame &frame, PPQ position, uin
 {
     uint gemColumn = MidiUtility::getGuitarGemColumn(pitch, state);
     if (gemColumn < LANE_COUNT) {
-        frame[gemColumn] = gemType;
+        // Check if star power is held at this position (MIDI pitch 116)
+        using Guitar = MidiPitchDefinitions::Guitar;
+        bool isSpHeld = isNoteHeld(static_cast<uint>(Guitar::SP), position);
+        frame[gemColumn] = GemWrapper(gemType, isSpHeld);
     }
 }
 
@@ -218,7 +224,10 @@ void MidiInterpreter::addDrumEventToFrame(TrackFrame &frame, PPQ position, uint 
 {
     uint gemColumn = MidiUtility::getDrumGemColumn(pitch, state);
     if (gemColumn < LANE_COUNT) {
-        frame[gemColumn] = gemType;
+        // Check if star power is held at this position (MIDI pitch 116)
+        using Drums = MidiPitchDefinitions::Drums;
+        bool isSpHeld = isNoteHeld(static_cast<uint>(Drums::SP), position);
+        frame[gemColumn] = GemWrapper(gemType, isSpHeld);
     }
 }
 

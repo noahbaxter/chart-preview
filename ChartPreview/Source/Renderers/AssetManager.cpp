@@ -94,11 +94,14 @@ void AssetManager::initAssets()
     kickAnimationFrames[6] = juce::ImageCache::getFromMemory(BinaryData::hit_kick_7_png, BinaryData::hit_kick_7_pngSize);
 }
 
-juce::Image* AssetManager::getGuitarGlyphImage(Gem gem, uint gemColumn, bool starPowerActive, bool spNoteHeld)
+juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive)
 {
-    if (starPowerActive && spNoteHeld)
+    // Use the gem's star power flag to determine if it should be white
+    bool shouldBeWhite = starPowerActive && gemWrapper.starPower;
+
+    if (shouldBeWhite)
     {
-        switch (gem)
+        switch (gemWrapper.gem)
         {
         case Gem::HOPO_GHOST:
             switch (gemColumn)
@@ -134,7 +137,7 @@ juce::Image* AssetManager::getGuitarGlyphImage(Gem gem, uint gemColumn, bool sta
     }
     else
     {
-        switch (gem)
+        switch (gemWrapper.gem)
         {
         case Gem::HOPO_GHOST:
             switch (gemColumn)
@@ -172,11 +175,14 @@ juce::Image* AssetManager::getGuitarGlyphImage(Gem gem, uint gemColumn, bool sta
     return nullptr;
 }
 
-juce::Image* AssetManager::getDrumGlyphImage(Gem gem, uint gemColumn, bool starPowerActive, bool spNoteHeld)
+juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive)
 {
-    if (starPowerActive && spNoteHeld)
+    // Use the gem's star power flag to determine if it should be white
+    bool shouldBeWhite = starPowerActive && gemWrapper.starPower;
+
+    if (shouldBeWhite)
     {
-        switch (gem)
+        switch (gemWrapper.gem)
         {
         case Gem::HOPO_GHOST:
             switch (gemColumn)
@@ -209,10 +215,10 @@ juce::Image* AssetManager::getDrumGlyphImage(Gem gem, uint gemColumn, bool starP
             case 4: return getCymWhiteImage();
             } break;
         }
-    } 
+    }
     else
     {
-        switch (gem)
+        switch (gemWrapper.gem)
         {
         case Gem::HOPO_GHOST:
             switch (gemColumn)
@@ -283,9 +289,11 @@ juce::Image* AssetManager::getOverlayImage(Gem gem, Part part)
     return nullptr;
 }
 
-juce::Image* AssetManager::getSustainImage(uint gemColumn, bool starPowerActive, bool spNoteHeld)
+juce::Image* AssetManager::getSustainImage(uint gemColumn, bool starPowerActive)
 {
-    if (starPowerActive && spNoteHeld)
+    // Note: sustain color is determined by lane, not by gem type
+    // For star power sustains, return white; otherwise return the lane color
+    if (starPowerActive)
     {
         if (gemColumn == 0)
         {

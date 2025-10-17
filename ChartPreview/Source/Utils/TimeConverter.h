@@ -25,7 +25,7 @@ using TempoTimeSignatureMap = std::map<PPQ, TempoTimeSignatureEvent>;
 //==============================================================================
 // TIME-BASED DATA STRUCTURES (for rendering)
 
-using TimeBasedTrackFrame = std::array<Gem, LANE_COUNT>;
+using TimeBasedTrackFrame = std::array<GemWrapper, LANE_COUNT>;
 using TimeBasedTrackWindow = std::map<double, TimeBasedTrackFrame>;  // double = seconds from cursor
 
 struct TimeBasedSustainEvent
@@ -34,7 +34,7 @@ struct TimeBasedSustainEvent
     double endTime;    // seconds from cursor
     uint gemColumn;
     SustainType sustainType;
-    Gem gemType;
+    GemWrapper gemType;
 };
 
 using TimeBasedSustainWindow = std::vector<TimeBasedSustainEvent>;

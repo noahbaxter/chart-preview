@@ -23,11 +23,11 @@ public:
     ~AssetManager();
 
     // Image picker methods
-    juce::Image* getGuitarGlyphImage(Gem gem, uint gemColumn, bool starPowerActive, bool spNoteHeld);
-    juce::Image* getDrumGlyphImage(Gem gem, uint gemColumn, bool starPowerActive, bool spNoteHeld);
+    juce::Image* getGuitarGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive);
+    juce::Image* getDrumGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive);
     juce::Image* getGridlineImage(Gridline gridlineType);
     juce::Image* getOverlayImage(Gem gem, Part part);
-    juce::Image* getSustainImage(uint gemColumn, bool starPowerActive, bool spNoteHeld);
+    juce::Image* getSustainImage(uint gemColumn, bool starPowerActive);
 
     juce::Colour getLaneColour(uint gemColumn, Part part, bool starPowerActive);
 
