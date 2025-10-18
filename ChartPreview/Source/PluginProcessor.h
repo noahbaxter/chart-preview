@@ -10,8 +10,8 @@
 
 #include <JuceHeader.h>
 #include <memory>
-#include "Midi/MidiProcessor.h"
-#include "Midi/ReaperMidiProvider.h"
+#include "Midi/Processing/MidiProcessor.h"
+#include "Midi/Providers/REAPER/ReaperMidiProvider.h"
 #include "DebugTools/Logger.h"
 
 // Forward declarations

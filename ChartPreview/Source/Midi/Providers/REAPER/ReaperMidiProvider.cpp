@@ -1,5 +1,5 @@
 #include "ReaperMidiProvider.h"
-#include "../REAPER/ReaperTrackDetector.h"
+#include "../../../REAPER/ReaperTrackDetector.h"
 
 ReaperMidiProvider::ReaperMidiProvider()
 {

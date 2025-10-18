@@ -10,12 +10,12 @@
 #pragma once
 
 #include "MidiPipeline.h"
-#include "../Midi/MidiProcessor.h"
-#include "../Midi/MidiCache.h"
-#include "../Midi/ReaperMidiProvider.h"
-#include "../Midi/Utils/InstrumentMapper.h"
-#include "../Midi/Utils/ChordAnalyzer.h"
-#include "../Utils/Utils.h"
+#include "../Processing/MidiProcessor.h"
+#include "../Providers/REAPER/MidiCache.h"
+#include "../Providers/REAPER/ReaperMidiProvider.h"
+#include "../Utils/InstrumentMapper.h"
+#include "../Utils/ChordAnalyzer.h"
+#include "../../Utils/Utils.h"
 
 class ReaperMidiPipeline : public MidiPipeline
 {

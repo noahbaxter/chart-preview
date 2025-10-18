@@ -9,7 +9,7 @@
 */
 
 #include "MidiInterpreter.h"
-#include "Utils/MidiConstants.h"
+#include "../Utils/MidiConstants.h"
 
 MidiInterpreter::MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, juce::CriticalSection &noteStateMapLock)
     : noteStateMapArray(noteStateMapArray),

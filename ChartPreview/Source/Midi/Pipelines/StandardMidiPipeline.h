@@ -10,7 +10,7 @@
 #pragma once
 
 #include "MidiPipeline.h"
-#include "../Midi/MidiProcessor.h"
+#include "../Processing/MidiProcessor.h"
 
 class StandardMidiPipeline : public MidiPipeline
 {

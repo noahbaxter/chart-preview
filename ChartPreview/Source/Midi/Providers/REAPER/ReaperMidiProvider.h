@@ -1,10 +1,10 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../Utils/PPQ.h"
-#include "../Utils/Utils.h"
-#include "../Utils/TimeConverter.h"
-#include "../DebugTools/Logger.h"
+#include "../../../Utils/PPQ.h"
+#include "../../../Utils/Utils.h"
+#include "../../../Utils/TimeConverter.h"
+#include "../../../DebugTools/Logger.h"
 
 /**
  * Provides MIDI note data directly from REAPER's timeline for scrubbing and lookahead.

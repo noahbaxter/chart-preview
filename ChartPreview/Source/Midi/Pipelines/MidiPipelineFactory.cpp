@@ -10,7 +10,7 @@
 #include "MidiPipelineFactory.h"
 #include "StandardMidiPipeline.h"
 #include "ReaperMidiPipeline.h"
-#include "../Midi/ReaperMidiProvider.h"
+#include "../Providers/REAPER/ReaperMidiProvider.h"
 
 std::unique_ptr<MidiPipeline> MidiPipelineFactory::createPipeline(
     bool isReaperHost,

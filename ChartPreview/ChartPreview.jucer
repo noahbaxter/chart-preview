@@ -98,21 +98,43 @@
     </GROUP>
     <GROUP id="{577BFFED-2E98-5329-03C4-711F74395056}" name="Source">
       <GROUP id="{DE1AE764-3F26-9AE7-E8D2-54A14F69655C}" name="Midi">
-        <FILE id="xf1EYZ" name="MidiInterpreter.cpp" compile="1" resource="0"
-              file="Source/Midi/MidiInterpreter.cpp"/>
-        <FILE id="QmLbIt" name="MidiInterpreter.h" compile="0" resource="0"
-              file="Source/Midi/MidiInterpreter.h"/>
-        <FILE id="NRFvjU" name="MidiProcessor.cpp" compile="1" resource="0"
-              file="Source/Midi/MidiProcessor.cpp"/>
-        <FILE id="pIB2gC" name="MidiProcessor.h" compile="0" resource="0" file="Source/Midi/MidiProcessor.h"/>
-        <FILE id="ReaperProvider1" name="ReaperMidiProvider.cpp" compile="1" resource="0"
-              file="Source/Midi/ReaperMidiProvider.cpp"/>
-        <FILE id="ReaperProvider2" name="ReaperMidiProvider.h" compile="0" resource="0"
-              file="Source/Midi/ReaperMidiProvider.h"/>
-        <FILE id="MidiCache1" name="MidiCache.cpp" compile="1" resource="0"
-              file="Source/Midi/MidiCache.cpp"/>
-        <FILE id="MidiCache2" name="MidiCache.h" compile="0" resource="0"
-              file="Source/Midi/MidiCache.h"/>
+        <GROUP id="{Midi-Processing}" name="Processing">
+          <FILE id="xf1EYZ" name="MidiInterpreter.cpp" compile="1" resource="0"
+                file="Source/Midi/Processing/MidiInterpreter.cpp"/>
+          <FILE id="QmLbIt" name="MidiInterpreter.h" compile="0" resource="0"
+                file="Source/Midi/Processing/MidiInterpreter.h"/>
+          <FILE id="NRFvjU" name="MidiProcessor.cpp" compile="1" resource="0"
+                file="Source/Midi/Processing/MidiProcessor.cpp"/>
+          <FILE id="pIB2gC" name="MidiProcessor.h" compile="0" resource="0" file="Source/Midi/Processing/MidiProcessor.h"/>
+        </GROUP>
+        <GROUP id="{Midi-Providers}" name="Providers">
+          <GROUP id="{Midi-Providers-REAPER}" name="REAPER">
+            <FILE id="ReaperProvider1" name="ReaperMidiProvider.cpp" compile="1" resource="0"
+                  file="Source/Midi/Providers/REAPER/ReaperMidiProvider.cpp"/>
+            <FILE id="ReaperProvider2" name="ReaperMidiProvider.h" compile="0" resource="0"
+                  file="Source/Midi/Providers/REAPER/ReaperMidiProvider.h"/>
+            <FILE id="MidiCache1" name="MidiCache.cpp" compile="1" resource="0"
+                  file="Source/Midi/Providers/REAPER/MidiCache.cpp"/>
+            <FILE id="MidiCache2" name="MidiCache.h" compile="0" resource="0"
+                  file="Source/Midi/Providers/REAPER/MidiCache.h"/>
+          </GROUP>
+        </GROUP>
+        <GROUP id="{Midi-Pipelines}" name="Pipelines">
+          <FILE id="MidiPipeline1" name="MidiPipeline.h" compile="0" resource="0"
+                file="Source/Midi/Pipelines/MidiPipeline.h"/>
+          <FILE id="StandardPipeline1" name="StandardMidiPipeline.cpp" compile="1" resource="0"
+                file="Source/Midi/Pipelines/StandardMidiPipeline.cpp"/>
+          <FILE id="StandardPipeline2" name="StandardMidiPipeline.h" compile="0" resource="0"
+                file="Source/Midi/Pipelines/StandardMidiPipeline.h"/>
+          <FILE id="ReaperPipeline1" name="ReaperMidiPipeline.cpp" compile="1" resource="0"
+                file="Source/Midi/Pipelines/ReaperMidiPipeline.cpp"/>
+          <FILE id="ReaperPipeline2" name="ReaperMidiPipeline.h" compile="0" resource="0"
+                file="Source/Midi/Pipelines/ReaperMidiPipeline.h"/>
+          <FILE id="PipelineFactory1" name="MidiPipelineFactory.cpp" compile="1" resource="0"
+                file="Source/Midi/Pipelines/MidiPipelineFactory.cpp"/>
+          <FILE id="PipelineFactory2" name="MidiPipelineFactory.h" compile="0" resource="0"
+                file="Source/Midi/Pipelines/MidiPipelineFactory.h"/>
+        </GROUP>
         <GROUP id="{Midi-Utils}" name="Utils">
           <FILE id="MidiTypes" name="MidiTypes.h" compile="0" resource="0"
                 file="Source/Midi/Utils/MidiTypes.h"/>
@@ -139,22 +161,6 @@
       <GROUP id="{DebugTools1}" name="DebugTools">
         <FILE id="Logger1" name="Logger.h" compile="0" resource="0"
               file="Source/DebugTools/Logger.h"/>
-      </GROUP>
-      <GROUP id="{Pipeline1}" name="Pipeline">
-        <FILE id="MidiPipeline1" name="MidiPipeline.h" compile="0" resource="0"
-              file="Source/Pipeline/MidiPipeline.h"/>
-        <FILE id="StandardPipeline1" name="StandardMidiPipeline.cpp" compile="1" resource="0"
-              file="Source/Pipeline/StandardMidiPipeline.cpp"/>
-        <FILE id="StandardPipeline2" name="StandardMidiPipeline.h" compile="0" resource="0"
-              file="Source/Pipeline/StandardMidiPipeline.h"/>
-        <FILE id="ReaperPipeline1" name="ReaperMidiPipeline.cpp" compile="1" resource="0"
-              file="Source/Pipeline/ReaperMidiPipeline.cpp"/>
-        <FILE id="ReaperPipeline2" name="ReaperMidiPipeline.h" compile="0" resource="0"
-              file="Source/Pipeline/ReaperMidiPipeline.h"/>
-        <FILE id="PipelineFactory1" name="MidiPipelineFactory.cpp" compile="1" resource="0"
-              file="Source/Pipeline/MidiPipelineFactory.cpp"/>
-        <FILE id="PipelineFactory2" name="MidiPipelineFactory.h" compile="0" resource="0"
-              file="Source/Pipeline/MidiPipelineFactory.h"/>
       </GROUP>
       <GROUP id="{REAPER1}" name="REAPER">
         <FILE id="ReaperVST2Ext1" name="ReaperVST2Extensions.cpp" compile="1" resource="0"

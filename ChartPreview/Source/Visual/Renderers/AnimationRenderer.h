@@ -15,7 +15,7 @@
 
 #include <JuceHeader.h>
 #include <array>
-#include "../../Midi/MidiInterpreter.h"
+#include "../../Midi/Processing/MidiInterpreter.h"
 #include "../../Utils/Utils.h"
 #include "../../Utils/TimeConverter.h"
 #include "../Managers/AnimationManager.h"

@@ -10,7 +10,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../Utils/PPQ.h"
+#include "../../Utils/PPQ.h"
 
 class MidiPipeline
 {

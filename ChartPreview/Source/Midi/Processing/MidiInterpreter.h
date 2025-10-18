@@ -11,12 +11,12 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../Utils/Utils.h"
-#include "Utils/MidiTypes.h"
-#include "Utils/ChordAnalyzer.h"
-#include "Utils/InstrumentMapper.h"
-#include "Utils/GemCalculator.h"
-#include "Utils/LaneDetector.h"
+#include "../../Utils/Utils.h"
+#include "../Utils/MidiTypes.h"
+#include "../Utils/ChordAnalyzer.h"
+#include "../Utils/InstrumentMapper.h"
+#include "../Utils/GemCalculator.h"
+#include "../Utils/LaneDetector.h"
 
 class MidiInterpreter
 {

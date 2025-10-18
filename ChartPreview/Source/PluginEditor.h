@@ -10,7 +10,7 @@
 
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
-#include "Midi/MidiInterpreter.h"
+#include "Midi/Processing/MidiInterpreter.h"
 #include "Visual/Renderers/HighwayRenderer.h"
 #include "Visual/Managers/GridlineGenerator.h"
 #include "Utils/Utils.h"

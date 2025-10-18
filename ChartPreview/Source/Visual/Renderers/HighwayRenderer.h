@@ -11,7 +11,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../../Midi/MidiInterpreter.h"
+#include "../../Midi/Processing/MidiInterpreter.h"
 #include "../../Utils/Utils.h"
 #include "../../Utils/TimeConverter.h"
 #include "../Managers/AssetManager.h"

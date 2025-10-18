@@ -12,9 +12,9 @@
 #include "REAPER/ReaperVST2Extensions.h"
 #include "REAPER/ReaperVST3Extensions.h"
 #include "REAPER/ReaperIntegration.h"
-#include "Pipeline/MidiPipelineFactory.h"
-#include "Pipeline/MidiPipeline.h"
-#include "Pipeline/ReaperMidiPipeline.h"
+#include "Midi/Pipelines/MidiPipelineFactory.h"
+#include "Midi/Pipelines/MidiPipeline.h"
+#include "Midi/Pipelines/ReaperMidiPipeline.h"
 
 //==============================================================================
 ChartPreviewAudioProcessor::ChartPreviewAudioProcessor()

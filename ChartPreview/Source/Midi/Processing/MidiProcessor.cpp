@@ -1,6 +1,7 @@
 #include "MidiProcessor.h"
-#include "ReaperMidiProvider.h"
-#include "Utils/MidiConstants.h"
+#include "../Pipelines/MidiPipeline.h"
+#include "../Providers/REAPER/ReaperMidiProvider.h"
+#include "../Utils/MidiConstants.h"
 #include <set>
 
 MidiProcessor::MidiProcessor(juce::ValueTree &state) : state(state)
