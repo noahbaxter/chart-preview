@@ -15,7 +15,7 @@
 #include "../Utils/Utils.h"
 #include "../Utils/TimeConverter.h"
 #include "AssetManager.h"
-#include "HitAnimationManager.h"
+#include "AnimationRenderer.h"
 #include "PositionConstants.h"
 #include "PositionMath.h"
 #include "DrawingConstants.h"
@@ -35,12 +35,9 @@ class HighwayRenderer
         juce::ValueTree &state;
         MidiInterpreter &midiInterpreter;
         AssetManager assetManager;
-        HitAnimationManager hitAnimationManager;
+        AnimationRenderer animationRenderer;
         GlyphRenderer glyphRenderer;
         ColumnRenderer columnRenderer;
-
-        // Track the last note time per column to ensure every note triggers an animation
-        std::array<double, 7> lastNoteTimePerColumn = {-999.0, -999.0, -999.0, -999.0, -999.0, -999.0, -999.0};
 
         uint width = 0, height = 0;
 
@@ -75,21 +72,14 @@ class HighwayRenderer
         void drawFrame(const TimeBasedTrackFrame &gems, float position, double frameTime);
         void drawGem(uint gemColumn, const GemWrapper& gemMods, float position, double frameTime);
 
-        void detectAndTriggerHitAnimations(const TimeBasedTrackWindow& trackWindow, double windowStartTime, double windowEndTime);
-        void updateSustainStates(const TimeBasedSustainWindow& sustainWindow);
-        void drawHitAnimations(juce::Graphics &g);
-
         void drawSustainFromWindow(juce::Graphics &g, const TimeBasedSustainWindow& sustainWindow, double windowStartTime, double windowEndTime);
         void drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime);
-        juce::Rectangle<float> getSustainRect(uint gemColumn, float startPosition, float endPosition);
         void drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour);
-        std::pair<juce::Rectangle<float>, juce::Rectangle<float>> getSustainPositionRects(uint gemColumn, float startPosition, float endPosition);
         void draw(juce::Graphics &g, juce::Image *image, juce::Rectangle<float> position, float opacity)
         {
             g.setOpacity(opacity);
             g.drawImage(*image, position);
         };
-
 
         // Sustain rendering helper functions (delegated to ColumnRenderer)
         using LaneCorners = PositionConstants::LaneCorners;

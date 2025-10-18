@@ -178,8 +178,12 @@
               file="Source/Renderers/AssetManager.cpp"/>
         <FILE id="AssetManagerH" name="AssetManager.h" compile="0" resource="0"
               file="Source/Renderers/AssetManager.h"/>
-        <FILE id="HitAnimMgr" name="HitAnimationManager.h" compile="0" resource="0"
-              file="Source/Renderers/HitAnimationManager.h"/>
+        <FILE id="AnimMgr" name="AnimationManager.h" compile="0" resource="0"
+              file="Source/Renderers/AnimationManager.h"/>
+        <FILE id="AnimRendererCpp" name="AnimationRenderer.cpp" compile="1" resource="0"
+              file="Source/Renderers/AnimationRenderer.cpp"/>
+        <FILE id="AnimRendererH" name="AnimationRenderer.h" compile="0" resource="0"
+              file="Source/Renderers/AnimationRenderer.h"/>
       </GROUP>
       <GROUP id="{55EA985F-5ACA-CAC9-2027-97AEF2CDFFC7}" name="Utils">
         <FILE id="vXWw8v" name="PPQ.h" compile="0" resource="0" file="Source/Utils/PPQ.h"/>

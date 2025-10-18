@@ -75,9 +75,9 @@ namespace AnimationConstants {
     };
 }
 
-class HitAnimationManager {
+class AnimationManager {
 public:
-    HitAnimationManager() {
+    AnimationManager() {
         // Initialize animation slots for guitar (5 lanes) + drums (kick + 4 pads)
         animations.resize(6);  // 0=kick, 1-5=guitar/drum lanes
     }
