@@ -155,35 +155,45 @@
         <FILE id="ReaperTrackDetector2" name="ReaperTrackDetector.h" compile="0" resource="0"
               file="Source/REAPER/ReaperTrackDetector.h"/>
       </GROUP>
-      <GROUP id="{EFFC1A57-AA5E-2DEE-307B-5E9D2B4CE97B}" name="Renderers">
-        <FILE id="FUkCrf" name="HighwayRenderer.cpp" compile="1" resource="0"
-              file="Source/Renderers/HighwayRenderer.cpp"/>
-        <FILE id="DZ7Hvw" name="HighwayRenderer.h" compile="0" resource="0"
-              file="Source/Renderers/HighwayRenderer.h"/>
-        <FILE id="PosHFile" name="PositionConstants.h" compile="0" resource="0"
-              file="Source/Renderers/PositionConstants.h"/>
-        <FILE id="PosMathCppFile" name="PositionMath.cpp" compile="1" resource="0"
-              file="Source/Renderers/PositionMath.cpp"/>
-        <FILE id="PosMathHFile" name="PositionMath.h" compile="0" resource="0"
-              file="Source/Renderers/PositionMath.h"/>
-        <FILE id="GlyphCppFile" name="GlyphRenderer.cpp" compile="1" resource="0"
-              file="Source/Renderers/GlyphRenderer.cpp"/>
-        <FILE id="GlyphHFile" name="GlyphRenderer.h" compile="0" resource="0"
-              file="Source/Renderers/GlyphRenderer.h"/>
-        <FILE id="ColumnCppFile" name="ColumnRenderer.cpp" compile="1" resource="0"
-              file="Source/Renderers/ColumnRenderer.cpp"/>
-        <FILE id="ColumnHFile" name="ColumnRenderer.h" compile="0" resource="0"
-              file="Source/Renderers/ColumnRenderer.h"/>
-        <FILE id="AssetManagerCpp" name="AssetManager.cpp" compile="1" resource="0"
-              file="Source/Renderers/AssetManager.cpp"/>
-        <FILE id="AssetManagerH" name="AssetManager.h" compile="0" resource="0"
-              file="Source/Renderers/AssetManager.h"/>
-        <FILE id="AnimMgr" name="AnimationManager.h" compile="0" resource="0"
-              file="Source/Renderers/AnimationManager.h"/>
-        <FILE id="AnimRendererCpp" name="AnimationRenderer.cpp" compile="1" resource="0"
-              file="Source/Renderers/AnimationRenderer.cpp"/>
-        <FILE id="AnimRendererH" name="AnimationRenderer.h" compile="0" resource="0"
-              file="Source/Renderers/AnimationRenderer.h"/>
+      <GROUP id="{EFFC1A57-AA5E-2DEE-307B-5E9D2B4CE97B}" name="Visual">
+        <GROUP id="{Visual-Renderers}" name="Renderers">
+          <FILE id="FUkCrf" name="HighwayRenderer.cpp" compile="1" resource="0"
+                file="Source/Visual/Renderers/HighwayRenderer.cpp"/>
+          <FILE id="DZ7Hvw" name="HighwayRenderer.h" compile="0" resource="0"
+                file="Source/Visual/Renderers/HighwayRenderer.h"/>
+          <FILE id="GlyphCppFile" name="GlyphRenderer.cpp" compile="1" resource="0"
+                file="Source/Visual/Renderers/GlyphRenderer.cpp"/>
+          <FILE id="GlyphHFile" name="GlyphRenderer.h" compile="0" resource="0"
+                file="Source/Visual/Renderers/GlyphRenderer.h"/>
+          <FILE id="ColumnCppFile" name="ColumnRenderer.cpp" compile="1" resource="0"
+                file="Source/Visual/Renderers/ColumnRenderer.cpp"/>
+          <FILE id="ColumnHFile" name="ColumnRenderer.h" compile="0" resource="0"
+                file="Source/Visual/Renderers/ColumnRenderer.h"/>
+          <FILE id="AnimRendererCpp" name="AnimationRenderer.cpp" compile="1" resource="0"
+                file="Source/Visual/Renderers/AnimationRenderer.cpp"/>
+          <FILE id="AnimRendererH" name="AnimationRenderer.h" compile="0" resource="0"
+                file="Source/Visual/Renderers/AnimationRenderer.h"/>
+        </GROUP>
+        <GROUP id="{Visual-Utils}" name="Utils">
+          <FILE id="PosHFile" name="PositionConstants.h" compile="0" resource="0"
+                file="Source/Visual/Utils/PositionConstants.h"/>
+          <FILE id="PosMathCppFile" name="PositionMath.cpp" compile="1" resource="0"
+                file="Source/Visual/Utils/PositionMath.cpp"/>
+          <FILE id="PosMathHFile" name="PositionMath.h" compile="0" resource="0"
+                file="Source/Visual/Utils/PositionMath.h"/>
+          <FILE id="DrawingConstantsFile" name="DrawingConstants.h" compile="0" resource="0"
+                file="Source/Visual/Utils/DrawingConstants.h"/>
+        </GROUP>
+        <GROUP id="{Visual-Managers}" name="Managers">
+          <FILE id="AssetManagerCpp" name="AssetManager.cpp" compile="1" resource="0"
+                file="Source/Visual/Managers/AssetManager.cpp"/>
+          <FILE id="AssetManagerH" name="AssetManager.h" compile="0" resource="0"
+                file="Source/Visual/Managers/AssetManager.h"/>
+          <FILE id="AnimMgr" name="AnimationManager.h" compile="0" resource="0"
+                file="Source/Visual/Managers/AnimationManager.h"/>
+          <FILE id="GridlineGenFile" name="GridlineGenerator.h" compile="0" resource="0"
+                file="Source/Visual/Managers/GridlineGenerator.h"/>
+        </GROUP>
       </GROUP>
       <GROUP id="{55EA985F-5ACA-CAC9-2027-97AEF2CDFFC7}" name="Utils">
         <FILE id="vXWw8v" name="PPQ.h" compile="0" resource="0" file="Source/Utils/PPQ.h"/>

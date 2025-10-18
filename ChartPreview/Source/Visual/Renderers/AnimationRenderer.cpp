@@ -11,7 +11,7 @@
 */
 
 #include "AnimationRenderer.h"
-#include "PositionConstants.h"
+#include "../Utils/PositionConstants.h"
 
 using namespace AnimationConstants;
 using namespace PositionConstants;

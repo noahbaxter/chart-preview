@@ -9,8 +9,8 @@
 */
 
 #include "HighwayRenderer.h"
-#include "DrawingConstants.h"
-#include "PositionConstants.h"
+#include "../Utils/DrawingConstants.h"
+#include "../Utils/PositionConstants.h"
 
 using namespace PositionConstants;
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../Utils/Utils.h"
+#include "../../Utils/Utils.h"
 
 /**
  * Manages hit animations for notes on the strikeline.

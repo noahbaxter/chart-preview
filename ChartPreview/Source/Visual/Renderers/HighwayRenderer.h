@@ -11,14 +11,14 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../Midi/MidiInterpreter.h"
-#include "../Utils/Utils.h"
-#include "../Utils/TimeConverter.h"
-#include "AssetManager.h"
+#include "../../Midi/MidiInterpreter.h"
+#include "../../Utils/Utils.h"
+#include "../../Utils/TimeConverter.h"
+#include "../Managers/AssetManager.h"
 #include "AnimationRenderer.h"
-#include "PositionConstants.h"
-#include "PositionMath.h"
-#include "DrawingConstants.h"
+#include "../Utils/PositionConstants.h"
+#include "../Utils/PositionMath.h"
+#include "../Utils/DrawingConstants.h"
 #include "GlyphRenderer.h"
 #include "ColumnRenderer.h"
 

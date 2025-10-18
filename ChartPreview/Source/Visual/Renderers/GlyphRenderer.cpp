@@ -12,7 +12,7 @@
 */
 
 #include "GlyphRenderer.h"
-#include "PositionConstants.h"
+#include "../Utils/PositionConstants.h"
 
 using namespace PositionConstants;
 

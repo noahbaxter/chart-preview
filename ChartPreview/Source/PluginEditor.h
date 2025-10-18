@@ -11,8 +11,8 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "Midi/MidiInterpreter.h"
-#include "Renderers/HighwayRenderer.h"
-#include "Renderers/GridlineGenerator.h"
+#include "Visual/Renderers/HighwayRenderer.h"
+#include "Visual/Managers/GridlineGenerator.h"
 #include "Utils/Utils.h"
 #include "Utils/TimeConverter.h"
 

@@ -15,13 +15,13 @@
 
 #include <JuceHeader.h>
 #include <array>
-#include "../Midi/MidiInterpreter.h"
-#include "../Utils/Utils.h"
-#include "../Utils/TimeConverter.h"
-#include "AnimationManager.h"
+#include "../../Midi/MidiInterpreter.h"
+#include "../../Utils/Utils.h"
+#include "../../Utils/TimeConverter.h"
+#include "../Managers/AnimationManager.h"
 #include "GlyphRenderer.h"
-#include "AssetManager.h"
-#include "DrawingConstants.h"
+#include "../Managers/AssetManager.h"
+#include "../Utils/DrawingConstants.h"
 
 class AnimationRenderer
 {

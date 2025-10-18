@@ -15,7 +15,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "PositionConstants.h"
+#include "../Utils/PositionConstants.h"
 
 // Windows compatibility
 #if defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(_MSC_VER)
