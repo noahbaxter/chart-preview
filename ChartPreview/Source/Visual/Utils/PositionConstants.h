@@ -29,11 +29,27 @@ namespace PositionConstants
     };
 
     // Normalized coordinate data for positioning elements
+    // x,y
+    // 0,0 ----- 1,0
+    // |          |
+    // |          |
+    // |          |
+    // 0,1 ----- 1,1
+
+    // x2, y2, w2
+    // | | | | | |  FAR END
+    // | | | | | |
+    // | | | | | |
+    // | | | | | |
+    // | | | | | |
+    // v v v v v v  STRIKELINE
+    // x1, y1, w1
+    
     struct NormalizedCoordinates
     {
-        float normY1, normY2;      // Y position at far (1) and near (0) end
-        float normX1, normX2;      // X position at far and near end
-        float normWidth1, normWidth2;  // Width at far and near end
+        float normX1, normX2;
+        float normY1, normY2;
+        float normWidth1, normWidth2;
     };
 
     // 3D perspective calculation parameters
@@ -77,38 +93,40 @@ namespace PositionConstants
 
     //==============================================================================
     // Coordinate lookup tables (column 0 is always open/kick, columns 1-5 are pads)
+    // { normX1, normX2, normY1, normY2, normWidth1, normWidth2 }
+
     constexpr NormalizedCoordinates guitarGlyphCoords[] = {
-        {0.745f, 0.234f, 0.16f, 0.34f, 0.68f, 0.32f},   // Open note
-        {0.73f, 0.22f, 0.20f, 0.363f, 0.125f, 0.065f},  // Col 1 - Green
-        {0.73f, 0.22f, 0.320f, 0.412f, 0.125f, 0.065f}, // Col 2 - Red
-        {0.73f, 0.22f, 0.440f, 0.465f, 0.125f, 0.065f}, // Col 3 - Yellow
-        {0.73f, 0.22f, 0.557f, 0.524f, 0.125f, 0.065f}, // Col 4 - Blue
-        {0.73f, 0.22f, 0.673f, 0.580f, 0.125f, 0.065f}  // Col 5 - Orange
+        {0.16f, 0.34f, 0.745f, 0.234f, 0.68f, 0.32f},   // Open note
+        {0.205f, 0.353f, 0.73f, 0.22f, 0.125f, 0.065f}, // Col 1 - Green
+        {0.320f, 0.412f, 0.73f, 0.22f, 0.125f, 0.065f}, // Col 2 - Red
+        {0.440f, 0.465f, 0.73f, 0.22f, 0.125f, 0.065f}, // Col 3 - Yellow
+        {0.557f, 0.524f, 0.73f, 0.22f, 0.125f, 0.065f}, // Col 4 - Blue
+        {0.673f, 0.580f, 0.73f, 0.22f, 0.125f, 0.065f}  // Col 5 - Orange
     };
 
     constexpr NormalizedCoordinates guitarLaneCoords[] = {
-        {0.73f, 0.234f, 0.16f, 0.34f, 0.68f, 0.32f},    // Open note
-        {0.71f, 0.22f, 0.227f, 0.363f, 0.105f, 0.055f}, // Col 1 - Green
-        {0.71f, 0.22f, 0.322f, 0.412f, 0.125f, 0.065f}, // Col 2 - Red
-        {0.71f, 0.22f, 0.440f, 0.465f, 0.125f, 0.065f}, // Col 3 - Yellow
-        {0.71f, 0.22f, 0.555f, 0.524f, 0.125f, 0.065f}, // Col 4 - Blue
-        {0.71f, 0.22f, 0.670f, 0.580f, 0.125f, 0.065f}  // Col 5 - Orange
+        {0.16f, 0.34f, 0.73f, 0.234f, 0.68f, 0.32f},    // Open note
+        {0.227f, 0.363f, 0.71f, 0.22f, 0.105f, 0.055f}, // Col 1 - Green
+        {0.322f, 0.412f, 0.71f, 0.22f, 0.125f, 0.065f}, // Col 2 - Red
+        {0.440f, 0.465f, 0.71f, 0.22f, 0.125f, 0.065f}, // Col 3 - Yellow
+        {0.555f, 0.524f, 0.71f, 0.22f, 0.125f, 0.065f}, // Col 4 - Blue
+        {0.670f, 0.580f, 0.71f, 0.22f, 0.125f, 0.065f}  // Col 5 - Orange
     };
 
     constexpr NormalizedCoordinates drumGlyphCoords[] = {
-        {0.75f, 0.239f, 0.16f, 0.34f, 0.68f, 0.32f},     // Kick
-        {0.72f, 0.22f, 0.22f, 0.365f, 0.147f, 0.0714f},  // Col 1 - Red
-        {0.72f, 0.22f, 0.360f, 0.430f, 0.147f, 0.0714f}, // Col 2 - Yellow
-        {0.72f, 0.22f, 0.497f, 0.495f, 0.147f, 0.0714f}, // Col 3 - Blue
-        {0.72f, 0.22f, 0.640f, 0.564f, 0.147f, 0.0714f}  // Col 4 - Green
+        {0.16f, 0.34f, 0.75f, 0.239f, 0.68f, 0.32f},     // Kick
+        {0.22f, 0.365f, 0.72f, 0.22f, 0.147f, 0.0714f},  // Col 1 - Red
+        {0.360f, 0.430f, 0.72f, 0.22f, 0.147f, 0.0714f}, // Col 2 - Yellow
+        {0.497f, 0.495f, 0.72f, 0.22f, 0.147f, 0.0714f}, // Col 3 - Blue
+        {0.640f, 0.564f, 0.72f, 0.22f, 0.147f, 0.0714f}  // Col 4 - Green
     };
 
     constexpr NormalizedCoordinates drumLaneCoords[] = {
-        {0.735f, 0.239f, 0.16f, 0.34f, 0.68f, 0.32f},    // Kick
-        {0.70f, 0.22f, 0.222f, 0.37f, 0.147f, 0.0714f},  // Col 1 - Red
-        {0.70f, 0.22f, 0.360f, 0.430f, 0.147f, 0.0714f}, // Col 2 - Yellow
-        {0.70f, 0.22f, 0.497f, 0.495f, 0.147f, 0.0714f}, // Col 3 - Blue
-        {0.70f, 0.22f, 0.630f, 0.564f, 0.147f, 0.0714f}  // Col 4 - Green
+        {0.16f, 0.34f, 0.735f, 0.239f, 0.68f, 0.32f},    // Kick
+        {0.222f, 0.37f, 0.70f, 0.22f, 0.147f, 0.0714f},  // Col 1 - Red
+        {0.360f, 0.430f, 0.70f, 0.22f, 0.147f, 0.0714f}, // Col 2 - Yellow
+        {0.497f, 0.495f, 0.70f, 0.22f, 0.147f, 0.0714f}, // Col 3 - Blue
+        {0.630f, 0.564f, 0.70f, 0.22f, 0.147f, 0.0714f}  // Col 4 - Green
     };
 
     //==============================================================================

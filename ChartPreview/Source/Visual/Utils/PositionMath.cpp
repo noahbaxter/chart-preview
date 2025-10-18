@@ -32,7 +32,7 @@ NormalizedCoordinates PositionMath::applyWidthScaling(
     float adjustedNormX1 = coords.normX1 + (coords.normWidth1 - scaledNormWidth1) / 2.0f;
     float adjustedNormX2 = coords.normX2 + (coords.normWidth2 - scaledNormWidth2) / 2.0f;
 
-    return {coords.normY1, coords.normY2, adjustedNormX1, adjustedNormX2, scaledNormWidth1, scaledNormWidth2};
+    return {adjustedNormX1, adjustedNormX2, coords.normY1, coords.normY2, scaledNormWidth1, scaledNormWidth2};
 }
 
 //==============================================================================
