@@ -61,8 +61,9 @@ Chart Preview is an open source replacement for RBN Preview, built from the grou
 
 ## Documentation
 
-- **[📋 Development Roadmap](docs/TODO.md)** - Current tasks, known issues, and future plans
+- **[🗺️ Detailed Roadmap](docs/UPCOMING_FEATURES.md)** - Implementation phases with effort estimates
 - **[🔧 Build Instructions](docs/BUILDING.md)** - How to compile from source
+- **[📚 Documentation Hub](docs/)** - Complete reference guide
 
 ### What's New in v0.9.0
 - ✨ **Hit Animations** - Per-column hit indicators with kick bar flashes (17 new animation frames!)
