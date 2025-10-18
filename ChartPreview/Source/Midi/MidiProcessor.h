@@ -2,7 +2,10 @@
 #include <JuceHeader.h>
 #include "../Utils/Utils.h"
 #include "../Utils/TimeConverter.h"
-#include "MidiUtility.h"
+#include "Utils/MidiTypes.h"
+#include "Utils/ChordAnalyzer.h"
+#include "Utils/InstrumentMapper.h"
+#include "Utils/GemCalculator.h"
 
 // Forward declaration to avoid circular dependency
 class ReaperMidiProvider;
@@ -53,8 +56,6 @@ private:
 
     PPQ calculatePPQSegment(uint samples, double bpm, double sampleRate);
     void cleanupOldEvents(PPQ startPPQ, PPQ endPPQ, PPQ latencyPPQ);
-    
-    const uint maxNumMessagesPerBlock = 256;
     void processMidiMessages(juce::MidiBuffer &midiMessages, PPQ startPPQ, double sampleRate, double bpm);
     void processNoteMessage(const juce::MidiMessage &midiMessage, PPQ messagePPQ);
     bool isChordFormed(uint pitch, PPQ position);

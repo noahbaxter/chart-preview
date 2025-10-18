@@ -13,6 +13,8 @@
 #include "../Midi/MidiProcessor.h"
 #include "../Midi/MidiCache.h"
 #include "../Midi/ReaperMidiProvider.h"
+#include "../Midi/Utils/InstrumentMapper.h"
+#include "../Midi/Utils/ChordAnalyzer.h"
 #include "../Utils/Utils.h"
 
 class ReaperMidiPipeline : public MidiPipeline

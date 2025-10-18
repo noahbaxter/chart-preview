@@ -12,7 +12,11 @@
 
 #include <JuceHeader.h>
 #include "../Utils/Utils.h"
-#include "MidiUtility.h"
+#include "Utils/MidiTypes.h"
+#include "Utils/ChordAnalyzer.h"
+#include "Utils/InstrumentMapper.h"
+#include "Utils/GemCalculator.h"
+#include "Utils/LaneDetector.h"
 
 class MidiInterpreter
 {
@@ -25,7 +29,7 @@ class MidiInterpreter
 
 		bool isNoteHeld(uint pitch, PPQ position)
 		{
-			return MidiUtility::isNoteHeld(pitch, position, noteStateMapArray, noteStateMapLock);
+			return ChordAnalyzer::isNoteHeld(pitch, position, noteStateMapArray, noteStateMapLock);
 		}
 
 		TrackWindow generateTrackWindow(PPQ trackWindowStart, PPQ trackWindowEnd);

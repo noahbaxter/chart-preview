@@ -11,6 +11,7 @@
 
 #include <JuceHeader.h>
 #include "../Utils/PPQ.h"
+#include "../Midi/Utils/InstrumentMapper.h"
 
 class ChartPreviewAudioProcessor;
 

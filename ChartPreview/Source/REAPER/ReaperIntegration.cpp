@@ -113,13 +113,13 @@ void ReaperIntegration::processReaperTimelineMidi(
 
     if (isPart(state, Part::DRUMS))
     {
-        validPlayablePitches = MidiUtility::getDrumPitchesForSkill(currentSkill);
+        validPlayablePitches = InstrumentMapper::getDrumPitchesForSkill(currentSkill);
         // Drum modifiers: tom markers (110-112), star power (116), lanes (126-127)
         validModifierPitches = {110, 111, 112, 116, 126, 127};
     }
     else if (isPart(state, Part::GUITAR))
     {
-        validPlayablePitches = MidiUtility::getGuitarPitchesForSkill(currentSkill);
+        validPlayablePitches = InstrumentMapper::getGuitarPitchesForSkill(currentSkill);
         // Guitar modifiers: HOPO/STRUM (per difficulty), TAP (104), star power (116), lanes (126-127)
         using Guitar = MidiPitchDefinitions::Guitar;
         switch (currentSkill)

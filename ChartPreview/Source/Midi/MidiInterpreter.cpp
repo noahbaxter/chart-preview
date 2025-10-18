@@ -9,6 +9,7 @@
 */
 
 #include "MidiInterpreter.h"
+#include "Utils/MidiConstants.h"
 
 MidiInterpreter::MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, juce::CriticalSection &noteStateMapLock)
     : noteStateMapArray(noteStateMapArray),
@@ -29,7 +30,7 @@ TrackWindow MidiInterpreter::generateTrackWindow(PPQ trackWindowStart, PPQ track
 
     const juce::ScopedLock lock(noteStateMapLock);
 
-    for (uint pitch = 0; pitch < 128; pitch++)
+    for (uint pitch = MIDI_PITCH_MIN; pitch < MIDI_PITCH_COUNT; pitch++)
     {
         const NoteStateMap& noteStateMap = noteStateMapArray[pitch];
         auto it = noteStateMap.lower_bound(trackWindowStart);
@@ -73,7 +74,7 @@ TrackWindow MidiInterpreter::generateFakeTrackWindow(PPQ trackWindowStart, PPQ t
     std::vector<uint> lanes = {1, 2, 3, 4, 5};
     // std::vector<uint> lanes = {0};
 
-    uint numNotes = 10;
+    uint numNotes = DEBUG_FAKE_TRACK_WINDOW_NOTE_COUNT;
 
     for (uint lane : lanes) {
         for (uint n = 0; n < numNotes; n++)
@@ -95,14 +96,14 @@ SustainWindow MidiInterpreter::generateSustainWindow(PPQ trackWindowStart, PPQ t
     // return generateFakeSustains(trackWindowStart, trackWindowEnd);
 
     SustainWindow sustainWindow;
-    
+
     // Lock the noteStateMapArray during iteration to prevent crashes
     const juce::ScopedLock lock(noteStateMapLock);
-    
+
     using Drums = MidiPitchDefinitions::Drums;
     using Guitar = MidiPitchDefinitions::Guitar;
-    
-    for (uint pitch = 0; pitch < 128; pitch++)
+
+    for (uint pitch = MIDI_PITCH_MIN; pitch < MIDI_PITCH_COUNT; pitch++)
     {
         const NoteStateMap& noteStateMap = noteStateMapArray[pitch];
         
@@ -133,11 +134,11 @@ SustainWindow MidiInterpreter::generateSustainWindow(PPQ trackWindowStart, PPQ t
                 if (pitch == (uint)Drums::LANE_1 || pitch == (uint)Drums::LANE_2 ||
                     pitch == (uint)Guitar::LANE_1 || pitch == (uint)Guitar::LANE_2) {
                     // Extend lane start time slightly earlier for better visibility
-                    PPQ extendedStartPPQ = notePPQ - PPQ(0.1); // Start 0.1 beats earlier
+                    PPQ extendedStartPPQ = notePPQ - MIDI_LANE_EXTENSION_TIME;
                     
                     // Use lane detection logic to determine which columns to create lanes for
-                    auto lanes = MidiUtility::detectLanes(pitch, extendedStartPPQ, noteOffPPQ, 
-                                                          velocity, state, noteStateMapArray, noteStateMapLock);
+                    auto lanes = LaneDetector::detectLanes(pitch, extendedStartPPQ, noteOffPPQ,
+                                                           velocity, state, noteStateMapArray, noteStateMapLock);
                     
                     // Add detected lanes to window
                     for (const auto& lane : lanes) {
@@ -147,8 +148,8 @@ SustainWindow MidiInterpreter::generateSustainWindow(PPQ trackWindowStart, PPQ t
                 // Sustains (guitar only)
                 else if (isPart(state, Part::GUITAR)) {
                     PPQ duration = noteOffPPQ - notePPQ;
-                    if (duration >= MIN_SUSTAIN_LENGTH) {
-                        uint gemColumn = MidiUtility::getGuitarGemColumn(pitch, state);
+                    if (duration >= MIDI_MIN_SUSTAIN_LENGTH) {
+                        uint gemColumn = InstrumentMapper::getGuitarColumn(pitch, (SkillLevel)((int)state.getProperty("skillLevel")));
                         if (gemColumn < LANE_COUNT) {
                             // Check if star power is held at the start of this sustain
                             bool isSpHeld = isNoteHeld(static_cast<uint>(Guitar::SP), notePPQ);
@@ -211,7 +212,7 @@ TrackFrame MidiInterpreter::generateEmptyTrackFrame()
 
 void MidiInterpreter::addGuitarEventToFrame(TrackFrame &frame, PPQ position, uint pitch, Gem gemType)
 {
-    uint gemColumn = MidiUtility::getGuitarGemColumn(pitch, state);
+    uint gemColumn = InstrumentMapper::getGuitarColumn(pitch, (SkillLevel)((int)state.getProperty("skillLevel")));
     if (gemColumn < LANE_COUNT) {
         // Check if star power is held at this position (MIDI pitch 116)
         using Guitar = MidiPitchDefinitions::Guitar;
@@ -222,7 +223,7 @@ void MidiInterpreter::addGuitarEventToFrame(TrackFrame &frame, PPQ position, uin
 
 void MidiInterpreter::addDrumEventToFrame(TrackFrame &frame, PPQ position, uint pitch, Gem gemType)
 {
-    uint gemColumn = MidiUtility::getDrumGemColumn(pitch, state);
+    uint gemColumn = InstrumentMapper::getDrumColumn(pitch, (SkillLevel)((int)state.getProperty("skillLevel")), (bool)state.getProperty("kick2x"));
     if (gemColumn < LANE_COUNT) {
         // Check if star power is held at this position (MIDI pitch 116)
         using Drums = MidiPitchDefinitions::Drums;

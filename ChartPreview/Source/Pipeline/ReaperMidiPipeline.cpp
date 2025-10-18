@@ -396,11 +396,11 @@ void ReaperMidiPipeline::processPlayableNotes(const std::vector<MidiCache::Cache
 
     if (isPart(state, Part::DRUMS))
     {
-        validPlayablePitches = MidiUtility::getDrumPitchesForSkill(currentSkill);
+        validPlayablePitches = InstrumentMapper::getDrumPitchesForSkill(currentSkill);
     }
     else if (isPart(state, Part::GUITAR))
     {
-        validPlayablePitches = MidiUtility::getGuitarPitchesForSkill(currentSkill);
+        validPlayablePitches = InstrumentMapper::getGuitarPitchesForSkill(currentSkill);
     }
 
     // Track guitar note positions for chord fixing (set automatically handles uniqueness)
@@ -441,9 +441,9 @@ void ReaperMidiPipeline::processPlayableNotes(const std::vector<MidiCache::Cache
     if (isPart(state, Part::GUITAR) && !guitarNotePositions.empty())
     {
         std::vector<PPQ> positions(guitarNotePositions.begin(), guitarNotePositions.end());
-        MidiUtility::fixChordHOPOs(positions, currentSkill,
-                                   midiProcessor.noteStateMapArray,
-                                   midiProcessor.noteStateMapLock);
+        ChordAnalyzer::fixChordHOPOs(positions, currentSkill,
+                                     midiProcessor.noteStateMapArray,
+                                     midiProcessor.noteStateMapLock);
     }
 }
 

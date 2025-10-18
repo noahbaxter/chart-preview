@@ -1,5 +1,6 @@
 #include "MidiProcessor.h"
 #include "ReaperMidiProvider.h"
+#include "Utils/MidiConstants.h"
 #include <set>
 
 MidiProcessor::MidiProcessor(juce::ValueTree &state) : state(state)
@@ -118,12 +119,12 @@ void MidiProcessor::processMidiMessages(juce::MidiBuffer &midiMessages, PPQ star
             uint pitch = midiMessage.getNoteNumber();
             
             // Identify sustained modifier notes for priority processing
-            bool isSustainedModifier = MidiUtility::isSustainedModifierPitch(pitch);
+            bool isSustainedModifier = InstrumentMapper::isSustainedModifierPitch(pitch);
             
             noteMessages.push_back({midiMessage, messagePositionPPQ, pitch, isSustainedModifier});
         }
         
-        if (++numMessages >= maxNumMessagesPerBlock) break;
+        if (++numMessages >= MIDI_MAX_MESSAGES_PER_BLOCK) break;
     }
     
     // Sort so sustained modifier notes are processed first (for all instruments)
@@ -182,12 +183,12 @@ void MidiProcessor::processNoteMessage(const juce::MidiMessage &midiMessage, PPQ
 
 bool MidiProcessor::isChordFormed(uint pitch, PPQ position)
 {
-    std::vector<uint> guitarPitches = MidiUtility::getGuitarPitchesForSkill((SkillLevel)((int)state.getProperty("skillLevel")));
+    std::vector<uint> guitarPitches = InstrumentMapper::getGuitarPitchesForSkill((SkillLevel)((int)state.getProperty("skillLevel")));
 
     int chordNoteCount = 0;
     const juce::ScopedLock lock(noteStateMapLock);
     for (uint guitarPitch : guitarPitches) {
-        if (MidiUtility::isNoteHeldWithTolerance(guitarPitch, position, noteStateMapArray, noteStateMapLock)) {
+        if (ChordAnalyzer::isNoteHeldWithTolerance(guitarPitch, position, noteStateMapArray, noteStateMapLock)) {
             chordNoteCount++;
             if (chordNoteCount >= 2) {
                 return true; // 2+ notes = chord
@@ -201,12 +202,12 @@ bool MidiProcessor::isChordFormed(uint pitch, PPQ position)
 void MidiProcessor::fixChordHOPOs(uint pitch, PPQ position)
 {
     // Get all guitar pitches and find the chord notes
-    std::vector<uint> guitarPitches = MidiUtility::getGuitarPitchesForSkill((SkillLevel)((int)state.getProperty("skillLevel")));
+    std::vector<uint> guitarPitches = InstrumentMapper::getGuitarPitchesForSkill((SkillLevel)((int)state.getProperty("skillLevel")));
     std::vector<uint> chordPitches;
 
     const juce::ScopedLock lock(noteStateMapLock);
     for (uint guitarPitch : guitarPitches) {
-        if (MidiUtility::isNoteHeldWithTolerance(guitarPitch, position, noteStateMapArray, noteStateMapLock)) {
+        if (ChordAnalyzer::isNoteHeldWithTolerance(guitarPitch, position, noteStateMapArray, noteStateMapLock)) {
             chordPitches.push_back(guitarPitch);
         }
     }
@@ -216,8 +217,8 @@ void MidiProcessor::fixChordHOPOs(uint pitch, PPQ position)
         auto& noteStateMap = noteStateMapArray[chordPitch];
 
         // Find notes within chord tolerance of this position
-        PPQ searchStart = position - CHORD_TOLERANCE;
-        PPQ searchEnd = position + CHORD_TOLERANCE;
+        PPQ searchStart = position - MIDI_CHORD_TOLERANCE;
+        PPQ searchEnd = position + MIDI_CHORD_TOLERANCE;
 
         auto lower = noteStateMap.lower_bound(searchStart);
         auto upper = noteStateMap.upper_bound(searchEnd);
@@ -233,23 +234,23 @@ void MidiProcessor::fixChordHOPOs(uint pitch, PPQ position)
 
 uint MidiProcessor::getGuitarGemColumn(uint pitch)
 {
-    return MidiUtility::getGuitarGemColumn(pitch, state);
+    return InstrumentMapper::getGuitarColumn(pitch, (SkillLevel)((int)state.getProperty("skillLevel")));
 }
 
 Gem MidiProcessor::getGuitarGemType(uint pitch, PPQ position)
 {
-    return MidiUtility::getGuitarGemType(pitch, position, state, noteStateMapArray, noteStateMapLock);
+    return GemCalculator::getGuitarGemType(pitch, position, state, noteStateMapArray, noteStateMapLock);
 }
 
 
 uint MidiProcessor::getDrumGemColumn(uint pitch)
 {
-    return MidiUtility::getDrumGemColumn(pitch, state);
+    return InstrumentMapper::getDrumColumn(pitch, (SkillLevel)((int)state.getProperty("skillLevel")), (bool)state.getProperty("kick2x"));
 }
 
 Gem MidiProcessor::getDrumGemType(uint pitch, PPQ position, Dynamic dynamic)
 {
-    return MidiUtility::getDrumGemType(pitch, position, dynamic, state, noteStateMapArray, noteStateMapLock);
+    return GemCalculator::getDrumGemType(pitch, position, dynamic, state, noteStateMapArray, noteStateMapLock);
 }
 
 void MidiProcessor::refreshMidiDisplay()

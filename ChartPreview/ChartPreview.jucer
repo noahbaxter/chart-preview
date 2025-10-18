@@ -105,9 +105,6 @@
         <FILE id="NRFvjU" name="MidiProcessor.cpp" compile="1" resource="0"
               file="Source/Midi/MidiProcessor.cpp"/>
         <FILE id="pIB2gC" name="MidiProcessor.h" compile="0" resource="0" file="Source/Midi/MidiProcessor.h"/>
-        <FILE id="MdUtil1" name="MidiUtility.cpp" compile="1" resource="0"
-              file="Source/Midi/MidiUtility.cpp"/>
-        <FILE id="MdUtil2" name="MidiUtility.h" compile="0" resource="0" file="Source/Midi/MidiUtility.h"/>
         <FILE id="ReaperProvider1" name="ReaperMidiProvider.cpp" compile="1" resource="0"
               file="Source/Midi/ReaperMidiProvider.cpp"/>
         <FILE id="ReaperProvider2" name="ReaperMidiProvider.h" compile="0" resource="0"
@@ -116,6 +113,28 @@
               file="Source/Midi/MidiCache.cpp"/>
         <FILE id="MidiCache2" name="MidiCache.h" compile="0" resource="0"
               file="Source/Midi/MidiCache.h"/>
+        <GROUP id="{Midi-Utils}" name="Utils">
+          <FILE id="MidiTypes" name="MidiTypes.h" compile="0" resource="0"
+                file="Source/Midi/Utils/MidiTypes.h"/>
+          <FILE id="MidiConstants" name="MidiConstants.h" compile="0" resource="0"
+                file="Source/Midi/Utils/MidiConstants.h"/>
+          <FILE id="InstrumentMapper1" name="InstrumentMapper.cpp" compile="1" resource="0"
+                file="Source/Midi/Utils/InstrumentMapper.cpp"/>
+          <FILE id="InstrumentMapper2" name="InstrumentMapper.h" compile="0" resource="0"
+                file="Source/Midi/Utils/InstrumentMapper.h"/>
+          <FILE id="GemCalculator1" name="GemCalculator.cpp" compile="1" resource="0"
+                file="Source/Midi/Utils/GemCalculator.cpp"/>
+          <FILE id="GemCalculator2" name="GemCalculator.h" compile="0" resource="0"
+                file="Source/Midi/Utils/GemCalculator.h"/>
+          <FILE id="ChordAnalyzer1" name="ChordAnalyzer.cpp" compile="1" resource="0"
+                file="Source/Midi/Utils/ChordAnalyzer.cpp"/>
+          <FILE id="ChordAnalyzer2" name="ChordAnalyzer.h" compile="0" resource="0"
+                file="Source/Midi/Utils/ChordAnalyzer.h"/>
+          <FILE id="LaneDetector1" name="LaneDetector.cpp" compile="1" resource="0"
+                file="Source/Midi/Utils/LaneDetector.cpp"/>
+          <FILE id="LaneDetector2" name="LaneDetector.h" compile="0" resource="0"
+                file="Source/Midi/Utils/LaneDetector.h"/>
+        </GROUP>
       </GROUP>
       <GROUP id="{DebugTools1}" name="DebugTools">
         <FILE id="Logger1" name="Logger.h" compile="0" resource="0"
