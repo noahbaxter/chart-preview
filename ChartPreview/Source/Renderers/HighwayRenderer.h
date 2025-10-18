@@ -17,6 +17,8 @@
 #include "AssetManager.h"
 #include "HitAnimationManager.h"
 #include "PositionConstants.h"
+#include "PositionMath.h"
+#include "DrawingConstants.h"
 #include "GlyphRenderer.h"
 #include "ColumnRenderer.h"
 
@@ -34,7 +36,6 @@ class HighwayRenderer
         MidiInterpreter &midiInterpreter;
         AssetManager assetManager;
         HitAnimationManager hitAnimationManager;
-        PositionConstants positionConstants;
         GlyphRenderer glyphRenderer;
         ColumnRenderer columnRenderer;
 

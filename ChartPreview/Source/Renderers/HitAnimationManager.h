@@ -10,14 +10,15 @@
  * Animations play for a fixed number of frames (5 for standard hits, 7 for kicks).
  * If a new note hits before animation completes, it resets to frame 1.
  */
-class HitAnimationManager {
-public:
+
+namespace AnimationConstants {
+    // Animation frame counts
     static constexpr int HIT_ANIMATION_FRAMES = 5;
     static constexpr int KICK_ANIMATION_FRAMES = 7;
 
-    /**
-     * Represents an active hit animation on a specific lane.
-     */
+    // Hit animation rendering parameters
+    static constexpr int HIT_FLARE_MAX_FRAME = 3;  // Only show flare for first 3 frames of hit animation
+
     struct HitAnimation {
         int currentFrame = 0;  // 0 = no animation, 1-5 for hit, 1-7 for bar
         bool isBar = false;    // true for bar note (kick/open), false for standard fret
@@ -72,7 +73,10 @@ public:
             }
         }
     };
+}
 
+class HitAnimationManager {
+public:
     HitAnimationManager() {
         // Initialize animation slots for guitar (5 lanes) + drums (kick + 4 pads)
         animations.resize(6);  // 0=kick, 1-5=guitar/drum lanes
@@ -120,7 +124,7 @@ public:
     /**
      * Get all currently active animations for rendering.
      */
-    const std::vector<HitAnimation>& getActiveAnimations() const {
+    const std::vector<AnimationConstants::HitAnimation>& getActiveAnimations() const {
         return animations;
     }
 
@@ -134,5 +138,5 @@ public:
     }
 
 private:
-    std::vector<HitAnimation> animations;
+    std::vector<AnimationConstants::HitAnimation> animations;
 };

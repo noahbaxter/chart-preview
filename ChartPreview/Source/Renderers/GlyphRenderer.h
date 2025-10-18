@@ -42,7 +42,6 @@ public:
     juce::Rectangle<float> getOverlayGlyphRect(juce::Rectangle<float> glyphRect, bool isDrumAccent);
 
 private:
-    PositionConstants positionConstants;
 
     //==============================================================================
     // Core perspective calculation

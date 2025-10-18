@@ -20,27 +20,13 @@ const PPQ TICK_170                  = PPQ(170.0 / MIDI_RESOLUTION);
 const PPQ TICK_240_EIGTH            = PPQ(240.0 / MIDI_RESOLUTION); // 1/8th note
 
 constexpr uint LANE_COUNT = 7;  // Number of note lanes (0-6)
-constexpr float OPACITY_FADE_START = 0.9f;  // Position where opacity starts fading
 
 const PPQ CHORD_TOLERANCE = TICK_10;
 const PPQ MIN_SUSTAIN_LENGTH = PPQ(4.0 / 12.0); // 1/12th note minimum sustain length
 
-// Visual constants
-constexpr float SUSTAIN_WIDTH = 0.15f;
-constexpr float SUSTAIN_OPEN_WIDTH = 0.8f;
-constexpr float SUSTAIN_OPACITY = 0.7f;
-
-constexpr float MEASURE_OPACITY = 1.0f;
-constexpr float BEAT_OPACITY = 0.4f;
-constexpr float HALF_BEAT_OPACITY = 0.3f;
-
-constexpr float GEM_SIZE = 0.9f; 
-constexpr float BAR_SIZE = 0.95f;
-constexpr float GRIDLINE_SIZE = 0.9f;
-
-constexpr float LANE_WIDTH = 1.1f;
-constexpr float LANE_OPEN_WIDTH = 0.9f;
-constexpr float LANE_OPACITY = 0.4f;
+// Visual and positioning constants have been moved to specialized files:
+// - Opacity and drawing effects: DrawingConstants.h
+// - Size, scale, and positioning: PositionConstants.h
 
 //==============================================================================
 // MENUS

@@ -160,10 +160,12 @@
               file="Source/Renderers/HighwayRenderer.cpp"/>
         <FILE id="DZ7Hvw" name="HighwayRenderer.h" compile="0" resource="0"
               file="Source/Renderers/HighwayRenderer.h"/>
-        <FILE id="PosCppFile" name="PositionConstants.cpp" compile="1" resource="0"
-              file="Source/Renderers/PositionConstants.cpp"/>
         <FILE id="PosHFile" name="PositionConstants.h" compile="0" resource="0"
               file="Source/Renderers/PositionConstants.h"/>
+        <FILE id="PosMathCppFile" name="PositionMath.cpp" compile="1" resource="0"
+              file="Source/Renderers/PositionMath.cpp"/>
+        <FILE id="PosMathHFile" name="PositionMath.h" compile="0" resource="0"
+              file="Source/Renderers/PositionMath.h"/>
         <FILE id="GlyphCppFile" name="GlyphRenderer.cpp" compile="1" resource="0"
               file="Source/Renderers/GlyphRenderer.cpp"/>
         <FILE id="GlyphHFile" name="GlyphRenderer.h" compile="0" resource="0"

@@ -9,6 +9,12 @@
 */
 
 #include "HighwayRenderer.h"
+#include "DrawingConstants.h"
+#include "HitAnimationManager.h"
+#include "PositionConstants.h"
+
+using namespace AnimationConstants;
+using namespace PositionConstants;
 
 HighwayRenderer::HighwayRenderer(juce::ValueTree &state, MidiInterpreter &midiInterpreter)
 	: state(state),
@@ -272,23 +278,23 @@ juce::Rectangle<float> HighwayRenderer::getSustainRect(uint gemColumn, float sta
     float endCenterY = endRect.getCentreY();
     
     // Calculate sustain width based on the gem widths (use smaller of the two for consistency)
-    float sustainWidth = std::min(startRect.getWidth(), endRect.getWidth()) * 0.8f; // Slightly narrower than gems
-    
+    float sustainWidth = std::min(startRect.getWidth(), endRect.getWidth()) * SUSTAIN_WIDTH_MULTIPLIER;
+
     // Create a trapezoidal sustain that follows the perspective properly
     // Top edge (closer to player, endPosition)
     float topLeft = endCenterX - sustainWidth / 2.0f;
     float topRight = endCenterX + sustainWidth / 2.0f;
-    
-    // Bottom edge (farther from player, startPosition)  
+
+    // Bottom edge (farther from player, startPosition)
     float bottomLeft = startCenterX - sustainWidth / 2.0f;
     float bottomRight = startCenterX + sustainWidth / 2.0f;
-    
+
     // For a simple Rectangle approach, we'll use the bounding box of the trapezoid
     // but ensure it follows the center line properly
     float left = std::min(topLeft, bottomLeft);
     float right = std::max(topRight, bottomRight);
-    float top = endCenterY - sustainWidth * 0.1f; // Small margin above center
-    float bottom = startCenterY + sustainWidth * 0.1f; // Small margin below center
+    float top = endCenterY - sustainWidth * SUSTAIN_MARGIN_SCALE;
+    float bottom = startCenterY + sustainWidth * SUSTAIN_MARGIN_SCALE;
     
     return juce::Rectangle<float>(left, top, right - left, bottom - top);
 }
@@ -296,13 +302,13 @@ juce::Rectangle<float> HighwayRenderer::getSustainRect(uint gemColumn, float sta
 void HighwayRenderer::drawPerspectiveSustainFlat(juce::Graphics &g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour)
 {
     // Get lane coordinates instead of glyph rectangles
-    auto startLane = isPart(state, Part::DRUMS) ? positionConstants.getDrumLaneCoordinates(gemColumn, startPosition, width, height) : positionConstants.getGuitarLaneCoordinates(gemColumn, startPosition, width, height);
-    auto endLane = isPart(state, Part::DRUMS) ? positionConstants.getDrumLaneCoordinates(gemColumn, endPosition, width, height) : positionConstants.getGuitarLaneCoordinates(gemColumn, endPosition, width, height);
+    auto startLane = isPart(state, Part::DRUMS) ? PositionMath::getDrumLaneCoordinates(gemColumn, startPosition, width, height) : PositionMath::getGuitarLaneCoordinates(gemColumn, startPosition, width, height);
+    auto endLane = isPart(state, Part::DRUMS) ? PositionMath::getDrumLaneCoordinates(gemColumn, endPosition, width, height) : PositionMath::getGuitarLaneCoordinates(gemColumn, endPosition, width, height);
     
     // Calculate lane widths based on sustain width parameter
     float startWidth = (startLane.rightX - startLane.leftX) * sustainWidth;
     float endWidth = (endLane.rightX - endLane.leftX) * sustainWidth;
-    float radius = std::min(startWidth, endWidth) * 0.25f;
+    float radius = std::min(startWidth, endWidth) * SUSTAIN_CAP_RADIUS_SCALE;
     
     // Create paths for trapezoid and rounded caps
     auto trapezoid = columnRenderer.createTrapezoidPath(startLane, endLane, startWidth, endWidth);
@@ -467,7 +473,7 @@ void HighwayRenderer::drawHitAnimations(juce::Graphics &g)
                 }
 
                 // Scale up the animation (wider and MUCH taller to match the bar note height)
-                kickRect = kickRect.withSizeKeepingCentre(kickRect.getWidth() * 1.3f, kickRect.getHeight() * 4.2f);
+                kickRect = kickRect.withSizeKeepingCentre(kickRect.getWidth() * KICK_ANIMATION_WIDTH_SCALE, kickRect.getHeight() * KICK_ANIMATION_HEIGHT_SCALE);
 
                 g.setOpacity(1.0f);
                 g.drawImage(*animFrame, kickRect);
@@ -488,19 +494,19 @@ void HighwayRenderer::drawHitAnimations(juce::Graphics &g)
             }
 
             // Scale up the animation (wider and much taller)
-            hitRect = hitRect.withSizeKeepingCentre(hitRect.getWidth() * 1.6f, hitRect.getHeight() * 2.8f);
+            hitRect = hitRect.withSizeKeepingCentre(hitRect.getWidth() * HIT_ANIMATION_WIDTH_SCALE, hitRect.getHeight() * HIT_ANIMATION_HEIGHT_SCALE);
 
             // Draw the flash frame
             if (hitFrame)
             {
-                g.setOpacity(0.8f);
+                g.setOpacity(HIT_FLASH_OPACITY);
                 g.drawImage(*hitFrame, hitRect);
             }
 
             // Draw the colored flare on top (with tint for the lane color)
-            if (flareImage && anim.currentFrame <= 3)  // Only show flare for first 3 frames
+            if (flareImage && anim.currentFrame <= HIT_FLARE_MAX_FRAME)
             {
-                g.setOpacity(0.6f);
+                g.setOpacity(HIT_FLARE_OPACITY);
                 g.drawImage(*flareImage, hitRect);
             }
         }

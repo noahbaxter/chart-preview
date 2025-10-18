@@ -12,6 +12,9 @@
 */
 
 #include "GlyphRenderer.h"
+#include "PositionConstants.h"
+
+using namespace PositionConstants;
 
 //==============================================================================
 // Guitar Glyph Positioning
@@ -19,9 +22,9 @@
 juce::Rectangle<float> GlyphRenderer::getGuitarGlyphRect(uint gemColumn, float position, uint width, uint height)
 {
     bool isOpen = (gemColumn == 0);
-    auto coords = isOpen ? positionConstants.getGuitarOpenNoteCoords() : positionConstants.getGuitarNoteCoords(gemColumn);
+    auto coords = isOpen ? getGuitarOpenNoteCoords() : getGuitarNoteCoords(gemColumn);
 
-    float scaler = isOpen ? 0.95f : 0.9f;  // BAR_SIZE : GEM_SIZE
+    float scaler = isOpen ? BAR_SIZE : GEM_SIZE;
     float scaledNormWidth1 = coords.normWidth1 * scaler;
     float scaledNormWidth2 = coords.normWidth2 * scaler;
     float adjustedNormX1 = coords.normX1 + (coords.normWidth1 - scaledNormWidth1) / 2.0f;
@@ -35,8 +38,8 @@ juce::Rectangle<float> GlyphRenderer::getGuitarGlyphRect(uint gemColumn, float p
 
 juce::Rectangle<float> GlyphRenderer::getGuitarGridlineRect(float position, uint width, uint height)
 {
-    auto coords = positionConstants.getGuitarOpenNoteCoords();
-    float scaler = 0.9f;  // GRIDLINE_SIZE
+    auto coords = getGuitarOpenNoteCoords();
+    float scaler = GRIDLINE_SIZE;
 
     float scaledNormWidth1 = coords.normWidth1 * scaler;
     float scaledNormWidth2 = coords.normWidth2 * scaler;
@@ -55,9 +58,9 @@ juce::Rectangle<float> GlyphRenderer::getGuitarGridlineRect(float position, uint
 juce::Rectangle<float> GlyphRenderer::getDrumGlyphRect(uint gemColumn, float position, uint width, uint height)
 {
     bool isKick = (gemColumn == 0 || gemColumn == 6);
-    auto coords = isKick ? positionConstants.getDrumKickCoords() : positionConstants.getDrumPadCoords(gemColumn);
+    auto coords = isKick ? getDrumKickCoords() : getDrumPadCoords(gemColumn);
 
-    float scaler = isKick ? 0.95f : 0.9f;  // BAR_SIZE : GEM_SIZE
+    float scaler = isKick ? BAR_SIZE : GEM_SIZE;
     float scaledNormWidth1 = coords.normWidth1 * scaler;
     float scaledNormWidth2 = coords.normWidth2 * scaler;
     float adjustedNormX1 = coords.normX1 + (coords.normWidth1 - scaledNormWidth1) / 2.0f;
@@ -71,8 +74,8 @@ juce::Rectangle<float> GlyphRenderer::getDrumGlyphRect(uint gemColumn, float pos
 
 juce::Rectangle<float> GlyphRenderer::getDrumGridlineRect(float position, uint width, uint height)
 {
-    auto coords = positionConstants.getDrumKickCoords();
-    float scaler = 0.9f;  // GRIDLINE_SIZE
+    auto coords = getDrumKickCoords();
+    float scaler = GRIDLINE_SIZE;
 
     float scaledNormWidth1 = coords.normWidth1 * scaler;
     float scaledNormWidth2 = coords.normWidth2 * scaler;
@@ -92,7 +95,7 @@ juce::Rectangle<float> GlyphRenderer::getOverlayGlyphRect(juce::Rectangle<float>
 {
     if (isDrumAccent)
     {
-        float scaleFactor = 1.1232876712f * 0.9f;  // 1.1232876712 * GEM_SIZE
+        float scaleFactor = DRUM_ACCENT_OVERLAY_SCALE * GEM_SIZE;
         float newWidth = glyphRect.getWidth() * scaleFactor;
         float newHeight = glyphRect.getHeight() * scaleFactor;
         float widthIncrease = newWidth - glyphRect.getWidth();
@@ -118,7 +121,7 @@ juce::Rectangle<float> GlyphRenderer::createPerspectiveGlyphRect(
     bool isBarNote,
     uint width, uint height)
 {
-    auto perspParams = positionConstants.getPerspectiveParams();
+    auto perspParams = getPerspectiveParams();
 
     float depth = position;
 
