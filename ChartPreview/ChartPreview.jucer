@@ -160,6 +160,18 @@
               file="Source/Renderers/HighwayRenderer.cpp"/>
         <FILE id="DZ7Hvw" name="HighwayRenderer.h" compile="0" resource="0"
               file="Source/Renderers/HighwayRenderer.h"/>
+        <FILE id="PosCppFile" name="PositionConstants.cpp" compile="1" resource="0"
+              file="Source/Renderers/PositionConstants.cpp"/>
+        <FILE id="PosHFile" name="PositionConstants.h" compile="0" resource="0"
+              file="Source/Renderers/PositionConstants.h"/>
+        <FILE id="GlyphCppFile" name="GlyphRenderer.cpp" compile="1" resource="0"
+              file="Source/Renderers/GlyphRenderer.cpp"/>
+        <FILE id="GlyphHFile" name="GlyphRenderer.h" compile="0" resource="0"
+              file="Source/Renderers/GlyphRenderer.h"/>
+        <FILE id="ColumnCppFile" name="ColumnRenderer.cpp" compile="1" resource="0"
+              file="Source/Renderers/ColumnRenderer.cpp"/>
+        <FILE id="ColumnHFile" name="ColumnRenderer.h" compile="0" resource="0"
+              file="Source/Renderers/ColumnRenderer.h"/>
         <FILE id="AssetManagerCpp" name="AssetManager.cpp" compile="1" resource="0"
               file="Source/Renderers/AssetManager.cpp"/>
         <FILE id="AssetManagerH" name="AssetManager.h" compile="0" resource="0"

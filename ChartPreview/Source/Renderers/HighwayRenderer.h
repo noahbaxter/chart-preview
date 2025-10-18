@@ -16,6 +16,9 @@
 #include "../Utils/TimeConverter.h"
 #include "AssetManager.h"
 #include "HitAnimationManager.h"
+#include "PositionConstants.h"
+#include "GlyphRenderer.h"
+#include "ColumnRenderer.h"
 
 
 class HighwayRenderer
@@ -31,6 +34,9 @@ class HighwayRenderer
         MidiInterpreter &midiInterpreter;
         AssetManager assetManager;
         HitAnimationManager hitAnimationManager;
+        PositionConstants positionConstants;
+        GlyphRenderer glyphRenderer;
+        ColumnRenderer columnRenderer;
 
         // Track the last note time per column to ensure every note triggers an animation
         std::array<double, 7> lastNoteTimePerColumn = {-999.0, -999.0, -999.0, -999.0, -999.0, -999.0, -999.0};
@@ -83,31 +89,9 @@ class HighwayRenderer
             g.drawImage(*image, position);
         };
 
-        juce::Rectangle<float> getGuitarGlyphRect(uint gemColumn, float position);
-        juce::Rectangle<float> getDrumGlyphRect(uint gemColumn, float position);
-        juce::Rectangle<float> getGuitarGridlineRect(float position);
-        juce::Rectangle<float> getDrumGridlineRect(float position);
-        juce::Rectangle<float> getOverlayGlyphRect(Gem gem, juce::Rectangle<float> glyphRect);
-        juce::Rectangle<float> createPerspectiveGlyphRect(
-            float position,
-            float normY1, float normY2,
-            float normX1, float normX2,
-            float normWidth1, float normWidth2,
-            bool isBarNote
-        );
 
-        // Lane coordinate system
-        struct LaneCorners {
-            float leftX, rightX, centerY;
-        };
-        LaneCorners getLaneCoordinates(uint gemColumn, float position);
-        LaneCorners getDrumLaneCoordinates(uint gemColumn, float position);
-        LaneCorners getGuitarLaneCoordinates(uint gemColumn, float position);
-
-        // Sustain rendering helper functions
-        juce::Path createTrapezoidPath(LaneCorners start, LaneCorners end, float startWidth, float endWidth);
-        juce::Path createRoundedCapPath(LaneCorners coords, float width, float radius, float heightScale = 1.0f);
-        juce::Image createOffscreenSustainImage(const juce::Path& trapezoid, const juce::Path& startCap, const juce::Path& endCap, juce::Colour colour);
+        // Sustain rendering helper functions (delegated to ColumnRenderer)
+        using LaneCorners = PositionConstants::LaneCorners;
 
         // Testing helper functions
         TrackWindow generateFakeTrackWindow(PPQ trackWindowStartPPQ, PPQ trackWindowEndPPQ)
