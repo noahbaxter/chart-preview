@@ -171,6 +171,10 @@
               file="Source/REAPER/ReaperVST3Extensions.cpp"/>
         <FILE id="ReaperVST3Ext2" name="ReaperVST3Extensions.h" compile="0" resource="0"
               file="Source/REAPER/ReaperVST3Extensions.h"/>
+        <FILE id="TrackInfoListener1" name="TrackInfoListener.cpp" compile="1" resource="0"
+              file="Source/REAPER/TrackInfoListener.cpp"/>
+        <FILE id="TrackInfoListener2" name="TrackInfoListener.h" compile="0" resource="0"
+              file="Source/REAPER/TrackInfoListener.h"/>
         <FILE id="ReaperIntegration1" name="ReaperIntegration.cpp" compile="1" resource="0"
               file="Source/REAPER/ReaperIntegration.cpp"/>
         <FILE id="ReaperIntegration2" name="ReaperIntegration.h" compile="0" resource="0"

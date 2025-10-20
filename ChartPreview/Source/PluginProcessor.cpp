@@ -96,6 +96,24 @@ void ChartPreviewAudioProcessor::invalidateReaperCache()
     }
 }
 
+void ChartPreviewAudioProcessor::applyTrackNumberChange(int trackNumberZeroBased)
+{
+    // Convert 0-based to 1-based for storage in state
+    int trackNumber1Based = trackNumberZeroBased + 1;
+
+    // Clamp to valid range
+    if (trackNumber1Based < 1) trackNumber1Based = 1;
+    if (trackNumber1Based > 999) trackNumber1Based = 999;
+
+    // Update state if value actually changed
+    int currentTrack = (int)state.getProperty("reaperTrack");
+    if (currentTrack != trackNumber1Based)
+    {
+        state.setProperty("reaperTrack", trackNumber1Based, nullptr);
+        invalidateReaperCache();
+    }
+}
+
 // MANUAL OVERRIDES
 void ChartPreviewAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {

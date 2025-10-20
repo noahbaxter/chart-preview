@@ -8,9 +8,9 @@
 */
 
 #include "ReaperVST3Extensions.h"
+#include "TrackInfoListener.h"
 #include "../PluginProcessor.h"
 #include "../ReaperVST3.h"
-#include <map>
 
 #if JucePlugin_Build_VST3
 
@@ -18,25 +18,27 @@
 DEF_CLASS_IID(IReaperHostApplication)
 
 ChartPreviewVST3Extensions::ChartPreviewVST3Extensions(ChartPreviewAudioProcessor* proc)
-    : processor(proc)
+    : processor(proc), trackInfoListener(std::make_unique<TrackInfoListener>(proc))
 {
 }
+
+ChartPreviewVST3Extensions::~ChartPreviewVST3Extensions() = default;
 
 void ChartPreviewVST3Extensions::setIHostApplication(Steinberg::FUnknown* host)
 {
     if (!host)
         return;
 
-    // Use FUnknownPtr for automatic COM handling (from reference project)
-    auto reaper = FUnknownPtr<IReaperHostApplication>(host);
-    if (reaper)
+    auto reaperHost = Steinberg::FUnknownPtr<IReaperHostApplication>(host);
+
+    if (reaperHost)
     {
         processor->isReaperHost = true;
 
         // Store the REAPER interface per-instance using a map
         // This allows multiple plugin instances to work simultaneously
-        static std::map<ChartPreviewAudioProcessor*, FUnknownPtr<IReaperHostApplication>> reaperInstances;
-        reaperInstances[processor] = reaper;
+        static std::map<ChartPreviewAudioProcessor*, Steinberg::FUnknownPtr<IReaperHostApplication>> reaperInstances;
+        reaperInstances[processor] = reaperHost;
 
         // Create a wrapper function that looks up the correct instance
         processor->reaperGetFunc = [](const char* funcname) -> void* {
@@ -75,6 +77,16 @@ void ChartPreviewVST3Extensions::setIHostApplication(Steinberg::FUnknown* host)
             processor->debugText += "❌ REAPER API initialization failed after retry\n";
         }
     }
+}
+
+int32_t ChartPreviewVST3Extensions::queryIEditController(const Steinberg::TUID tuid, void** obj)
+{
+    // Provide TrackInfoListener for standard VST3 track info (per-instance, not static!)
+    if (trackInfoListener && trackInfoListener->queryInterface(tuid, obj) == Steinberg::kResultOk)
+        return Steinberg::kResultOk;
+
+    *obj = nullptr;
+    return Steinberg::kNoInterface;
 }
 
 #endif // JucePlugin_Build_VST3

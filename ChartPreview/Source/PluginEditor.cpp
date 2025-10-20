@@ -78,19 +78,6 @@ void ChartPreviewAudioProcessorEditor::initMenus()
     autoHopoMenu.addListener(this);
     addAndMakeVisible(autoHopoMenu);
 
-    // REAPER track number input (1-999)
-    reaperTrackLabel.setText("Track:", juce::dontSendNotification);
-    reaperTrackLabel.setJustificationType(juce::Justification::centredRight);
-    addAndMakeVisible(reaperTrackLabel);
-
-    reaperTrackInput.setInputRestrictions(3, "0123456789");  // Max 3 digits, numbers only
-    reaperTrackInput.setJustification(juce::Justification::centred);
-    reaperTrackInput.setText("1", false);
-    reaperTrackInput.addListener(this);
-    reaperTrackInput.setWantsKeyboardFocus(true);
-    reaperTrackInput.setSelectAllWhenFocused(true);  // Auto-select all on click
-    addAndMakeVisible(reaperTrackInput);
-
     // Latency offset input (-2000 to +2000ms for REAPER, 0 to +2000ms for normal)
     latencyOffsetLabel.setText("Offset (ms):", juce::dontSendNotification);
     latencyOffsetLabel.setJustificationType(juce::Justification::centredRight);
@@ -191,11 +178,8 @@ void ChartPreviewAudioProcessorEditor::paint (juce::Graphics& g)
     autoHopoMenu.setVisible(isPart(state, Part::GUITAR));
 
     // Hide latency menu in REAPER mode (no latency compensation needed)
-    // Show REAPER track selector only in REAPER mode
     bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
     latencyMenu.setVisible(!isReaperMode);
-    reaperTrackLabel.setVisible(isReaperMode);
-    reaperTrackInput.setVisible(isReaperMode);
 
     #ifdef DEBUG
     bool debugMode = debugToggle.getToggleState();
@@ -384,11 +368,7 @@ void ChartPreviewAudioProcessorEditor::resized()
     framerateMenu.setBounds(getWidth() - 120, getHeight() - 30, controlWidth, controlHeight);
     latencyMenu.setBounds(getWidth() - 120, getHeight() - 55, controlWidth, controlHeight);
 
-    // REAPER track input (label + text box)
-    reaperTrackLabel.setBounds(getWidth() - 120, getHeight() - 55, 45, controlHeight);
-    reaperTrackInput.setBounds(getWidth() - 70, getHeight() - 55, 50, controlHeight);
-
-    // Latency offset input (label + text box) - positioned below track input or latency menu
+    // Latency offset input (label + text box) - positioned below latency menu
     latencyOffsetLabel.setBounds(getWidth() - 120, getHeight() - 80, 75, controlHeight);
     latencyOffsetInput.setBounds(getWidth() - 40, getHeight() - 80, 60, controlHeight);
     
@@ -426,11 +406,6 @@ void ChartPreviewAudioProcessorEditor::loadState()
     framerateMenu.setSelectedId((int)state["framerate"], juce::dontSendNotification);
     latencyMenu.setSelectedId((int)state["latency"], juce::dontSendNotification);
     autoHopoMenu.setSelectedId((int)state["autoHopo"], juce::dontSendNotification);
-
-    // Load REAPER track number
-    int trackNumber = (int)state["reaperTrack"];
-    if (trackNumber < 1) trackNumber = 1;
-    reaperTrackInput.setText(juce::String(trackNumber), false);
 
     // Load latency offset
     int latencyOffsetMs = (int)state["latencyOffsetMs"];

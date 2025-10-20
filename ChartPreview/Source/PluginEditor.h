@@ -36,22 +36,6 @@ public:
     {
         printCallback();
 
-        // Handle debounced track changes
-        if (pendingTrackChange >= 0)
-        {
-            trackChangeDebounceCounter++;
-            // Wait for 10 frames (~166ms at 60fps) of no new changes before applying
-            if (trackChangeDebounceCounter >= 10)
-            {
-                // Apply the track change
-                state.setProperty("reaperTrack", pendingTrackChange, nullptr);
-                audioProcessor.invalidateReaperCache();
-                pendingTrackChange = -1;
-                trackChangeDebounceCounter = 0;
-                repaint();
-            }
-        }
-
         bool isReaperMode = audioProcessor.isReaperHost && audioProcessor.getReaperMidiProvider().isReaperApiAvailable();
 
         // Track position changes for render logic
@@ -202,13 +186,7 @@ public:
 
     void textEditorReturnKeyPressed(juce::TextEditor& editor) override
     {
-        if (&editor == &reaperTrackInput)
-        {
-            applyTrackNumberChange();
-            // Deselect the text box (unfocus)
-            reaperTrackInput.giveAwayKeyboardFocus();
-        }
-        else if (&editor == &latencyOffsetInput)
+        if (&editor == &latencyOffsetInput)
         {
             applyLatencyOffsetChange();
             latencyOffsetInput.giveAwayKeyboardFocus();
@@ -217,11 +195,7 @@ public:
 
     void textEditorFocusLost(juce::TextEditor& editor) override
     {
-        if (&editor == &reaperTrackInput)
-        {
-            applyTrackNumberChange();
-        }
-        else if (&editor == &latencyOffsetInput)
+        if (&editor == &latencyOffsetInput)
         {
             applyLatencyOffsetChange();
         }
@@ -229,33 +203,11 @@ public:
 
     void textEditorEscapeKeyPressed(juce::TextEditor& editor) override
     {
-        if (&editor == &reaperTrackInput)
-        {
-            // Restore previous value and unfocus
-            reaperTrackInput.setText(juce::String((int)state["reaperTrack"]), false);
-            reaperTrackInput.giveAwayKeyboardFocus();
-        }
-        else if (&editor == &latencyOffsetInput)
+        if (&editor == &latencyOffsetInput)
         {
             // Restore previous value and unfocus
             latencyOffsetInput.setText(juce::String((int)state["latencyOffsetMs"]), false);
             latencyOffsetInput.giveAwayKeyboardFocus();
-        }
-    }
-
-    void applyTrackNumberChange()
-    {
-        int trackValue = reaperTrackInput.getText().getIntValue();
-        if (trackValue >= 1 && trackValue <= 999)
-        {
-            pendingTrackChange = trackValue;
-            trackChangeDebounceCounter = 0;
-            repaint();
-        }
-        else
-        {
-            // Invalid value, restore previous
-            reaperTrackInput.setText(juce::String((int)state["reaperTrack"]), false);
         }
     }
 
@@ -290,31 +242,6 @@ public:
 
     bool keyPressed(const juce::KeyPress& key) override
     {
-        // Handle arrow keys for track number when text box has focus
-        if (reaperTrackInput.hasKeyboardFocus(true))
-        {
-            int currentTrack = reaperTrackInput.getText().getIntValue();
-
-            if (key == juce::KeyPress::upKey)
-            {
-                if (currentTrack < 999)
-                {
-                    reaperTrackInput.setText(juce::String(currentTrack + 1), false);
-                    applyTrackNumberChange();
-                }
-                return true;
-            }
-            else if (key == juce::KeyPress::downKey)
-            {
-                if (currentTrack > 1)
-                {
-                    reaperTrackInput.setText(juce::String(currentTrack - 1), false);
-                    applyTrackNumberChange();
-                }
-                return true;
-            }
-        }
-
         // Handle arrow keys for latency offset when text box has focus
         if (latencyOffsetInput.hasKeyboardFocus(true))
         {
@@ -355,7 +282,7 @@ public:
     void mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override
     {
         // Ignore scroll on text input fields
-        if (reaperTrackInput.isMouseOver(true) || latencyOffsetInput.isMouseOver(true))
+        if (latencyOffsetInput.isMouseOver(true))
             return;
 
         // Get the current playhead position
@@ -402,17 +329,16 @@ private:
 
     juce::Label chartSpeedLabel;
     juce::Label versionLabel;
-    juce::Label reaperTrackLabel;
     juce::Label latencyOffsetLabel;
     juce::ComboBox skillMenu, partMenu, drumTypeMenu, framerateMenu, latencyMenu, autoHopoMenu;
 
     // Custom TextEditor that passes arrow keys to parent
-    class TrackNumberEditor : public juce::TextEditor
+    class LatencyOffsetEditor : public juce::TextEditor
     {
     public:
         bool keyPressed(const juce::KeyPress& key) override
         {
-            // Let parent handle arrow keys for track navigation
+            // Let parent handle arrow keys for latency navigation
             if (key == juce::KeyPress::upKey || key == juce::KeyPress::downKey)
             {
                 if (auto* parent = getParentComponent())
@@ -422,8 +348,7 @@ private:
         }
     };
 
-    TrackNumberEditor reaperTrackInput;
-    TrackNumberEditor latencyOffsetInput;
+    LatencyOffsetEditor latencyOffsetInput;
     juce::ToggleButton hitIndicatorsToggle, starPowerToggle, kick2xToggle, dynamicsToggle;
     juce::Slider chartSpeedSlider;
 
@@ -453,10 +378,6 @@ private:
 
     PPQ displaySizeInPPQ = 1.5; // Only used for MIDI window fetching
     double displayWindowTimeSeconds = 1.0; // Actual render window time in seconds
-
-    // Track change debouncing
-    int pendingTrackChange = -1;  // -1 means no pending change
-    int trackChangeDebounceCounter = 0;
 
     // Cache invalidation throttling (for REAPER MIDI edit detection while paused)
     int paused_frameCounterSinceLastInvalidation = 0;  // Throttle to ~20 Hz (every 3 frames at 60 FPS)

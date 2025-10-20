@@ -36,18 +36,19 @@ public:
     // Cursor position tracking for scrubbing support
     PPQ lastCursorPosition = 0.0;
     bool cursorPositionChanged = false;
-    
+
     float latencyInSeconds = 0.5;
     uint latencyInSamples = 0;
     void setLatencyInSeconds(float latencyInSeconds);
-    
+
     NoteStateMapArray& getNoteStateMapArray() { return midiProcessor.noteStateMapArray; }
     juce::CriticalSection& getNoteStateMapLock() { return midiProcessor.noteStateMapLock; }
-    
+
     // Set visual window bounds for conservative cleanup during tempo changes
     void setMidiProcessorVisualWindowBounds(PPQ startPPQ, PPQ endPPQ) { midiProcessor.setVisualWindowBounds(startPPQ, endPPQ); }
     void refreshMidiDisplay() { midiProcessor.refreshMidiDisplay(); }
     void invalidateReaperCache();  // Clear cache and force re-fetch (for track changes)
+    void applyTrackNumberChange(int trackNumberZeroBased);  // Auto-apply track number from VST3 detection
 
     // Debug
     juce::String debugText;
@@ -92,6 +93,7 @@ public:
     // REAPER API function pointers (populated via VST2 or VST3)
     void* (*reaperGetFunc)(const char*) = nullptr;
     bool isReaperHost = false;
+    std::atomic<int> detectedTrackNumber{-1};  // 1-based track index from VST3, -1 = unknown
     bool attemptReaperConnection();
     void* getReaperApi(const char* funcname);
     std::string getHostInfo();
