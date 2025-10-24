@@ -83,21 +83,18 @@ public:
     }
 
     /**
-     * Trigger a hit animation for a guitar/drum lane.
-     * Resets animation to frame 1 if already playing.
+     * Trigger a hit animation for a gem column.
+     * For guitar: gemColumn 0 = open, 1-5 = frets
+     * For drums: gemColumn 0 = kick, 1-4 = pads, 6 = 2x kick
      */
-    void triggerHit(int lane, bool isOpen = false) {
-        if (lane >= 0 && lane < animations.size()) {
-            animations[lane].trigger(false, lane, isOpen, false);
-        }
-    }
+    void triggerHit(int gemColumn, bool isDrums = false, bool is2xKick = false) {
+        bool isBar = (gemColumn == 0) || (isDrums && gemColumn == 6);
+        int animSlot = isBar ? 0 : gemColumn;
 
-    /**
-     * Trigger a kick hit animation.
-     * Resets animation to frame 1 if already playing.
-     */
-    void triggerKick(bool isOpen = false, bool is2xKick = false) {
-        animations[0].trigger(true, 0, isOpen, is2xKick);
+        if (animSlot >= 0 && animSlot < animations.size()) {
+            bool isOpen = (gemColumn == 0 && !isDrums);  // Only guitar column 0 is "open"
+            animations[animSlot].trigger(isBar, animSlot, isOpen, is2xKick);
+        }
     }
 
     /**

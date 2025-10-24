@@ -52,6 +52,14 @@ namespace PositionConstants
         float normWidth1, normWidth2;
     };
 
+    struct CoordinateOffset
+    {
+        float xOffset;      // X offset in pixels from glyph center
+        float yOffset;      // Y offset in pixels from glyph center
+        float widthScale;   // Width multiplier
+        float heightScale;  // Height multiplier
+    };
+
     // 3D perspective calculation parameters
     struct PerspectiveParams
     {
@@ -73,13 +81,6 @@ namespace PositionConstants
     constexpr float SUSTAIN_OPEN_WIDTH = 0.8f;          // Open sustain width multiplier
     constexpr float LANE_WIDTH = 1.1f;                  // Lane width multiplier
     constexpr float LANE_OPEN_WIDTH = 0.9f;             // Open lane width multiplier
-
-    //==============================================================================
-    // Animation Scaling Factors (for rendering enlarged animations at strikeline)
-    constexpr float KICK_ANIMATION_WIDTH_SCALE = 1.3f;
-    constexpr float KICK_ANIMATION_HEIGHT_SCALE = 4.2f;
-    constexpr float HIT_ANIMATION_WIDTH_SCALE = 1.6f;
-    constexpr float HIT_ANIMATION_HEIGHT_SCALE = 2.8f;
 
     //==============================================================================
     // Sustain Geometry Constants
@@ -127,6 +128,26 @@ namespace PositionConstants
         {0.360f, 0.430f, 0.70f, 0.22f, 0.147f, 0.0714f}, // Col 2 - Yellow
         {0.497f, 0.495f, 0.70f, 0.22f, 0.147f, 0.0714f}, // Col 3 - Blue
         {0.630f, 0.564f, 0.70f, 0.22f, 0.147f, 0.0714f}  // Col 4 - Green
+    };
+
+    //==============================================================================
+    // Animation Positioning & Scaling Factors
+
+    constexpr CoordinateOffset GUITAR_ANIMATION_OFFSETS[] = {
+        {0.0f, 0.0f, 1.4f, 8.0f},   // Bar 0 - Open note
+        {0.0f, 0.0f, 1.6f, 3.5f},   // Col 1 - Green
+        {0.0f, 0.0f, 1.6f, 3.5f},   // Col 2 - Red
+        {0.0f, 0.0f, 1.6f, 3.5f},   // Col 3 - Yellow
+        {0.0f, 0.0f, 1.6f, 3.5f},   // Col 4 - Blue
+        {0.0f, 0.0f, 1.6f, 3.5f}    // Col 5 - Orange
+    };
+
+    constexpr CoordinateOffset DRUM_ANIMATION_OFFSETS[] = {
+        {0.0f, -8.0f, 1.4f, 10.0f}, // Bar 0 - Kick/2x Kick
+        {0.0f, 0.0f, 1.6f, 3.5f},   // Col 1 - Red
+        {0.0f, 0.0f, 1.6f, 3.5f},   // Col 2 - Yellow
+        {0.0f, 0.0f, 1.6f, 3.5f},   // Col 3 - Blue
+        {0.0f, 0.0f, 1.6f, 3.5f}    // Col 4 - Green
     };
 
     //==============================================================================

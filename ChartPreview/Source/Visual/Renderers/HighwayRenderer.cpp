@@ -36,14 +36,28 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
     // Calculate the total time window
     double windowTimeSpan = windowEndTime - windowStartTime;
 
-    // Update sustain states for active animations
-    animationRenderer.updateSustainStates(sustainWindow);
+    // Update sustain states for active animations (force-trigger if playing into active sustain)
+    animationRenderer.updateSustainStates(sustainWindow, isPlaying);
+
+    // Clear animations when paused to indicate gem is not being played
+    if (!isPlaying)
+    {
+        animationRenderer.reset();
+    }
 
     // Repopulate drawCallMap
     drawCallMap.clear();
     drawNotesFromMap(g, trackWindow, windowStartTime, windowEndTime);
     drawSustainFromWindow(g, sustainWindow, windowStartTime, windowEndTime);
     drawGridlinesFromMap(g, gridlines, windowStartTime, windowEndTime);
+
+    // Detect and add animations to drawCallMap (if enabled)
+    bool hitIndicatorsEnabled = state.getProperty("hitIndicators");
+    if (hitIndicatorsEnabled)
+    {
+        if (isPlaying) { animationRenderer.detectAndTriggerAnimations(trackWindow); }
+        animationRenderer.renderToDrawCallMap(drawCallMap, width, height);
+    }
 
     // Draw layer by layer, then column by column within each layer
     for (const auto& drawOrder : drawCallMap)
@@ -58,12 +72,9 @@ void HighwayRenderer::paint(juce::Graphics &g, const TimeBasedTrackWindow& track
         }
     }
 
-    // Draw hit animations on top of everything (if enabled)
-    bool hitIndicatorsEnabled = state.getProperty("hitIndicators");
+    // Advance animation frames after rendering
     if (hitIndicatorsEnabled)
     {
-        if (isPlaying) { animationRenderer.detectAndTriggerAnimations(trackWindow); }
-        animationRenderer.render(g, width, height);
         animationRenderer.advanceFrames();
     }
 }

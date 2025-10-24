@@ -28,6 +28,16 @@ AnimationRenderer::~AnimationRenderer()
 }
 
 //==============================================================================
+// Helper: Trigger animation for a specific gem column
+
+void AnimationRenderer::triggerAnimationForColumn(uint gemColumn)
+{
+    bool isDrums = !isPart(state, Part::GUITAR);
+    bool is2xKick = isDrums && gemColumn == 6;
+    animationManager.triggerHit(gemColumn, isDrums, is2xKick);
+}
+
+//==============================================================================
 // Animation Detection
 
 void AnimationRenderer::detectAndTriggerAnimations(const TimeBasedTrackWindow& trackWindow)
@@ -71,30 +81,7 @@ void AnimationRenderer::detectAndTriggerAnimations(const TimeBasedTrackWindow& t
         {
             // This is a new note! Trigger the animation
             lastNoteTimePerColumn[gemColumn] = closestPastNotePerColumn[gemColumn];
-
-            if (isPart(state, Part::GUITAR))
-            {
-                if (gemColumn == 0) {
-                    // Open note (kick for guitar)
-                    animationManager.triggerKick(true, false);
-                } else if (gemColumn >= 1 && gemColumn <= 5) {
-                    // Regular fret (1=green, 2=red, 3=yellow, 4=blue, 5=orange)
-                    animationManager.triggerHit(gemColumn, false);
-                }
-            }
-            else // Part::DRUMS
-            {
-                if (gemColumn == 0) {
-                    // Regular kick
-                    animationManager.triggerKick(false, false);
-                } else if (gemColumn == 6) {
-                    // 2x kick
-                    animationManager.triggerKick(false, true);
-                } else if (gemColumn >= 1 && gemColumn <= 4) {
-                    // Drum pads
-                    animationManager.triggerHit(gemColumn, false);
-                }
-            }
+            triggerAnimationForColumn(gemColumn);
         }
     }
 }
@@ -102,21 +89,26 @@ void AnimationRenderer::detectAndTriggerAnimations(const TimeBasedTrackWindow& t
 //==============================================================================
 // Sustain State Management
 
-void AnimationRenderer::updateSustainStates(const TimeBasedSustainWindow& sustainWindow)
+void AnimationRenderer::updateSustainStates(const TimeBasedSustainWindow& sustainWindow, bool isPlaying)
 {
     // Strikeline is at time 0 (current playback position)
     // Check if each lane is currently in a sustain (sustain crosses the strikeline)
     std::array<bool, 6> lanesSustaining = {false, false, false, false, false, false};
+    const auto& animations = animationManager.getActiveAnimations();
 
     for (const auto& sustain : sustainWindow)
     {
         // Sustain is active at the strikeline if startTime <= 0 <= endTime
-        if (sustain.startTime <= 0.0 && sustain.endTime >= 0.0)
+        if (sustain.startTime <= 0.0 && sustain.endTime >= 0.0 &&
+            sustain.sustainType == SustainType::SUSTAIN && sustain.gemColumn < lanesSustaining.size())
         {
-            // Only track sustains (not lanes)
-            if (sustain.sustainType == SustainType::SUSTAIN && sustain.gemColumn < lanesSustaining.size())
+            lanesSustaining[sustain.gemColumn] = true;
+
+            // Force-trigger: If playing and sustain is active but no animation exists yet
+            // (e.g., when seeking into middle of sustain), trigger it now
+            if (isPlaying && sustain.gemColumn < animations.size() && !animations[sustain.gemColumn].isActive())
             {
-                lanesSustaining[sustain.gemColumn] = true;
+                triggerAnimationForColumn(sustain.gemColumn);
             }
         }
     }
@@ -131,9 +123,10 @@ void AnimationRenderer::updateSustainStates(const TimeBasedSustainWindow& sustai
 //==============================================================================
 // Animation Rendering
 
-void AnimationRenderer::render(juce::Graphics &g, uint width, uint height)
+void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width, uint height)
 {
     const auto& animations = animationManager.getActiveAnimations();
+    bool isGuitar = isPart(state, Part::GUITAR);
 
     for (const auto& anim : animations)
     {
@@ -141,24 +134,40 @@ void AnimationRenderer::render(juce::Graphics &g, uint width, uint height)
 
         if (anim.isBar)
         {
-            renderKickAnimation(g, anim, width, height);
+            // Add kick animation to BAR_ANIMATION layer
+            uint column = anim.is2xKick ? 6 : 0;
+            CoordinateOffset offset = isGuitar
+                ? GUITAR_ANIMATION_OFFSETS[0]
+                : DRUM_ANIMATION_OFFSETS[0];
+
+            drawCallMap[DrawOrder::BAR_ANIMATION][column].push_back([this, anim, width, height, offset](juce::Graphics &g) {
+                this->renderKickAnimation(g, anim, width, height, offset);
+            });
         }
         else
         {
-            renderFretAnimation(g, anim, width, height);
+            // Add fret animation to NOTE_ANIMATION layer
+            CoordinateOffset offset = isGuitar
+                ? GUITAR_ANIMATION_OFFSETS[anim.lane]
+                : DRUM_ANIMATION_OFFSETS[anim.lane];
+
+            drawCallMap[DrawOrder::NOTE_ANIMATION][anim.lane].push_back([this, anim, width, height, offset](juce::Graphics &g) {
+                this->renderFretAnimation(g, anim, width, height, offset);
+            });
         }
     }
 }
 
-void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height)
+void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset)
 {
     // Strikeline is where notes are when frameTime = 0 (at the cursor position)
     float strikelinePosition = 0.0f;
+    bool isGuitar = isPart(state, Part::GUITAR);
 
     // Draw bar animation at bar position (gemColumn 0 for open/kick, or 6 for 2x kick)
     // For guitar open notes, use the open animation frames; otherwise use kick frames
     juce::Image* animFrame = nullptr;
-    if (isPart(state, Part::GUITAR) && anim.isOpen) {
+    if (isGuitar && anim.isOpen) {
         animFrame = assetManager.getOpenAnimationFrame(anim.currentFrame);
     } else {
         animFrame = assetManager.getKickAnimationFrame(anim.currentFrame);
@@ -167,39 +176,46 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
     if (animFrame)
     {
         juce::Rectangle<float> kickRect;
-        if (isPart(state, Part::GUITAR)) {
+        if (isGuitar) {
             kickRect = glyphRenderer.getGuitarGlyphRect(0, strikelinePosition, width, height);
         } else {
             kickRect = glyphRenderer.getDrumGlyphRect(anim.is2xKick ? 6 : 0, strikelinePosition, width, height);
         }
 
-        // Scale up the animation (wider and MUCH taller to match the bar note height)
-        kickRect = kickRect.withSizeKeepingCentre(kickRect.getWidth() * KICK_ANIMATION_WIDTH_SCALE, kickRect.getHeight() * KICK_ANIMATION_HEIGHT_SCALE);
+        // Apply animation-specific positioning and scaling
+        kickRect = kickRect.withSizeKeepingCentre(
+            kickRect.getWidth() * offset.widthScale,
+            kickRect.getHeight() * offset.heightScale
+        ).translated(offset.xOffset, offset.yOffset);
 
         g.setOpacity(1.0f);
         g.drawImage(*animFrame, kickRect);
     }
 }
 
-void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height)
+void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset)
 {
     // Strikeline is where notes are when frameTime = 0 (at the cursor position)
     float strikelinePosition = 0.0f;
+    bool isGuitar = isPart(state, Part::GUITAR);
+    Part currentPart = isGuitar ? Part::GUITAR : Part::DRUMS;
 
     // Draw fret hit animation (flash + flare)
     auto hitFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
-    Part currentPart = isPart(state, Part::GUITAR) ? Part::GUITAR : Part::DRUMS;
     auto flareImage = assetManager.getHitFlareImage(anim.lane, currentPart);
 
     juce::Rectangle<float> hitRect;
-    if (currentPart == Part::GUITAR) {
+    if (isGuitar) {
         hitRect = glyphRenderer.getGuitarGlyphRect(anim.lane, strikelinePosition, width, height);
     } else {
         hitRect = glyphRenderer.getDrumGlyphRect(anim.lane, strikelinePosition, width, height);
     }
 
-    // Scale up the animation (wider and much taller)
-    hitRect = hitRect.withSizeKeepingCentre(hitRect.getWidth() * HIT_ANIMATION_WIDTH_SCALE, hitRect.getHeight() * HIT_ANIMATION_HEIGHT_SCALE);
+    // Apply fret hit animation positioning and scaling
+    hitRect = hitRect.withSizeKeepingCentre(
+        hitRect.getWidth() * offset.widthScale,
+        hitRect.getHeight() * offset.heightScale
+    ).translated(offset.xOffset, offset.yOffset);
 
     // Draw the flash frame
     if (hitFrame)

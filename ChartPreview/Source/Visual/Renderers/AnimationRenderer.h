@@ -38,14 +38,16 @@ public:
     /**
      * Update sustain states based on current sustain window.
      * Animations hold at frame 1 during sustains.
+     * If isPlaying and sustain is active but no animation exists, force-trigger it.
      */
-    void updateSustainStates(const TimeBasedSustainWindow& sustainWindow);
+    void updateSustainStates(const TimeBasedSustainWindow& sustainWindow, bool isPlaying);
 
     /**
-     * Render all active hit animations.
-     * Must have width/height set via setDimensions() before calling.
+     * Populate drawCallMap with animation render calls.
+     * Animations are added to BAR_ANIMATION and NOTE_ANIMATION layers for proper Z-ordering.
+     * Call before rendering the drawCallMap.
      */
-    void render(juce::Graphics &g, uint width, uint height);
+    void renderToDrawCallMap(DrawCallMap& drawCallMap, uint width, uint height);
 
     /**
      * Advance all active animations by one frame.
@@ -68,6 +70,9 @@ private:
     // Track the last note time per column to ensure every note triggers an animation
     std::array<double, 7> lastNoteTimePerColumn = {-999.0, -999.0, -999.0, -999.0, -999.0, -999.0, -999.0};
 
+    // Helper: Trigger animation for a specific gem column
+    void triggerAnimationForColumn(uint gemColumn);
+
     // Helper: Determine if a gem column is a bar note (kick/open)
     bool isBarNote(uint gemColumn, Part part)
     {
@@ -82,6 +87,6 @@ private:
     }
 
     // Rendering helpers
-    void renderKickAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height);
-    void renderFretAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height);
+    void renderKickAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset);
+    void renderFretAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset);
 };

@@ -147,20 +147,27 @@ SustainWindow MidiInterpreter::generateSustainWindow(PPQ trackWindowStart, PPQ t
                 }
                 // Sustains (guitar only)
                 else if (isPart(state, Part::GUITAR)) {
-                    PPQ duration = noteOffPPQ - notePPQ;
-                    if (duration >= MIDI_MIN_SUSTAIN_LENGTH) {
-                        uint gemColumn = InstrumentMapper::getGuitarColumn(pitch, (SkillLevel)((int)state.getProperty("skillLevel")));
-                        if (gemColumn < LANE_COUNT) {
-                            // Check if star power is held at the start of this sustain
-                            bool isSpHeld = isNoteHeld(static_cast<uint>(Guitar::SP), notePPQ);
+                    // Only create sustains for valid playable notes (OPEN, GREEN, RED, YELLOW, BLUE, ORANGE)
+                    SkillLevel currentSkill = (SkillLevel)((int)state.getProperty("skillLevel"));
+                    auto validPitches = InstrumentMapper::getGuitarPitchesForSkill(currentSkill);
+                    bool isValidPlayablePitch = std::find(validPitches.begin(), validPitches.end(), pitch) != validPitches.end();
 
-                            SustainEvent sustain;
-                            sustain.startPPQ = notePPQ;
-                            sustain.endPPQ = noteOffPPQ;
-                            sustain.gemColumn = gemColumn;
-                            sustain.sustainType = SustainType::SUSTAIN;
-                            sustain.gemType = GemWrapper(it->second.gemType, isSpHeld);
-                            sustainWindow.push_back(sustain);
+                    if (isValidPlayablePitch) {
+                        PPQ duration = noteOffPPQ - notePPQ;
+                        if (duration >= MIDI_MIN_SUSTAIN_LENGTH) {
+                            uint gemColumn = InstrumentMapper::getGuitarColumn(pitch, currentSkill);
+                            if (gemColumn < LANE_COUNT) {
+                                // Check if star power is held at the start of this sustain
+                                bool isSpHeld = isNoteHeld(static_cast<uint>(Guitar::SP), notePPQ);
+
+                                SustainEvent sustain;
+                                sustain.startPPQ = notePPQ;
+                                sustain.endPPQ = noteOffPPQ;
+                                sustain.gemColumn = gemColumn;
+                                sustain.sustainType = SustainType::SUSTAIN;
+                                sustain.gemType = GemWrapper(it->second.gemType, isSpHeld);
+                                sustainWindow.push_back(sustain);
+                            }
                         }
                     }
                 }

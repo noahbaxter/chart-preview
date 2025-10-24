@@ -48,9 +48,11 @@ enum class DrawOrder
     GRID,
     LANE,
     BAR,
+    BAR_ANIMATION,
     SUSTAIN,
     NOTE,
-    OVERLAY
+    OVERLAY,
+    NOTE_ANIMATION
 };
 
 using DrawCallMap = std::map<DrawOrder, std::map<uint, std::vector<std::function<void(juce::Graphics&)>>>>;
