@@ -87,11 +87,11 @@ void ChartPreviewAudioProcessor::invalidateReaperCache()
 {
     if (midiPipeline)
     {
-        // Cast to ReaperMidiPipeline and invalidate cache
+        // Cast to ReaperMidiPipeline and trigger data refetch
         auto* reaperPipeline = dynamic_cast<ReaperMidiPipeline*>(midiPipeline.get());
         if (reaperPipeline)
         {
-            reaperPipeline->invalidateCache();
+            reaperPipeline->refetchAllMidiData();
         }
     }
 }

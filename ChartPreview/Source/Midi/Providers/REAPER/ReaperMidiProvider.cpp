@@ -1,4 +1,6 @@
 #include "ReaperMidiProvider.h"
+#include "ReaperNoteFetcher.h"
+#include "ReaperApiHelpers.h"
 #include "../../../REAPER/ReaperTrackDetector.h"
 
 ReaperMidiProvider::ReaperMidiProvider()
@@ -25,7 +27,16 @@ bool ReaperMidiProvider::initialize(void* (*reaperGetApiFunc)(const char*))
     try
     {
         // Load all required REAPER API functions
-        reaperApiInitialized = loadReaperApiFunctions();
+        reaperApiInitialized = ReaperApiHelpers::loadAPIs(getReaperApi, apis);
+
+        // Create note fetcher with shared APIs reference and REAPER API function getter
+        if (reaperApiInitialized)
+        {
+            noteFetcher = std::make_unique<ReaperNoteFetcher>(getReaperApi, apis);
+            if (logger)
+                noteFetcher->setLogger(logger);
+        }
+
         return reaperApiInitialized;
     }
     catch (...)
@@ -36,356 +47,94 @@ bool ReaperMidiProvider::initialize(void* (*reaperGetApiFunc)(const char*))
     }
 }
 
-bool ReaperMidiProvider::loadReaperApiFunctions()
+void ReaperMidiProvider::processTempoMarkers(void* project, std::vector<TempoTimeSignatureEvent>& events)
 {
-    // Load core project functions
-    GetCurrentProject = (void*(*)())getReaperApi("EnumProjects");
-    CountMediaItems = (int(*)(void*))getReaperApi("CountMediaItems");
-    GetMediaItem = (void*(*)(void*, int))getReaperApi("GetMediaItem");
-    GetActiveTake = (void*(*)(void*))getReaperApi("GetActiveTake");
-    GetMediaItemTake_Track = (void*(*)(void*))getReaperApi("GetMediaItemTake_Track");
+    if (!apis.CountTempoTimeSigMarkers || !apis.GetTempoTimeSigMarker)
+        return;
 
-    // Load position functions
-    GetPlayPosition2Ex = (double(*)(void*))getReaperApi("GetPlayPosition2Ex");
-    GetCursorPositionEx = (double(*)(void*))getReaperApi("GetCursorPositionEx");
-    GetPlayState = (int(*)())getReaperApi("GetPlayState");
+    int markerCount = apis.CountTempoTimeSigMarkers(project);
+    if (markerCount == 0)
+    {
+        events.push_back(TempoTimeSignatureEvent(PPQ(0.0), 120.0, 4, 4));
+        return;
+    }
 
-    // Load MIDI functions
-    MIDI_CountEvts = (int(*)(void*, int*, int*, int*))getReaperApi("MIDI_CountEvts");
-    MIDI_GetNote = (bool(*)(void*, int, bool*, bool*, double*, double*, int*, int*, int*))getReaperApi("MIDI_GetNote");
-    MIDI_GetProjQNFromPPQPos = (double(*)(void*, double))getReaperApi("MIDI_GetProjQNFromPPQPos");
-    MIDI_GetTrackHash = (bool(*)(void*, bool, char*, int))getReaperApi("MIDI_GetTrackHash");
+    double currentBpm = 120.0;
+    int currentTimeSigNum = 4;
+    int currentTimeSigDenom = 4;
 
-    // Load TimeMap functions for bar/beat calculations
-    TimeMap2_QNToTime = (double(*)(void*, double))getReaperApi("TimeMap2_QNToTime");
-    TimeMap2_timeToQN = (double(*)(void*, double))getReaperApi("TimeMap2_timeToQN");
-    TimeMap2_timeToBeats = (double(*)(void*, double, int*, int*, double*, int*))getReaperApi("TimeMap2_timeToBeats");
-    TimeMap_GetDividedBpmAtTime = (double(*)(double))getReaperApi("TimeMap_GetDividedBpmAtTime");
+    for (int markerIdx = 0; markerIdx < markerCount; markerIdx++)
+    {
+        double timepos = 0.0, bpm = 120.0;
+        int measurepos = 0, timesig_num = 4, timesig_denom = 4;
+        double beatpos = 0.0;
+        bool lineartempo = false;
 
-    // Check that critical functions loaded successfully
-    bool success = (CountMediaItems != nullptr &&
-                   GetMediaItem != nullptr &&
-                   GetActiveTake != nullptr &&
-                   GetPlayPosition2Ex != nullptr &&
-                   GetCursorPositionEx != nullptr &&
-                   GetPlayState != nullptr &&
-                   MIDI_CountEvts != nullptr &&
-                   MIDI_GetNote != nullptr &&
-                   MIDI_GetProjQNFromPPQPos != nullptr &&
-                   TimeMap2_QNToTime != nullptr &&
-                   TimeMap2_timeToBeats != nullptr);
+        if (!apis.GetTempoTimeSigMarker(project, markerIdx, &timepos, &measurepos, &beatpos,
+                                   &bpm, &timesig_num, &timesig_denom, &lineartempo))
+            continue;
 
-    return success;
+        double ppq = apis.TimeMap2_timeToQN(project, timepos);
+        bool timeSigReset = false;
+
+        if (bpm > 0.0)
+            currentBpm = bpm;
+        if (timesig_num > 0 && timesig_denom > 0)
+        {
+            currentTimeSigNum = timesig_num;
+            currentTimeSigDenom = timesig_denom;
+            timeSigReset = true;
+        }
+
+        events.push_back(TempoTimeSignatureEvent(PPQ(ppq), currentBpm, currentTimeSigNum, currentTimeSigDenom, timeSigReset));
+    }
+
+    if (logger)
+        logger->log(DebugTools::LogCategory::ReaperAPI,
+                   "Found " + juce::String(events.size()) + " tempo/timesig markers");
 }
 
-std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getNotesInRange(double startPPQ, double endPPQ, int trackIndex)
+ReaperMidiProvider::MusicalPosition ReaperMidiProvider::queryMusicalPositionFromReaper(
+    void* project, double ppq, double timeInSeconds) const
 {
-    std::vector<ReaperMidiNote> notes;
+    MusicalPosition result;
+    result.measure = 0;
+    result.beatInMeasure = 0.0;
+    result.fullBeats = ppq;
+    result.timesig_num = 4;
+    result.timesig_denom = 4;
+    result.bpm = 120.0;
 
-    if (!reaperApiInitialized)
-    {
-        if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "API not initialized");
-        return notes;
-    }
+    int measure = 0, cml = 4, cdenom = 4;
+    double fullbeats = 0.0;
 
-    juce::ScopedLock lock(apiLock);
+    result.beatInMeasure = apis.TimeMap2_timeToBeats(project, timeInSeconds,
+                                                &measure, &cml, &fullbeats, &cdenom);
 
-    try
-    {
-        // REAPER stores MIDI at 960 PPQ per quarter note internally
-        // VST playhead reports in quarter notes (1 PPQ = 1 QN)
-        // Convert our query range TO REAPER's 960 PPQ system for comparison
-        const double REAPER_PPQ_RESOLUTION = 960.0;
-        double reaperStartPPQ = startPPQ * REAPER_PPQ_RESOLUTION;
-        double reaperEndPPQ = endPPQ * REAPER_PPQ_RESOLUTION;
+    result.measure = measure;
+    result.fullBeats = fullbeats;
+    result.timesig_num = cml;
+    result.timesig_denom = cdenom;
 
-        // Minimal logging - only on significant position changes
-        static double lastLoggedStart = -1000.0;
-        bool shouldLog = std::abs(startPPQ - lastLoggedStart) > 5.0; // Only log every 5 QN
-        if (logger && shouldLog)
-        {
-            logger->log(DebugTools::LogCategory::ReaperAPI,
-                       "=== Query @ " + juce::String(startPPQ, 1) + " QN ===");
-            lastLoggedStart = startPPQ;
-        }
+    if (apis.TimeMap_GetDividedBpmAtTime)
+        result.bpm = apis.TimeMap_GetDividedBpmAtTime(timeInSeconds);
 
-        // Get current project
-        auto EnumProjects = (void*(*)(int, char*, int))getReaperApi("EnumProjects");
-        if (!EnumProjects)
-        {
-            if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "ERROR: Could not get EnumProjects API function");
-            return notes;
-        }
-
-        void* project = EnumProjects(-1, nullptr, 0);
-        if (!project)
-        {
-            if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "ERROR: Could not get current project");
-            return notes;
-        }
-
-        // For now, just hardcode back to track index 1 (track 2 in UI)
-        // TODO: Make this configurable or auto-detect properly
-        auto GetTrack = (void*(*)(void*, int))getReaperApi("GetTrack");
-        if (!GetTrack)
-        {
-            if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "ERROR: Could not get GetTrack API function");
-            return notes;
-        }
-
-        // Use provided track index, or auto-detect if not specified
-        int targetTrackIndex = trackIndex;
-        if (targetTrackIndex < 0)
-        {
-            // Auto-detect which track this plugin instance is on
-            targetTrackIndex = ReaperTrackDetector::detectPluginTrack(
-                [this](const char* funcname) -> void* { return getReaperApi(funcname); }
-            );
-
-            // If detection failed, default to track 0
-            if (targetTrackIndex < 0)
-            {
-                targetTrackIndex = 0;
-                if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "WARNING: Could not detect plugin track, defaulting to track 0");
-            }
-            else
-            {
-                if (logger)
-                {
-                    static int lastLoggedTrack = -1;
-                    if (targetTrackIndex != lastLoggedTrack)
-                    {
-                        logger->log(DebugTools::LogCategory::ReaperAPI,
-                                   "Auto-detected plugin on track index " + juce::String(targetTrackIndex) +
-                                   " (Track " + juce::String(targetTrackIndex + 1) + " in UI)");
-                        lastLoggedTrack = targetTrackIndex;
-                    }
-                }
-            }
-        }
-        else
-        {
-            if (logger)
-            {
-                static int lastLoggedTrack = -1;
-                if (targetTrackIndex != lastLoggedTrack)
-                {
-                    logger->log(DebugTools::LogCategory::ReaperAPI,
-                               "Using configured track index " + juce::String(targetTrackIndex) +
-                               " (Track " + juce::String(targetTrackIndex + 1) + " in UI)");
-                    lastLoggedTrack = targetTrackIndex;
-                }
-            }
-        }
-
-        void* targetTrack = GetTrack(project, targetTrackIndex);
-        if (!targetTrack)
-        {
-            if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "ERROR: Could not get track at index " + juce::String(targetTrackIndex));
-            return notes;
-        }
-
-        // Count media items in project
-        int itemCount = CountMediaItems(project);
-
-        int itemsChecked = 0;
-        int itemsOnTargetTrack = 0;
-        int midiItemsOnTargetTrack = 0;
-
-        // Iterate through all media items
-        for (int itemIdx = 0; itemIdx < itemCount; itemIdx++)
-        {
-            void* item = GetMediaItem(project, itemIdx);
-            if (!item)
-            {
-                if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "  Item " + juce::String(itemIdx) + ": NULL item pointer");
-                continue;
-            }
-            itemsChecked++;
-
-            // Get the active take for this item
-            void* take = GetActiveTake(item);
-            if (!take)
-            {
-                if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "  Item " + juce::String(itemIdx) + ": No active take");
-                continue;
-            }
-
-            // Check if this item belongs to our target track
-            void* itemTrack = GetMediaItemTake_Track(take);
-
-            if (itemTrack != targetTrack)
-            {
-                continue; // Skip items not on target track
-            }
-
-            itemsOnTargetTrack++;
-
-            // Check if this is a MIDI take by counting MIDI events
-            int noteCount = 0, ccCount = 0, sysexCount = 0;
-            int countResult = MIDI_CountEvts(take, &noteCount, &ccCount, &sysexCount);
-
-            if (countResult == 0)
-            {
-                continue; // Not a MIDI take
-            }
-
-            if (noteCount == 0)
-            {
-                continue; // No MIDI notes
-            }
-
-            midiItemsOnTargetTrack++;
-
-            // Read all MIDI notes from this take and convert directly to project QN
-            int notesInRange = 0;
-            for (int noteIdx = 0; noteIdx < noteCount; noteIdx++)
-            {
-                bool selected = false, muted = false;
-                double noteStartPPQ = 0.0, noteEndPPQ = 0.0;
-                int channel = 0, pitch = 0, velocity = 0;
-
-                if (MIDI_GetNote(take, noteIdx, &selected, &muted,
-                               &noteStartPPQ, &noteEndPPQ, &channel, &pitch, &velocity))
-                {
-                    // Convert take-relative PPQ positions directly to project quarter notes
-                    // This handles ALL complexity: item position, tempo changes, time signatures, etc.
-                    double projectStartQN = MIDI_GetProjQNFromPPQPos(take, noteStartPPQ);
-                    double projectEndQN = MIDI_GetProjQNFromPPQPos(take, noteEndPPQ);
-
-                    // Check if note overlaps with requested time range (in quarter notes)
-                    if (projectEndQN >= startPPQ && projectStartQN <= endPPQ)
-                    {
-                        notesInRange++;
-
-                        ReaperMidiNote note;
-                        note.startPPQ = projectStartQN;
-                        note.endPPQ = projectEndQN;
-                        note.channel = channel;
-                        note.pitch = pitch;
-                        note.velocity = velocity;
-                        note.selected = selected;
-                        note.muted = muted;
-
-                        notes.push_back(note);
-                    }
-                }
-            }
-
-            // Log which item we processed (only if it had notes in range)
-            if (logger && shouldLog && notesInRange > 0)
-            {
-                logger->log(DebugTools::LogCategory::ReaperAPI,
-                           "  Found " + juce::String(notesInRange) + " notes from MIDI item with " +
-                           juce::String(noteCount) + " total notes");
-            }
-
-        }
-
-        // Log summary only if we found notes or had issues
-        if (logger && shouldLog)
-        {
-            logger->log(DebugTools::LogCategory::ReaperAPI,
-                       "  Found " + juce::String(notes.size()) + " notes from " +
-                       juce::String(midiItemsOnTargetTrack) + " MIDI items");
-        }
-
-    }
-    catch (...)
-    {
-        // Silently handle exceptions - just return empty results
-    }
-
-    return notes;
+    return result;
 }
 
 std::vector<TempoTimeSignatureEvent> ReaperMidiProvider::getAllTempoTimeSignatureEvents()
 {
     std::vector<TempoTimeSignatureEvent> events;
 
-    if (!reaperApiInitialized || !TimeMap2_QNToTime)
-    {
-        if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "Tempo/TimeSig API not initialized for getAllTempoTimeSignatureEvents");
+    if (!reaperApiInitialized || !apis.TimeMap2_QNToTime)
         return events;
-    }
 
     juce::ScopedLock lock(apiLock);
-
     try
     {
-        // Get current project
-        auto EnumProjects = (void*(*)(int, char*, int))getReaperApi("EnumProjects");
-        if (!EnumProjects) return events;
-
-        void* project = EnumProjects(-1, nullptr, 0);
-        if (!project) return events;
-
-        // Load REAPER tempo marker enumeration APIs
-        auto CountTempoTimeSigMarkers = (int(*)(void*))getReaperApi("CountTempoTimeSigMarkers");
-        auto GetTempoTimeSigMarker = (bool(*)(void*, int, double*, int*, double*, double*, int*, int*, bool*))
-            getReaperApi("GetTempoTimeSigMarker");
-
-        if (!CountTempoTimeSigMarkers || !GetTempoTimeSigMarker)
-        {
-            if (logger) logger->log(DebugTools::LogCategory::ReaperAPI, "Tempo marker APIs not available for getAllTempoTimeSignatureEvents");
-            return events;
-        }
-
-        int markerCount = CountTempoTimeSigMarkers(project);
-
-        if (markerCount == 0)
-        {
-            // No tempo markers - return default 120 BPM, 4/4
-            events.push_back(TempoTimeSignatureEvent(PPQ(0.0), 120.0, 4, 4));
-            return events;
-        }
-
-        // State carryforward: track current tempo/timesig in case a marker only changes one
-        double currentBpm = 120.0;
-        int currentTimeSigNum = 4;
-        int currentTimeSigDenom = 4;
-
-        // Linear iteration through all markers - O(M) API calls total, no binary searches
-        for (int markerIdx = 0; markerIdx < markerCount; markerIdx++)
-        {
-            double timepos = 0.0;
-            int measurepos = 0;
-            double beatpos = 0.0;
-            double bpm = 120.0;
-            int timesig_num = 4;
-            int timesig_denom = 4;
-            bool lineartempo = false;
-
-            if (GetTempoTimeSigMarker(project, markerIdx, &timepos, &measurepos, &beatpos,
-                                     &bpm, &timesig_num, &timesig_denom, &lineartempo))
-            {
-                // Convert time position to PPQ - ONCE per marker
-                double ppq = TimeMap2_timeToQN(project, timepos);
-
-                // Track if this marker explicitly sets a time signature (for measure anchor reset)
-                bool timeSigReset = false;
-
-                // Use carried-forward state if this marker didn't change a value
-                // (REAPER may return default values (120, 4, 4) if unchanged)
-                if (bpm > 0.0)
-                    currentBpm = bpm;
-                if (timesig_num > 0 && timesig_denom > 0)
-                {
-                    currentTimeSigNum = timesig_num;
-                    currentTimeSigDenom = timesig_denom;
-                    timeSigReset = true;  // Event explicitly provided time sig - reset measure anchor
-                }
-
-                // Always add the event with effective values (current state)
-                events.push_back(TempoTimeSignatureEvent(PPQ(ppq), currentBpm, currentTimeSigNum, currentTimeSigDenom, timeSigReset));
-            }
-        }
-
-        if (logger)
-        {
-            logger->log(DebugTools::LogCategory::ReaperAPI,
-                       "getAllTempoTimeSignatureEvents: Found " + juce::String(events.size()) + " total tempo/timesig markers");
-        }
+        void* project = ReaperApiHelpers::getProject(getReaperApi);
+        if (project)
+            processTempoMarkers(project, events);
     }
     catch (...)
     {
@@ -395,64 +144,52 @@ std::vector<TempoTimeSignatureEvent> ReaperMidiProvider::getAllTempoTimeSignatur
     return events;
 }
 
+std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getAllNotesFromTrack(int trackIndex)
+{
+    if (!noteFetcher)
+        return {};
+
+    return noteFetcher->fetchAllNotes(trackIndex);
+}
+
 double ReaperMidiProvider::getCurrentPlayPosition()
 {
-    if (!reaperApiInitialized || !GetPlayPosition2Ex)
+    if (!reaperApiInitialized || !apis.GetPlayPosition2Ex)
         return 0.0;
 
-    juce::ScopedLock lock(apiLock);
-
-    try
-    {
-        // Get current project
-        auto EnumProjects = (void*(*)(int, char*, int))getReaperApi("EnumProjects");
-        if (!EnumProjects) return 0.0;
-
-        void* project = EnumProjects(-1, nullptr, 0);
-        if (!project) return 0.0;
-
-        return GetPlayPosition2Ex(project);
-    }
-    catch (...)
-    {
-        return 0.0;
-    }
+    return ReaperApiHelpers::performQuery(
+        getReaperApi,
+        reaperApiInitialized,
+        apiLock,
+        [this](void* project) { return apis.GetPlayPosition2Ex(project); },
+        0.0
+    );
 }
 
 double ReaperMidiProvider::getCurrentCursorPosition()
 {
-    if (!reaperApiInitialized || !GetCursorPositionEx)
+    if (!reaperApiInitialized || !apis.GetCursorPositionEx)
         return 0.0;
 
-    juce::ScopedLock lock(apiLock);
-
-    try
-    {
-        // Get current project
-        auto EnumProjects = (void*(*)(int, char*, int))getReaperApi("EnumProjects");
-        if (!EnumProjects) return 0.0;
-
-        void* project = EnumProjects(-1, nullptr, 0);
-        if (!project) return 0.0;
-
-        return GetCursorPositionEx(project);
-    }
-    catch (...)
-    {
-        return 0.0;
-    }
+    return ReaperApiHelpers::performQuery(
+        getReaperApi,
+        reaperApiInitialized,
+        apiLock,
+        [this](void* project) { return apis.GetCursorPositionEx(project); },
+        0.0
+    );
 }
 
 bool ReaperMidiProvider::isPlaying()
 {
-    if (!reaperApiInitialized || !GetPlayState)
+    if (!reaperApiInitialized || !apis.GetPlayState)
         return false;
 
     juce::ScopedLock lock(apiLock);
 
     try
     {
-        int playState = GetPlayState();
+        int playState = apis.GetPlayState();
         return (playState & 1) != 0; // Bit 0 = playing
     }
     catch (...)
@@ -461,68 +198,27 @@ bool ReaperMidiProvider::isPlaying()
     }
 }
 
-bool ReaperMidiProvider::isTrackMidiTrack(void* track)
-{
-    // This could be enhanced to check track properties
-    // For now, we'll determine this by checking if items contain MIDI
-    return true; // Simplified for now
-}
-
-bool ReaperMidiProvider::isItemInTimeRange(void* item, double startPPQ, double endPPQ)
-{
-    // This could be enhanced to check item timing
-    // For now, we check each take's MIDI content directly
-    return true; // Simplified for now
-}
-
 ReaperMidiProvider::MusicalPosition ReaperMidiProvider::getMusicalPositionAtPPQ(double ppq)
 {
     MusicalPosition result;
     result.measure = 0;
     result.beatInMeasure = 0.0;
-    result.fullBeats = ppq;  // Fallback: treat PPQ as beats
+    result.fullBeats = ppq;
     result.timesig_num = 4;
     result.timesig_denom = 4;
     result.bpm = 120.0;
 
-    if (!reaperApiInitialized || !TimeMap2_QNToTime || !TimeMap2_timeToBeats)
+    if (!reaperApiInitialized || !apis.TimeMap2_QNToTime || !apis.TimeMap2_timeToBeats)
         return result;
 
     juce::ScopedLock lock(apiLock);
-
     try
     {
-        // Get current project
-        auto EnumProjects = (void*(*)(int, char*, int))getReaperApi("EnumProjects");
-        if (!EnumProjects) return result;
-
-        void* project = EnumProjects(-1, nullptr, 0);
+        void* project = ReaperApiHelpers::getProject(getReaperApi);
         if (!project) return result;
 
-        // Convert QN (our PPQ) to time in seconds
-        double timeInSeconds = TimeMap2_QNToTime(project, ppq);
-
-        // Query REAPER for the musical position AT THIS EXACT TIME
-        // This accounts for ALL time signature changes before this point
-        int measure = 0;
-        int cml = 4;  // current measure length (time sig numerator)
-        double fullbeats = 0.0;
-        int cdenom = 4;  // time sig denominator
-
-        double beatInMeasure = TimeMap2_timeToBeats(project, timeInSeconds,
-                                                      &measure, &cml, &fullbeats, &cdenom);
-
-        result.measure = measure;
-        result.beatInMeasure = beatInMeasure;
-        result.fullBeats = fullbeats;
-        result.timesig_num = cml;
-        result.timesig_denom = cdenom;
-
-        // Get BPM at this time
-        if (TimeMap_GetDividedBpmAtTime)
-        {
-            result.bpm = TimeMap_GetDividedBpmAtTime(timeInSeconds);
-        }
+        double timeInSeconds = apis.TimeMap2_QNToTime(project, ppq);
+        result = queryMusicalPositionFromReaper(project, ppq, timeInSeconds);
     }
     catch (...)
     {
@@ -534,60 +230,39 @@ ReaperMidiProvider::MusicalPosition ReaperMidiProvider::getMusicalPositionAtPPQ(
 
 double ReaperMidiProvider::ppqToTime(double ppq)
 {
-    if (!reaperApiInitialized || !TimeMap2_QNToTime)
+    if (!reaperApiInitialized || !apis.TimeMap2_QNToTime)
         return ppq * (60.0 / 120.0);  // Default 120 BPM fallback
 
-    juce::ScopedLock lock(apiLock);
-
-    try
-    {
-        auto EnumProjects = (void*(*)(int, char*, int))getReaperApi("EnumProjects");
-        if (!EnumProjects) return ppq * (60.0 / 120.0);
-
-        void* project = EnumProjects(-1, nullptr, 0);
-        if (!project) return ppq * (60.0 / 120.0);
-
-        return TimeMap2_QNToTime(project, ppq);
-    }
-    catch (...)
-    {
-        return ppq * (60.0 / 120.0);
-    }
+    return ReaperApiHelpers::performQuery(
+        getReaperApi,
+        reaperApiInitialized,
+        apiLock,
+        [this, ppq](void* project) { return apis.TimeMap2_QNToTime(project, ppq); },
+        ppq * (60.0 / 120.0)
+    );
 }
 
 std::string ReaperMidiProvider::getTrackHash(int trackIndex, bool notesonly)
 {
     std::string emptyHash;
 
-    if (!reaperApiInitialized || !MIDI_GetTrackHash)
-    {
+    if (!reaperApiInitialized || !apis.MIDI_GetTrackHash)
         return emptyHash;
-    }
 
     juce::ScopedLock lock(apiLock);
 
     try
     {
-        // Get current project
-        auto EnumProjects = (void*(*)(int, char*, int))getReaperApi("EnumProjects");
-        if (!EnumProjects) return emptyHash;
-
-        void* project = EnumProjects(-1, nullptr, 0);
+        void* project = ReaperApiHelpers::getProject(getReaperApi);
         if (!project) return emptyHash;
 
-        // Get track
-        auto GetTrack = (void*(*)(void*, int))getReaperApi("GetTrack");
-        if (!GetTrack) return emptyHash;
-
-        void* track = GetTrack(project, trackIndex);
+        void* track = apis.GetTrack(project, trackIndex);
         if (!track) return emptyHash;
 
         // Get hash for this track
         char hashBuffer[256];
-        if (MIDI_GetTrackHash(track, notesonly, hashBuffer, sizeof(hashBuffer)))
-        {
+        if (apis.MIDI_GetTrackHash(track, notesonly, hashBuffer, sizeof(hashBuffer)))
             return std::string(hashBuffer);
-        }
 
         return emptyHash;
     }
@@ -595,4 +270,20 @@ std::string ReaperMidiProvider::getTrackHash(int trackIndex, bool notesonly)
     {
         return emptyHash;
     }
+}
+
+// ============ DEPRECATED METHODS ============
+
+// DEPRECATED: Use getAllNotesFromTrack or the noteFetcher directly
+// Kept for API compatibility but delegates to noteFetcher with range filtering
+std::vector<ReaperMidiProvider::ReaperMidiNote> ReaperMidiProvider::getNotesInRange(double startPPQ, double endPPQ, int trackIndex)
+{
+    // This method is deprecated. In new code, use:
+    // - getAllNotesFromTrack() for bulk fetching (recommended)
+    // - Or access noteFetcher directly for windowed fetches
+
+    if (!noteFetcher)
+        return {};
+
+    return noteFetcher->fetchNotesInRange(startPPQ, endPPQ, trackIndex);
 }

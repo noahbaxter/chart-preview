@@ -1,10 +1,13 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "ReaperApiHelpers.h"
 #include "../../../Utils/PPQ.h"
 #include "../../../Utils/Utils.h"
 #include "../../../Utils/TimeConverter.h"
 #include "../../../DebugTools/Logger.h"
+
+class ReaperNoteFetcher;  // Forward declaration
 
 /**
  * Provides MIDI note data directly from REAPER's timeline for scrubbing and lookahead.
@@ -37,12 +40,15 @@ public:
         bool muted;
     };
 
-    // Get notes from current project at specified time range
-    // trackIndex: 0-based track index (-1 = auto-detect)
+    // Get notes from a specific time range (DEPRECATED - for backward compatibility)
+    // Use getAllNotesFromTrack() for new code instead
     std::vector<ReaperMidiNote> getNotesInRange(double startPPQ, double endPPQ, int trackIndex = -1);
 
+    // Get ALL notes from a track in the entire session (delegates to ReaperNoteFetcher)
+    // trackIndex: 0-based track index (-1 = auto-detect)
+    std::vector<ReaperMidiNote> getAllNotesFromTrack(int trackIndex = -1);
+
     // Get ALL tempo and time signature events in the entire session
-    // Useful for bulk fetching to minimize API calls
     // Returns events sorted by PPQ position
     std::vector<TempoTimeSignatureEvent> getAllTempoTimeSignatureEvents();
 
@@ -84,38 +90,22 @@ public:
     }
 
 private:
+    std::unique_ptr<ReaperNoteFetcher> noteFetcher;
+
     // REAPER API function pointers
     void* (*getReaperApi)(const char*) = nullptr;
     bool reaperApiInitialized = false;
 
-    // Core REAPER API functions (dynamically loaded)
-    void* (*GetCurrentProject)() = nullptr;
-    int (*CountMediaItems)(void* proj) = nullptr;
-    void* (*GetMediaItem)(void* proj, int itemidx) = nullptr;
-    void* (*GetActiveTake)(void* item) = nullptr;
-    void* (*GetMediaItemTake_Track)(void* take) = nullptr;
-    double (*GetPlayPosition2Ex)(void* proj) = nullptr;
-    double (*GetCursorPositionEx)(void* proj) = nullptr;
-    int (*GetPlayState)() = nullptr;
-
-    // MIDI-specific API functions
-    int (*MIDI_CountEvts)(void* take, int* notecnt, int* ccevtcnt, int* textsyxevtcnt) = nullptr;
-    bool (*MIDI_GetNote)(void* take, int noteidx, bool* selected, bool* muted,
-                        double* startppq, double* endppq, int* chan, int* pitch, int* vel) = nullptr;
-    double (*MIDI_GetProjQNFromPPQPos)(void* take, double ppqpos) = nullptr;
-    bool (*MIDI_GetTrackHash)(void* track, bool notesonly, char* hashOut, int hashOut_sz) = nullptr;
-
-    // TimeMap API functions for bar/beat calculations
-    double (*TimeMap2_QNToTime)(void* proj, double qn) = nullptr;
-    double (*TimeMap2_timeToQN)(void* proj, double tpos) = nullptr;
-    double (*TimeMap2_timeToBeats)(void* proj, double tpos, int* measuresOut, int* cmlOut,
-                                    double* fullbeatsOut, int* cdenomOut) = nullptr;
-    double (*TimeMap_GetDividedBpmAtTime)(double time) = nullptr;
+    // All REAPER API functions consolidated in one struct
+    ReaperAPIs apis;
 
     // Helper methods
-    bool loadReaperApiFunctions();
-    bool isTrackMidiTrack(void* track);
-    bool isItemInTimeRange(void* item, double startPPQ, double endPPQ);
+
+    // Extract and process all tempo/timesig markers into events vector
+    void processTempoMarkers(void* project, std::vector<TempoTimeSignatureEvent>& events);
+
+    // Query REAPER for musical position at a given time
+    MusicalPosition queryMusicalPositionFromReaper(void* project, double ppq, double timeInSeconds) const;
 
     juce::CriticalSection apiLock;
     DebugTools::Logger* logger = nullptr;  // Optional debug logger

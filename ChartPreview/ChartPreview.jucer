@@ -106,6 +106,10 @@
           <FILE id="NRFvjU" name="MidiProcessor.cpp" compile="1" resource="0"
                 file="Source/Midi/Processing/MidiProcessor.cpp"/>
           <FILE id="pIB2gC" name="MidiProcessor.h" compile="0" resource="0" file="Source/Midi/Processing/MidiProcessor.h"/>
+          <FILE id="NoteProc1" name="NoteProcessor.cpp" compile="1" resource="0"
+                file="Source/Midi/Processing/NoteProcessor.cpp"/>
+          <FILE id="NoteProc2" name="NoteProcessor.h" compile="0" resource="0"
+                file="Source/Midi/Processing/NoteProcessor.h"/>
         </GROUP>
         <GROUP id="{Midi-Providers}" name="Providers">
           <GROUP id="{Midi-Providers-REAPER}" name="REAPER">
@@ -113,6 +117,12 @@
                   file="Source/Midi/Providers/REAPER/ReaperMidiProvider.cpp"/>
             <FILE id="ReaperProvider2" name="ReaperMidiProvider.h" compile="0" resource="0"
                   file="Source/Midi/Providers/REAPER/ReaperMidiProvider.h"/>
+            <FILE id="ReaperNoteFetcher1" name="ReaperNoteFetcher.cpp" compile="1" resource="0"
+                  file="Source/Midi/Providers/REAPER/ReaperNoteFetcher.cpp"/>
+            <FILE id="ReaperNoteFetcher2" name="ReaperNoteFetcher.h" compile="0" resource="0"
+                  file="Source/Midi/Providers/REAPER/ReaperNoteFetcher.h"/>
+            <FILE id="ReaperApiHelpers" name="ReaperApiHelpers.h" compile="0" resource="0"
+                  file="Source/Midi/Providers/REAPER/ReaperApiHelpers.h"/>
             <FILE id="MidiCache1" name="MidiCache.cpp" compile="1" resource="0"
                   file="Source/Midi/Providers/REAPER/MidiCache.cpp"/>
             <FILE id="MidiCache2" name="MidiCache.h" compile="0" resource="0"
@@ -140,8 +150,6 @@
                 file="Source/Midi/Utils/MidiTypes.h"/>
           <FILE id="MidiConstants" name="MidiConstants.h" compile="0" resource="0"
                 file="Source/Midi/Utils/MidiConstants.h"/>
-          <FILE id="InstrumentMapper1" name="InstrumentMapper.cpp" compile="1" resource="0"
-                file="Source/Midi/Utils/InstrumentMapper.cpp"/>
           <FILE id="InstrumentMapper2" name="InstrumentMapper.h" compile="0" resource="0"
                 file="Source/Midi/Utils/InstrumentMapper.h"/>
           <FILE id="GemCalculator1" name="GemCalculator.cpp" compile="1" resource="0"
