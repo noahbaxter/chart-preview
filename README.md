@@ -1,88 +1,89 @@
 # Chart Preview
-Chart Preview is an au/vst plugin for DAWs that visualizes midi notes similar to how they appear in rhythm games like Clone Hero and YARG. It's designed to make it clearer how midi note placement will translate in game. To use it, just throw the plugin on a midi channel in your DAW of choice, but use it in Reaper to leverage the sdk for 0 latency scrubbing.
+Chart Preview is a vst plugin designed for Reaper that visualizes midi notes as they'd appear in rhythm games like Clone Hero and YARG. Just throw the plugin on any track with midi notes and happy charting on **Windows**, **MacOS**, and **Linux**!
 
-This plugin supports Windows, macOS, and Linux based 64bit DAWs. Happy charting!
+This plugin relies on the reaper-sdk for tight DAW integration allowing zero latency timeline scrubbing and a host of advanced midi features, BUT it can also work in any DAW with a reduced feature set if you prefer by relying on midi lookahead (which adds latency).
+
 
 ![Preview Image](preview.jpg)
 
-Big massive thank you Inventor211 for the lovely custom art assets.
+---
 
-#### **DISCLAIMER**
+## What Can You Do?
 
-Chart Preview is in active development (v0.9.0 beta). Both drums and guitar are feature-complete with full sustain, lane support, and hit animations! REAPER integration provides direct timeline access. See [roadmap](docs/TODO.md) for current status and known issues.
+### 🎸 **Guitar**
+- See basic, chord, sustain, HOPO, open and tap notes
+- Visual lanes for tremolos and trills
+- Configurable auto-HOPO detection
 
-[Consider supporting the project!](https://www.paypal.com/donate/?business=3P35P46JLEDJA&no_recurring=0&item_name=Support+the+ongoing+development+of+Chart+Preview.&currency_code=USD)
+### 🥁 **Drums**
+- See snare, tom, cymbal and kick notes
+- Toggleable 2x kick (double kick pedal) support
+- Dynamics in the form of ghosts and accents
+- Lanes for rolls and swells
 
-### Install
+### ✨ **General Features**
+- Smooth rendering up to 120FPS
+- Hit animations with visual feedback
+- Adjustable playback speed
+- Resizable, responsive interface
+- Hide/show star power, dynamics, specific instruments
+- **REAPER:** Zero-latency scrubbing with direct timeline access
 
-See [releases](https://github.com/noahbaxter/chart-preview/releases) to download the latest builds for your platform.
+---
 
-##### macOS
-**VST3:** Place `ChartPreview.vst3` in `/Library/Audio/Plug-Ins/VST3`  
-**AU:** Place `ChartPreview.component` in `/Library/Audio/Plug-Ins/Components`
+## Installation
 
-##### Windows  
-Place `ChartPreview.vst3` in your DAW's VST3 directory:
-- **Most DAWs:** `C:\Program Files\Common Files\VST3`
-- **Steinberg/Cubase:** `C:\Program Files (x86)\Steinberg\VstPlugins` 
-- **REAPER:** Check Options > Preferences > Plug-ins > VST for custom paths
+Download the latest version from [releases](https://github.com/noahbaxter/chart-preview/releases).
 
-##### Linux
-Place the `ChartPreview.vst3` bundle in:
-- **User:** `~/.vst3/` 
-- **System:** `/usr/local/lib/vst3/` or `/usr/lib/vst3/`
-- **Custom:** Check your DAW's VST3 scan paths
+**macOS:**
+- VST3: `~/Library/Audio/Plug-Ins/VST3/`
+- AU: `~/Library/Audio/Plug-Ins/Components/`
 
-**Note:** I recommend you close and reopen your DAW after installation to ensure a proper plugin rescan.
+**Windows:**
+- Most DAWs: `C:\Program Files\Common Files\VST3\`
+- REAPER: Check Preferences > Plug-ins > VST for custom paths
 
-### Quick Start
+**Linux:**
+- User: `~/.vst3/`
+- System: `/usr/local/lib/vst3/` or `/usr/lib/vst3/`
 
-1. **Load Plugin:** Add Chart Preview to a MIDI track in your DAW
-2. **Select Instrument:** Choose Guitar or Drums from the plugin interface
-3. **Pick Difficulty:** Set skill level (Easy, Medium, Hard, Expert)
-4. **Configure Settings:** Se your midi track #, latency (on non-reaper DAWs), frame rate, and zoom as needed
-5. **Play & Chart:** Hit play and enjoy!
+After installing, restart your DAW to autoscan for the plugin.
 
-### Why is this better than RBN Preview?
-Chart Preview is an open source replacement for RBN Preview, built from the ground up for use on modern platforms and with some unique features you may appreciate.
-* Guitar
-  * **Open Notes**
-  * **Tap Notes**
-  * **Lanes/Tremolo**
-* Drums  
-  * **Ghosts and Accents**
-  * **2x Kick Support**
-  * **Lanes**
-* General
-  * **Cross-platform** - Proper 64bit Windows, macOS, and Linux support
-  * **Advanced Visibility Toggles** - Star power, dynamics, 2x kicks, cymbal detection
-  * **Flexible Note Speed**
-  * **60FPS Efficient Rendering**
+---
 
-## Documentation
+## Quick Start
 
-- **[🗺️ Detailed Roadmap](docs/UPCOMING_FEATURES.md)** - Implementation phases with effort estimates
-- **[🔧 Build Instructions](docs/BUILDING.md)** - How to compile from source
-- **[📚 Documentation Hub](docs/)** - Complete reference guide
+1. Add Chart Preview to any MIDI track
+2. Select your instrument (Guitar or Drums)
+3. Choose difficulty level (Easy/Medium/Hard/Expert)
+4. Adjust playback speed to your liking
+5. Play and chart!
 
-### What's New in v0.9.0
-- ✨ **Hit Animations** - Per-column hit indicators with kick bar flashes (17 new animation frames!)
-- ✨ **REAPER Integration** - Direct timeline access via VST2/VST3 extensions, use reaper for zero latency playback and scrubbing
-- ✨ **Time-Based Rendering** - No more "dynamic" highway *(man that thing sucked...)*
-- ✨ **Improved Gridlines** - Better aligned with gem notes, with much better responsiveness for time signatures abd bpm changes
+**Pro tip:** Use REAPER for the best experience — direct timeline access with zero latency.
 
-### Previous Features (v0.8.x)
-- ✅ **Sustain Notes** - Guitar sustain rendering with accurate timing
-- ✅ **Drum/Cymbal Lanes** - Tremolo rolls and cymbal swells
-- ✅ **Guitar Tremolo** - Trill sections using same lane system
-- ✅ **HOPO Modes** - Configurable auto-HOPO timing (16th, dot 16th, 170 tick, 8th, off)
-- ✅ **Resizable Interface** - Window scaling with locked aspect ratio
-- ✅ **Linux Support** - Full cross-platform CI/CD pipeline
-- ✅ **Chord Detection** - 10-tick tolerance for accurate chord grouping
-- ✅ **Performance** - PPQ-based timing system with latency compensation
+---
 
-See the [complete roadmap](docs/TODO.md) for detailed status and priority ranking.
+## Why Chart Preview?
+
+- **Open source** — Fully built from the groundup as an MIT license
+- **Cross-platform** — Works on Windows, macOS, and Linux
+- **Accurate** — Properly renders all chart types and note modifiers
+- **Fast** — Smooth high FPS rendering, optimized for real-time preview
+- **Modern** — Built for current DAWs with 64bit VST3/AU support
+- **REAPER integration** — Scrub and preview with zero latency
+
+---
+
+## Support
+
+Have questions or found a bug? [Open an issue](https://github.com/noahbaxter/chart-preview/issues).
+
+Want to support development? [Donate here](https://www.paypal.com/donate/?business=3P35P46JLEDJA&no_recurring=0&item_name=Support+the+ongoing+development+of+Chart+Preview.&currency_code=USD).
+
+---
 
 ## License
 
-This codebase is distributed under an MIT license, but note that all art assets are exempt and distributed only for build purposes.
+Chart Preview is open source under the MIT license. Art assets are provided for build purposes only.
+
+**Credits:** Huge thanks to Inventor211 for the custom art assets!

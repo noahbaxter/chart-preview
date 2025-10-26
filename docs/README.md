@@ -7,13 +7,10 @@ Quick reference to find what you need.
 ## 🚀 **I want to...**
 
 ### **...understand what to work on next**
-→ Read **[TODO.md](TODO.md)** (quick overview of priorities & current status)
+→ Read **[TODO.md](TODO.md)** (priorities, roadmap, next steps)
 
 ### **...see user feedback & feature requests**
-→ Read **[USER_FEEDBACK.md](USER_FEEDBACK.md)** (organized by user with priorities)
-
-### **...see the detailed roadmap & phases**
-→ Read **[UPCOMING_FEATURES.md](UPCOMING_FEATURES.md)** (phases, effort estimates, timelines)
+→ Read **[USER_FEEDBACK.md](USER_FEEDBACK.md)** (recent feedback, dated by person)
 
 ### **...build the plugin from source**
 → Read **[BUILDING.md](BUILDING.md)** (all platforms: Windows, macOS, Linux)
@@ -31,18 +28,16 @@ Quick reference to find what you need.
 ```
 docs/
 ├── README.md (you are here)
-├── TODO.md (current priorities - START HERE)
-├── USER_FEEDBACK.md (feature requests by person)
-├── UPCOMING_FEATURES.md (detailed roadmap phases)
+├── TODO.md (current roadmap - START HERE)
+├── USER_FEEDBACK.md (user requests by date)
 ├── BUILDING.md (build instructions)
 ├── CLAUDE.md (AI assistant guidance)
 │
-└── development/ (technical deep-dives)
-    ├── TECHNICAL_KNOWLEDGE.md (hard-won implementation details)
-    ├── REAPER_INTEGRATION.md (VST/REAPER integration guide)
-    ├── PIPELINE_COMPARISON.md (REAPER vs Standard pipeline)
-    ├── JUCE_REAPER_MODIFICATIONS.md (JUCE framework changes)
-    └── [other technical references]
+├── development/ (technical deep-dives)
+│   ├── TECHNICAL_KNOWLEDGE.md (hard-won implementation details)
+│   ├── REAPER_INTEGRATION.md (VST/REAPER integration guide)
+│   ├── PIPELINE_COMPARISON.md (REAPER vs Standard pipeline)
+│   └── JUCE_REAPER_MODIFICATIONS.md (JUCE framework changes)
 │
 └── archive/ (historical documents)
     ├── 2025-10-09-REPO-CLEANUP.md
@@ -53,21 +48,17 @@ docs/
 
 ## 🎯 **Most Useful Files**
 
-1. **[TODO.md](TODO.md)** - Simple checklist of what's next (5 min read)
-2. **[USER_FEEDBACK.md](USER_FEEDBACK.md)** - What users are asking for (10 min read)
-3. **[UPCOMING_FEATURES.md](UPCOMING_FEATURES.md)** - Detailed roadmap (15 min read)
-4. **[BUILDING.md](BUILDING.md)** - How to compile (reference)
-5. **[development/TECHNICAL_KNOWLEDGE.md](development/TECHNICAL_KNOWLEDGE.md)** - Understanding tricky code (reference)
+1. **[TODO.md](TODO.md)** - Development roadmap and priorities (5 min read)
+2. **[USER_FEEDBACK.md](USER_FEEDBACK.md)** - What users are asking for (5 min read)
+3. **[BUILDING.md](BUILDING.md)** - How to compile (reference)
+4. **[development/TECHNICAL_KNOWLEDGE.md](development/TECHNICAL_KNOWLEDGE.md)** - Understanding tricky code (reference)
 
 ---
 
 ## 🗂️ **By Purpose**
 
 **Project Overview & Status**:
-- [Todo.md](TODO.md) - Current priorities
-- [UPCOMING_FEATURES.md](UPCOMING_FEATURES.md) - Future roadmap
-
-**User & Community**:
+- [TODO.md](TODO.md) - Current priorities and roadmap
 - [USER_FEEDBACK.md](USER_FEEDBACK.md) - What people want
 
 **Development**:
@@ -89,8 +80,8 @@ docs/
 - **Stuck on code?** → Check development/TECHNICAL_KNOWLEDGE.md
 - **Building locally?** → Read BUILDING.md
 - **Need to know what users want?** → Read USER_FEEDBACK.md
-- **Planning new features?** → Reference UPCOMING_FEATURES.md for phases & effort
+- **Planning new features?** → Reference TODO.md for roadmap & priorities
 
 ---
 
-**Last Updated**: 2025-10-18
+**Last Updated**: 2025-10-26

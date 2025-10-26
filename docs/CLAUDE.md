@@ -104,29 +104,19 @@ Plugin state stored in `juce::ValueTree` with properties:
 
 ## Development Status
 
-**Current**: v0.8.7 (REAPER optimization update - COMPLETE)
-**Next**: v0.9.0 (UX polish - REAPER mode toggle, hit animations, default settings)
-**See**: `docs/UPCOMING_FEATURES.md` for priority roadmap, `docs/TODO.md` for full backlog
+**Current**: v0.9.4 (Hit animations & REAPER integration)
+**Next**: v0.9.5 (Quick wins) → v1.0.0 (Core features + UI overhaul)
+**See**: `docs/TODO.md` for current roadmap and priorities
 
-### Recent Completions (v0.8.7 - REAPER Optimization Update)
+### Recent Completions (v0.9.x)
+- Hit animations (17 new animation frames)
 - REAPER timeline integration via VST2/VST3 extensions
 - Modular pipeline architecture (ReaperMidiPipeline vs StandardMidiPipeline)
 - MIDI caching system with smart invalidation
 - Multi-instance support with per-instance API storage
-- Time-based rendering refactor with unified tempo handling (absolute position-based)
+- Time-based rendering refactor with unified tempo handling
 - REAPER gridline alignment fixed with time signature change handling
-- Tempo-change stretching eliminated (no more jarring visual glitches)
-- Chord HOPO rendering bug fixed in both pipelines
-- Sync issues eliminated (absolute position-based rendering)
-- Version display added to plugin UI
 - Centralized debug logging system (DebugTools::Logger)
-
-### Previous Completions (v0.8.6)
-- Race condition fix preventing intermittent black screens
-- Debug logging performance optimization
-
-### Previous Completions (v0.8.5)
-PPQ timing, latency compensation, CI/CD pipeline, Linux support, sustain rendering, resizable VST, lanes system overhaul, HOPO configuration
 
 ### Beta Testing (Invontor - main tester)
 **Status**: Core functionality solid, ready for UX polish phase
