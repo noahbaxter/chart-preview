@@ -24,6 +24,7 @@ DEF_CLASS_IID(Vst::ChannelContext::IInfoListener)
 #endif
 
 #if JucePlugin_Build_VST3
+using namespace Steinberg;
 
 TrackInfoListener::TrackInfoListener(ChartPreviewAudioProcessor* proc)
     : processor(proc)
