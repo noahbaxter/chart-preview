@@ -40,8 +40,7 @@ void NoteProcessor::processModifierNotes(
         if (!isModifier) continue;
 
         // Add modifier to note state map (no gem type needed for modifiers)
-        addNoteToMap(noteStateMapArray, note.pitch, note.startPPQ, NoteData(note.velocity, Gem::NONE));
-        addNoteOffToMap(noteStateMapArray, note.pitch, note.endPPQ);
+        addNoteToMap(noteStateMapArray, note.pitch, note.startPPQ, note.endPPQ, NoteData(note.velocity, Gem::NONE));
     }
 }
 
@@ -97,8 +96,7 @@ void NoteProcessor::processPlayableNotes(
         }
 
         // Add to note state map
-        addNoteToMap(noteStateMapArray, note.pitch, note.startPPQ, NoteData(note.velocity, gemType));
-        addNoteOffToMap(noteStateMapArray, note.pitch, note.endPPQ);
+        addNoteToMap(noteStateMapArray, note.pitch, note.startPPQ, note.endPPQ, NoteData(note.velocity, gemType));
     }
 
     // Fix chord HOPOs for guitar (after all notes are added, but still holding lock)
@@ -109,18 +107,13 @@ void NoteProcessor::processPlayableNotes(
     }
 }
 
-void NoteProcessor::addNoteToMap(NoteStateMapArray& noteStateMapArray, uint pitch, PPQ startPPQ, const NoteData& data)
+void NoteProcessor::addNoteToMap(NoteStateMapArray& noteStateMapArray, uint pitch, PPQ startPPQ, PPQ endPPQ, const NoteData& data)
 {
     if (pitch < noteStateMapArray.size())
     {
         noteStateMapArray[pitch][startPPQ] = data;
-    }
-}
-
-void NoteProcessor::addNoteOffToMap(NoteStateMapArray& noteStateMapArray, uint pitch, PPQ endPPQ)
-{
-    if (pitch < noteStateMapArray.size())
-    {
-        noteStateMapArray[pitch][endPPQ - PPQ(1)] = NoteData(0, Gem::NONE);
+        // startPPQ + 1 handles 0 length notes
+        // endPPQ - 1 ensures we don't overwrite the next note's start 
+        noteStateMapArray[pitch][std::max(startPPQ + PPQ(1), endPPQ - PPQ(1))] = NoteData(0, Gem::NONE);
     }
 }

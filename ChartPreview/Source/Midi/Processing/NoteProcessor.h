@@ -44,6 +44,5 @@ public:
 
 private:
     // Caller must hold noteStateMapLock!
-    void addNoteToMap(NoteStateMapArray& noteStateMapArray, uint pitch, PPQ startPPQ, const NoteData& data);
-    void addNoteOffToMap(NoteStateMapArray& noteStateMapArray, uint pitch, PPQ endPPQ);
+    void addNoteToMap(NoteStateMapArray& noteStateMapArray, uint pitch, PPQ startPPQ, PPQ endPPQ, const NoteData& data);
 };
