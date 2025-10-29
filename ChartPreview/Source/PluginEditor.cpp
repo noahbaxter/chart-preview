@@ -369,8 +369,8 @@ void ChartPreviewAudioProcessorEditor::resized()
     latencyMenu.setBounds(getWidth() - 120, getHeight() - 55, controlWidth, controlHeight);
 
     // Latency offset input (label + text box) - positioned below latency menu
-    latencyOffsetLabel.setBounds(getWidth() - 120, getHeight() - 80, 75, controlHeight);
-    latencyOffsetInput.setBounds(getWidth() - 40, getHeight() - 80, 60, controlHeight);
+    latencyOffsetLabel.setBounds(getWidth() - 100, getHeight() - 75, 80, controlHeight);
+    latencyOffsetInput.setBounds(getWidth() - 100, getHeight() - 50, 80, controlHeight);
     
     // Speed controls (anchored to bottom-right)
     chartSpeedLabel.setBounds(getWidth() - 90, getHeight() - 270, 40, controlHeight);
