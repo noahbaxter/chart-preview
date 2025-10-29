@@ -489,8 +489,10 @@ jobs:
       run: |
         cd ChartPreview
         echo "Building VST3 with Make..."
-        
+
         cd Builds/LinuxMakefile
+        echo "Cleaning stale build artifacts and dependency files..."
+        make clean
         echo "Building Release configuration..."
         make -j$(nproc) CONFIG=Release
         
