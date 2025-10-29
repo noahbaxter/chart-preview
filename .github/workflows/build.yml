@@ -83,9 +83,9 @@ jobs:
         path: |
           ChartPreview/Builds
           ChartPreview/JuceLibraryCode
-        key: ${{ runner.os }}-juce-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
+        key: ${{ runner.os }}-juce-v2-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
         restore-keys: |
-          ${{ runner.os }}-juce-
+          ${{ runner.os }}-juce-v2-
 
     - name: Generate Windows project with Projucer
       shell: cmd  
@@ -261,9 +261,9 @@ jobs:
         path: |
           ChartPreview/Builds
           ChartPreview/JuceLibraryCode
-        key: ${{ runner.os }}-juce-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
+        key: ${{ runner.os }}-juce-v2-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
         restore-keys: |
-          ${{ runner.os }}-juce-
+          ${{ runner.os }}-juce-v2-
           
     - name: Generate Xcode project with Projucer
       run: |
@@ -467,9 +467,9 @@ jobs:
         path: |
           ChartPreview/Builds
           ChartPreview/JuceLibraryCode
-        key: ${{ runner.os }}-juce-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
+        key: ${{ runner.os }}-juce-v2-${{ hashFiles('ChartPreview/ChartPreview.jucer') }}
         restore-keys: |
-          ${{ runner.os }}-juce-
+          ${{ runner.os }}-juce-v2-
           
     - name: Generate Linux project with Projucer
       run: |
