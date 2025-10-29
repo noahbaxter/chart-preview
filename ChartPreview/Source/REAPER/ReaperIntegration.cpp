@@ -114,29 +114,12 @@ void ReaperIntegration::processReaperTimelineMidi(
     if (isPart(state, Part::DRUMS))
     {
         validPlayablePitches = InstrumentMapper::getDrumPitchesForSkill(currentSkill);
-        // Drum modifiers: tom markers (110-112), star power (116), lanes (126-127)
-        validModifierPitches = {110, 111, 112, 116, 126, 127};
+        validModifierPitches = InstrumentMapper::getDrumModifierPitches();
     }
     else if (isPart(state, Part::GUITAR))
     {
         validPlayablePitches = InstrumentMapper::getGuitarPitchesForSkill(currentSkill);
-        // Guitar modifiers: HOPO/STRUM (per difficulty), TAP (104), star power (116), lanes (126-127)
-        using Guitar = MidiPitchDefinitions::Guitar;
-        switch (currentSkill)
-        {
-            case SkillLevel::EXPERT:
-                validModifierPitches = {(uint)Guitar::EXPERT_HOPO, (uint)Guitar::EXPERT_STRUM, (uint)Guitar::TAP, (uint)Guitar::SP, (uint)Guitar::LANE_1, (uint)Guitar::LANE_2};
-                break;
-            case SkillLevel::HARD:
-                validModifierPitches = {(uint)Guitar::HARD_HOPO, (uint)Guitar::HARD_STRUM, (uint)Guitar::TAP, (uint)Guitar::SP, (uint)Guitar::LANE_1, (uint)Guitar::LANE_2};
-                break;
-            case SkillLevel::MEDIUM:
-                validModifierPitches = {(uint)Guitar::MEDIUM_HOPO, (uint)Guitar::MEDIUM_STRUM, (uint)Guitar::TAP, (uint)Guitar::SP, (uint)Guitar::LANE_1, (uint)Guitar::LANE_2};
-                break;
-            case SkillLevel::EASY:
-                validModifierPitches = {(uint)Guitar::EASY_HOPO, (uint)Guitar::EASY_STRUM, (uint)Guitar::TAP, (uint)Guitar::SP, (uint)Guitar::LANE_1, (uint)Guitar::LANE_2};
-                break;
-        }
+        validModifierPitches = InstrumentMapper::getGuitarModifierPitchesForSkill(currentSkill);
     }
 
     // FIRST PASS: Process modifier pitches (tom markers, HOPO/STRUM, star power, lanes)
