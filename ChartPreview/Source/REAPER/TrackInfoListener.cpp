@@ -10,9 +10,20 @@
 #include "TrackInfoListener.h"
 #include "../PluginProcessor.h"
 
-#if JucePlugin_Build_VST3
-
+// The shared library is built with both VST3=1 and AU=1. The VST3 code references
+// IInfoListener::iid, so the symbol must be available.
+// - For AU builds, we must define it here, as the VST3 SDK's vstinitiids.cpp is not included.
+// - For VST3 builds, vstinitiids.cpp provides the definition.
+//
+// To solve this, we define the IID only for AU builds, and mark it as a weak symbol.
+// This prevents a "duplicate symbol" linker error in VST3 builds.
+#if JucePlugin_Build_AU
 using namespace Steinberg;
+__attribute__((weak))
+DEF_CLASS_IID(Vst::ChannelContext::IInfoListener)
+#endif
+
+#if JucePlugin_Build_VST3
 
 TrackInfoListener::TrackInfoListener(ChartPreviewAudioProcessor* proc)
     : processor(proc)
