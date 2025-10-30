@@ -13,6 +13,7 @@
 **/Debug/
 **/Release/
 ChartPreview/build-scripts/releases/
+ChartPreview/releases/
 **/JUCE-a54535b*
 
 # -----------------------------------------------------------------------------  
@@ -38,6 +39,7 @@ ChartPreview/build-scripts/releases/
 *.gch
 *.opensdf
 *.sdf
+*.log
 
 # -----------------------------------------------------------------------------
 # IDE/Editor Files
@@ -100,6 +102,9 @@ DO NOT DISTRIBUTE
 **/third_party/sws/
 **/third_party/JUCE-reaper-embedded-fx-gui/
 *.zip
+
+# Development/Analysis Notes
+*_ANALYSIS.md
 
 # -----------------------------------------------------------------------------
 # AI stuff
