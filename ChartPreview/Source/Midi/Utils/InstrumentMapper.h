@@ -234,5 +234,5 @@ public:
     }
 
 private:
-    static constexpr size_t LANE_COUNT = 5;  // Max lanes (0-4)
+    static constexpr size_t LANE_COUNT = 7;  // Number of playable lanes (0-6)
 };
