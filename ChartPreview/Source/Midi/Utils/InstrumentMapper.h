@@ -74,7 +74,7 @@ public:
             return 5;
         }
 
-        return LANE_COUNT; // Invalid/unknown pitch
+        return INVALID_COLUMN;
     }
 
     static uint getDrumColumn(uint pitch, SkillLevel skill, bool kick2xEnabled)
@@ -122,7 +122,7 @@ public:
             return 6;
         }
 
-        return LANE_COUNT; // Invalid/unknown pitch
+        return INVALID_COLUMN;
     }
 
     // Playable pitch helpers
@@ -213,10 +213,10 @@ public:
         // Guitar modifiers (all sustained)
         if (pitch == (uint)Guitar::SP ||
             pitch == (uint)Guitar::TAP ||
-            pitch == (uint)Guitar::EXPERT_STRUM || pitch == (uint)Guitar::EXPERT_HOPO ||
-            pitch == (uint)Guitar::HARD_STRUM || pitch == (uint)Guitar::HARD_HOPO ||
-            pitch == (uint)Guitar::MEDIUM_STRUM || pitch == (uint)Guitar::MEDIUM_HOPO ||
-            pitch == (uint)Guitar::EASY_STRUM || pitch == (uint)Guitar::EASY_HOPO ||
+            pitch == (uint)Guitar::EASY_HOPO || pitch == (uint)Guitar::EASY_STRUM ||
+            pitch == (uint)Guitar::MEDIUM_HOPO || pitch == (uint)Guitar::MEDIUM_STRUM ||
+            pitch == (uint)Guitar::HARD_HOPO || pitch == (uint)Guitar::HARD_STRUM ||
+            pitch == (uint)Guitar::EXPERT_HOPO || pitch == (uint)Guitar::EXPERT_STRUM ||
             pitch == (uint)Guitar::LANE_1 || pitch == (uint)Guitar::LANE_2)
         {
             return true;
@@ -224,7 +224,7 @@ public:
 
         // Drum modifiers (all sustained)
         if (pitch == (uint)Drums::SP ||
-            pitch == (uint)Drums::TOM_GREEN || pitch == (uint)Drums::TOM_BLUE || pitch == (uint)Drums::TOM_YELLOW ||
+            pitch == (uint)Drums::TOM_YELLOW || pitch == (uint)Drums::TOM_BLUE || pitch == (uint)Drums::TOM_GREEN ||
             pitch == (uint)Drums::LANE_1 || pitch == (uint)Drums::LANE_2)
         {
             return true;
@@ -234,5 +234,5 @@ public:
     }
 
 private:
-    static constexpr size_t LANE_COUNT = 5;  // Max lanes (0-4)
+    static constexpr uint INVALID_COLUMN = uint(-1);
 };
