@@ -1,6 +1,6 @@
 # Development Roadmap
 
-Current version: **v0.9.4**
+Current version: **v0.9.5**
 
 ---
 

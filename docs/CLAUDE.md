@@ -129,8 +129,8 @@ Plugin state stored in `juce::ValueTree` with properties:
 
 ## Development Status
 
-**Current**: v0.9.4 (Hit animations & REAPER integration)
-**Next**: v0.9.5 (Quick wins) → v1.0.0 (Core features + UI overhaul)
+**Current**: v0.9.5 (Orange note bug)
+**Next**: v0.9.6 (Quick wins) → v1.0.0 (Core features + UI overhaul)
 **See**: `docs/TODO.md` for current roadmap and priorities
 
 ### Recent Completions (v0.9.x)
