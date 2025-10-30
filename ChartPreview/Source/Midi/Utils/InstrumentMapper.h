@@ -205,7 +205,7 @@ public:
                 note == Drums::EXPERT_KICK_2X);
     }
 
-    static bool isSustainedModifierPitch(uint pitch)
+    static bool isModifier(uint pitch)
     {
         using Guitar = MidiPitchDefinitions::Guitar;
         using Drums = MidiPitchDefinitions::Drums;

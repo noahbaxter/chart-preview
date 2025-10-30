@@ -105,7 +105,7 @@ void MidiProcessor::processMidiMessages(juce::MidiBuffer &midiMessages, PPQ star
         juce::MidiMessage message;
         PPQ position;
         uint pitch;
-        bool isSustainedModifier;
+        bool isModifier;
     };
     
     std::vector<NoteMessage> noteMessages;
@@ -119,10 +119,10 @@ void MidiProcessor::processMidiMessages(juce::MidiBuffer &midiMessages, PPQ star
             PPQ messagePositionPPQ = startPPQ + calculatePPQSegment(message.samplePosition, bpm, sampleRate);
             uint pitch = midiMessage.getNoteNumber();
             
-            // Identify sustained modifier notes for priority processing
-            bool isSustainedModifier = InstrumentMapper::isSustainedModifierPitch(pitch);
+            // Identify modifier notes for priority processing
+            bool isModifier = InstrumentMapper::isModifier(pitch);
             
-            noteMessages.push_back({midiMessage, messagePositionPPQ, pitch, isSustainedModifier});
+            noteMessages.push_back({midiMessage, messagePositionPPQ, pitch, isModifier});
         }
         
         if (++numMessages >= MIDI_MAX_MESSAGES_PER_BLOCK) break;
@@ -132,7 +132,7 @@ void MidiProcessor::processMidiMessages(juce::MidiBuffer &midiMessages, PPQ star
     // This ensures modifiers like tom markers, HOPO/strum markers, star power, etc. 
     // are active before the actual notes that depend on them
     std::sort(noteMessages.begin(), noteMessages.end(), [](const NoteMessage& a, const NoteMessage& b) {
-        if (a.isSustainedModifier != b.isSustainedModifier) return a.isSustainedModifier > b.isSustainedModifier; // Modifiers first
+        if (a.isModifier != b.isModifier) return a.isModifier > b.isModifier; // Modifiers first
         return a.position < b.position; // Then by time
     });
     
