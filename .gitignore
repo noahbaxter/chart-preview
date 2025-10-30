@@ -100,3 +100,9 @@ DO NOT DISTRIBUTE
 **/third_party/sws/
 **/third_party/JUCE-reaper-embedded-fx-gui/
 *.zip
+
+# -----------------------------------------------------------------------------
+# AI stuff
+sessions/
+.claude/
+.claude-code/

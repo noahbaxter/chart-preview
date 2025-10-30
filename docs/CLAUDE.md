@@ -18,6 +18,31 @@ When researching JUCE implementation details:
 3. Only use web searches if local resources are insufficient
 4. Document findings in `/docs/` for future reference
 
+## Sessions Framework (Local Task Management)
+
+Chart Preview uses cc-sessions for local task organization and context management.
+
+**IMPORTANT**: All sessions-related files are **LOCAL ONLY** and must never be committed to git:
+- `sessions/` directory (task files, indexes, framework, protocols)
+- `.claude/` directory (local Claude Code configuration)
+
+Both are in `.gitignore` and should stay there. Each developer maintains their own local tasks and context manifests. The framework helps organize work across sessions but produces no git artifacts.
+
+### How It Works
+- Tasks created with `mek:` trigger get a task file in `sessions/tasks/`
+- Each task has frontmatter (name, branch, status, created date)
+- Tasks are organized by index in `sessions/tasks/indexes/`
+- When starting work with `start^`, context-gathering agent builds a context manifest
+- Implementation todos are created with `yert` trigger in implementation mode
+- All local state persists across sessions automatically
+
+### Key Rules
+- **Never commit task files, indexes, or sessions framework files**
+- Keep `sessions/` and `.claude/` in `.gitignore` permanently
+- Use tasks to organize work, not as git artifacts
+- Context manifests are built during task startup, not stored permanently
+- Only actual code changes and documentation get committed to git
+
 ## Project Overview
 
 Chart Preview is a VST/AU plugin that visualizes MIDI notes as rhythm game charts (Clone Hero/YARG style). Built with JUCE for Windows, macOS, and Linux.
