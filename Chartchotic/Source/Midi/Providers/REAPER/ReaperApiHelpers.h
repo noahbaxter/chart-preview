@@ -62,9 +62,9 @@ struct ReaperAPIs
     void (*MIDI_DisableSort)(void* take) = nullptr;
     double (*MIDI_GetPPQPosFromProjQN)(void* take, double projqn) = nullptr;
 
-    // Undo
-    void (*Undo_BeginBlock2)(void* proj) = nullptr;
-    void (*Undo_EndBlock2)(void* proj, const char* descchange, int extraflags) = nullptr;
+    // Undo — only OnStateChange works reliably from plugin GUI threads.
+    // BeginBlock2/EndBlock2 open a block that never closes from plugin context.
+    void (*Undo_OnStateChange)(const char* descchange) = nullptr;
 
     // Project state
     void (*MarkProjectDirty)(void* proj) = nullptr;
@@ -99,8 +99,7 @@ struct ReaperAPIs
         return MIDI_InsertNote != nullptr && MIDI_DeleteNote != nullptr &&
                MIDI_SetNote != nullptr && MIDI_Sort != nullptr &&
                MIDI_DisableSort != nullptr && MIDI_GetPPQPosFromProjQN != nullptr &&
-               Undo_BeginBlock2 != nullptr && Undo_EndBlock2 != nullptr &&
-               MarkProjectDirty != nullptr;
+               Undo_OnStateChange != nullptr && MarkProjectDirty != nullptr;
     }
 };
 
@@ -200,8 +199,7 @@ public:
         outAPIs.MIDI_GetPPQPosFromProjQN = (double(*)(void*, double))apiFunc("MIDI_GetPPQPosFromProjQN");
 
         // Undo
-        outAPIs.Undo_BeginBlock2 = (void(*)(void*))apiFunc("Undo_BeginBlock2");
-        outAPIs.Undo_EndBlock2 = (void(*)(void*, const char*, int))apiFunc("Undo_EndBlock2");
+        outAPIs.Undo_OnStateChange = (void(*)(const char*))apiFunc("Undo_OnStateChange");
 
         // Project state
         outAPIs.MarkProjectDirty = (void(*)(void*))apiFunc("MarkProjectDirty");
