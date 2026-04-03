@@ -30,8 +30,9 @@ HitTestResult HitTestMapper::hitTest(float screenX, float screenY,
     float position = invertYToPosition(screenY, viewportWidth, viewportHeight,
                                        isDrums, farFadeEnd);
 
-    // Reject clicks outside the visible highway range
-    if (position < HIGHWAY_POS_START || position > farFadeEnd)
+    // Reject clicks completely off the highway (e.g. above vanishing point)
+    // Allow below strikeline (negative position = past) — PPQ floor applied downstream
+    if (position > farFadeEnd)
         return result;
 
     double windowTimeSpan = windowEndTime - windowStartTime;
@@ -145,20 +146,19 @@ int HitTestMapper::identifyLane(float screenX, float position,
     float bestDist = std::numeric_limits<float>::max();
     int bestLane = -1;
 
-    for (int i = 0; i < numLanes; i++)
-    {
+    // Check narrow lanes first (1..N-1), then open/kick (0) last.
+    // Lane 0 spans the full fretboard width and would always match otherwise.
+    auto checkLane = [&](int i) -> bool {
+        float sizeScale = (i == 0) ? BAR_SIZE : GEM_SIZE;
         auto corners = PositionMath::getColumnPosition(
             isDrums, position, viewportWidth, viewportHeight,
             HIGHWAY_POS_START, HIGHWAY_POS_END,
-            laneCoords[i],
-            isDrums ? BAR_SIZE : GEM_SIZE,
-            fretboardScale,
+            laneCoords[i], sizeScale, fretboardScale,
             PositionMath::bemaniMode ? i : -1);
 
         if (screenX >= corners.leftX && screenX <= corners.rightX)
-            return i;  // Direct hit
+            return true;
 
-        // Track nearest lane for close misses
         float center = (corners.leftX + corners.rightX) * 0.5f;
         float dist = std::abs(screenX - center);
         if (dist < bestDist)
@@ -166,23 +166,33 @@ int HitTestMapper::identifyLane(float screenX, float position,
             bestDist = dist;
             bestLane = i;
         }
-    }
+        return false;
+    };
 
-    // Allow a small tolerance for near-misses (half a lane width)
-    if (bestLane >= 0)
+    // Check fretboard bounds — outside = open/kick (left) or 2x kick (right)
+    auto fbEdge = PositionMath::getFretboardEdge(
+        isDrums, position, viewportWidth, viewportHeight,
+        HIGHWAY_POS_START, HIGHWAY_POS_END);
+
+    if (screenX < fbEdge.leftX)
+        return 0;  // Left of highway = open/kick
+
+    // Right of highway: 2x kick for expert drums (lane 6 in the pitch array),
+    // otherwise just the last lane
+    if (screenX > fbEdge.rightX)
     {
-        auto corners = PositionMath::getColumnPosition(
-            isDrums, position, viewportWidth, viewportHeight,
-            HIGHWAY_POS_START, HIGHWAY_POS_END,
-            laneCoords[bestLane],
-            isDrums ? BAR_SIZE : GEM_SIZE,
-            fretboardScale,
-            PositionMath::bemaniMode ? bestLane : -1);
-
-        float laneWidth = corners.rightX - corners.leftX;
-        if (bestDist < laneWidth * 0.5f)
-            return bestLane;
+        if (isDrums)
+            return (int)DRUM_LANE_COUNT;  // index 5 = EXPERT_KICK_2X in drum pitch array
+        return (int)GUITAR_LANE_COUNT - 1;  // last guitar lane (orange)
     }
+
+    // Check fret/pad lanes (1..N-1)
+    for (int i = 1; i < numLanes; i++)
+        if (checkLane(i)) return i;
+
+    // Nearest lane fallback (for gaps between lanes)
+    if (bestLane >= 0)
+        return bestLane;
 
     return -1;
 }
