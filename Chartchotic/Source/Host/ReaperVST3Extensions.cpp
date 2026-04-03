@@ -73,6 +73,7 @@ void ChartchoticVST3Extensions::setIHostApplication(Steinberg::FUnknown* host)
         {
             processor->reaperMidiProvider.setLogger(&processor->getDebugLogger());
             processor->debugText += "✅ REAPER API connected via VST3 - MIDI timeline access ready\n";
+            processor->debugText += "Write APIs: " + juce::String(processor->reaperMidiProvider.getAPIs().writeApisLoaded() ? "available" : "not available") + "\n";
         }
         else
         {

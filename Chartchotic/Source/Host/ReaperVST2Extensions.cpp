@@ -122,6 +122,7 @@ void ChartchoticVST2Extensions::tryGetReaperApi()
         {
             processor->reaperMidiProvider.setLogger(&processor->getDebugLogger());
             processor->debugText += "✅ REAPER API connected - MIDI timeline access ready\n";
+            processor->debugText += "Write APIs: " + juce::String(processor->reaperMidiProvider.getAPIs().writeApisLoaded() ? "available" : "not available") + "\n";
         }
         else
         {

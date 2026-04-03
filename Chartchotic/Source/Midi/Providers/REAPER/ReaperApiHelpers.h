@@ -46,6 +46,29 @@ struct ReaperAPIs
     double (*MIDI_GetProjQNFromPPQPos)(void* take, double ppqpos) = nullptr;
     bool (*MIDI_GetTrackHash)(void* track, bool notesonly, char* hashOut, int hashOut_sz) = nullptr;
 
+    // MIDI write functions (optional — not required for read-only mode)
+    bool (*MIDI_InsertNote)(void* take, bool selected, bool muted,
+                            double startppqpos, double endppqpos,
+                            int chan, int pitch, int vel,
+                            const bool* noSortInOptional) = nullptr;
+    bool (*MIDI_DeleteNote)(void* take, int noteidx) = nullptr;
+    bool (*MIDI_SetNote)(void* take, int noteidx,
+                         const bool* selectedInOptional, const bool* mutedInOptional,
+                         const double* startppqposInOptional, const double* endppqposInOptional,
+                         const int* chanInOptional, const int* pitchInOptional,
+                         const int* velInOptional,
+                         const bool* noSortInOptional) = nullptr;
+    void (*MIDI_Sort)(void* take) = nullptr;
+    void (*MIDI_DisableSort)(void* take) = nullptr;
+    double (*MIDI_GetPPQPosFromProjQN)(void* take, double projqn) = nullptr;
+
+    // Undo
+    void (*Undo_BeginBlock2)(void* proj) = nullptr;
+    void (*Undo_EndBlock2)(void* proj, const char* descchange, int extraflags) = nullptr;
+
+    // Project state
+    void (*MarkProjectDirty)(void* proj) = nullptr;
+
     // Time mapping functions
     double (*TimeMap2_QNToTime)(void* proj, double qn) = nullptr;
     double (*TimeMap2_timeToQN)(void* proj, double tpos) = nullptr;
@@ -68,6 +91,16 @@ struct ReaperAPIs
                MIDI_CountEvts != nullptr && MIDI_GetNote != nullptr &&
                MIDI_GetProjQNFromPPQPos != nullptr && TimeMap2_QNToTime != nullptr &&
                TimeMap2_timeToBeats != nullptr;
+    }
+
+    // Check if write APIs loaded (optional — don't gate basic operation on these)
+    bool writeApisLoaded() const
+    {
+        return MIDI_InsertNote != nullptr && MIDI_DeleteNote != nullptr &&
+               MIDI_SetNote != nullptr && MIDI_Sort != nullptr &&
+               MIDI_DisableSort != nullptr && MIDI_GetPPQPosFromProjQN != nullptr &&
+               Undo_BeginBlock2 != nullptr && Undo_EndBlock2 != nullptr &&
+               MarkProjectDirty != nullptr;
     }
 };
 
@@ -154,6 +187,24 @@ public:
         outAPIs.CountTempoTimeSigMarkers = (int(*)(void*))apiFunc("CountTempoTimeSigMarkers");
         outAPIs.GetTempoTimeSigMarker = (bool(*)(void*, int, double*, int*, double*, double*, int*, int*, bool*))
             apiFunc("GetTempoTimeSigMarker");
+
+        // MIDI write (optional)
+        outAPIs.MIDI_InsertNote = (bool(*)(void*, bool, bool, double, double, int, int, int, const bool*))
+            apiFunc("MIDI_InsertNote");
+        outAPIs.MIDI_DeleteNote = (bool(*)(void*, int))apiFunc("MIDI_DeleteNote");
+        outAPIs.MIDI_SetNote = (bool(*)(void*, int, const bool*, const bool*, const double*, const double*,
+                                        const int*, const int*, const int*, const bool*))
+            apiFunc("MIDI_SetNote");
+        outAPIs.MIDI_Sort = (void(*)(void*))apiFunc("MIDI_Sort");
+        outAPIs.MIDI_DisableSort = (void(*)(void*))apiFunc("MIDI_DisableSort");
+        outAPIs.MIDI_GetPPQPosFromProjQN = (double(*)(void*, double))apiFunc("MIDI_GetPPQPosFromProjQN");
+
+        // Undo
+        outAPIs.Undo_BeginBlock2 = (void(*)(void*))apiFunc("Undo_BeginBlock2");
+        outAPIs.Undo_EndBlock2 = (void(*)(void*, const char*, int))apiFunc("Undo_EndBlock2");
+
+        // Project state
+        outAPIs.MarkProjectDirty = (void(*)(void*))apiFunc("MarkProjectDirty");
 
         return outAPIs.isLoaded();
     }

@@ -30,6 +30,9 @@ public:
     // Check if REAPER API is available and working
     bool isReaperApiAvailable() const { return reaperApiInitialized; }
 
+    // Access loaded API function pointers
+    const ReaperAPIs& getAPIs() const { return apis; }
+
     // Get MIDI notes for a time range from REAPER's timeline
     struct ReaperMidiNote {
         double startPPQ;
