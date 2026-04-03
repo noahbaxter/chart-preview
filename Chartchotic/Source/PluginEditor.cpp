@@ -109,6 +109,13 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     addAndMakeVisible(toolbar);
     initBottomBar();
 
+#ifdef DEBUG
+    // Ensure debug console renders on top of highways
+    debug.getConsole().toFront(false);
+    debug.getClearButton().toFront(false);
+    debug.getCopyButton().toFront(false);
+#endif
+
     // If REAPER session already exists (editor recreated after track move), rebuild from it
     if (audioProcessor.isReaperHost)
     {
@@ -845,6 +852,7 @@ void ChartchoticAudioProcessorEditor::resized()
     #ifdef DEBUG
     int stripH = toolbar.getStripHeight();
     debug.getClearButton().setBounds(margin, stripH + 4, 100, 20);
+    debug.getCopyButton().setBounds(margin + 104, stripH + 4, 60, 20);
     debug.getConsole().setBounds(margin, stripH + 28, getWidth() - (2 * margin), getHeight() - stripH - 38);
     #endif
 

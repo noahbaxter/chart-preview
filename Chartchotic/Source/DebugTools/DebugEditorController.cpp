@@ -32,6 +32,9 @@ void DebugEditorController::init(juce::Component& parent, ChartchoticAudioProces
 
     consoleOutput.setMultiLine(true);
     consoleOutput.setReadOnly(true);
+    consoleOutput.setOpaque(false);
+    consoleOutput.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0, 0, 0).withAlpha(0.75f));
+    consoleOutput.setColour(juce::TextEditor::textColourId, juce::Colours::white);
     parent.addChildComponent(consoleOutput);
 
     clearLogsButton.setButtonText("Clear Logs");
@@ -40,6 +43,12 @@ void DebugEditorController::init(juce::Component& parent, ChartchoticAudioProces
         consoleOutput.clear();
     };
     parent.addChildComponent(clearLogsButton);
+
+    copyLogsButton.setButtonText("Copy");
+    copyLogsButton.onClick = [this]() {
+        juce::SystemClipboard::copyTextToClipboard(consoleOutput.getText());
+    };
+    parent.addChildComponent(copyLogsButton);
 
     frameProfileLogger.start();
 }
@@ -68,6 +77,7 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
     dbg.onDebugConsoleChanged = [this](bool show) {
         consoleOutput.setVisible(show);
         clearLogsButton.setVisible(show);
+        copyLogsButton.setVisible(show);
     };
     dbg.onProfilerChanged = [this](bool on) {
         showProfilerOverlay = on;
