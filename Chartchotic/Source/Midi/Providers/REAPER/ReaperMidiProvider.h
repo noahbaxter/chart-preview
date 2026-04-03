@@ -10,6 +10,9 @@
 
 class ReaperNoteFetcher;  // Forward declaration
 
+#include "../MidiWriter.h"
+#include "ReaperMidiWriter.h"
+
 /**
  * Provides MIDI note data directly from REAPER's timeline for scrubbing and lookahead.
  * Bypasses VST audio buffer limitations by reading from REAPER's project data.
@@ -32,6 +35,9 @@ public:
 
     // Access loaded API function pointers
     const ReaperAPIs& getAPIs() const { return apis; }
+
+    // Get MIDI writer (nullptr if write APIs not available)
+    MidiWriter* getWriter() const { return midiWriter.get(); }
 
     // Get MIDI notes for a time range from REAPER's timeline
     struct ReaperMidiNote {
@@ -101,6 +107,7 @@ public:
 
 private:
     std::unique_ptr<ReaperNoteFetcher> noteFetcher;
+    std::unique_ptr<ReaperMidiWriter> midiWriter;
 
     // REAPER API function pointers
     void* (*getReaperApi)(const char*) = nullptr;
