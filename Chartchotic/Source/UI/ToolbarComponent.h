@@ -97,6 +97,7 @@ public:
     std::function<void(bool)> onShowFpsChanged;
     std::function<void(bool)> onShowBackgroundChanged;
     std::function<void(bool)> onTrackDiscoveryChanged;
+    std::function<void(bool)> onWriteModeChanged;
     std::function<void()> onOpenBackgroundFolder;
     std::function<void()> onOpenTextureFolder;
 

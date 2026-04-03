@@ -19,6 +19,9 @@
 #include "Renderers/TrackRenderer.h"
 #include "Managers/AssetManager.h"
 #include "Utils/DrawingConstants.h"
+#include "Utils/HitTestMapper.h"
+
+class MidiWriter;
 
 class TrackImageCache;
 
@@ -100,6 +103,20 @@ public:
         Starts the debounce timer; paint() uses old track images until rebuild fires. */
     void deferRebuild() { startTimer(rebuildDebounceMs); repaint(); }
 
+    // Write mode
+    void setWriteMode(bool on, MidiWriter* writer, int trackIndex);
+    bool isWriteMode() const { return writeMode; }
+
+    // Mouse overrides (active in write mode only)
+    void mouseDoubleClick(const juce::MouseEvent& event) override;
+    void mouseMove(const juce::MouseEvent& event) override;
+    void mouseExit(const juce::MouseEvent& event) override;
+
+    // Called when user double-clicks the highway in write mode.
+    // timeFromCursor = seconds offset from current cursor position, pitch = MIDI pitch.
+    // The editor wires this to either insert or delete depending on existing notes.
+    std::function<void(double timeFromCursor, int pitch)> onNoteEditRequested;
+
 private:
     static constexpr int rebuildDebounceMs = 500;
 
@@ -115,6 +132,20 @@ private:
     HighwayFrameData frameData;
 
     int topOverflow = 0;
+
+    // Write mode state
+    bool writeMode = false;
+    MidiWriter* midiWriter = nullptr;
+    int writeTrackIndex = -1;
+    HitTestMapper hitTestMapper;
+    HitTestResult hoverResult;
+    bool hoverValid = false;
+
+    // Convert screen pixel to render-space pixel (inverts the paint() transform)
+    juce::Point<float> screenToRenderCoords(juce::Point<float> screen) const;
+
+    // Run hit test at a screen position and return the result
+    HitTestResult performHitTest(juce::Point<float> screenPos) const;
 
     // Dimensions of the last full rebuild (track bake + asset rescale)
     int bakedRenderW = 0, bakedRenderH = 0, bakedOverflow = 0;

@@ -60,6 +60,13 @@ public:
             return true;
 #endif
 
+        // W key toggles write mode (REAPER only)
+        if (key == juce::KeyPress('w') && audioProcessor.isReaperHost)
+        {
+            toggleWriteMode();
+            return true;
+        }
+
         return false;
     }
 
@@ -176,6 +183,8 @@ private:
     void initToolbarCallbacks();
     void initBottomBar();
     void loadState();
+    void toggleWriteMode();
+    bool writeModeActive = false;
     void updateTrackInfoDisplay();
 #ifdef DEBUG
     void rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart);

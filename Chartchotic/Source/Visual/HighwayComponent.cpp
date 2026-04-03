@@ -10,6 +10,8 @@
 #include "HighwayComponent.h"
 #include "TrackImageCache.h"
 #include "../UI/ControlConstants.h"
+#include "../Midi/Providers/MidiWriter.h"
+#include "../Midi/Utils/InstrumentMapper.h"
 #include "../UI/Theme.h"
 
 HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetManager)
@@ -261,6 +263,76 @@ void HighwayComponent::paintOverChildren(juce::Graphics& g)
             (float)totalH);
         g.drawText(diffName, textBounds, juce::Justification::centredLeft);
     }
+
+    // Write mode hover cursor
+    if (writeMode && hoverValid)
+    {
+        using namespace PositionConstants;
+
+        bool isDrums = isDrumLike(activePart);
+        int lane = hoverResult.laneIndex;
+        float position = hoverResult.normalizedPosition;
+
+        const auto* laneCoords = isDrums ? drumBezierLaneCoords : guitarBezierLaneCoords;
+        float sizeScale = (lane == 0) ? BAR_SIZE : GEM_SIZE;
+
+        // PositionMath works in (0,0)-(renderWidth, renderHeight) space.
+        // The paint() transform maps (0,0)-(w, totalH) to screen, where
+        // overflow occupies the top portion. So PositionMath Y needs +overflow
+        // to get to render-space, then the transform maps to screen.
+        auto corners = PositionMath::getColumnPosition(
+            isDrums, position, (uint)renderWidth, (uint)renderHeight,
+            HIGHWAY_POS_START, HIGHWAY_POS_END,
+            laneCoords[lane], sizeScale, FRETBOARD_SCALE,
+            PositionMath::bemaniMode ? lane : -1);
+
+        int w = renderWidth;
+        int h = renderHeight;
+        int overflow = topOverflow;
+        int totalH = h + overflow;
+
+        float sx, sy, ox, oy;
+        if (stretchToFill && !PositionMath::bemaniMode)
+        {
+            sx = (float)getWidth() / (float)w;
+            sy = (float)getHeight() / (float)totalH;
+            ox = 0.0f; oy = 0.0f;
+        }
+        else
+        {
+            float scale = std::min((float)getWidth() / (float)w,
+                                   (float)getHeight() / (float)totalH);
+            sx = scale; sy = scale;
+            ox = ((float)getWidth() - (float)w * scale) / 2.0f;
+            oy = (float)getHeight() - (float)totalH * scale;
+        }
+
+        // PositionMath Y is in (0..renderHeight), render-space Y = positionMathY + overflow
+        float screenLeftX   = corners.leftX * sx + ox;
+        float screenRightX  = corners.rightX * sx + ox;
+        float screenCenterY = (corners.centerY + (float)overflow) * sy + oy;
+        float cursorW = screenRightX - screenLeftX;
+        float cursorH = cursorW * 0.4f;
+
+        auto cursorRect = juce::Rectangle<float>(
+            screenLeftX, screenCenterY - cursorH * 0.5f, cursorW, cursorH);
+
+        g.setColour(juce::Colours::white.withAlpha(0.25f));
+        g.fillRoundedRectangle(cursorRect, 3.0f);
+        g.setColour(juce::Colours::white.withAlpha(0.7f));
+        g.drawRoundedRectangle(cursorRect, 3.0f, 1.5f);
+
+        // Horizontal time line across fretboard
+        auto fbEdge = PositionMath::getFretboardEdge(
+            isDrums, position, (uint)renderWidth, (uint)renderHeight,
+            HIGHWAY_POS_START, HIGHWAY_POS_END);
+        float lineLeftX  = fbEdge.leftX * sx + ox;
+        float lineRightX = fbEdge.rightX * sx + ox;
+        float lineY = (fbEdge.centerY + (float)overflow) * sy + oy;
+
+        g.setColour(juce::Colours::white.withAlpha(0.15f));
+        g.drawLine(lineLeftX, lineY, lineRightX, lineY, 1.0f);
+    }
 }
 
 void HighwayComponent::resized()
@@ -401,4 +473,105 @@ void HighwayComponent::onInstrumentChanged()
         rebuildTrack();
         repaint();
     }
+}
+
+// =============================================================================
+// Write Mode
+// =============================================================================
+
+void HighwayComponent::setWriteMode(bool on, MidiWriter* writer, int trackIndex)
+{
+    writeMode = on;
+    midiWriter = on ? writer : nullptr;
+    writeTrackIndex = on ? trackIndex : -1;
+}
+
+juce::Point<float> HighwayComponent::screenToRenderCoords(juce::Point<float> screen) const
+{
+    int w = renderWidth;
+    int h = renderHeight;
+    int overflow = topOverflow;
+    int totalH = h + overflow;
+
+    if (w <= 0 || totalH <= 0)
+        return screen;
+
+    if (stretchToFill && !PositionMath::bemaniMode)
+    {
+        float sx = (float)getWidth() / (float)w;
+        float sy = (float)getHeight() / (float)totalH;
+        return { screen.x / sx, screen.y / sy };
+    }
+    else
+    {
+        float scale = std::min((float)getWidth() / (float)w,
+                               (float)getHeight() / (float)totalH);
+        float scaledW = (float)w * scale;
+        float scaledH = (float)totalH * scale;
+        float offsetX = ((float)getWidth() - scaledW) / 2.0f;
+        float offsetY = (float)getHeight() - scaledH;
+        return { (screen.x - offsetX) / scale, (screen.y - offsetY) / scale };
+    }
+}
+
+HitTestResult HighwayComponent::performHitTest(juce::Point<float> screenPos) const
+{
+    auto renderPt = screenToRenderCoords(screenPos);
+
+    // screenToRenderCoords maps to (0,0)-(w, totalH) render space.
+    // PositionMath works in (0,0)-(w, renderHeight), with overflow above.
+    // Subtract topOverflow to get into PositionMath's coordinate system.
+    float hitY = renderPt.y - (float)topOverflow;
+
+    bool isDrums = isDrumLike(activePart);
+
+    return hitTestMapper.hitTest(
+        renderPt.x, hitY,
+        (uint)renderWidth, (uint)renderHeight,
+        frameData.windowStartTime, frameData.windowEndTime,
+        isDrums, sceneRenderer.farFadeEnd);
+}
+
+void HighwayComponent::mouseMove(const juce::MouseEvent& event)
+{
+    if (!writeMode)
+        return;
+
+    hoverResult = performHitTest(event.position);
+    hoverValid = hoverResult.valid && hoverResult.laneIndex >= 0;
+    repaint();
+}
+
+void HighwayComponent::mouseExit(const juce::MouseEvent&)
+{
+    if (writeMode && hoverValid)
+    {
+        hoverValid = false;
+        repaint();
+    }
+}
+
+void HighwayComponent::mouseDoubleClick(const juce::MouseEvent& event)
+{
+    if (!writeMode || !midiWriter || writeTrackIndex < 0)
+        return;
+
+    auto hit = performHitTest(event.position);
+
+    if (!hit.valid || hit.laneIndex < 0)
+        return;
+
+    bool isDrums = isDrumLike(activePart);
+    SkillLevel skill = (SkillLevel)(int)state.getProperty("skillLevel");
+    auto pitches = isDrums
+        ? InstrumentMapper::getDrumPitchesForSkill(skill)
+        : InstrumentMapper::getGuitarPitchesForSkill(skill);
+
+    if (hit.laneIndex >= (int)pitches.size())
+        return;
+
+    int pitch = (int)pitches[(size_t)hit.laneIndex];
+
+    if (onNoteEditRequested)
+        onNoteEditRequested(hit.timeFromCursor, pitch);
 }

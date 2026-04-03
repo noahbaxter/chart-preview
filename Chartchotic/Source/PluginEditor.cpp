@@ -575,6 +575,69 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 #endif
 }
 
+void ChartchoticAudioProcessorEditor::toggleWriteMode()
+{
+    auto* writer = audioProcessor.reaperMidiProvider.getWriter();
+    if (!writer)
+        return;
+
+    writeModeActive = !writeModeActive;
+    int trackIndex = (int)state.getProperty("reaperTrack") - 1;
+
+    primaryHighway().setWriteMode(writeModeActive, writer, trackIndex);
+
+    // Wire the note insert callback
+    if (writeModeActive)
+    {
+        primaryHighway().onNoteEditRequested = [this](double timeFromCursor, int pitch) {
+            auto* w = audioProcessor.reaperMidiProvider.getWriter();
+            if (!w) return;
+
+            double cursorTimeSec = audioProcessor.reaperMidiProvider.getCurrentCursorPosition();
+            double absoluteTimeSec = cursorTimeSec + timeFromCursor;
+            double ppq = audioProcessor.reaperMidiProvider.timeToPpq(absoluteTimeSec);
+            if (ppq < 0.0) ppq = 0.0;  // Floor at project start
+            int trackIdx = (int)state.getProperty("reaperTrack") - 1;
+
+            // Check if a note already exists near this position+pitch — if so, delete it
+            auto allNotes = audioProcessor.reaperMidiProvider.getAllNotesFromTrack(trackIdx);
+            constexpr double PPQ_TOLERANCE = 0.25;  // 1/4 QN tolerance for matching
+            int matchIdx = -1;
+            for (int i = 0; i < (int)allNotes.size(); i++)
+            {
+                if (allNotes[i].pitch == pitch &&
+                    std::abs(allNotes[i].startPPQ - ppq) < PPQ_TOLERANCE)
+                {
+                    matchIdx = i;
+                    break;
+                }
+            }
+
+            if (matchIdx >= 0)
+            {
+                DBG("Delete note: idx=" + juce::String(matchIdx)
+                    + " pitch=" + juce::String(pitch)
+                    + " ppq=" + juce::String(ppq, 3));
+                w->deleteNote(trackIdx, matchIdx);
+            }
+            else
+            {
+                double endPPQ = ppq + 0.0625;
+                DBG("Insert note: pitch=" + juce::String(pitch)
+                    + " ppq=" + juce::String(ppq, 3)
+                    + " track=" + juce::String(trackIdx));
+                w->insertNote(trackIdx, ppq, endPPQ, 0, pitch, 100);
+            }
+        };
+    }
+    else
+    {
+        primaryHighway().onNoteEditRequested = nullptr;
+    }
+
+    repaint();
+}
+
 void ChartchoticAudioProcessorEditor::initBottomBar()
 {
     footer.init(juce::String("v") + CHARTCHOTIC_VERSION);
@@ -704,6 +767,20 @@ void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
 
     if (showFps)
         drawFpsOverlay(g);
+
+    // Write mode indicator
+    if (writeModeActive)
+    {
+        auto font = Theme::getUIFont(16.0f);
+        g.setFont(font);
+        int tbH = toolbar.getHeight();
+        auto pill = juce::Rectangle<float>(
+            (float)getWidth() - 70.0f, (float)tbH + 8.0f, 58.0f, 24.0f);
+        g.setColour(juce::Colours::red.withAlpha(0.8f));
+        g.fillRoundedRectangle(pill, 4.0f);
+        g.setColour(juce::Colours::white);
+        g.drawText("EDIT", pill, juce::Justification::centred);
+    }
 
 #ifdef DEBUG
     {
