@@ -85,6 +85,7 @@ public:
     // Console
     juce::TextEditor& getConsole() { return consoleOutput; }
     juce::TextButton& getClearButton() { return clearLogsButton; }
+    juce::TextButton& getCopyButton() { return copyLogsButton; }
 
     // Profiler timing targets (public for ScopedPhaseMeasure in buildFrameData)
     double textureRender_us = 0.0;
@@ -113,6 +114,7 @@ private:
     // Console
     juce::TextEditor consoleOutput;
     juce::TextButton clearLogsButton;
+    juce::TextButton copyLogsButton;
 
     // Debug chart loading (scans assets/midi/ directory)
     TempoTimeSignatureMap debugMidiTempoMap;
