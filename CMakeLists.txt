@@ -179,6 +179,8 @@ target_sources(Chartchotic
         # Visual / Utils
         Chartchotic/Source/Visual/Utils/DrawingConstants.h
         Chartchotic/Source/Visual/Utils/PositionConstants.h
+        Chartchotic/Source/Visual/Utils/HitTestMapper.cpp
+        Chartchotic/Source/Visual/Utils/HitTestMapper.h
         Chartchotic/Source/Visual/Utils/PositionMath.cpp
         Chartchotic/Source/Visual/Utils/PositionMath.h
         Chartchotic/Source/Visual/Utils/RenderTiming.h
