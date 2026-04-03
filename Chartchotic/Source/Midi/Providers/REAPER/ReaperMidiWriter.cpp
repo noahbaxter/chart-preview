@@ -60,10 +60,11 @@ void* ReaperMidiWriter::getFirstMidiTake(void* project, int trackIndex)
 // Undo helpers
 // =============================================================================
 
-void ReaperMidiWriter::beginUndoBlock(void* project, const char* description)
+void ReaperMidiWriter::beginUndoBlock(void* /*project*/, const char* /*description*/)
 {
-    if (apis.Undo_BeginBlock2)
-        apis.Undo_BeginBlock2(project);
+    // BeginBlock2/EndBlock2 don't work from plugin GUI threads — the block
+    // never properly closes, causing all subsequent operations to be swallowed
+    // into a single never-ending undo block. Intentionally empty.
 }
 
 void ReaperMidiWriter::endUndoBlock(void* project, const char* description)
@@ -71,9 +72,10 @@ void ReaperMidiWriter::endUndoBlock(void* project, const char* description)
     if (apis.MarkProjectDirty)
         apis.MarkProjectDirty(project);
 
-    // extraflags: -1 = all undo state flags
-    if (apis.Undo_EndBlock2)
-        apis.Undo_EndBlock2(project, description, -1);
+    // Undo_OnStateChange is the only undo call that reliably works from
+    // plugin GUI threads. Creates a standalone undo point per operation.
+    if (apis.Undo_OnStateChange)
+        apis.Undo_OnStateChange(description);
 }
 
 // =============================================================================
