@@ -108,14 +108,16 @@ public:
     bool isWriteMode() const { return writeMode; }
 
     // Mouse overrides (active in write mode only)
+    void mouseDown(const juce::MouseEvent& event) override;
     void mouseDoubleClick(const juce::MouseEvent& event) override;
     void mouseMove(const juce::MouseEvent& event) override;
     void mouseExit(const juce::MouseEvent& event) override;
+    bool keyPressed(const juce::KeyPress& key) override;
 
-    // Called when user double-clicks the highway in write mode.
-    // timeFromCursor = seconds offset from current cursor position, pitch = MIDI pitch.
-    // The editor wires this to either insert or delete depending on existing notes.
+    // Callbacks — editor wires these to REAPER MIDI operations
     std::function<void(double timeFromCursor, int pitch)> onNoteEditRequested;
+    std::function<void(double timeFromCursor, int pitch)> onNoteDeleteRequested;
+    std::function<void(double timeFromCursor, int pitch, int direction)> onNoteMoveRequested;
 
 private:
     static constexpr int rebuildDebounceMs = 500;
@@ -140,12 +142,34 @@ private:
     HitTestMapper hitTestMapper;
     HitTestResult hoverResult;
     bool hoverValid = false;
+    bool hoverOnExistingNote = false;
+
+    // Selection state
+    bool hasSelection = false;
+    double selectedTime = 0.0;   // time key from trackWindow
+    int selectedLane = -1;
+
+    // Find a note in the current trackWindow near the given position+lane.
+    // Returns true and sets outTime/outLane if found.
+    bool findNoteAtPosition(float normalizedPosition, int laneIndex,
+                            double& outTime, int& outLane) const;
 
     // Convert screen pixel to render-space pixel (inverts the paint() transform)
     juce::Point<float> screenToRenderCoords(juce::Point<float> screen) const;
 
     // Run hit test at a screen position and return the result
     HitTestResult performHitTest(juce::Point<float> screenPos) const;
+
+    // Shared overlay geometry for ghost cursor and selection highlight
+    struct NoteOverlay {
+        float screenLeftX, screenRightX, screenCenterY, screenH;
+        float renderLeftX, renderRightX;  // for curvature sampling
+        float curvature, arcOffset, sy;
+        float position;  // normalized highway position (for fretboard edge queries)
+        bool isBar;
+    };
+    NoteOverlay computeNoteOverlay(float position, int lane) const;
+    juce::Path buildCurvedNotePath(const NoteOverlay& ov, float expand = 0.0f) const;
 
     // Dimensions of the last full rebuild (track bake + asset rescale)
     int bakedRenderW = 0, bakedRenderH = 0, bakedOverflow = 0;

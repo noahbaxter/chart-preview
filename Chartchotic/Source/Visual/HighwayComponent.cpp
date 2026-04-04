@@ -22,6 +22,7 @@ HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetMa
 {
     // Sync activePart from state
     setActivePart(getPartFromState(state));
+    setWantsKeyboardFocus(true);
 #ifdef DEBUG
     debugColour = juce::Colour::fromHSV(
         juce::Random::getSystemRandom().nextFloat(), 0.4f, 0.4f, 1.0f);
@@ -264,74 +265,66 @@ void HighwayComponent::paintOverChildren(juce::Graphics& g)
         g.drawText(diffName, textBounds, juce::Justification::centredLeft);
     }
 
-    // Write mode hover cursor
-    if (writeMode && hoverValid)
+    // Write mode hover cursor (disabled during playback)
+    if (writeMode && hoverValid && !frameData.isPlaying)
     {
-        using namespace PositionConstants;
+        auto ov = computeNoteOverlay(hoverResult.normalizedPosition, hoverResult.laneIndex);
+        auto ghostPath = buildCurvedNotePath(ov);
 
-        bool isDrums = isDrumLike(activePart);
-        int lane = hoverResult.laneIndex;
-        float position = hoverResult.normalizedPosition;
-
-        const auto* laneCoords = isDrums ? drumBezierLaneCoords : guitarBezierLaneCoords;
-        float sizeScale = (lane == 0) ? BAR_SIZE : GEM_SIZE;
-
-        // PositionMath works in (0,0)-(renderWidth, renderHeight) space.
-        // The paint() transform maps (0,0)-(w, totalH) to screen, where
-        // overflow occupies the top portion. So PositionMath Y needs +overflow
-        // to get to render-space, then the transform maps to screen.
-        auto corners = PositionMath::getColumnPosition(
-            isDrums, position, (uint)renderWidth, (uint)renderHeight,
-            HIGHWAY_POS_START, HIGHWAY_POS_END,
-            laneCoords[lane], sizeScale, FRETBOARD_SCALE,
-            PositionMath::bemaniMode ? lane : -1);
-
-        int w = renderWidth;
-        int h = renderHeight;
-        int overflow = topOverflow;
-        int totalH = h + overflow;
-
-        float sx, sy, ox, oy;
-        if (stretchToFill && !PositionMath::bemaniMode)
+        if (hoverOnExistingNote)
         {
-            sx = (float)getWidth() / (float)w;
-            sy = (float)getHeight() / (float)totalH;
-            ox = 0.0f; oy = 0.0f;
+            g.setColour(juce::Colour(0x30ff4444));
+            g.fillPath(ghostPath);
+            g.setColour(juce::Colour(0xccff6666));
+            g.strokePath(ghostPath, juce::PathStrokeType(2.0f));
         }
         else
         {
-            float scale = std::min((float)getWidth() / (float)w,
-                                   (float)getHeight() / (float)totalH);
-            sx = scale; sy = scale;
-            ox = ((float)getWidth() - (float)w * scale) / 2.0f;
-            oy = (float)getHeight() - (float)totalH * scale;
+            g.setColour(juce::Colours::white.withAlpha(0.25f));
+            g.fillPath(ghostPath);
+            g.setColour(juce::Colours::white.withAlpha(0.7f));
+            g.strokePath(ghostPath, juce::PathStrokeType(1.5f));
         }
 
-        // PositionMath Y is in (0..renderHeight), render-space Y = positionMathY + overflow
-        float screenLeftX   = corners.leftX * sx + ox;
-        float screenRightX  = corners.rightX * sx + ox;
-        float screenCenterY = (corners.centerY + (float)overflow) * sy + oy;
-        float cursorW = screenRightX - screenLeftX;
-        float cursorH = cursorW * 0.4f;
-
-        auto cursorRect = juce::Rectangle<float>(
-            screenLeftX, screenCenterY - cursorH * 0.5f, cursorW, cursorH);
-
-        g.setColour(juce::Colours::white.withAlpha(0.25f));
-        g.fillRoundedRectangle(cursorRect, 3.0f);
-        g.setColour(juce::Colours::white.withAlpha(0.7f));
-        g.drawRoundedRectangle(cursorRect, 3.0f, 1.5f);
-
         // Horizontal time line across fretboard
-        auto fbEdge = PositionMath::getFretboardEdge(
-            isDrums, position, (uint)renderWidth, (uint)renderHeight,
-            HIGHWAY_POS_START, HIGHWAY_POS_END);
-        float lineLeftX  = fbEdge.leftX * sx + ox;
-        float lineRightX = fbEdge.rightX * sx + ox;
-        float lineY = (fbEdge.centerY + (float)overflow) * sy + oy;
+        using namespace PositionConstants;
+        bool isDrums = isDrumLike(activePart);
+        int w = renderWidth, totalH = renderHeight + topOverflow;
+        float sx, sy, ox, oy;
+        if (stretchToFill && !PositionMath::bemaniMode)
+        { sx = (float)getWidth() / (float)w; sy = (float)getHeight() / (float)totalH; ox = 0; oy = 0; }
+        else
+        { float s = std::min((float)getWidth() / (float)w, (float)getHeight() / (float)totalH);
+          sx = s; sy = s; ox = ((float)getWidth() - (float)w * s) / 2.0f; oy = (float)getHeight() - (float)totalH * s; }
 
+        auto fbLine = PositionMath::getFretboardEdge(
+            isDrums, hoverResult.normalizedPosition, (uint)renderWidth, (uint)renderHeight,
+            HIGHWAY_POS_START, HIGHWAY_POS_END);
+        float lineY = (fbLine.centerY + (float)topOverflow) * sy + oy;
         g.setColour(juce::Colours::white.withAlpha(0.15f));
-        g.drawLine(lineLeftX, lineY, lineRightX, lineY, 1.0f);
+        g.drawLine(fbLine.leftX * sx + ox, lineY, fbLine.rightX * sx + ox, lineY, 1.0f);
+    }
+
+    // Selection highlight (disabled during playback)
+    if (writeMode && hasSelection && selectedLane >= 0 && !frameData.isPlaying)
+    {
+        auto it = frameData.trackWindow.find(selectedTime);
+        if (it != frameData.trackWindow.end()
+            && it->second[(size_t)selectedLane].gem != Gem::NONE)
+        {
+            double windowTimeSpan = frameData.windowEndTime - frameData.windowStartTime;
+            float selPos = (windowTimeSpan > 0.0)
+                ? (float)((selectedTime - frameData.windowStartTime) / windowTimeSpan)
+                : 0.0f;
+
+            auto ov = computeNoteOverlay(selPos, selectedLane);
+            auto selPath = buildCurvedNotePath(ov, 2.0f);
+
+            g.setColour(juce::Colour(0x4000ddff));
+            g.fillPath(selPath);
+            g.setColour(juce::Colour(0xff00ddff));
+            g.strokePath(selPath, juce::PathStrokeType(2.0f));
+        }
     }
 }
 
@@ -356,6 +349,10 @@ void HighwayComponent::timerCallback()
 
 void HighwayComponent::setFrameData(const HighwayFrameData& data)
 {
+    // Clear selection when playback starts (selectedTime would be stale)
+    if (data.isPlaying && !frameData.isPlaying)
+        hasSelection = false;
+
     frameData = data;
     if (frameData.builtForPart == pendingPart)
         commitPendingPart();
@@ -479,6 +476,163 @@ void HighwayComponent::onInstrumentChanged()
 // Write Mode
 // =============================================================================
 
+HighwayComponent::NoteOverlay HighwayComponent::computeNoteOverlay(float position, int lane) const
+{
+    using namespace PositionConstants;
+    NoteOverlay ov{};
+    bool isDrums = isDrumLike(activePart);
+    ov.isBar = (lane == 0);
+
+    int w = renderWidth;
+    int h = renderHeight;
+    int overflow = topOverflow;
+    int totalH = h + overflow;
+
+    // Screen transform (mirrors paint())
+    float sx, sy, ox, oy;
+    if (stretchToFill && !PositionMath::bemaniMode)
+    {
+        sx = (float)getWidth() / (float)w;
+        sy = (float)getHeight() / (float)totalH;
+        ox = 0.0f; oy = 0.0f;
+    }
+    else
+    {
+        float scale = std::min((float)getWidth() / (float)w,
+                               (float)getHeight() / (float)totalH);
+        sx = scale; sy = scale;
+        ox = ((float)getWidth() - (float)w * scale) / 2.0f;
+        oy = (float)getHeight() - (float)totalH * scale;
+    }
+    ov.sy = sy;
+
+    // Foreshortening
+    float foreshorten = 1.0f;
+    if (!PositionMath::bemaniMode)
+    {
+#ifdef DEBUG
+        const auto& pp = PositionMath::perspParams(isDrums);
+#else
+        auto pp = getPerspectiveParams(isDrums);
+#endif
+        float depth = std::max(0.0f, position) / pp.vanishingPointDepth;
+        float scaleNear = 1.0f + (pp.highwayDepth / pp.playerDistance) * pp.perspectiveStrength;
+        float psCur = scaleNear / (1.0f + depth * (scaleNear - 1.0f));
+        float rawRatio = psCur / scaleNear;
+        foreshorten = 1.0f - (1.0f - rawRatio) * NOTE_DEPTH_FORESHORTEN;
+    }
+
+    // Note rect in render space
+    float rLeftX, rRightX, rCenterY, noteW, noteH;
+    if (ov.isBar)
+    {
+        auto fbEdge = PositionMath::getFretboardEdge(
+            isDrums, position, (uint)renderWidth, (uint)renderHeight,
+            HIGHWAY_POS_START, HIGHWAY_POS_END);
+        float fbWidth = fbEdge.rightX - fbEdge.leftX;
+        noteW = fbWidth * BAR_FRETBOARD_FIT * BAR_SIZE;
+        float cx = (fbEdge.leftX + fbEdge.rightX) * 0.5f;
+        rLeftX = cx - noteW * 0.5f;
+        rRightX = cx + noteW * 0.5f;
+        rCenterY = fbEdge.centerY;
+        noteH = (noteW / 16.0f) * foreshorten;
+    }
+    else
+    {
+        const auto* laneCoords = isDrums ? drumBezierLaneCoords : guitarBezierLaneCoords;
+        auto corners = PositionMath::getColumnPosition(
+            isDrums, position, (uint)renderWidth, (uint)renderHeight,
+            HIGHWAY_POS_START, HIGHWAY_POS_END,
+            laneCoords[lane], GEM_SIZE, FRETBOARD_SCALE,
+            PositionMath::bemaniMode ? lane : -1);
+        rLeftX = corners.leftX;
+        rRightX = corners.rightX;
+        rCenterY = corners.centerY;
+        noteW = rRightX - rLeftX;
+        noteH = (noteW / 2.0f) * GEM_SCALE.height * foreshorten;
+    }
+
+    // Neck curvature
+    ov.curvature = isDrums ? sceneRenderer.noteCurvatureDrums
+                           : sceneRenderer.noteCurvatureGuitar;
+    ov.arcOffset = 0.0f;
+    if (ov.curvature != 0.0f)
+    {
+        const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+        float fbCenter = fbCoords.normX1 + fbCoords.normWidth1 * 0.5f;
+        float fbHalfW = fbCoords.normWidth1 * 0.5f;
+        float dist = 0.0f;
+        if (!ov.isBar)
+        {
+            const auto* lc = isDrums ? drumBezierLaneCoords : guitarBezierLaneCoords;
+            float colCenter = lc[lane].normX1 + lc[lane].normWidth1 * 0.5f;
+            dist = (colCenter - fbCenter) / fbHalfW;
+        }
+        auto fbEdge = PositionMath::getFretboardEdge(
+            isDrums, position, (uint)renderWidth, (uint)renderHeight,
+            HIGHWAY_POS_START, HIGHWAY_POS_END);
+        float fbWidthPx = (fbEdge.rightX - fbEdge.leftX) * FRETBOARD_SCALE;
+        ov.arcOffset = fbWidthPx * ov.curvature * (1.0f - dist * dist);
+    }
+
+    ov.renderLeftX = rLeftX;
+    ov.renderRightX = rRightX;
+    ov.position = position;
+
+    // Transform to screen
+    ov.screenLeftX  = rLeftX * sx + ox;
+    ov.screenRightX = rRightX * sx + ox;
+    ov.screenCenterY = (rCenterY + ov.arcOffset + (float)overflow) * sy + oy;
+    ov.screenH = noteH * sy;
+
+    return ov;
+}
+
+juce::Path HighwayComponent::buildCurvedNotePath(const NoteOverlay& ov, float expand) const
+{
+    using namespace PositionConstants;
+    juce::Path p;
+    float left  = ov.screenLeftX - expand;
+    float right = ov.screenRightX + expand;
+    float top   = ov.screenCenterY - ov.screenH * 0.5f - expand;
+    float bot   = ov.screenCenterY + ov.screenH * 0.5f + expand;
+
+    if (std::abs(ov.curvature) < 0.001f)
+    {
+        p.addRoundedRectangle(left, top, right - left, bot - top,
+                              ov.isBar ? 2.0f : 3.0f);
+    }
+    else
+    {
+        bool isDrums = isDrumLike(activePart);
+        auto fbEdge = PositionMath::getFretboardEdge(
+            isDrums, ov.position, (uint)renderWidth, (uint)renderHeight,
+            HIGHWAY_POS_START, HIGHWAY_POS_END);
+        float fbWidthPx = (fbEdge.rightX - fbEdge.leftX) * FRETBOARD_SCALE;
+        const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+        float fbCenterNorm = fbCoords.normX1 + fbCoords.normWidth1 * 0.5f;
+        float fbHalfWNorm = fbCoords.normWidth1 * 0.5f;
+
+        float pts[3] = { ov.renderLeftX, (ov.renderLeftX + ov.renderRightX) * 0.5f, ov.renderRightX };
+        float yOff[3];
+        for (int i = 0; i < 3; i++)
+        {
+            float normX = pts[i] / (float)renderWidth;
+            float d = (normX - fbCenterNorm) / fbHalfWNorm;
+            float fullArc = fbWidthPx * ov.curvature * (1.0f - d * d);
+            yOff[i] = (fullArc - ov.arcOffset) * ov.sy;
+        }
+
+        float midX = (left + right) * 0.5f;
+        p.startNewSubPath(left, top + yOff[0]);
+        p.quadraticTo(midX, top + yOff[1], right, top + yOff[2]);
+        p.lineTo(right, bot + yOff[2]);
+        p.quadraticTo(midX, bot + yOff[1], left, bot + yOff[0]);
+        p.closeSubPath();
+    }
+    return p;
+}
+
 void HighwayComponent::setWriteMode(bool on, MidiWriter* writer, int trackIndex)
 {
     writeMode = on;
@@ -532,28 +686,115 @@ HitTestResult HighwayComponent::performHitTest(juce::Point<float> screenPos) con
         isDrums, sceneRenderer.farFadeEnd);
 }
 
+bool HighwayComponent::findNoteAtPosition(float normalizedPosition, int laneIndex,
+                                           double& outTime, int& outLane) const
+{
+    if (laneIndex < 0 || laneIndex >= (int)LANE_COUNT)
+        return false;
+
+    double windowTimeSpan = frameData.windowEndTime - frameData.windowStartTime;
+    if (windowTimeSpan <= 0.0)
+        return false;
+
+    // Convert normalizedPosition back to time
+    double targetTime = (double)normalizedPosition * windowTimeSpan + frameData.windowStartTime;
+
+    // Find the closest trackWindow entry with a note in this lane
+    double bestDist = std::numeric_limits<double>::max();
+    double bestTime = 0.0;
+    bool found = false;
+
+    for (const auto& [time, frame] : frameData.trackWindow)
+    {
+        if (frame[(size_t)laneIndex].gem == Gem::NONE)
+            continue;
+
+        double dist = std::abs(time - targetTime);
+        if (dist < bestDist)
+        {
+            bestDist = dist;
+            bestTime = time;
+            found = true;
+        }
+    }
+
+    if (!found)
+        return false;
+
+    // Tolerance: the note's normalized position must be within ~5% of highway length
+    double bestNormPos = (bestTime - frameData.windowStartTime) / windowTimeSpan;
+    if (std::abs(bestNormPos - (double)normalizedPosition) > 0.05)
+        return false;
+
+    outTime = bestTime;
+    outLane = laneIndex;
+    return true;
+}
+
 void HighwayComponent::mouseMove(const juce::MouseEvent& event)
 {
-    if (!writeMode)
+    if (!writeMode || frameData.isPlaying)
         return;
 
     hoverResult = performHitTest(event.position);
     hoverValid = hoverResult.valid && hoverResult.laneIndex >= 0;
+
+    // Check if hovering over an existing note
+    hoverOnExistingNote = false;
+    if (hoverValid)
+    {
+        double t; int l;
+        hoverOnExistingNote = findNoteAtPosition(hoverResult.normalizedPosition,
+                                                  hoverResult.laneIndex, t, l);
+    }
+
     repaint();
 }
 
 void HighwayComponent::mouseExit(const juce::MouseEvent&)
 {
-    if (writeMode && hoverValid)
+    if (writeMode && (hoverValid || hasSelection))
     {
         hoverValid = false;
+        hoverOnExistingNote = false;
         repaint();
     }
 }
 
+void HighwayComponent::mouseDown(const juce::MouseEvent& event)
+{
+    if (!writeMode || frameData.isPlaying)
+        return;
+
+    // Grab keyboard focus for DELETE/arrow keys
+    grabKeyboardFocus();
+
+    auto hit = performHitTest(event.position);
+    if (!hit.valid || hit.laneIndex < 0)
+    {
+        hasSelection = false;
+        repaint();
+        return;
+    }
+
+    // Try to select an existing note at this position
+    double noteTime; int noteLane;
+    if (findNoteAtPosition(hit.normalizedPosition, hit.laneIndex, noteTime, noteLane))
+    {
+        hasSelection = true;
+        selectedTime = noteTime;
+        selectedLane = noteLane;
+    }
+    else
+    {
+        hasSelection = false;
+    }
+    repaint();
+}
+
 void HighwayComponent::mouseDoubleClick(const juce::MouseEvent& event)
 {
-    if (!writeMode || !midiWriter || writeTrackIndex < 0)
+    if (!writeMode || !midiWriter || writeTrackIndex < 0 || frameData.isPlaying)
         return;
 
     auto hit = performHitTest(event.position);
@@ -574,4 +815,54 @@ void HighwayComponent::mouseDoubleClick(const juce::MouseEvent& event)
 
     if (onNoteEditRequested)
         onNoteEditRequested(hit.timeFromCursor, pitch);
+
+    // Clear selection after edit — the note may have been deleted
+    hasSelection = false;
+}
+
+bool HighwayComponent::keyPressed(const juce::KeyPress& key)
+{
+    if (!writeMode || !hasSelection || frameData.isPlaying)
+        return false;
+
+    bool isDrums = isDrumLike(activePart);
+    SkillLevel skill = (SkillLevel)(int)state.getProperty("skillLevel");
+    auto pitches = isDrums
+        ? InstrumentMapper::getDrumPitchesForSkill(skill)
+        : InstrumentMapper::getGuitarPitchesForSkill(skill);
+
+    if (selectedLane < 0 || selectedLane >= (int)pitches.size())
+        return false;
+
+    int pitch = (int)pitches[(size_t)selectedLane];
+
+    // Verify the note still exists in the current frame data
+    auto it = frameData.trackWindow.find(selectedTime);
+    bool noteExists = it != frameData.trackWindow.end()
+                   && it->second[(size_t)selectedLane].gem != Gem::NONE;
+
+    if (key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey)
+    {
+        if (noteExists && onNoteDeleteRequested)
+        {
+            onNoteDeleteRequested(selectedTime, pitch);
+            hasSelection = false;
+            repaint();
+        }
+        return true;
+    }
+
+    if (key == juce::KeyPress::upKey || key == juce::KeyPress::downKey)
+    {
+        if (noteExists && onNoteMoveRequested)
+        {
+            int dir = key == juce::KeyPress::upKey ? 1 : -1;
+            onNoteMoveRequested(selectedTime, pitch, dir);
+            hasSelection = false;  // Note moved — selection invalidated
+            repaint();
+        }
+        return true;
+    }
+
+    return false;
 }

@@ -589,29 +589,34 @@ void ChartchoticAudioProcessorEditor::toggleWriteMode()
     // Wire the note insert callback
     if (writeModeActive)
     {
-        primaryHighway().onNoteEditRequested = [this](double timeFromCursor, int pitch) {
-            auto* w = audioProcessor.reaperMidiProvider.getWriter();
-            if (!w) return;
-
+        // Helper: convert timeFromCursor to absolute PPQ and find matching note index
+        auto findNoteIndex = [this](double timeFromCursor, int pitch, double& outPPQ) -> int {
             double cursorTimeSec = audioProcessor.reaperMidiProvider.getCurrentCursorPosition();
             double absoluteTimeSec = cursorTimeSec + timeFromCursor;
             double ppq = audioProcessor.reaperMidiProvider.timeToPpq(absoluteTimeSec);
-            if (ppq < 0.0) ppq = 0.0;  // Floor at project start
-            int trackIdx = (int)state.getProperty("reaperTrack") - 1;
+            if (ppq < 0.0) ppq = 0.0;
+            outPPQ = ppq;
 
-            // Check if a note already exists near this position+pitch — if so, delete it
+            int trackIdx = (int)state.getProperty("reaperTrack") - 1;
             auto allNotes = audioProcessor.reaperMidiProvider.getAllNotesFromTrack(trackIdx);
-            constexpr double PPQ_TOLERANCE = 0.25;  // 1/4 QN tolerance for matching
-            int matchIdx = -1;
+            constexpr double PPQ_TOLERANCE = 0.25;
             for (int i = 0; i < (int)allNotes.size(); i++)
             {
                 if (allNotes[i].pitch == pitch &&
                     std::abs(allNotes[i].startPPQ - ppq) < PPQ_TOLERANCE)
-                {
-                    matchIdx = i;
-                    break;
-                }
+                    return i;
             }
+            return -1;
+        };
+
+        // Double-click: toggle note (insert or delete)
+        primaryHighway().onNoteEditRequested = [this, findNoteIndex](double timeFromCursor, int pitch) {
+            auto* w = audioProcessor.reaperMidiProvider.getWriter();
+            if (!w) return;
+
+            int trackIdx = (int)state.getProperty("reaperTrack") - 1;
+            double ppq;
+            int matchIdx = findNoteIndex(timeFromCursor, pitch, ppq);
 
             if (matchIdx >= 0)
             {
@@ -629,10 +634,44 @@ void ChartchoticAudioProcessorEditor::toggleWriteMode()
                 w->insertNote(trackIdx, ppq, endPPQ, 0, pitch, 100);
             }
         };
+
+        // DELETE key: remove selected note
+        primaryHighway().onNoteDeleteRequested = [this, findNoteIndex](double timeFromCursor, int pitch) {
+            auto* w = audioProcessor.reaperMidiProvider.getWriter();
+            if (!w) return;
+
+            int trackIdx = (int)state.getProperty("reaperTrack") - 1;
+            double ppq;
+            int matchIdx = findNoteIndex(timeFromCursor, pitch, ppq);
+            if (matchIdx >= 0)
+                w->deleteNote(trackIdx, matchIdx);
+        };
+
+        // Up/Down arrow: shift selected note forward/backward in time
+        primaryHighway().onNoteMoveRequested = [this, findNoteIndex](double timeFromCursor, int pitch, int direction) {
+            auto* w = audioProcessor.reaperMidiProvider.getWriter();
+            if (!w) return;
+
+            int trackIdx = (int)state.getProperty("reaperTrack") - 1;
+            double ppq;
+            int matchIdx = findNoteIndex(timeFromCursor, pitch, ppq);
+            if (matchIdx < 0) return;
+
+            auto allNotes = audioProcessor.reaperMidiProvider.getAllNotesFromTrack(trackIdx);
+            if (matchIdx >= (int)allNotes.size()) return;
+
+            double noteDuration = allNotes[matchIdx].endPPQ - allNotes[matchIdx].startPPQ;
+            double shift = 0.25 * (double)direction;  // 1/16th note per step
+            double newStart = std::max(0.0, allNotes[matchIdx].startPPQ + shift);
+            double newEnd = newStart + noteDuration;
+            w->moveNote(trackIdx, matchIdx, newStart, newEnd, pitch);
+        };
     }
     else
     {
         primaryHighway().onNoteEditRequested = nullptr;
+        primaryHighway().onNoteDeleteRequested = nullptr;
+        primaryHighway().onNoteMoveRequested = nullptr;
     }
 
     repaint();
