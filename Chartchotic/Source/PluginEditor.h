@@ -184,7 +184,11 @@ private:
     void initBottomBar();
     void loadState();
     void toggleWriteMode();
+    void updateWriteModeSelection();
     bool writeModeActive = false;
+    double selectedNotePPQ = -1.0;  // PPQ of selected note (-1 = no selection)
+    int selectedNotePitch = -1;
+    int selectedNoteLane = -1;
     void updateTrackInfoDisplay();
 #ifdef DEBUG
     void rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart);
