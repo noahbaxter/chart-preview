@@ -844,20 +844,16 @@ void HighwayComponent::mouseDown(const juce::MouseEvent& event)
     auto hit = performHitTest(event.position);
     if (!hit.valid || hit.laneIndex < 0)
     {
-        if (onSelectionCleared) onSelectionCleared();
+        if (onNoteClicked) onNoteClicked(0.0, -1, false);
         return;
     }
 
-    // Check if there's an existing note at this position — let editor handle selection in PPQ space
+    // Check if there's an existing note at this position — controller handles PPQ resolution
     double noteTime; int noteLane;
-    if (findNoteAtPosition(hit.normalizedPosition, hit.laneIndex, noteTime, noteLane))
-    {
-        if (onNoteSelected) onNoteSelected(noteTime, noteLane);
-    }
-    else
-    {
-        if (onSelectionCleared) onSelectionCleared();
-    }
+    bool noteExists = findNoteAtPosition(hit.normalizedPosition, hit.laneIndex, noteTime, noteLane);
+
+    if (onNoteClicked)
+        onNoteClicked(noteExists ? noteTime : hit.timeFromCursor, noteExists ? noteLane : hit.laneIndex, noteExists);
 }
 
 void HighwayComponent::mouseDoubleClick(const juce::MouseEvent& event)
@@ -883,9 +879,6 @@ void HighwayComponent::mouseDoubleClick(const juce::MouseEvent& event)
 
     if (onNoteEditRequested)
         onNoteEditRequested(hit.timeFromCursor, pitch);
-
-    // Clear selection after edit — the note may have been deleted
-    hasSelection = false;
 }
 
 bool HighwayComponent::keyPressed(const juce::KeyPress& key)
@@ -907,10 +900,7 @@ bool HighwayComponent::keyPressed(const juce::KeyPress& key)
     if (key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey)
     {
         if (onNoteDeleteRequested)
-        {
             onNoteDeleteRequested(selectedTime, pitch);
-            if (onSelectionCleared) onSelectionCleared();
-        }
         return true;
     }
 
@@ -920,7 +910,7 @@ bool HighwayComponent::keyPressed(const juce::KeyPress& key)
         {
             int dir = key == juce::KeyPress::upKey ? 1 : -1;
             onNoteMoveRequested(selectedTime, pitch, dir);
-            // Selection stays — PluginEditor updates selectedNotePPQ in the callback
+            // Selection stays — WriteController updates selection.ppq in the callback
         }
         return true;
     }

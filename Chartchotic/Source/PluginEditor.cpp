@@ -10,7 +10,6 @@
 #include "PluginEditor.h"
 #include "Host/ReaperTrackDetector.h"
 #include "Midi/Processing/NoteProcessor.h"
-#include "Midi/Utils/InstrumentMapper.h"
 #include "Visual/Utils/PositionMath.h"
 
 // CI injects CHARTCHOTIC_VERSION_STRING with full version (e.g. 0.9.5-dev.20260226.abc1234)
@@ -89,6 +88,7 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
                      [this](auto fn) { forEachHighway(fn); },
                      [this](auto fn) { forAllHighways(fn); }
                  });
+    writeController.init(audioProcessor, state, primaryHighway());
     initToolbarCallbacks();
     toolbar.setLatencyOffsetRange(CALIBRATION_MIN_MS, CALIBRATION_MAX_MS);
 
@@ -287,8 +287,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
         }
     }
 
-    if (writeModeActive)
-        updateWriteModeSelection();
+    writeController.update(lastPlayingState);
 
 #ifdef DEBUG
     double dataBuild_us = std::chrono::duration<double, std::micro>(
@@ -580,189 +579,6 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 #endif
 }
 
-void ChartchoticAudioProcessorEditor::toggleWriteMode()
-{
-    auto* writer = audioProcessor.reaperMidiProvider.getWriter();
-    if (!writer)
-        return;
-
-    writeModeActive = !writeModeActive;
-    int trackIndex = (int)state.getProperty("reaperTrack") - 1;
-
-    primaryHighway().setWriteMode(writeModeActive, writer, trackIndex);
-
-    // Wire the note insert callback
-    if (writeModeActive)
-    {
-        // Helper: convert timeFromCursor to absolute PPQ and find matching note index
-        auto findNoteIndex = [this](double timeFromCursor, int pitch, double& outPPQ) -> int {
-            double cursorTimeSec = audioProcessor.reaperMidiProvider.getCurrentCursorPosition();
-            double absoluteTimeSec = cursorTimeSec + timeFromCursor;
-            double ppq = audioProcessor.reaperMidiProvider.timeToPpq(absoluteTimeSec);
-            if (ppq < 0.0) ppq = 0.0;
-            outPPQ = ppq;
-
-            int trackIdx = (int)state.getProperty("reaperTrack") - 1;
-            auto allNotes = audioProcessor.reaperMidiProvider.getAllNotesFromTrack(trackIdx);
-            constexpr double PPQ_TOLERANCE = 0.25;
-            for (int i = 0; i < (int)allNotes.size(); i++)
-            {
-                if (allNotes[i].pitch == pitch &&
-                    std::abs(allNotes[i].startPPQ - ppq) < PPQ_TOLERANCE)
-                    return i;
-            }
-            return -1;
-        };
-
-        // Double-click: toggle note (insert or delete)
-        primaryHighway().onNoteEditRequested = [this, findNoteIndex](double timeFromCursor, int pitch) {
-            auto* w = audioProcessor.reaperMidiProvider.getWriter();
-            if (!w) return;
-
-            int trackIdx = (int)state.getProperty("reaperTrack") - 1;
-            double ppq;
-            int matchIdx = findNoteIndex(timeFromCursor, pitch, ppq);
-
-            if (matchIdx >= 0)
-            {
-                // Delete existing note — keep selection identity so undo restores it
-                w->deleteNote(trackIdx, matchIdx);
-
-                bool isDrums = isDrumLike(primaryHighway().getActivePart());
-                SkillLevel skill = (SkillLevel)(int)state.getProperty("skillLevel");
-                auto pitches = isDrums
-                    ? InstrumentMapper::getDrumPitchesForSkill(skill)
-                    : InstrumentMapper::getGuitarPitchesForSkill(skill);
-                int lane = 0;
-                for (int i = 0; i < (int)pitches.size(); i++)
-                    if ((int)pitches[i] == pitch) { lane = i; break; }
-
-                selectedNotePPQ = ppq;
-                selectedNotePitch = pitch;
-                selectedNoteLane = lane;
-            }
-            else
-            {
-                // Create new note — select it
-                double endPPQ = ppq + 0.0625;
-                w->insertNote(trackIdx, ppq, endPPQ, 0, pitch, 100);
-
-                // Resolve lane from pitch
-                bool isDrums = isDrumLike(primaryHighway().getActivePart());
-                SkillLevel skill = (SkillLevel)(int)state.getProperty("skillLevel");
-                auto pitches = isDrums
-                    ? InstrumentMapper::getDrumPitchesForSkill(skill)
-                    : InstrumentMapper::getGuitarPitchesForSkill(skill);
-                int lane = 0;
-                for (int i = 0; i < (int)pitches.size(); i++)
-                    if ((int)pitches[i] == pitch) { lane = i; break; }
-
-                selectedNotePPQ = ppq;
-                selectedNotePitch = pitch;
-                selectedNoteLane = lane;
-                updateWriteModeSelection();
-            }
-        };
-
-        // DELETE key: remove selected note
-        primaryHighway().onNoteDeleteRequested = [this, findNoteIndex](double timeFromCursor, int pitch) {
-            auto* w = audioProcessor.reaperMidiProvider.getWriter();
-            if (!w) return;
-
-            int trackIdx = (int)state.getProperty("reaperTrack") - 1;
-            double ppq;
-            int matchIdx = findNoteIndex(timeFromCursor, pitch, ppq);
-            if (matchIdx >= 0)
-            {
-                w->deleteNote(trackIdx, matchIdx);
-                // Keep selection identity — if user undoes, the note reappears
-                // and the selection highlight comes back automatically via
-                // updateWriteModeSelection(). The highlight won't draw while
-                // the note is absent since it's not in the visible trackWindow.
-            }
-        };
-
-        // Up/Down arrow: shift selected note forward/backward in time
-        primaryHighway().onNoteMoveRequested = [this, findNoteIndex](double timeFromCursor, int pitch, int direction) {
-            auto* w = audioProcessor.reaperMidiProvider.getWriter();
-            if (!w) return;
-
-            int trackIdx = (int)state.getProperty("reaperTrack") - 1;
-            double ppq;
-            int matchIdx = findNoteIndex(timeFromCursor, pitch, ppq);
-            if (matchIdx < 0) return;
-
-            auto allNotes = audioProcessor.reaperMidiProvider.getAllNotesFromTrack(trackIdx);
-            if (matchIdx >= (int)allNotes.size()) return;
-
-            double noteDuration = allNotes[matchIdx].endPPQ - allNotes[matchIdx].startPPQ;
-            double shift = 0.25 * (double)direction;  // 1/16th note per step
-            double newStart = std::max(0.0, allNotes[matchIdx].startPPQ + shift);
-            double newEnd = newStart + noteDuration;
-            w->moveNote(trackIdx, matchIdx, newStart, newEnd, pitch);
-
-            // Update selection to track the moved note
-            selectedNotePPQ = newStart;
-        };
-
-        // Click on existing note — resolve to PPQ for scroll-stable selection
-        primaryHighway().onNoteSelected = [this](double timeFromCursor, int lane) {
-            bool isDrums = isDrumLike(primaryHighway().getActivePart());
-            SkillLevel skill = (SkillLevel)(int)state.getProperty("skillLevel");
-            auto pitches = isDrums
-                ? InstrumentMapper::getDrumPitchesForSkill(skill)
-                : InstrumentMapper::getGuitarPitchesForSkill(skill);
-
-            if (lane < 0 || lane >= (int)pitches.size()) return;
-            int pitch = (int)pitches[(size_t)lane];
-
-            double cursorTimeSec = audioProcessor.reaperMidiProvider.getCurrentCursorPosition();
-            double absoluteTimeSec = cursorTimeSec + timeFromCursor;
-            double ppq = audioProcessor.reaperMidiProvider.timeToPpq(absoluteTimeSec);
-
-            selectedNotePPQ = ppq;
-            selectedNotePitch = pitch;
-            selectedNoteLane = lane;
-            updateWriteModeSelection();
-        };
-
-        primaryHighway().onSelectionCleared = [this]() {
-            selectedNotePPQ = -1.0;
-            selectedNotePitch = -1;
-            selectedNoteLane = -1;
-            primaryHighway().clearSelection();
-        };
-    }
-    else
-    {
-        primaryHighway().onNoteEditRequested = nullptr;
-        primaryHighway().onNoteDeleteRequested = nullptr;
-        primaryHighway().onNoteMoveRequested = nullptr;
-        primaryHighway().onNoteSelected = nullptr;
-        primaryHighway().onSelectionCleared = nullptr;
-        selectedNotePPQ = -1.0;
-        selectedNotePitch = -1;
-        selectedNoteLane = -1;
-    }
-
-    repaint();
-}
-
-void ChartchoticAudioProcessorEditor::updateWriteModeSelection()
-{
-    if (!writeModeActive || selectedNotePPQ < 0.0 || selectedNoteLane < 0)
-    {
-        primaryHighway().clearSelection();
-        return;
-    }
-
-    // Convert PPQ back to time-from-cursor using current playhead position
-    double cursorTimeSec = audioProcessor.reaperMidiProvider.getCurrentCursorPosition();
-    double noteTimeSec = audioProcessor.reaperMidiProvider.ppqToTime(selectedNotePPQ);
-    double timeFromCursor = noteTimeSec - cursorTimeSec;
-
-    primaryHighway().setSelection(timeFromCursor, selectedNoteLane);
-}
 
 void ChartchoticAudioProcessorEditor::initBottomBar()
 {
@@ -895,7 +711,7 @@ void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
         drawFpsOverlay(g);
 
     // Write mode indicator
-    if (writeModeActive)
+    if (writeController.isActive())
     {
         auto font = Theme::getUIFont(16.0f);
         g.setFont(font);
