@@ -27,6 +27,7 @@
 #include "UI/FooterComponent.h"
 #include "Editor/AssetController.h"
 #include "Editor/SessionController.h"
+#include "Editor/WriteController.h"
 #include "Editor/FrameDataBuilder.h"
 #ifdef DEBUG
 #include "DebugTools/DebugEditorController.h"
@@ -63,7 +64,8 @@ public:
         // W key toggles write mode (REAPER only)
         if (key == juce::KeyPress('w') && audioProcessor.isReaperHost)
         {
-            toggleWriteMode();
+            writeController.toggle();
+            repaint();
             return true;
         }
 
@@ -183,12 +185,7 @@ private:
     void initToolbarCallbacks();
     void initBottomBar();
     void loadState();
-    void toggleWriteMode();
-    void updateWriteModeSelection();
-    bool writeModeActive = false;
-    double selectedNotePPQ = -1.0;  // PPQ of selected note (-1 = no selection)
-    int selectedNotePitch = -1;
-    int selectedNoteLane = -1;
+    WriteController writeController;
     void updateTrackInfoDisplay();
 #ifdef DEBUG
     void rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart);
