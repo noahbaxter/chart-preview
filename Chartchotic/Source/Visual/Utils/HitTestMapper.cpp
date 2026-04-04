@@ -30,10 +30,10 @@ HitTestResult HitTestMapper::hitTest(float screenX, float screenY,
     float position = invertYToPosition(screenY, viewportWidth, viewportHeight,
                                        isDrums, farFadeEnd);
 
-    // Reject clicks completely off the highway (e.g. above vanishing point)
-    // Allow below strikeline (negative position = past) — PPQ floor applied downstream
-    if (position > farFadeEnd)
-        return result;
+    // Clamp below strikeline to 0 (past notes floor at cursor position)
+    // Upper bound is handled by the inversion itself (clamps at singularity)
+    if (position < 0.0f)
+        position = 0.0f;
 
     double windowTimeSpan = windowEndTime - windowStartTime;
     result.normalizedPosition = position;
@@ -106,16 +106,22 @@ static float invertYPerspective(float screenY, uint viewportWidth, uint viewport
 
     float progress = (screenY - A) / B;
 
-    // progress must be in (0, 1] for valid highway positions
-    if (progress <= 0.0f || progress > 1.0f)
+    // progress > 1 = below strikeline
+    if (progress > 1.0f)
         return -1.0f;
 
     // Invert: depth = (1 - progress) / (progress * k + 1)
+    // For progress in (0,1]: depth in [0,~1] (normal highway range)
+    // For progress <= 0: depth > 1 (extended highway past vanishing point depth)
+    // Only truly invalid when denominator hits zero (singularity)
     float denom = progress * k + 1.0f;
     if (std::abs(denom) < 0.0001f)
-        return -1.0f;
+        return farFadeEnd;  // At the singularity, clamp to highway end
 
     float depth = (1.0f - progress) / denom;
+    if (depth < 0.0f)
+        return farFadeEnd;  // Past singularity — clamp
+
     return depth * pp.vanishingPointDepth;
 }
 
@@ -190,9 +196,19 @@ int HitTestMapper::identifyLane(float screenX, float position,
     for (int i = 1; i < numLanes; i++)
         if (checkLane(i)) return i;
 
-    // Nearest lane fallback (for gaps between lanes)
+    // Nearest lane fallback — only if within 30% of the nearest lane's width
     if (bestLane >= 0)
-        return bestLane;
+    {
+        float sizeScale = (bestLane == 0) ? BAR_SIZE : GEM_SIZE;
+        auto bestCorners = PositionMath::getColumnPosition(
+            isDrums, position, viewportWidth, viewportHeight,
+            HIGHWAY_POS_START, HIGHWAY_POS_END,
+            laneCoords[bestLane], sizeScale, fretboardScale,
+            PositionMath::bemaniMode ? bestLane : -1);
+        float laneWidth = bestCorners.rightX - bestCorners.leftX;
+        if (bestDist < laneWidth * 0.3f)
+            return bestLane;
+    }
 
     return -1;
 }
