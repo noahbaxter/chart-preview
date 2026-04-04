@@ -86,6 +86,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     noteRenderer.resScale = resScale;                    // applied to ColumnAdjust::z reads
     noteRenderer.laneCoordsGuitar = guitarLaneCoordsLocal;
     noteRenderer.laneCoordsDrums = drumLaneCoordsLocal;
+    noteRenderer.isPlaying = isPlaying;
 
     {
         ScopedPhaseMeasure m(lastPhaseTiming.notes_us, collectPhaseTiming);

@@ -56,6 +56,7 @@ public:
     float barZOffset = 0.0f;
     float strikePosGem = 0.0f;
     float strikePosBar = 0.0f;
+    bool isPlaying = false;
 
     void clearCurvedCache() { curvedCache.clear(); }
 
