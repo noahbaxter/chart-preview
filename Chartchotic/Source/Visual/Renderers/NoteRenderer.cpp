@@ -36,11 +36,11 @@ void NoteRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow
     double windowTimeSpan = windowEndTime - windowStartTime;
     bool hitAnimationsOn = state.getProperty("hitIndicators");
 
-    // When hit animations are on, notes clip at the strike position.
-    // strikePosGem/strikePosBar shift the clip point (negative = past strikeline = lower on screen).
-    // When off, notes flow past the strikeline to the bottom of the highway.
-    double noteClipTime = hitAnimationsOn ? (strikePosGem * windowTimeSpan) : (HIGHWAY_POS_START * windowTimeSpan);
-    double barClipTime = hitAnimationsOn ? (strikePosBar * windowTimeSpan) : (HIGHWAY_POS_START * windowTimeSpan);
+    // When hit animations are on AND playing, notes clip at the strike position.
+    // When paused (even with hits enabled), show everything — lets users browse/edit freely.
+    bool clipAtStrike = hitAnimationsOn && isPlaying;
+    double noteClipTime = clipAtStrike ? (strikePosGem * windowTimeSpan) : (HIGHWAY_POS_START * windowTimeSpan);
+    double barClipTime = clipAtStrike ? (strikePosBar * windowTimeSpan) : (HIGHWAY_POS_START * windowTimeSpan);
     // Use the more permissive clip for frame-level skip; per-gem clip happens in drawGem
     double frameClipTime = std::min(noteClipTime, barClipTime);
     cachedNoteClipTime = noteClipTime;
