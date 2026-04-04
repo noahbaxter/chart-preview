@@ -118,6 +118,12 @@ public:
     std::function<void(double timeFromCursor, int pitch)> onNoteEditRequested;
     std::function<void(double timeFromCursor, int pitch)> onNoteDeleteRequested;
     std::function<void(double timeFromCursor, int pitch, int direction)> onNoteMoveRequested;
+    std::function<void(double timeFromCursor, int lane)> onNoteSelected;  // click on existing note
+    std::function<void()> onSelectionCleared;  // click on empty space
+
+    // Selection — set externally by PluginEditor each frame (PPQ-based, scroll-stable)
+    void setSelection(double timeFromCursor, int lane);
+    void clearSelection();
 
 private:
     static constexpr int rebuildDebounceMs = 500;
