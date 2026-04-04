@@ -104,6 +104,10 @@ class SceneRenderer
         static constexpr float farFadeLen   = FAR_FADE_LEN;
         static constexpr float farFadeCurve = FAR_FADE_CURVE;
 
+        // Z offsets (computed by paint() from InstrumentOffsets * resScale, read by HighwayComponent ghost)
+        float getGemZOffset() const { return noteRenderer.gemZOffset; }
+        float getBarZOffset() const { return noteRenderer.barZOffset; }
+
         // Mutable lane coord arrays (mutable for debug UI, defaults from PositionConstants)
         PositionConstants::NormalizedCoordinates guitarLaneCoordsLocal[6] = {
             PositionConstants::guitarBezierLaneCoords[0],
