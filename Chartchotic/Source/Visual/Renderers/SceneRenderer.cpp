@@ -108,6 +108,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
 
     {
         ScopedPhaseMeasure m(lastPhaseTiming.gridlines_us, collectPhaseTiming);
+        gridlineRenderer.writeMode = writeMode;
         if (showGridlines)
             gridlineRenderer.populate(drawCallMap, gridlines, windowStartTime, windowEndTime,
                                       width, height, highwayPosEnd,

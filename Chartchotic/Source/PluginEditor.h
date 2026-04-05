@@ -69,6 +69,37 @@ public:
             return true;
         }
 
+        // Write mode keys
+        if (writeController.isActive())
+        {
+            if (key == juce::KeyPress('q'))
+            {
+                writeController.toggleMode();
+                repaint();
+                return true;
+            }
+            if (key == juce::KeyPress('['))
+            {
+                writeController.halveStepDivision();
+                return true;
+            }
+            if (key == juce::KeyPress(']'))
+            {
+                writeController.doubleStepDivision();
+                return true;
+            }
+            if (key == juce::KeyPress('t'))
+            {
+                writeController.cycleTuplet();
+                return true;
+            }
+            if (key == juce::KeyPress('s'))
+            {
+                writeController.setSnapEnabled(!writeController.isSnapEnabled());
+                return true;
+            }
+        }
+
         return false;
     }
 

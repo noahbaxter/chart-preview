@@ -6,6 +6,8 @@ class ChartchoticAudioProcessor;
 class HighwayComponent;
 class MidiWriter;
 
+enum class InteractionMode { DRAW, EDIT };
+
 struct WriteSelection
 {
     double ppq = -1.0;
@@ -32,28 +34,55 @@ public:
     bool isActive() const { return active; }
     const WriteSelection& getSelection() const { return selection; }
 
+    // Sub-mode
+    void toggleMode();
+    InteractionMode getMode() const { return mode; }
+
+    // Grid config
+    int getStepDivision() const { return stepDivision; }
+    void setStepDivision(int div);
+    void halveStepDivision();
+    void doubleStepDivision();
+
+    int getTuplet() const { return tuplet; }
+    void cycleTuplet();
+
+    bool isSnapEnabled() const { return snapEnabled; }
+    void setSnapEnabled(bool on);
+
 private:
     ChartchoticAudioProcessor* processor = nullptr;
     juce::ValueTree* state = nullptr;
     HighwayComponent* highway = nullptr;
 
     bool active = false;
+    InteractionMode mode = InteractionMode::DRAW;
     WriteSelection selection;
     bool wasPlaying = false;
+
+    // Grid state
+    int stepDivision = 4;      // 1/N note (1,2,4,8,16,32,64)
+    int tuplet = 0;            // 0=normal, 3=triplet, 5=quintuplet, 7=septuplet
+    bool snapEnabled = true;
 
     void wireCallbacks();
     void clearCallbacks();
 
-    // Find note index in REAPER track matching timeFromCursor+pitch.
-    // Returns index or -1. Sets outPPQ to the resolved PPQ position.
     int findNoteIndex(double timeFromCursor, int pitch, double& outPPQ);
-
-    // Resolve lane index to pitch using current skill level and instrument
+    // Overload: find by PPQ + pitch directly (for selection-based operations)
+    int findNoteIndexByPPQ(double ppq, int pitch);
     void resolvePitches(std::vector<uint>& out);
-
-    // Resolve lane to pitch (convenience for single lookup)
     int pitchForLane(int lane);
-
-    // Set selection from timeFromCursor + lane (resolves PPQ internally)
     void selectFromHit(double timeFromCursor, int lane);
+
+    // Place a short note at the given position
+    void placeNote(double timeFromCursor, int lane);
+    // Erase the note at the given position
+    void eraseNote(double timeFromCursor, int lane);
+
+    // Snap a PPQ position to the nearest grid line
+    double snapToGrid(double ppq) const;
+
+    // PPQ distance for one step at current settings
+    double stepSizeInPPQ() const;
 };

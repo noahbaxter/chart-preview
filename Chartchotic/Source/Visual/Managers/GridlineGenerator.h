@@ -31,13 +31,18 @@ public:
     //   - endPPQ: End of the visible window
     //   - cursorPPQ: Current playback position (time zero)
     //   - ppqToTime: Function to convert PPQ to absolute time
+    // stepDivision: 0 = no step grid, else 1/N note (4=quarter, 8=eighth, 16=sixteenth, etc.)
+    // tuplet: 0 = normal, 3 = triplet (2-in-space-of-3), 5 = quintuplet, 7 = septuplet, etc.
+    //         Divides each step by tuplet and multiplies by (tuplet-1) to get the tuplet feel.
     template<typename PPQToTimeFunc>
     static TimeBasedGridlineMap generateGridlines(
         const TempoTimeSignatureMap& tempoTimeSigMap,
         PPQ startPPQ,
         PPQ endPPQ,
         PPQ cursorPPQ,
-        PPQToTimeFunc ppqToTime)
+        PPQToTimeFunc ppqToTime,
+        int stepDivision = 0,
+        int tuplet = 0)
     {
         TimeBasedGridlineMap result;
         double cursorTime = ppqToTime(cursorPPQ.toDouble());
@@ -46,7 +51,8 @@ public:
         if (tempoTimeSigMap.empty())
         {
             generateGridlinesForSection(result, startPPQ, endPPQ, cursorPPQ, cursorTime,
-                                       PPQ(0.0), 120.0, 4, 4, ppqToTime);
+                                       PPQ(0.0), 120.0, 4, 4, ppqToTime,
+                                       stepDivision, tuplet);
             return result;
         }
 
@@ -81,7 +87,7 @@ public:
             generateGridlinesForSection(result, sectionStart, sectionEnd, cursorPPQ, cursorTime,
                                        sectionMeasureAnchor, event.bpm,
                                        event.timeSigNumerator, event.timeSigDenominator,
-                                       ppqToTime);
+                                       ppqToTime, stepDivision, tuplet);
 
             // Move to next section
             ++it;
@@ -104,7 +110,9 @@ private:
         double bpm,
         int timeSigNum,
         int timeSigDenom,
-        PPQToTimeFunc ppqToTime)
+        PPQToTimeFunc ppqToTime,
+        int stepDivision = 0,
+        int tuplet = 0)
     {
         // Safety check: invalid time signature or empty section
         if (timeSigDenom <= 0 || timeSigNum <= 0 || sectionStart >= sectionEnd)
@@ -113,27 +121,41 @@ private:
         // Calculate spacing in PPQ
         double measureLength = static_cast<double>(timeSigNum) * (4.0 / timeSigDenom);
         double beatSpacing = 4.0 / timeSigDenom;
+
+        // Determine finest grid resolution: either half-beat or step division, whichever is finer
         double halfBeatSpacing = beatSpacing / 2.0;
+        double stepSpacing = 0.0;
+        if (stepDivision > 0)
+        {
+            stepSpacing = 4.0 / stepDivision;
+            // Tuplet: N notes in the space of (N-1), e.g. 3 = triplet (3 in space of 2)
+            if (tuplet >= 3) stepSpacing *= (static_cast<double>(tuplet - 1) / tuplet);
+        }
+
+        // Use the finer of half-beat or step as iteration spacing
+        double iterSpacing = halfBeatSpacing;
+        if (stepSpacing > 0.0 && stepSpacing < iterSpacing)
+            iterSpacing = stepSpacing;
 
         // Safety check: prevent infinite loops
-        if (measureLength <= 0.0 || beatSpacing <= 0.0 || halfBeatSpacing <= 0.0)
+        if (measureLength <= 0.0 || beatSpacing <= 0.0 || iterSpacing <= 0.0)
             return;
 
         // Find the first measure boundary at or after tempoChangePos
         double measureAnchor = tempoChangePos.toDouble();
 
-        // Find first half-beat position at or after sectionStart
+        // Find first grid position at or after sectionStart
         double currentPPQ = sectionStart.toDouble();
         double relativeToAnchor = currentPPQ - measureAnchor;
 
-        // Snap to next half-beat boundary at or after sectionStart
+        // Snap to next grid boundary at or after sectionStart
         if (relativeToAnchor < 0.0)
             relativeToAnchor = 0.0;
 
-        double nextHalfBeat = std::ceil(relativeToAnchor / halfBeatSpacing) * halfBeatSpacing;
-        currentPPQ = measureAnchor + nextHalfBeat;
+        double nextGridPos = std::ceil(relativeToAnchor / iterSpacing) * iterSpacing;
+        currentPPQ = measureAnchor + nextGridPos;
 
-        // Generate gridlines from first half-beat to section end
+        // Generate gridlines from first position to section end
         int iterationCount = 0;
         const int maxIterations = 100000; // Safety limit
 
@@ -141,10 +163,10 @@ private:
         {
             double relativePos = currentPPQ - measureAnchor;
 
-            // Determine gridline type based on position relative to measure anchor
-            // Use modulo to check if it's on a measure, beat, or half-beat boundary
+            // Determine gridline type — measure and beat always take priority
             double measureMod = std::fmod(relativePos, measureLength);
             double beatMod = std::fmod(relativePos, beatSpacing);
+            double halfBeatMod = std::fmod(relativePos, halfBeatSpacing);
 
             Gridline lineType;
             if (std::abs(measureMod) < 0.001 || std::abs(measureMod - measureLength) < 0.001)
@@ -155,17 +177,21 @@ private:
             {
                 lineType = Gridline::BEAT;
             }
-            else
+            else if (std::abs(halfBeatMod) < 0.001 || std::abs(halfBeatMod - halfBeatSpacing) < 0.001)
             {
                 lineType = Gridline::HALF_BEAT;
+            }
+            else
+            {
+                lineType = Gridline::STEP;
             }
 
             // Add the gridline
             double time = ppqToTime(currentPPQ) - cursorTime;
             result.push_back({time, lineType});
 
-            // Move to next half-beat
-            currentPPQ += halfBeatSpacing;
+            // Move to next grid position
+            currentPPQ += iterSpacing;
             iterationCount++;
         }
     }

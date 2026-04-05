@@ -366,6 +366,7 @@ juce::Image* AssetManager::getGridlineImage(Gridline gridlineType)
     case Gridline::MEASURE: return getMarkerMeasureImage();
     case Gridline::BEAT: return getMarkerBeatImage();
     case Gridline::HALF_BEAT: return getMarkerHalfBeatImage();
+    case Gridline::STEP: return getMarkerHalfBeatImage();
     }
 
     return nullptr;

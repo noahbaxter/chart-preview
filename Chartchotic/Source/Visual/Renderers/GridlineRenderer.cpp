@@ -61,11 +61,25 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
         if (markerImage == nullptr)
             continue;
 
+        // Write mode uses brighter gridlines + adds STEP subdivision visibility.
         float baseOpacity = 1.0f;
-        switch (gridlineType) {
-            case Gridline::MEASURE:    baseOpacity = MEASURE_OPACITY;   break;
-            case Gridline::BEAT:       baseOpacity = BEAT_OPACITY;      break;
-            case Gridline::HALF_BEAT:  baseOpacity = HALF_BEAT_OPACITY; break;
+        if (writeMode)
+        {
+            switch (gridlineType) {
+                case Gridline::MEASURE:    baseOpacity = 1.0f;  break;
+                case Gridline::BEAT:       baseOpacity = 0.6f;  break;
+                case Gridline::HALF_BEAT:  baseOpacity = 0.35f; break;
+                case Gridline::STEP:       baseOpacity = 0.25f; break;
+            }
+        }
+        else
+        {
+            switch (gridlineType) {
+                case Gridline::MEASURE:    baseOpacity = MEASURE_OPACITY;             break;
+                case Gridline::BEAT:       baseOpacity = BEAT_OPACITY;                break;
+                case Gridline::HALF_BEAT:  baseOpacity = HALF_BEAT_OPACITY;           break;
+                case Gridline::STEP:       baseOpacity = HALF_BEAT_OPACITY * 0.7f;    break;
+            }
         }
         float fadeOpacity = PositionMath::bemaniMode
                           ? 1.0f

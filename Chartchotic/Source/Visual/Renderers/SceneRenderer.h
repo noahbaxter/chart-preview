@@ -51,6 +51,7 @@ class SceneRenderer
         bool showSustains = true;
         bool showLanes = true;
         bool showGridlines = true;
+        bool writeMode = false;
         bool showTrack = true;
         bool showLaneSeparators = true;
         bool showStrikeline = true;
