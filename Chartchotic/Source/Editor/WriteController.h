@@ -82,6 +82,8 @@ private:
     void placeNote(double timeFromCursor, int lane);
     // Erase the note at the given position
     void eraseNote(double timeFromCursor, int lane);
+    // Shorten a sustain back to a short note
+    void shortenSustain(double sustainStartTime, int lane);
 
     // Find the PPQ of the next note with the same pitch after afterPPQ. Returns -1 if none.
     double findNextNotePPQ(double afterPPQ, int pitch);

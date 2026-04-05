@@ -949,6 +949,31 @@ bool HighwayComponent::findNoteAtPosition(float normalizedPosition, int laneInde
     return true;
 }
 
+bool HighwayComponent::findSustainAtPosition(float normalizedPosition, int laneIndex,
+                                              double& outStartTime) const
+{
+    if (laneIndex < 0 || laneIndex >= (int)LANE_COUNT)
+        return false;
+    if (windowTimeSpan() <= 0.0)
+        return false;
+
+    double targetTime = normalizedToTime(normalizedPosition);
+
+    for (const auto& sustain : frameData.sustainWindow)
+    {
+        if (sustain.sustainType != SustainType::SUSTAIN) continue;
+        if ((int)sustain.gemColumn != laneIndex) continue;
+
+        // Check if click time falls within sustain body (excluding note head area)
+        if (targetTime > sustain.startTime && targetTime < sustain.endTime)
+        {
+            outStartTime = sustain.startTime;
+            return true;
+        }
+    }
+    return false;
+}
+
 void HighwayComponent::mouseMove(const juce::MouseEvent& event)
 {
     if (!writeMode || frameData.isPlaying)
@@ -1036,6 +1061,18 @@ void HighwayComponent::mouseUp(const juce::MouseEvent& event)
     }
     else
     {
+        // Right-click: check sustain body if no note head was hit
+        if (!noteExists)
+        {
+            double sustainStart;
+            if (findSustainAtPosition(drag.startResult.normalizedPosition,
+                                      drag.startResult.laneIndex, sustainStart))
+            {
+                if (onSustainRightClick)
+                    onSustainRightClick(sustainStart, drag.startResult.laneIndex);
+                return;
+            }
+        }
         if (onRightClick) onRightClick(time, lane, noteExists);
     }
 }

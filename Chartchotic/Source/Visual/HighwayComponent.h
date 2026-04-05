@@ -124,6 +124,7 @@ public:
     std::function<void(double timeFromCursor, int lane, bool noteExists)> onRightClick;
     std::function<void(double timeFromCursor, int lane, bool noteExists)> onDoubleClick;
     std::function<void(double startTime, int startLane, double endTime, int endLane)> onDragComplete;
+    std::function<void(double sustainStartTime, int lane)> onSustainRightClick;
     std::function<void(int action)> onKeyAction;
 
     // Selection — set externally by PluginEditor each frame (PPQ-based, scroll-stable)
@@ -188,9 +189,13 @@ private:
     struct LaneVisuals { uint gemCol; PositionConstants::NormalizedCoordinates laneCoords; };
     LaneVisuals resolveLaneVisuals(int lane) const;
 
-    // Find a note in the current trackWindow near the given position+lane.
+    // Find a note head in the current trackWindow near the given position+lane.
     bool findNoteAtPosition(float normalizedPosition, int laneIndex,
                             double& outTime, int& outLane) const;
+
+    // Find a sustain body at the given position+lane. Returns the sustain's start time.
+    bool findSustainAtPosition(float normalizedPosition, int laneIndex,
+                               double& outStartTime) const;
 
     // Render-space transform: maps render coords to component coords (or inverse).
     // Returns the forward transform (render → screen). Use inverted() for screen → render.

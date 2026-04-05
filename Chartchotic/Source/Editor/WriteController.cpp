@@ -140,6 +140,12 @@ void WriteController::wireCallbacks()
             eraseNote(timeFromCursor, lane);
     };
 
+    // Right click on sustain body: DRAW = shorten to short note
+    highway->onSustainRightClick = [this](double sustainStartTime, int lane) {
+        if (mode == InteractionMode::DRAW)
+            shortenSustain(sustainStartTime, lane);
+    };
+
     // Double click: EDIT = place/erase toggle
     highway->onDoubleClick = [this](double timeFromCursor, int lane, bool noteExists) {
         if (mode == InteractionMode::EDIT)
@@ -303,6 +309,7 @@ void WriteController::clearCallbacks()
     highway->onRightClick = nullptr;
     highway->onDoubleClick = nullptr;
     highway->onDragComplete = nullptr;
+    highway->onSustainRightClick = nullptr;
     highway->onKeyAction = nullptr;
 }
 
@@ -388,6 +395,20 @@ void WriteController::eraseNote(double timeFromCursor, int lane)
     int matchIdx = findNoteIndex(timeFromCursor, pitch, ppq);
     if (matchIdx >= 0)
         w->deleteNote(getTrackIndex(), matchIdx);
+}
+
+void WriteController::shortenSustain(double sustainStartTime, int lane)
+{
+    auto* w = processor->reaperMidiProvider.getWriter();
+    if (!w) return;
+
+    int pitch = pitchForLane(lane);
+    if (pitch < 0) return;
+
+    double ppq;
+    int matchIdx = findNoteIndex(sustainStartTime, pitch, ppq);
+    if (matchIdx >= 0)
+        w->moveNote(getTrackIndex(), matchIdx, ppq, ppq + SHORT_NOTE_PPQ, pitch);
 }
 
 double WriteController::findNextNotePPQ(double afterPPQ, int pitch)
