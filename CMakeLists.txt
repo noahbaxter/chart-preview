@@ -159,6 +159,17 @@ target_sources(Chartchotic
         Chartchotic/Source/Host/ReaperVST3Extensions.h
         Chartchotic/Source/Host/TrackInfoListener.cpp
         Chartchotic/Source/Host/TrackInfoListener.h
+        # Visual / Painters
+        Chartchotic/Source/Visual/Painters/LanePainter.cpp
+        Chartchotic/Source/Visual/Painters/LanePainter.h
+        Chartchotic/Source/Visual/Painters/NotePainter.cpp
+        Chartchotic/Source/Visual/Painters/NotePainter.h
+        Chartchotic/Source/Visual/Painters/GridlinePainter.cpp
+        Chartchotic/Source/Visual/Painters/GridlinePainter.h
+        Chartchotic/Source/Visual/Painters/AnimationPainter.cpp
+        Chartchotic/Source/Visual/Painters/AnimationPainter.h
+        Chartchotic/Source/Visual/Painters/TrackPainter.cpp
+        Chartchotic/Source/Visual/Painters/TrackPainter.h
         # Visual / Renderers
         Chartchotic/Source/Visual/Renderers/AnimationRenderer.cpp
         Chartchotic/Source/Visual/Renderers/AnimationRenderer.h

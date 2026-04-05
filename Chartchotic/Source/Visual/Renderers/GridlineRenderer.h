@@ -19,6 +19,7 @@
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
 #include "../../UI/ControlConstants.h"
+#include "../Painters/GridlinePainter.h"
 
 class GridlineRenderer
 {
@@ -42,17 +43,4 @@ private:
     uint width = 0, height = 0;
     float posEnd = 0;
 
-    using LaneCorners = PositionConstants::LaneCorners;
-    using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
-
-    LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
-                              float sizeScale, float fretboardScale = 1.0f)
-    {
-        bool isDrums = isDrumLike(activePart);
-        return PositionMath::getColumnPosition(isDrums, position, width, height,
-                                               PositionConstants::HIGHWAY_POS_START, posEnd,
-                                               colCoords, sizeScale, fretboardScale);
-    }
-
-    void drawGridline(juce::Graphics& g, float position, juce::Image* markerImage, Gridline gridlineType, float fadeOpacity, float gridZOffset);
 };

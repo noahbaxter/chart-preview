@@ -23,6 +23,7 @@
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
 #include "../../UI/ControlConstants.h"
+#include "../Painters/AnimationPainter.h"
 
 class AnimationRenderer
 {
@@ -87,23 +88,5 @@ private:
     // Helper: Trigger animation for a specific gem column
     void triggerAnimationForColumn(uint gemColumn, Gem gemType = Gem::NOTE, bool starPower = false);
 
-    // Bezier column edge helper (mirrors SceneRenderer::getColumnEdge)
-    PositionConstants::LaneCorners getColumnEdge(float position, const PositionConstants::NormalizedCoordinates& colCoords,
-                                                  float sizeScale, float posEnd,
-                                                  float fretboardScale = 1.0f,
-                                                  int bemaniLaneIdx = -1)
-    {
-        bool isDrums = isDrumLike(activePart);
-        return PositionMath::getColumnPosition(isDrums, position, cachedWidth, cachedHeight,
-                                               PositionConstants::HIGHWAY_POS_START, posEnd,
-                                               colCoords, sizeScale, fretboardScale, bemaniLaneIdx);
-    }
-
     uint cachedWidth = 0, cachedHeight = 0;
-
-    // Rendering helpers
-    void renderKickAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset,
-                             float posEnd, float strikePos);
-    void renderFretAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset,
-                             float posEnd, float strikePos);
 };

@@ -20,6 +20,7 @@
 #include "Managers/AssetManager.h"
 #include "Utils/DrawingConstants.h"
 #include "Utils/HitTestMapper.h"
+#include "Painters/NotePainter.h"
 
 class MidiWriter;
 
@@ -165,16 +166,9 @@ private:
     // Run hit test at a screen position and return the result
     HitTestResult performHitTest(juce::Point<float> screenPos) const;
 
-    // Shared overlay geometry for ghost cursor and selection highlight
-    struct NoteOverlay {
-        float screenLeftX, screenRightX, screenCenterY, screenH;
-        float renderLeftX, renderRightX;  // for curvature sampling
-        float curvature, arcOffset, sy;
-        float position;  // normalized highway position (for fretboard edge queries)
-        bool isBar;
-    };
-    NoteOverlay computeNoteOverlay(float position, int lane) const;
-    juce::Path buildCurvedNotePath(const NoteOverlay& ov, float expand = 0.0f) const;
+    // Compute note overlay using NotePainter with current component state
+    NotePainter::NoteRect computeNoteOverlay(float position, int lane) const;
+    juce::Path buildCurvedNotePath(const NotePainter::NoteRect& nr, float expand = 0.0f) const;
 
     // Dimensions of the last full rebuild (track bake + asset rescale)
     int bakedRenderW = 0, bakedRenderH = 0, bakedOverflow = 0;

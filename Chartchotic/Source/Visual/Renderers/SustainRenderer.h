@@ -18,6 +18,7 @@
 #include "../Utils/PositionConstants.h"
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
+#include "../Painters/LanePainter.h"
 
 class SustainRenderer
 {
@@ -49,26 +50,5 @@ private:
     const PositionConstants::NormalizedCoordinates* laneCoordsDrums = nullptr;
     bool showLanes = true, showSustains = true;
 
-    using LaneCorners = PositionConstants::LaneCorners;
-    using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
-
-    LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
-                              float sizeScale, float fretboardScale = 1.0f,
-                              int bemaniLaneIdx = -1)
-    {
-        bool isDrums = isDrumLike(activePart);
-        return PositionMath::getColumnPosition(isDrums, position, width, height,
-                                               PositionConstants::HIGHWAY_POS_START, posEnd,
-                                               colCoords, sizeScale, fretboardScale, bemaniLaneIdx);
-    }
-
-    float calculateOpacity(float position)
-    {
-        if (PositionMath::bemaniMode) return 1.0f;
-        return calculateFarFade(position, farFadeEnd, farFadeLen, farFadeCurve);
-    }
-
     void drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime);
-    void drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition,
-                         float opacity, float sustainWidth, juce::Colour colour, bool isLane);
 };

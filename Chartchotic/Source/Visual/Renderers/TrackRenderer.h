@@ -19,6 +19,7 @@
 #include "TrackFade.h"
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
+#include "../Painters/TrackPainter.h"
 
 class TrackRenderer
 {
@@ -104,13 +105,9 @@ public:
     void paintFromCache(juce::Graphics& g, const juce::Image& cachedFadedTrack,
                         int viewportWidth, int viewportHeight)
     {
-        if (PositionMath::bemaniMode) { paint(g, viewportWidth, viewportHeight); return; }
-        if (!cachedFadedTrack.isValid()) return;
-        if (cachedFadedTrack.getWidth() == viewportWidth && cachedFadedTrack.getHeight() == viewportHeight)
-            g.drawImageAt(cachedFadedTrack, 0, 0);
-        else
-            g.drawImage(cachedFadedTrack, 0, 0, viewportWidth, viewportHeight,
-                        0, 0, cachedFadedTrack.getWidth(), cachedFadedTrack.getHeight());
+        bool showTrack = !state.hasProperty("showTrack") || (bool)state["showTrack"];
+        TrackPainter::paintFromCache(g, cachedFadedTrack, viewportWidth, viewportHeight,
+                                     activePart, cached.posEnd, showTrack);
     }
 
 private:

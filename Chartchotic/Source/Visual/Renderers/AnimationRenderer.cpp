@@ -134,6 +134,8 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
 
     const auto& animations = animationManager.getActiveAnimations();
     bool isGuitar = isGuitarLike(activePart);
+    bool isDrums = !isGuitar;
+    Part currentPart = isGuitar ? Part::GUITAR : Part::DRUMS;
     float resScale = (float)height / PositionConstants::REFERENCE_HEIGHT;
 
     for (const auto& anim : animations)
@@ -149,8 +151,43 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
             offset.xOffset *= resScale;
             offset.yOffset *= resScale;
 
-            drawCallMap[static_cast<int>(DrawOrder::BAR_ANIMATION)][column].push_back([this, anim, width, height, offset, posEnd, strikePos](juce::Graphics &g) {
-                this->renderKickAnimation(g, anim, width, height, offset, posEnd, strikePos);
+            uint colIdx = 0;
+            const auto& colCoords = isDrums
+                ? laneCoordsDrums[colIdx]
+                : laneCoordsGuitar[colIdx];
+
+            bool useWhiteSP = anim.starPower && hitTypeConfig.spWhiteFlare;
+            juce::Image* animFrame = nullptr;
+            if (useWhiteSP)
+                animFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
+            else if (isGuitar && anim.isOpen)
+                animFrame = assetManager.getOpenAnimationFrame(anim.currentFrame);
+            else
+                animFrame = assetManager.getKickAnimationFrame(anim.currentFrame);
+
+            juce::Image* flareImage = useWhiteSP ? assetManager.getHitFlareWhiteImage() : nullptr;
+
+            float userBarScale = state.hasProperty("barScale") ? (float)state["barScale"] : 1.0f;
+
+            // Bemani bar rect uses the note glyph aspect (not the animation frame aspect)
+            float noteAspect = 1.0f;
+            if (animFrame) {
+                juce::Image* noteGlyph = isDrums
+                    ? assetManager.getDrumGlyphImage(GemWrapper(Gem::NOTE, false), 0, false)
+                    : assetManager.getGuitarGlyphImage(GemWrapper(Gem::NOTE, false), 0, false);
+                noteAspect = (noteGlyph && noteGlyph->getHeight() > 0)
+                    ? (float)noteGlyph->getWidth() / (float)noteGlyph->getHeight()
+                    : (float)animFrame->getWidth() / (float)animFrame->getHeight();
+            }
+
+            AnimationPainter::KickParams kp {
+                anim, animFrame, flareImage, noteAspect,
+                activePart, width, height, posEnd, strikePos,
+                colCoords, hitBarZOffset, hitBarScale, offset, userBarScale
+            };
+
+            drawCallMap[static_cast<int>(DrawOrder::BAR_ANIMATION)][column].push_back([kp](juce::Graphics &g) {
+                AnimationPainter::paintKick(g, kp);
             });
         }
         else
@@ -161,218 +198,66 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
             offset.xOffset *= resScale;
             offset.yOffset *= resScale;
 
-            drawCallMap[static_cast<int>(DrawOrder::NOTE_ANIMATION)][anim.lane].push_back([this, anim, width, height, offset, posEnd, strikePos](juce::Graphics &g) {
-                this->renderFretAnimation(g, anim, width, height, offset, posEnd, strikePos);
+            uint colIdx = anim.lane;
+            if (isDrums)
+                colIdx = (anim.lane == 6) ? 0 : ((anim.lane < DRUM_LANE_COUNT) ? anim.lane : 1);
+            else
+                colIdx = (anim.lane < GUITAR_LANE_COUNT) ? anim.lane : 1;
+
+            const auto& colCoords = isDrums
+                ? laneCoordsDrums[colIdx]
+                : laneCoordsGuitar[colIdx];
+
+            bool barNote = isBarNote(anim.lane, currentPart);
+            float sizeScale = barNote ? BAR_SIZE : GEM_SIZE;
+            int bemaniIdx = barNote ? -1 : ((int)colIdx - 1);
+
+            // Z offset
+            float zOff = barNote ? hitBarZOffset : hitGemZOffset;
+            if (!barNote && isDrums) {
+                uint drumIdx = (anim.lane == 6) ? 0 : ((anim.lane < DRUM_LANE_COUNT) ? anim.lane : 1);
+                zOff += drumColZAdjust[drumIdx];
+            }
+
+            // Dynamic scale
+            float dynScale = 1.0f;
+            if (anim.gemType == Gem::HOPO_GHOST)
+                dynScale = isGuitar ? hitTypeConfig.hopo : hitTypeConfig.ghost;
+            else if (anim.gemType == Gem::CYM_GHOST)
+                dynScale = hitTypeConfig.ghost;
+            else if (anim.gemType == Gem::TAP_ACCENT)
+                dynScale = isGuitar ? hitTypeConfig.tap : hitTypeConfig.accent;
+            else if (anim.gemType == Gem::CYM_ACCENT)
+                dynScale = hitTypeConfig.accent;
+            if (anim.starPower && std::abs(hitTypeConfig.sp - 1.0f) > 0.001f)
+                dynScale *= hitTypeConfig.sp;
+
+            auto hitFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
+
+            bool useWhite = (anim.starPower && hitTypeConfig.spWhiteFlare);
+            bool usePurple = (isGuitar && anim.gemType == Gem::TAP_ACCENT && hitTypeConfig.tapPurpleFlare);
+            auto flareImage = useWhite
+                ? assetManager.getHitFlareWhiteImage()
+                : usePurple
+                    ? assetManager.getHitFlarePurpleImage()
+                    : assetManager.getHitFlareImage(anim.lane, currentPart);
+
+            const auto& hs = barNote ? hitBarScale : hitGemScale;
+
+            AnimationPainter::FretParams fp {
+                anim, hitFrame, flareImage,
+                activePart, width, height, posEnd, strikePos,
+                colCoords, sizeScale, bemaniIdx,
+                zOff, noteCurvature, dynScale, hs, offset
+            };
+
+            drawCallMap[static_cast<int>(DrawOrder::NOTE_ANIMATION)][anim.lane].push_back([fp](juce::Graphics &g) {
+                AnimationPainter::paintFret(g, fp);
             });
         }
     }
 }
 
-void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset,
-                                             float posEnd, float strikePos)
-{
-    float strikelinePosition = strikePos;
-    bool isGuitar = isGuitarLike(activePart);
-    bool isDrums = !isGuitar;
-
-    bool useWhiteSP = anim.starPower && hitTypeConfig.spWhiteFlare;
-
-    juce::Image* animFrame = nullptr;
-    if (useWhiteSP) {
-        animFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
-    } else if (isGuitar && anim.isOpen) {
-        animFrame = assetManager.getOpenAnimationFrame(anim.currentFrame);
-    } else {
-        animFrame = assetManager.getKickAnimationFrame(anim.currentFrame);
-    }
-
-    if (animFrame)
-    {
-        uint colIdx = 0; // Both guitar open and drum kick use index 0
-        const auto& colCoords = isDrums
-            ? laneCoordsDrums[colIdx]
-            : laneCoordsGuitar[colIdx];
-
-        // Kick/open = bar note — match NoteRenderer sizing exactly
-        PositionConstants::LaneCorners edge;
-        float imageAspect = (float)animFrame->getWidth() / (float)animFrame->getHeight();
-
-        if (PositionMath::bemaniMode)
-        {
-            edge = PositionMath::getFretboardEdge(isDrums, strikelinePosition, cachedWidth, cachedHeight,
-                       PositionConstants::HIGHWAY_POS_START, posEnd);
-            // Use the bar note glyph aspect ratio (not the animation frame aspect)
-            // to match NoteRenderer sizing exactly
-            juce::Image* noteGlyph = isDrums
-                ? assetManager.getDrumGlyphImage(GemWrapper(Gem::NOTE, false), 0, false)
-                : assetManager.getGuitarGlyphImage(GemWrapper(Gem::NOTE, false), 0, false);
-            float noteAspect = (noteGlyph && noteGlyph->getHeight() > 0)
-                ? (float)noteGlyph->getWidth() / (float)noteGlyph->getHeight()
-                : imageAspect;
-            auto kickRect = PositionMath::computeBemaniBarRect(
-                isDrums, strikelinePosition, cachedWidth, cachedHeight,
-                posEnd, PositionConstants::BAR_SIZE, noteAspect);
-
-            // Match NoteRenderer: user barScale
-            float userScale = state.hasProperty("barScale") ? (float)state["barScale"] : 1.0f;
-            float bw = bemaniConfig.barW;
-            float bh = bemaniConfig.barH;
-            float nudge = bemaniConfig.barNudge;
-            kickRect = kickRect.withSizeKeepingCentre(
-                kickRect.getWidth() * bw * userScale * offset.widthScale,
-                kickRect.getHeight() * bh * userScale * offset.heightScale
-            );
-            // Center on the strikeline pad, then apply hit bar nudge
-            float padY = (float)cachedHeight * bemaniConfig.strikelinePos;
-            kickRect.translate(offset.xOffset, offset.yOffset + (padY - kickRect.getCentreY()) + kickRect.getHeight() * bemaniConfig.hitBarNudge(isDrums));
-
-            g.setOpacity(1.0f);
-            g.drawImage(*animFrame, kickRect);
-
-            if (useWhiteSP)
-            {
-                auto* flareImage = assetManager.getHitFlareWhiteImage();
-                if (flareImage && anim.currentFrame <= HIT_FLARE_MAX_FRAME)
-                {
-                    g.setOpacity(HIT_FLARE_OPACITY);
-                    g.drawImage(*flareImage, kickRect);
-                }
-            }
-        }
-        else
-        {
-            edge = getColumnEdge(strikelinePosition, colCoords, PositionConstants::BAR_SIZE,
-                                 posEnd, PositionConstants::FRETBOARD_SCALE, -1);
-            auto perspParams = PositionConstants::getPerspectiveParams(isDrums);
-            float colWidth = edge.rightX - edge.leftX;
-            float colHeight = colWidth / perspParams.barNoteHeightRatio;
-            juce::Rectangle<float> kickRect(edge.leftX, edge.centerY - colHeight * 0.5f + hitBarZOffset, colWidth, colHeight);
-
-            // Apply hit bar scale + animation offset
-            kickRect = kickRect.withSizeKeepingCentre(
-                kickRect.getWidth() * hitBarScale.scale * hitBarScale.width * offset.widthScale,
-                kickRect.getHeight() * hitBarScale.scale * hitBarScale.height * offset.heightScale
-            ).translated(offset.xOffset, offset.yOffset);
-
-            g.setOpacity(1.0f);
-            g.drawImage(*animFrame, kickRect);
-
-            // White SP flare for bar hits
-            if (useWhiteSP)
-            {
-                auto* flareImage = assetManager.getHitFlareWhiteImage();
-                if (flareImage && anim.currentFrame <= HIT_FLARE_MAX_FRAME)
-                {
-                    g.setOpacity(HIT_FLARE_OPACITY);
-                    g.drawImage(*flareImage, kickRect);
-                }
-            }
-        }
-    }
-}
-
-void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset,
-                                             float posEnd, float strikePos)
-{
-    float strikelinePosition = strikePos;
-    bool isGuitar = isGuitarLike(activePart);
-    bool isDrums = !isGuitar;
-    Part currentPart = isGuitar ? Part::GUITAR : Part::DRUMS;
-
-    auto hitFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
-
-    // Use white flare for SP, purple for tap, otherwise colored
-    bool useWhite = (anim.starPower && hitTypeConfig.spWhiteFlare);
-    bool usePurple = (isGuitar && anim.gemType == Gem::TAP_ACCENT && hitTypeConfig.tapPurpleFlare);
-    auto flareImage = useWhite
-        ? assetManager.getHitFlareWhiteImage()
-        : usePurple
-            ? assetManager.getHitFlarePurpleImage()
-            : assetManager.getHitFlareImage(anim.lane, currentPart);
-
-    bool barNote = isBarNote(anim.lane, currentPart);
-    uint colIdx = anim.lane;
-    if (isDrums) {
-        colIdx = (anim.lane == 6) ? 0 : ((anim.lane < PositionConstants::DRUM_LANE_COUNT) ? anim.lane : 1);
-    } else {
-        colIdx = (anim.lane < PositionConstants::GUITAR_LANE_COUNT) ? anim.lane : 1;
-    }
-    const auto& colCoords = isDrums
-        ? laneCoordsDrums[colIdx]
-        : laneCoordsGuitar[colIdx];
-
-    float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
-    int bemaniIdx = barNote ? -1 : ((int)colIdx - 1);
-    auto edge = getColumnEdge(strikelinePosition, colCoords, sizeScale,
-                               posEnd, PositionConstants::FRETBOARD_SCALE, bemaniIdx);
-    auto perspParams = PositionConstants::getPerspectiveParams(isDrums);
-    float colWidth = edge.rightX - edge.leftX;
-    float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);
-
-    // Z offset: bar uses hitBarZOffset, gems use hitGemZOffset + per-column offset
-    float zOff = barNote ? hitBarZOffset : hitGemZOffset;
-    if (!barNote && isDrums) {
-        uint drumIdx = (anim.lane == 6) ? 0 : ((anim.lane < DRUM_LANE_COUNT) ? anim.lane : 1);
-        zOff += drumColZAdjust[drumIdx];
-    }
-
-    // Arc offset to match note curvature (same formula as NoteRenderer)
-    float arcOffset = 0.0f;
-    if (noteCurvature != 0.0f && !barNote)
-    {
-        const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
-        float fbCenterNorm = fbCoords.normX1 + fbCoords.normWidth1 * 0.5f;
-        float fbHalfWNorm = fbCoords.normWidth1 * 0.5f;
-        float colCenterNorm = colCoords.normX1 + colCoords.normWidth1 * 0.5f;
-        float dist = (colCenterNorm - fbCenterNorm) / fbHalfWNorm;
-        float fbWidthPx = colWidth * (fbCoords.normWidth1 / colCoords.normWidth1);
-        arcOffset = fbWidthPx * noteCurvature * (1.0f - dist * dist);
-    }
-
-    juce::Rectangle<float> hitRect(edge.leftX, edge.centerY - colHeight * 0.5f + zOff + arcOffset, colWidth, colHeight);
-
-    // Per-dynamic hit scale based on gem type
-    // Guitar: HOPO_GHOST=HOPO, TAP_ACCENT=tap
-    // Drums:  HOPO_GHOST=ghost, TAP_ACCENT=accent, CYM_GHOST=ghost, CYM_ACCENT=accent
-    float dynScale = 1.0f;
-    if (anim.gemType == Gem::HOPO_GHOST)
-        dynScale = isGuitar ? hitTypeConfig.hopo : hitTypeConfig.ghost;
-    else if (anim.gemType == Gem::CYM_GHOST)
-        dynScale = hitTypeConfig.ghost;
-    else if (anim.gemType == Gem::TAP_ACCENT)
-        dynScale = isGuitar ? hitTypeConfig.tap : hitTypeConfig.accent;
-    else if (anim.gemType == Gem::CYM_ACCENT)
-        dynScale = hitTypeConfig.accent;
-
-    if (anim.starPower && std::abs(hitTypeConfig.sp - 1.0f) > 0.001f)
-        dynScale *= hitTypeConfig.sp;
-
-    const auto& hs = barNote ? hitBarScale : hitGemScale;
-    hitRect = hitRect.withSizeKeepingCentre(
-        hitRect.getWidth() * hs.scale * hs.width * dynScale * offset.widthScale,
-        hitRect.getHeight() * hs.scale * hs.height * dynScale * offset.heightScale
-    ).translated(offset.xOffset, offset.yOffset);
-
-    if (PositionMath::bemaniMode)
-    {
-        // Center on the strikeline pad (same Y as TrackRenderer::paintBemaniOverlay)
-        float padY = (float)cachedHeight * bemaniConfig.strikelinePos;
-        float currentCenterY = hitRect.getCentreY();
-        hitRect.translate(0.0f, padY - currentCenterY);
-    }
-
-    if (hitFrame)
-    {
-        g.setOpacity(HIT_FLASH_OPACITY);
-        g.drawImage(*hitFrame, hitRect);
-    }
-
-    if (flareImage && anim.currentFrame <= HIT_FLARE_MAX_FRAME)
-    {
-        g.setOpacity(HIT_FLARE_OPACITY);
-        g.drawImage(*flareImage, hitRect);
-    }
-}
 
 //==============================================================================
 // Frame Management

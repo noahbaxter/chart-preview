@@ -523,46 +523,22 @@ void HighwayComponent::onInstrumentChanged()
 // Write Mode
 // =============================================================================
 
-HighwayComponent::NoteOverlay HighwayComponent::computeNoteOverlay(float position, int lane) const
+NotePainter::NoteRect HighwayComponent::computeNoteOverlay(float position, int lane) const
 {
     using namespace PositionConstants;
-    NoteOverlay ov{};
     bool isDrums = isDrumLike(activePart);
-    ov.isBar = (lane == 0);
 
-    int w = renderWidth;
-    int h = renderHeight;
-    int overflow = topOverflow;
-    int totalH = h + overflow;
-
-    // Screen transform (mirrors paint())
-    float sx, sy, ox, oy;
-    if (stretchToFill && !PositionMath::bemaniMode)
-    {
-        sx = (float)getWidth() / (float)w;
-        sy = (float)getHeight() / (float)totalH;
-        ox = 0.0f; oy = 0.0f;
-    }
-    else
-    {
-        float scale = std::min((float)getWidth() / (float)w,
-                               (float)getHeight() / (float)totalH);
-        sx = scale; sy = scale;
-        ox = ((float)getWidth() - (float)w * scale) / 2.0f;
-        oy = (float)getHeight() - (float)totalH * scale;
-    }
-    ov.sy = sy;
-
-    // Foreshortening
+    // Compute foreshortening
     float foreshorten = 1.0f;
     if (!PositionMath::bemaniMode)
     {
+        bool isBar = (lane == 0);
 #ifdef DEBUG
         const auto& pp = PositionMath::perspParams(isDrums);
 #else
         auto pp = getPerspectiveParams(isDrums);
 #endif
-        float depthPos = ov.isBar ? position + BAR_NOTE_POS_OFFSET : position;
+        float depthPos = isBar ? position + BAR_NOTE_POS_OFFSET : position;
         float depth = std::max(0.0f, depthPos) / pp.vanishingPointDepth;
         float scaleNear = 1.0f + (pp.highwayDepth / pp.playerDistance) * pp.perspectiveStrength;
         float psCur = scaleNear / (1.0f + depth * (scaleNear - 1.0f));
@@ -570,119 +546,19 @@ HighwayComponent::NoteOverlay HighwayComponent::computeNoteOverlay(float positio
         foreshorten = 1.0f - (1.0f - rawRatio) * NOTE_DEPTH_FORESHORTEN;
     }
 
-    // Note rect in render space
-    float rLeftX, rRightX, rCenterY, noteW, noteH;
-    float renderPosition = ov.isBar ? position + BAR_NOTE_POS_OFFSET : position;
-    if (ov.isBar)
-    {
-        auto fbEdge = PositionMath::getFretboardEdge(
-            isDrums, renderPosition, (uint)renderWidth, (uint)renderHeight,
-            HIGHWAY_POS_START, HIGHWAY_POS_END);
-        float fbWidth = fbEdge.rightX - fbEdge.leftX;
-        noteW = fbWidth * BAR_FRETBOARD_FIT * BAR_SIZE;
-        float cx = (fbEdge.leftX + fbEdge.rightX) * 0.5f;
-        rLeftX = cx - noteW * 0.5f;
-        rRightX = cx + noteW * 0.5f;
-        rCenterY = fbEdge.centerY;
-        noteH = (noteW / 16.0f) * foreshorten;
-    }
-    else
-    {
-        const auto* laneCoords = isDrums ? drumBezierLaneCoords : guitarBezierLaneCoords;
-        auto corners = PositionMath::getColumnPosition(
-            isDrums, position, (uint)renderWidth, (uint)renderHeight,
-            HIGHWAY_POS_START, HIGHWAY_POS_END,
-            laneCoords[lane], GEM_SIZE, FRETBOARD_SCALE,
-            PositionMath::bemaniMode ? lane : -1);
-        rLeftX = corners.leftX;
-        rRightX = corners.rightX;
-        rCenterY = corners.centerY;
-        noteW = rRightX - rLeftX;
-        noteH = (noteW / 2.0f) * GEM_SCALE.height * foreshorten;
-    }
+    float curvature = isDrums ? sceneRenderer.noteCurvatureDrums
+                              : sceneRenderer.noteCurvatureGuitar;
 
-    // Neck curvature
-    ov.curvature = isDrums ? sceneRenderer.noteCurvatureDrums
-                           : sceneRenderer.noteCurvatureGuitar;
-    ov.arcOffset = 0.0f;
-    if (ov.curvature != 0.0f)
-    {
-        const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
-        float fbCenter = fbCoords.normX1 + fbCoords.normWidth1 * 0.5f;
-        float fbHalfW = fbCoords.normWidth1 * 0.5f;
-        float dist = 0.0f;
-        if (!ov.isBar)
-        {
-            const auto* lc = isDrums ? drumBezierLaneCoords : guitarBezierLaneCoords;
-            float colCenter = lc[lane].normX1 + lc[lane].normWidth1 * 0.5f;
-            dist = (colCenter - fbCenter) / fbHalfW;
-        }
-        auto fbEdge = PositionMath::getFretboardEdge(
-            isDrums, renderPosition, (uint)renderWidth, (uint)renderHeight,
-            HIGHWAY_POS_START, HIGHWAY_POS_END);
-        float fbWidthPx = (fbEdge.rightX - fbEdge.leftX) * FRETBOARD_SCALE;
-        ov.arcOffset = fbWidthPx * ov.curvature * (1.0f - dist * dist);
-    }
-
-    ov.renderLeftX = rLeftX;
-    ov.renderRightX = rRightX;
-    ov.position = renderPosition;
-
-    // Z offset: read from SceneRenderer (computed once per frame from InstrumentOffsets * resScale)
-    float zOff = ov.isBar ? sceneRenderer.getBarZOffset() : sceneRenderer.getGemZOffset();
-
-    // Transform to screen
-    ov.screenLeftX  = rLeftX * sx + ox;
-    ov.screenRightX = rRightX * sx + ox;
-    ov.screenCenterY = (rCenterY + zOff + ov.arcOffset + (float)overflow) * sy + oy;
-    ov.screenH = noteH * sy;
-
-    return ov;
+    return NotePainter::computeRect(position, lane, activePart,
+                                    renderWidth, renderHeight, HIGHWAY_POS_END, topOverflow,
+                                    stretchToFill, getWidth(), getHeight(),
+                                    foreshorten, sceneRenderer.getGemZOffset(), sceneRenderer.getBarZOffset(),
+                                    curvature);
 }
 
-juce::Path HighwayComponent::buildCurvedNotePath(const NoteOverlay& ov, float expand) const
+juce::Path HighwayComponent::buildCurvedNotePath(const NotePainter::NoteRect& nr, float expand) const
 {
-    using namespace PositionConstants;
-    juce::Path p;
-    float left  = ov.screenLeftX - expand;
-    float right = ov.screenRightX + expand;
-    float top   = ov.screenCenterY - ov.screenH * 0.5f - expand;
-    float bot   = ov.screenCenterY + ov.screenH * 0.5f + expand;
-
-    if (std::abs(ov.curvature) < 0.001f)
-    {
-        p.addRoundedRectangle(left, top, right - left, bot - top,
-                              ov.isBar ? 2.0f : 3.0f);
-    }
-    else
-    {
-        bool isDrums = isDrumLike(activePart);
-        auto fbEdge = PositionMath::getFretboardEdge(
-            isDrums, ov.position, (uint)renderWidth, (uint)renderHeight,
-            HIGHWAY_POS_START, HIGHWAY_POS_END);
-        float fbWidthPx = (fbEdge.rightX - fbEdge.leftX) * FRETBOARD_SCALE;
-        const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
-        float fbCenterNorm = fbCoords.normX1 + fbCoords.normWidth1 * 0.5f;
-        float fbHalfWNorm = fbCoords.normWidth1 * 0.5f;
-
-        float pts[3] = { ov.renderLeftX, (ov.renderLeftX + ov.renderRightX) * 0.5f, ov.renderRightX };
-        float yOff[3];
-        for (int i = 0; i < 3; i++)
-        {
-            float normX = pts[i] / (float)renderWidth;
-            float d = (normX - fbCenterNorm) / fbHalfWNorm;
-            float fullArc = fbWidthPx * ov.curvature * (1.0f - d * d);
-            yOff[i] = (fullArc - ov.arcOffset) * ov.sy;
-        }
-
-        float midX = (left + right) * 0.5f;
-        p.startNewSubPath(left, top + yOff[0]);
-        p.quadraticTo(midX, top + yOff[1], right, top + yOff[2]);
-        p.lineTo(right, bot + yOff[2]);
-        p.quadraticTo(midX, bot + yOff[1], left, bot + yOff[0]);
-        p.closeSubPath();
-    }
-    return p;
+    return NotePainter::buildCurvedPath(nr, activePart, renderWidth, renderHeight, expand);
 }
 
 void HighwayComponent::setWriteMode(bool on, MidiWriter* writer, int trackIndex)

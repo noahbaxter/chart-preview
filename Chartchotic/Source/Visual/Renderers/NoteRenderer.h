@@ -21,6 +21,7 @@
 #include "../Utils/PositionConstants.h"
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
+#include "../Painters/NotePainter.h"
 
 class NoteRenderer
 {
@@ -89,9 +90,6 @@ private:
     void drawFrame(const TimeBasedTrackFrame& gems, float position, double frameTime);
     void drawGem(uint gemColumn, const GemWrapper& gemWrapper, float position, double frameTime);
 
-    // Overlay positioning (absorbed from GlyphRenderer)
-    static juce::Rectangle<float> getOverlayGlyphRect(juce::Rectangle<float> glyphRect,
-                                                       const PositionConstants::OverlayAdjust& adj);
 
     // Curved note image cache
     struct CurvedImageEntry
