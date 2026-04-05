@@ -190,6 +190,10 @@ private:
     // Snap a normalized highway position to the nearest gridline in frameData.gridlines
     float snapToNearestGridline(float normalizedPos) const;
 
+    // Find the normalized position of the next note after a given time in a lane.
+    // Returns -1.0 if no note exists ahead.
+    float findNextNotePosition(float afterNormalizedPos, int laneIndex) const;
+
     // Dimensions of the last full rebuild (track bake + asset rescale)
     int bakedRenderW = 0, bakedRenderH = 0, bakedOverflow = 0;
 

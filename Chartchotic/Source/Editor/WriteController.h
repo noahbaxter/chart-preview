@@ -80,6 +80,9 @@ private:
     // Erase the note at the given position
     void eraseNote(double timeFromCursor, int lane);
 
+    // Find the PPQ of the next note with the same pitch after afterPPQ. Returns -1 if none.
+    double findNextNotePPQ(double afterPPQ, int pitch);
+
     // Snap a PPQ position to the nearest grid line
     double snapToGrid(double ppq) const;
 

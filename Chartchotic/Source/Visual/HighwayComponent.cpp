@@ -287,6 +287,16 @@ void HighwayComponent::paintOverChildren(juce::Graphics& g)
             using namespace PositionConstants;
             bool isDrums = isDrumLike(activePart);
 
+            // Apply the same end offset the sustain renderer uses
+            bool isBarPreview = isBarNote((uint)dragLane, activePart);
+            float endOffset = isBarPreview ? BAR_SUSTAIN_END_OFFSET : SUSTAIN_END_OFFSET;
+            float adjustedEnd = std::max(startPos + 0.01f, hoverPos + endOffset);
+
+            // Cap at next note in this lane (sustains can't overlap subsequent notes)
+            float nextNotePos = findNextNotePosition(startPos, dragLane);
+            if (nextNotePos > 0.0f && adjustedEnd > nextNotePos + endOffset)
+                adjustedEnd = std::max(startPos + 0.01f, nextNotePos + endOffset);
+
             // Resolve lane coordinates and column for LanePainter
             uint gemCol;
             NormalizedCoordinates laneCoords;
@@ -306,7 +316,7 @@ void HighwayComponent::paintOverChildren(juce::Graphics& g)
 
             LanePainter::Params lp {
                 gemCol, activePart,
-                startPos, hoverPos,
+                startPos, adjustedEnd,
                 0.45f, sustW, colour, false,
                 (uint)renderWidth, (uint)renderHeight,
                 sceneRenderer.highwayPosEnd,
@@ -418,8 +428,8 @@ void HighwayComponent::paintOverChildren(juce::Graphics& g)
                 gp.imageAspect = (float)glyphImage->getWidth() / (float)glyphImage->getHeight();
                 gp.sizeScale = isBar ? BAR_SIZE : GEM_SIZE;
                 gp.userScale = 1.0f;
-                gp.wScale = 1.0f;
-                gp.hScale = 1.0f;
+                gp.wScale = isBar ? BAR_SCALE.width : GEM_SCALE.width;
+                gp.hScale = isBar ? BAR_SCALE.height : GEM_SCALE.height;
                 gp.foreshorten = foreshorten;
                 gp.rawZOffset = rawZOff;
                 gp.strikeWidth = strikeWidth;
@@ -776,6 +786,28 @@ float HighwayComponent::snapToNearestGridline(float normalizedPos) const
         }
     }
     return bestPos;
+}
+
+float HighwayComponent::findNextNotePosition(float afterNormalizedPos, int laneIndex) const
+{
+    if (laneIndex < 0 || laneIndex >= (int)LANE_COUNT)
+        return -1.0f;
+
+    double windowTimeSpan = frameData.windowEndTime - frameData.windowStartTime;
+    if (windowTimeSpan <= 0.0)
+        return -1.0f;
+
+    double targetTime = (double)afterNormalizedPos * windowTimeSpan + frameData.windowStartTime;
+
+    // trackWindow is ordered by time — find first entry after targetTime with a note in this lane
+    auto it = frameData.trackWindow.upper_bound(targetTime);
+    while (it != frameData.trackWindow.end())
+    {
+        if (it->second[(size_t)laneIndex].gem != Gem::NONE)
+            return (float)((it->first - frameData.windowStartTime) / windowTimeSpan);
+        ++it;
+    }
+    return -1.0f;
 }
 
 void HighwayComponent::setWriteMode(bool on, MidiWriter* writer, int trackIndex)

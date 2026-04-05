@@ -110,14 +110,14 @@ void WriteController::wireCallbacks()
         }
     };
 
-    // Drag complete: DRAW = sustain placement
+    // Drag complete: DRAW = sustain placement or adjustment
     highway->onDragComplete = [this](double startTime, int startLane, double endTime, int endLane) {
         if (mode != InteractionMode::DRAW || endLane < 0) return;
 
         auto* w = processor->reaperMidiProvider.getWriter();
         if (!w) return;
 
-        int pitch = pitchForLane(endLane);
+        int pitch = pitchForLane(startLane);
         if (pitch < 0) return;
 
         int trackIdx = (int)state->getProperty("reaperTrack") - 1;
@@ -130,23 +130,36 @@ void WriteController::wireCallbacks()
         startPPQ = snapToGrid(startPPQ);
         endPPQ = snapToGrid(endPPQ);
 
-        // Only allow sustain if dragging forward in time
-        // Sustain minimum: resolution/3 PPQ (≈160 ticks at 480 PPQ)
-        constexpr double SUSTAIN_MIN_PPQ = 1.0 / 3.0;  // 1/3 of a quarter note (160 ticks at 480 PPQ)
+        // Cap sustain at next note in the same lane
+        double nextPPQ = findNextNotePPQ(startPPQ, pitch);
+        if (nextPPQ > 0.0 && endPPQ > nextPPQ)
+            endPPQ = nextPPQ;
+
+        constexpr double SUSTAIN_MIN_PPQ = 1.0 / 3.0;
         double duration = endPPQ - startPPQ;
 
-        if (duration >= SUSTAIN_MIN_PPQ)
+        // Check if dragging from an existing note — adjust its sustain
+        double existingPPQ;
+        int existingIdx = findNoteIndex(startTime, pitch, existingPPQ);
+        if (existingIdx >= 0)
+        {
+            // Use the existing note's actual position, not the grid-snapped drag start
+            double nextFromExisting = findNextNotePPQ(existingPPQ, pitch);
+            if (nextFromExisting > 0.0 && endPPQ > nextFromExisting)
+                endPPQ = nextFromExisting;
+            double existingDuration = endPPQ - existingPPQ;
+            double newEnd = (existingDuration >= SUSTAIN_MIN_PPQ) ? endPPQ : existingPPQ + 0.0625;
+            w->moveNote(trackIdx, existingIdx, existingPPQ, newEnd, pitch);
+        }
+        else if (duration >= SUSTAIN_MIN_PPQ)
         {
             w->insertNote(trackIdx, startPPQ, endPPQ, 0, pitch, 100);
         }
         else
         {
-            // Short note
             double shortEnd = startPPQ + 0.0625;
             w->insertNote(trackIdx, startPPQ, shortEnd, 0, pitch, 100);
         }
-
-        // Draw mode: no selection state (selection is an Edit mode concept)
     };
 
     // Key actions: controller reads selection and acts
@@ -321,6 +334,22 @@ int WriteController::findNoteIndexByPPQ(double ppq, int pitch)
             return i;
     }
     return -1;
+}
+
+double WriteController::findNextNotePPQ(double afterPPQ, int pitch)
+{
+    int trackIdx = (int)state->getProperty("reaperTrack") - 1;
+    auto allNotes = processor->reaperMidiProvider.getAllNotesFromTrack(trackIdx);
+    double best = -1.0;
+    for (const auto& note : allNotes)
+    {
+        if (note.pitch == pitch && note.startPPQ > afterPPQ + 0.25)
+        {
+            if (best < 0.0 || note.startPPQ < best)
+                best = note.startPPQ;
+        }
+    }
+    return best;
 }
 
 // --- Sub-mode ---
