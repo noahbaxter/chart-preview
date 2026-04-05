@@ -122,7 +122,6 @@ private:
         double measureLength = static_cast<double>(timeSigNum) * (4.0 / timeSigDenom);
         double beatSpacing = 4.0 / timeSigDenom;
 
-        // Determine finest grid resolution: either half-beat or step division, whichever is finer
         double halfBeatSpacing = beatSpacing / 2.0;
         double stepSpacing = 0.0;
         if (stepDivision > 0)
@@ -132,10 +131,9 @@ private:
             if (tuplet >= 3) stepSpacing *= (static_cast<double>(tuplet - 1) / tuplet);
         }
 
-        // Use the finer of half-beat or step as iteration spacing
-        double iterSpacing = halfBeatSpacing;
-        if (stepSpacing > 0.0 && stepSpacing < iterSpacing)
-            iterSpacing = stepSpacing;
+        // When step grid is active, iterate at step spacing (even if coarser than half-beat).
+        // Half-beat lines only appear when no step grid is set.
+        double iterSpacing = (stepSpacing > 0.0) ? stepSpacing : halfBeatSpacing;
 
         // Safety check: prevent infinite loops
         if (measureLength <= 0.0 || beatSpacing <= 0.0 || iterSpacing <= 0.0)

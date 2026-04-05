@@ -339,20 +339,120 @@ void HighwayComponent::paintOverChildren(juce::Graphics& g)
             g.restoreState();
         }
 
-        // Draw note head gem via NotePainter
+        // Draw note head gem image
         if (dragLane >= 0)
         {
-            bool isDrms = isDrumLike(activePart);
-            GemWrapper gw(Gem::NOTE, false);
-            juce::Image* gemImg = isDrms
-                ? assetManager.getDrumGlyphImage(gw, (uint)dragLane, false)
-                : assetManager.getGuitarGlyphImage(gw, (uint)dragLane, false);
-            if (gemImg && !gemImg->isNull())
+            using namespace PositionConstants;
+            bool isDrums = isDrumLike(activePart);
+
+            uint gemCol;
+            NormalizedCoordinates laneCoords;
+            if (isDrums) {
+                uint dIdx = (dragLane == 0) ? 0 : (uint)dragLane;
+                gemCol = (dragLane == 0) ? 0 : (uint)dragLane;
+                laneCoords = drumBezierLaneCoords[dIdx];
+            } else {
+                gemCol = (uint)dragLane;
+                laneCoords = guitarBezierLaneCoords[gemCol];
+            }
+
+            bool isBar = isBarNote(gemCol, activePart);
+            GemWrapper defaultGem(Gem::NOTE, false);
+            juce::Image* glyphImage = isGuitarLike(activePart)
+                ? assetManager.getGuitarGlyphImage(defaultGem, gemCol, false)
+                : assetManager.getDrumGlyphImage(defaultGem, gemCol, false);
+
+            if (glyphImage != nullptr)
             {
-                float w = headOv.screenRightX - headOv.screenLeftX;
-                float h = headOv.screenH;
-                juce::Rectangle<float> gemRect(headOv.screenLeftX, headOv.screenCenterY - h * 0.5f, w, h);
-                NotePainter::paintGem(g, *gemImg, gemRect, 0.75f);
+                float noteCurv = isDrums ? sceneRenderer.noteCurvatureDrums
+                                         : sceneRenderer.noteCurvatureGuitar;
+                float curvature = isBar ? BAR_CURVATURE : noteCurv;
+
+                // Foreshorten
+                float foreshorten = 1.0f;
+                if (!PositionMath::bemaniMode)
+                {
+                    float adjustedPos = isBar ? startPos + BAR_NOTE_POS_OFFSET : startPos;
+#ifdef DEBUG
+                    const auto& pp = PositionMath::perspParams(isDrums);
+#else
+                    auto pp = getPerspectiveParams(isDrums);
+#endif
+                    float depth = std::max(0.0f, adjustedPos) / pp.vanishingPointDepth;
+                    float scaleNear = 1.0f + (pp.highwayDepth / pp.playerDistance) * pp.perspectiveStrength;
+                    float psCur = scaleNear / (1.0f + depth * (scaleNear - 1.0f));
+                    float rawRatio = psCur / scaleNear;
+                    foreshorten = 1.0f - (1.0f - rawRatio) * NOTE_DEPTH_FORESHORTEN;
+                }
+
+                // Strike width for perspective Z scaling
+                float rawZOff = isBar ? sceneRenderer.getBarZOffset() : sceneRenderer.getGemZOffset();
+                float strikeWidth = 1.0f;
+                if (!PositionMath::bemaniMode)
+                {
+                    if (isBar)
+                    {
+                        auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f,
+                            (uint)renderWidth, (uint)renderHeight,
+                            HIGHWAY_POS_START, sceneRenderer.highwayPosEnd);
+                        strikeWidth = (fbStrike.rightX - fbStrike.leftX) * BAR_FRETBOARD_FIT * BAR_SIZE;
+                    }
+                    else
+                    {
+                        auto strikeEdge = PositionMath::getColumnPosition(isDrums, 0.0f,
+                            (uint)renderWidth, (uint)renderHeight,
+                            HIGHWAY_POS_START, sceneRenderer.highwayPosEnd,
+                            laneCoords, GEM_SIZE, FRETBOARD_SCALE, -1);
+                        strikeWidth = strikeEdge.rightX - strikeEdge.leftX;
+                    }
+                }
+
+                NotePainter::GemParams gp;
+                gp.position = startPos;
+                gp.gemColumn = (int)gemCol;
+                gp.isBar = isBar;
+                gp.isDrums = isDrums;
+                gp.viewportW = (uint)renderWidth;
+                gp.viewportH = (uint)renderHeight;
+                gp.posEnd = sceneRenderer.highwayPosEnd;
+                gp.imageAspect = (float)glyphImage->getWidth() / (float)glyphImage->getHeight();
+                gp.sizeScale = isBar ? BAR_SIZE : GEM_SIZE;
+                gp.userScale = 1.0f;
+                gp.wScale = 1.0f;
+                gp.hScale = 1.0f;
+                gp.foreshorten = foreshorten;
+                gp.rawZOffset = rawZOff;
+                gp.strikeWidth = strikeWidth;
+                gp.curvature = curvature;
+                gp.laneCoords = laneCoords;
+                gp.bemaniLaneIdx = -1;
+                gp.bemaniNudgeY = 0.0f;
+                gp.hasOverlay = false;
+                gp.overlayAdj = {};
+
+                // Render in render-space transform
+                int w = renderWidth, totalH = renderHeight + topOverflow;
+                g.saveState();
+                if (stretchToFill && !PositionMath::bemaniMode)
+                {
+                    float sx = (float)getWidth() / (float)w;
+                    float sy = (float)getHeight() / (float)totalH;
+                    g.addTransform(juce::AffineTransform::scale(sx, sy));
+                }
+                else
+                {
+                    float s = std::min((float)getWidth() / (float)w, (float)getHeight() / (float)totalH);
+                    float ox = ((float)getWidth() - (float)w * s) / 2.0f;
+                    float oy = (float)getHeight() - (float)totalH * s;
+                    g.addTransform(juce::AffineTransform(s, 0.0f, ox, 0.0f, s, oy));
+                }
+                if (topOverflow > 0)
+                    g.addTransform(juce::AffineTransform::translation(0.0f, (float)topOverflow));
+
+                NotePainter::paintGem(g, gp, glyphImage, nullptr, 0.75f,
+                                      sceneRenderer.noteCurvatureGuitar, sceneRenderer.noteCurvatureDrums,
+                                      sceneRenderer.guitarLaneCoordsLocal, sceneRenderer.drumLaneCoordsLocal);
+                g.restoreState();
             }
         }
     }

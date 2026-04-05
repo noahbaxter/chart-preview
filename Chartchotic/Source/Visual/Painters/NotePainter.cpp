@@ -4,14 +4,32 @@
         NotePainter.cpp
         Author:  Noah Baxter
 
-        Stateless note overlay geometry. Extracted from HighwayComponent.
+        Note overlay geometry and curved image cache. Extracted from
+        HighwayComponent + NoteRenderer.
 
     ==============================================================================
 */
 
 #include "NotePainter.h"
 
+#include <map>
+#include <tuple>
+#include <vector>
+#include <cmath>
+
 using namespace PositionConstants;
+
+namespace
+{
+    // Process-wide curved image cache. All plugin instances in the same host process
+    // share this cache. Safe because curvature is a global tuning constant, not
+    // per-instance state. If curvature ever becomes per-instance, key by curvature
+    // value or make the cache instance-scoped.
+    using CurveKey = std::tuple<juce::Image*, int, bool>;
+    std::map<CurveKey, NotePainter::CurvedImageEntry> s_curvedCache;
+    float s_lastCachedCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
+    float s_lastCachedCurvatureDrums  = PositionConstants::NOTE_CURVATURE;
+}
 
 namespace NotePainter
 {
@@ -305,6 +323,180 @@ void paintGem(juce::Graphics& g, const juce::Image& glyphImage,
 {
     g.setOpacity(opacity);
     g.drawImage(glyphImage, destRect);
+}
+
+// =========================================================================
+// Curved image cache
+// =========================================================================
+
+void clearCurvedCache()
+{
+    s_curvedCache.clear();
+}
+
+const CurvedImageEntry& getCurvedImage(
+    juce::Image* src, int column, bool isDrums,
+    float curvatureGuitar, float curvatureDrums,
+    const NormalizedCoordinates* laneCoordsGuitar,
+    const NormalizedCoordinates* laneCoordsDrums)
+{
+    if (curvatureGuitar != s_lastCachedCurvatureGuitar ||
+        curvatureDrums != s_lastCachedCurvatureDrums)
+    {
+        s_curvedCache.clear();
+        s_lastCachedCurvatureGuitar = curvatureGuitar;
+        s_lastCachedCurvatureDrums = curvatureDrums;
+    }
+
+    CurveKey key{src, column, isDrums};
+    auto it = s_curvedCache.find(key);
+    if (it != s_curvedCache.end())
+        return it->second;
+
+    int srcW = src->getWidth() / NOTE_CACHE_DOWNSAMPLE;
+    int srcH = src->getHeight() / NOTE_CACHE_DOWNSAMPLE;
+    if (srcW < 1) srcW = 1;
+    if (srcH < 1) srcH = 1;
+
+    juce::Image downSrc(juce::Image::ARGB, srcW, srcH, true);
+    {
+        juce::Graphics gDown(downSrc);
+        gDown.drawImage(*src, juce::Rectangle<float>(0.0f, 0.0f, (float)srcW, (float)srcH));
+    }
+
+    const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+    float fbCenterNorm = fbCoords.normX1 + fbCoords.normWidth1 * 0.5f;
+    float fbHalfWNorm = fbCoords.normWidth1 * 0.5f;
+
+    const auto& colCoords = isDrums
+        ? laneCoordsDrums[(column == 6) ? 0 : ((column < (int)DRUM_LANE_COUNT) ? column : 1)]
+        : laneCoordsGuitar[(column < (int)GUITAR_LANE_COUNT) ? column : 1];
+
+    float fbWidthInCache = (float)srcW * (fbCoords.normWidth1 / colCoords.normWidth1);
+    float curv = isDrums ? curvatureDrums : curvatureGuitar;
+    float arcHeight = fbWidthInCache * curv;
+
+    float noteLeftNorm = colCoords.normX1;
+    float noteRightNorm = colCoords.normX1 + colCoords.normWidth1;
+
+    std::vector<float> colOffsets(srcW);
+
+    for (int x = 0; x < srcW; x++)
+    {
+        float t = ((float)x + 0.5f) / (float)srcW;
+        float xNorm = noteLeftNorm + t * (noteRightNorm - noteLeftNorm);
+        float dist = (xNorm - fbCenterNorm) / fbHalfWNorm;
+        colOffsets[x] = arcHeight * (1.0f - dist * dist);
+    }
+
+    float globalRef = std::min(0.0f, arcHeight);
+    float maxShift = 0.0f;
+    for (int x = 0; x < srcW; x++)
+    {
+        float shift = colOffsets[x] - globalRef;
+        if (shift > maxShift) maxShift = shift;
+    }
+
+    int extraPx = (int)std::ceil(maxShift) + 2;
+    int destH = srcH + extraPx;
+
+    juce::Image dest(juce::Image::ARGB, srcW, destH, true);
+
+    {
+        juce::Image::BitmapData srcData(downSrc, juce::Image::BitmapData::readOnly);
+        juce::Image::BitmapData dstData(dest, juce::Image::BitmapData::writeOnly);
+
+        for (int x = 0; x < srcW; x++)
+        {
+            float yShift = colOffsets[x] - globalRef;
+
+            for (int dy = 0; dy < destH; dy++)
+            {
+                float sy = (float)dy - yShift;
+
+                int sy0 = (int)std::floor(sy);
+                int sy1 = sy0 + 1;
+                float frac = sy - (float)sy0;
+
+                if (sy0 < 0 || sy1 >= srcH) {
+                    if (sy0 >= 0 && sy0 < srcH) {
+                        dstData.setPixelColour(x, dy, srcData.getPixelColour(x, sy0));
+                    } else if (sy1 >= 0 && sy1 < srcH) {
+                        dstData.setPixelColour(x, dy, srcData.getPixelColour(x, sy1));
+                    }
+                    continue;
+                }
+
+                auto c0 = srcData.getPixelColour(x, sy0);
+                auto c1 = srcData.getPixelColour(x, sy1);
+                dstData.setPixelColour(x, dy, c0.interpolatedWith(c1, frac));
+            }
+        }
+    }
+
+    float centerColShift = colOffsets[srcW / 2] - globalRef;
+    float srcCenterInDest = centerColShift + (float)srcH * 0.5f;
+    float destCenter = (float)destH * 0.5f;
+    float yOffsetFraction = (srcCenterInDest - destCenter) / (float)srcH;
+
+    auto [insertIt, _] = s_curvedCache.emplace(key, CurvedImageEntry{std::move(dest), yOffsetFraction});
+    return insertIt->second;
+}
+
+// =========================================================================
+// Full pipeline paintGem
+// =========================================================================
+
+void paintGem(juce::Graphics& g,
+              const GemParams& params,
+              juce::Image* glyphImage,
+              juce::Image* overlayImage,
+              float opacity,
+              float curvatureGuitar,
+              float curvatureDrums,
+              const NormalizedCoordinates* laneCoordsGuitar,
+              const NormalizedCoordinates* laneCoordsDrums)
+{
+    if (!glyphImage) return;
+
+    auto rects = computeGemRects(params);
+
+    if (params.curvature != 0.0f)
+    {
+        const auto& entry = getCurvedImage(glyphImage, params.gemColumn, params.isDrums,
+                                           curvatureGuitar, curvatureDrums,
+                                           laneCoordsGuitar, laneCoordsDrums);
+        float cachedAspect = (float)entry.image.getWidth() / (float)entry.image.getHeight();
+        auto curvedRect = computeCurvedDrawRect(
+            rects.glyphRect, cachedAspect, entry.yOffsetFraction,
+            rects.arcOffset, params.wScale, params.hScale, rects.perspZOffset);
+        paintGem(g, entry.image, curvedRect, opacity);
+    }
+    else
+    {
+        paintGem(g, *glyphImage, rects.drawRect, opacity);
+    }
+
+    if (overlayImage)
+    {
+        if (params.curvature != 0.0f)
+        {
+            const auto& entry = getCurvedImage(overlayImage, params.gemColumn, params.isDrums,
+                                               curvatureGuitar, curvatureDrums,
+                                               laneCoordsGuitar, laneCoordsDrums);
+            float cachedAspect = (float)entry.image.getWidth() / (float)entry.image.getHeight();
+            auto curvedOverlayRect = computeCurvedDrawRect(
+                rects.overlayGlyphRect, cachedAspect, entry.yOffsetFraction,
+                rects.arcOffset, params.wScale, params.hScale, rects.perspZOffset);
+            curvedOverlayRect.translate(params.overlayAdj.offsetX * curvedOverlayRect.getWidth(),
+                                        params.overlayAdj.offsetY * curvedOverlayRect.getHeight());
+            paintGem(g, entry.image, curvedOverlayRect, opacity);
+        }
+        else
+        {
+            paintGem(g, *overlayImage, rects.overlayDrawRect, opacity);
+        }
+    }
 }
 
 } // namespace NotePainter

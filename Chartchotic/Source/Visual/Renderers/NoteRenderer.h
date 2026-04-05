@@ -13,8 +13,6 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include <map>
-#include <tuple>
 #include "../../Utils/ChartTypes.h"
 #include "../../Midi/Utils/TimeConverter.h"
 #include "../Managers/AssetManager.h"
@@ -49,7 +47,7 @@ public:
     float strikePosBar = 0.0f;
     bool isPlaying = false;
 
-    void clearCurvedCache() { curvedCache.clear(); }
+    void clearCurvedCache() { NotePainter::clearCurvedCache(); }
 
     void populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow& trackWindow,
                   double windowStartTime, double windowEndTime,
@@ -89,20 +87,4 @@ private:
 
     void drawFrame(const TimeBasedTrackFrame& gems, float position, double frameTime);
     void drawGem(uint gemColumn, const GemWrapper& gemWrapper, float position, double frameTime);
-
-
-    // Curved note image cache
-    struct CurvedImageEntry
-    {
-        juce::Image image;
-        float yOffsetFraction;  // baseline shift as fraction of dest height
-    };
-
-    using CurveKey = std::tuple<juce::Image*, int, bool>;  // sourcePtr, column, isDrums
-    std::map<CurveKey, CurvedImageEntry> curvedCache;
-    float lastCachedCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
-    float lastCachedCurvatureDrums = PositionConstants::NOTE_CURVATURE;
-
-    const CurvedImageEntry& getCurvedImage(juce::Image* src, int column, bool isDrums);
-    float getColumnDistFromCenter(int column, bool isDrums);
 };

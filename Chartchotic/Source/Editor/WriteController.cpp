@@ -82,6 +82,7 @@ void WriteController::wireCallbacks()
         {
             if (noteExists || lane < 0) return;  // no-op on existing notes
             placeNote(timeFromCursor, lane);
+            selection = WriteSelection::none();
         }
         else // EDIT
         {
@@ -145,7 +146,7 @@ void WriteController::wireCallbacks()
             w->insertNote(trackIdx, startPPQ, shortEnd, 0, pitch, 100);
         }
 
-        selection = { startPPQ, pitch, endLane };
+        // Draw mode: no selection state (selection is an Edit mode concept)
     };
 
     // Key actions: controller reads selection and acts

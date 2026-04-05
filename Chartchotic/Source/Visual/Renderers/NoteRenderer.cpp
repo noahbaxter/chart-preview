@@ -308,35 +308,43 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
 
     auto rects = NotePainter::computeGemRects(gp);
 
-    // === DRAW CALLS: curved cache stays here, drawing via NotePainter ===
+    // === DRAW CALLS: curved cache via NotePainter, drawing via NotePainter ===
 
     DrawOrder layer = barNote ? DrawOrder::BAR : DrawOrder::NOTE;
 
     if (curvature != 0.0f)
     {
-        const auto& entry = getCurvedImage(glyphImage, gemColumn, isDrums);
+        const auto& entry = NotePainter::getCurvedImage(
+            glyphImage, gemColumn, isDrums,
+            noteCurvatureGuitar, noteCurvatureDrums,
+            laneCoordsGuitar, laneCoordsDrums);
         const juce::Image* curvedImgPtr = &entry.image;
         float cachedAspect = (float)curvedImgPtr->getWidth() / (float)curvedImgPtr->getHeight();
         auto curvedRect = NotePainter::computeCurvedDrawRect(
             rects.glyphRect, cachedAspect, entry.yOffsetFraction,
             rects.arcOffset, wScale, hScale, rects.perspZOffset);
 
-        (*currentDrawCallMap)[static_cast<int>(layer)][gemColumn].push_back([curvedImgPtr, opacity, curvedRect](juce::Graphics& g) {
-            NotePainter::paintGem(g, *curvedImgPtr, curvedRect, opacity);
-        });
+        (*currentDrawCallMap)[static_cast<int>(layer)][gemColumn].push_back(
+            [curvedImgPtr, opacity, curvedRect](juce::Graphics& g) {
+                NotePainter::paintGem(g, *curvedImgPtr, curvedRect, opacity);
+            });
     }
     else
     {
-        (*currentDrawCallMap)[static_cast<int>(layer)][gemColumn].push_back([glyphImage, opacity, drawRect = rects.drawRect](juce::Graphics& g) {
-            NotePainter::paintGem(g, *glyphImage, drawRect, opacity);
-        });
+        (*currentDrawCallMap)[static_cast<int>(layer)][gemColumn].push_back(
+            [glyphImage, opacity, drawRect = rects.drawRect](juce::Graphics& g) {
+                NotePainter::paintGem(g, *glyphImage, drawRect, opacity);
+            });
     }
 
     if (overlayImage != nullptr)
     {
         if (curvature != 0.0f)
         {
-            const auto& entry = getCurvedImage(overlayImage, gemColumn, isDrums);
+            const auto& entry = NotePainter::getCurvedImage(
+                overlayImage, gemColumn, isDrums,
+                noteCurvatureGuitar, noteCurvatureDrums,
+                laneCoordsGuitar, laneCoordsDrums);
             const juce::Image* curvedOverlayPtr = &entry.image;
             float cachedAspect = (float)curvedOverlayPtr->getWidth() / (float)curvedOverlayPtr->getHeight();
             auto curvedOverlayRect = NotePainter::computeCurvedDrawRect(
@@ -345,140 +353,19 @@ void NoteRenderer::drawGem(uint gemColumn, const GemWrapper& gemWrapper, float p
             curvedOverlayRect.translate(overlayAdj.offsetX * curvedOverlayRect.getWidth(),
                                         overlayAdj.offsetY * curvedOverlayRect.getHeight());
 
-            (*currentDrawCallMap)[static_cast<int>(DrawOrder::OVERLAY)][gemColumn].push_back([curvedOverlayPtr, opacity, curvedOverlayRect](juce::Graphics& g) {
-                NotePainter::paintGem(g, *curvedOverlayPtr, curvedOverlayRect, opacity);
-            });
+            (*currentDrawCallMap)[static_cast<int>(DrawOrder::OVERLAY)][gemColumn].push_back(
+                [curvedOverlayPtr, opacity, curvedOverlayRect](juce::Graphics& g) {
+                    NotePainter::paintGem(g, *curvedOverlayPtr, curvedOverlayRect, opacity);
+                });
         }
         else
         {
-            (*currentDrawCallMap)[static_cast<int>(DrawOrder::OVERLAY)][gemColumn].push_back([overlayImage, opacity, drawRect = rects.overlayDrawRect](juce::Graphics& g) {
-                NotePainter::paintGem(g, *overlayImage, drawRect, opacity);
-            });
+            (*currentDrawCallMap)[static_cast<int>(DrawOrder::OVERLAY)][gemColumn].push_back(
+                [overlayImage, opacity, drawRect = rects.overlayDrawRect](juce::Graphics& g) {
+                    NotePainter::paintGem(g, *overlayImage, drawRect, opacity);
+                });
         }
     }
 }
 
-float NoteRenderer::getColumnDistFromCenter(int column, bool isDrums)
-{
-    const auto& colCoords = isDrums
-        ? laneCoordsDrums[(column == 6) ? 0 : ((column < (int)DRUM_LANE_COUNT) ? column : 1)]
-        : laneCoordsGuitar[(column < (int)GUITAR_LANE_COUNT) ? column : 1];
-    return NotePainter::getColumnDistFromCenter(colCoords, isDrums);
-}
-
-const NoteRenderer::CurvedImageEntry& NoteRenderer::getCurvedImage(
-    juce::Image* src, int column, bool isDrums)
-{
-    if (noteCurvatureGuitar != lastCachedCurvatureGuitar ||
-        noteCurvatureDrums != lastCachedCurvatureDrums)
-    {
-        curvedCache.clear();
-        lastCachedCurvatureGuitar = noteCurvatureGuitar;
-        lastCachedCurvatureDrums = noteCurvatureDrums;
-    }
-
-    CurveKey key{src, column, isDrums};
-    auto it = curvedCache.find(key);
-    if (it != curvedCache.end())
-        return it->second;
-
-    int srcW = src->getWidth() / NOTE_CACHE_DOWNSAMPLE;
-    int srcH = src->getHeight() / NOTE_CACHE_DOWNSAMPLE;
-    if (srcW < 1) srcW = 1;
-    if (srcH < 1) srcH = 1;
-
-    // Downsampled source
-    juce::Image downSrc(juce::Image::ARGB, srcW, srcH, true);
-    {
-        juce::Graphics gDown(downSrc);
-        gDown.drawImage(*src, juce::Rectangle<float>(0.0f, 0.0f, (float)srcW, (float)srcH));
-    }
-
-    // Compute per-column Y offsets: arcHeight * (1 - dist²) matching snapshot math
-    const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
-    float fbCenterNorm = fbCoords.normX1 + fbCoords.normWidth1 * 0.5f;
-    float fbHalfWNorm = fbCoords.normWidth1 * 0.5f;
-
-    const auto& colCoords = isDrums
-        ? laneCoordsDrums[(column == 6) ? 0 : ((column < (int)DRUM_LANE_COUNT) ? column : 1)]
-        : laneCoordsGuitar[(column < (int)GUITAR_LANE_COUNT) ? column : 1];
-
-    float fbWidthInCache = (float)srcW * (fbCoords.normWidth1 / colCoords.normWidth1);
-    float curv = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
-    float arcHeight = fbWidthInCache * curv;
-
-    float noteLeftNorm = colCoords.normX1;
-    float noteRightNorm = colCoords.normX1 + colCoords.normWidth1;
-
-    // Compute Y offset for every pixel column
-    std::vector<float> colOffsets(srcW);
-
-    for (int x = 0; x < srcW; x++)
-    {
-        float t = ((float)x + 0.5f) / (float)srcW;
-        float xNorm = noteLeftNorm + t * (noteRightNorm - noteLeftNorm);
-        float dist = (xNorm - fbCenterNorm) / fbHalfWNorm;
-        colOffsets[x] = arcHeight * (1.0f - dist * dist);
-    }
-
-    // Global reference: the arc value at fretboard edge (dist=1), where yOff=0.
-    // colOffsets[x] - globalRef gives the displacement from the edge baseline.
-    // Positive curvature: center has most displacement (pushed down on screen = convex).
-    // Negative curvature: center has most negative offset, edges at 0.
-    float globalRef = std::min(0.0f, arcHeight);
-    float maxShift = 0.0f;
-    for (int x = 0; x < srcW; x++)
-    {
-        float shift = colOffsets[x] - globalRef;
-        if (shift > maxShift) maxShift = shift;
-    }
-
-    int extraPx = (int)std::ceil(maxShift) + 2;
-    int destH = srcH + extraPx;
-
-    juce::Image dest(juce::Image::ARGB, srcW, destH, true);
-
-    // Per-pixel warp via BitmapData — inverse mapping: for each dest pixel, sample source
-    {
-        juce::Image::BitmapData srcData(downSrc, juce::Image::BitmapData::readOnly);
-        juce::Image::BitmapData dstData(dest, juce::Image::BitmapData::writeOnly);
-
-        for (int x = 0; x < srcW; x++)
-        {
-            // Absolute Y shift: all columns share the same global reference
-            float yShift = colOffsets[x] - globalRef;
-
-            for (int dy = 0; dy < destH; dy++)
-            {
-                float sy = (float)dy - yShift;
-
-                int sy0 = (int)std::floor(sy);
-                int sy1 = sy0 + 1;
-                float frac = sy - (float)sy0;
-
-                if (sy0 < 0 || sy1 >= srcH) {
-                    if (sy0 >= 0 && sy0 < srcH) {
-                        dstData.setPixelColour(x, dy, srcData.getPixelColour(x, sy0));
-                    } else if (sy1 >= 0 && sy1 < srcH) {
-                        dstData.setPixelColour(x, dy, srcData.getPixelColour(x, sy1));
-                    }
-                    continue;
-                }
-
-                auto c0 = srcData.getPixelColour(x, sy0);
-                auto c1 = srcData.getPixelColour(x, sy1);
-                dstData.setPixelColour(x, dy, c0.interpolatedWith(c1, frac));
-            }
-        }
-    }
-
-    // yOffsetFraction: where this column's content center sits relative to dest image center
-    float centerColShift = colOffsets[srcW / 2] - globalRef;
-    float srcCenterInDest = centerColShift + (float)srcH * 0.5f;
-    float destCenter = (float)destH * 0.5f;
-    float yOffsetFraction = (srcCenterInDest - destCenter) / (float)srcH;
-
-    auto [insertIt, _] = curvedCache.emplace(key, CurvedImageEntry{std::move(dest), yOffsetFraction});
-    return insertIt->second;
-}
 

@@ -4,8 +4,8 @@
         NotePainter.h
         Author:  Noah Baxter
 
-        Stateless note overlay geometry. Extracted from HighwayComponent.
-        Computes screen-space rects and curved paths for notes.
+        Note geometry, curved image cache, and gem drawing.
+        Extracted from HighwayComponent + NoteRenderer.
 
     ==============================================================================
 */
@@ -107,4 +107,36 @@ namespace NotePainter
     /** Draw a gem glyph image at a rect. */
     void paintGem(juce::Graphics& g, const juce::Image& glyphImage,
                   juce::Rectangle<float> destRect, float opacity);
+
+    // =========================================================================
+    // Curved image cache
+    // =========================================================================
+
+    struct CurvedImageEntry
+    {
+        juce::Image image;
+        float yOffsetFraction;
+    };
+
+    void clearCurvedCache();
+
+    const CurvedImageEntry& getCurvedImage(
+        juce::Image* src, int column, bool isDrums,
+        float curvatureGuitar, float curvatureDrums,
+        const PositionConstants::NormalizedCoordinates* laneCoordsGuitar,
+        const PositionConstants::NormalizedCoordinates* laneCoordsDrums);
+
+    // =========================================================================
+    // Full pipeline: computes rects, curves image if needed, draws gem + overlay
+    // =========================================================================
+
+    void paintGem(juce::Graphics& g,
+                  const GemParams& params,
+                  juce::Image* glyphImage,
+                  juce::Image* overlayImage,
+                  float opacity,
+                  float curvatureGuitar,
+                  float curvatureDrums,
+                  const PositionConstants::NormalizedCoordinates* laneCoordsGuitar,
+                  const PositionConstants::NormalizedCoordinates* laneCoordsDrums);
 }
