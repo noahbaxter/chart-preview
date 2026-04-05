@@ -86,6 +86,9 @@ private:
     // Snap a PPQ position to the nearest grid line
     double snapToGrid(double ppq) const;
 
+    // Snap to grid or nearest note in pitch (whichever is closer)
+    double snapToGridOrNote(double ppq, int pitch);
+
     // PPQ distance for one step at current settings
     double stepSizeInPPQ() const;
 };

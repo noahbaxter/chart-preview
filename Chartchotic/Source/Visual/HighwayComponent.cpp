@@ -120,6 +120,105 @@ void HighwayComponent::paint(juce::Graphics& g)
     if (overflow > 0)
         g.addTransform(juce::AffineTransform::translation(0.0f, (float)overflow));
 
+    // Inject sustain drag preview into scene draw call map at SUSTAIN layer
+    // so it renders underneath note gems (not on top via paintOverChildren)
+    if (writeMode && isDragging && dragIsLeftButton && dragStartResult.valid && hoverValid && !frameData.isPlaying)
+    {
+        int dragLane = hoverResult.valid ? hoverResult.laneIndex : dragStartResult.laneIndex;
+        float startPos = snapToNearestGridlineOrNote(dragStartResult.normalizedPosition, dragLane);
+        float hoverPos = snapToNearestGridlineOrNote(hoverResult.normalizedPosition, dragLane);
+
+        if (hoverPos > startPos && dragLane >= 0)
+        {
+            using namespace PositionConstants;
+            bool isDrums = isDrumLike(activePart);
+            bool isBarPreview = isBarNote((uint)dragLane, activePart);
+            float endOffset = isBarPreview ? BAR_SUSTAIN_END_OFFSET : SUSTAIN_END_OFFSET;
+
+            uint gemCol;
+            NormalizedCoordinates laneCoords;
+            if (isDrums) {
+                uint dIdx = (dragLane == 0) ? 0 : (uint)dragLane;
+                gemCol = (dragLane == 0) ? 0 : (uint)dragLane;
+                laneCoords = drumBezierLaneCoords[dIdx];
+            } else {
+                gemCol = (uint)dragLane;
+                laneCoords = guitarBezierLaneCoords[gemCol];
+            }
+
+            bool isBar = isBarNote(gemCol, activePart);
+            float sustW = isBar ? SUSTAIN_OPEN_WIDTH : SUSTAIN_WIDTH;
+            float laneScale = isBar ? BAR_SIZE : GEM_SIZE;
+            auto colour = assetManager.getLaneColour(gemCol, activePart, false);
+
+            struct SustainSegment { float segStart; float segEnd; };
+            std::vector<SustainSegment> segments;
+
+            auto notePositions = findNotePositionsInRange(startPos - 0.01f, hoverPos, dragLane);
+            if (notePositions.size() > 1)
+            {
+                for (size_t n = 0; n < notePositions.size(); n++)
+                {
+                    float segStart = notePositions[n];
+                    float segEnd = (n + 1 < notePositions.size())
+                        ? notePositions[n + 1] + endOffset
+                        : hoverPos + endOffset;
+                    float nextAfter = findNextNotePosition(segStart, dragLane);
+                    if (nextAfter > 0.0f && segEnd > nextAfter + endOffset)
+                        segEnd = nextAfter + endOffset;
+                    segEnd = std::max(segStart + 0.01f, segEnd);
+                    segments.push_back({ segStart, segEnd });
+                }
+            }
+            else
+            {
+                float adjustedEnd = std::max(startPos + 0.01f, hoverPos + endOffset);
+                float nextNotePos = findNextNotePosition(startPos, dragLane);
+                if (nextNotePos > 0.0f && adjustedEnd > nextNotePos + endOffset)
+                    adjustedEnd = std::max(startPos + 0.01f, nextNotePos + endOffset);
+                segments.push_back({ startPos, adjustedEnd });
+            }
+
+            float minSustNorm = minSustainNormalized;
+            float posEnd = sceneRenderer.highwayPosEnd;
+            float fadeEnd = sceneRenderer.farFadeEnd;
+            float fadeLen = sceneRenderer.farFadeLen;
+            float fadeCurve = sceneRenderer.farFadeCurve;
+            int rw = renderWidth, rh = renderHeight;
+            Part part = activePart;
+
+            sceneRenderer.setCustomDrawCall(DrawOrder::SUSTAIN,
+                [segments, gemCol, part, sustW, colour, laneCoords, laneScale,
+                 posEnd, rw, rh, fadeEnd, fadeLen, fadeCurve, minSustNorm](juce::Graphics& g2)
+            {
+                for (const auto& seg : segments)
+                {
+                    float segLen = seg.segEnd - seg.segStart;
+                    bool belowMin = (minSustNorm > 0.0f && segLen < minSustNorm);
+                    float opacity = belowMin ? 0.15f : 0.45f;
+
+                    LanePainter::Params lp {
+                        gemCol, part,
+                        seg.segStart, seg.segEnd,
+                        opacity, sustW, colour, false,
+                        (uint)rw, (uint)rh, posEnd,
+                        laneCoords, laneScale, -1, {},
+                        fadeEnd, fadeLen, fadeCurve
+                    };
+                    LanePainter::paint(g2, lp);
+                }
+            });
+        }
+        else
+        {
+            sceneRenderer.setCustomDrawCall(DrawOrder::SUSTAIN, {});
+        }
+    }
+    else
+    {
+        sceneRenderer.setCustomDrawCall(DrawOrder::SUSTAIN, {});
+    }
+
     sceneRenderer.paint(g, w, h,
                         frameData.trackWindow, frameData.sustainWindow, frameData.gridlines,
                         frameData.flipRegions, frameData.eventMarkers,
@@ -265,89 +364,13 @@ void HighwayComponent::paintOverChildren(juce::Graphics& g)
         g.drawText(diffName, textBounds, juce::Justification::centredLeft);
     }
 
-    // Sustain drag preview
+    // Sustain drag preview — gem head only (lanes render via draw call map in paint())
     if (writeMode && isDragging && dragIsLeftButton && dragStartResult.valid && hoverValid && !frameData.isPlaying)
     {
         int dragLane = hoverResult.valid ? hoverResult.laneIndex : dragStartResult.laneIndex;
 
-        // Snap start position to grid if snap is enabled
-        float startPos = drawModeSnapEnabled
-            ? snapToNearestGridline(dragStartResult.normalizedPosition)
-            : dragStartResult.normalizedPosition;
-
-        auto headOv = computeNoteOverlay(startPos, dragLane);
-
-        // Draw sustain tail using LanePainter if cursor is forward in time
-        float hoverPos = drawModeSnapEnabled
-            ? snapToNearestGridline(hoverResult.normalizedPosition)
-            : hoverResult.normalizedPosition;
-
-        if (hoverPos > startPos && dragLane >= 0)
-        {
-            using namespace PositionConstants;
-            bool isDrums = isDrumLike(activePart);
-
-            // Apply the same end offset the sustain renderer uses
-            bool isBarPreview = isBarNote((uint)dragLane, activePart);
-            float endOffset = isBarPreview ? BAR_SUSTAIN_END_OFFSET : SUSTAIN_END_OFFSET;
-            float adjustedEnd = std::max(startPos + 0.01f, hoverPos + endOffset);
-
-            // Cap at next note in this lane (sustains can't overlap subsequent notes)
-            float nextNotePos = findNextNotePosition(startPos, dragLane);
-            if (nextNotePos > 0.0f && adjustedEnd > nextNotePos + endOffset)
-                adjustedEnd = std::max(startPos + 0.01f, nextNotePos + endOffset);
-
-            // Resolve lane coordinates and column for LanePainter
-            uint gemCol;
-            NormalizedCoordinates laneCoords;
-            if (isDrums) {
-                uint dIdx = (dragLane == 0) ? 0 : (uint)dragLane;
-                gemCol = (dragLane == 0) ? 0 : (uint)dragLane;
-                laneCoords = drumBezierLaneCoords[dIdx];
-            } else {
-                gemCol = (uint)dragLane;
-                laneCoords = guitarBezierLaneCoords[gemCol];
-            }
-
-            bool isBar = isBarNote(gemCol, activePart);
-            float sustW = isBar ? SUSTAIN_OPEN_WIDTH : SUSTAIN_WIDTH;
-            float laneScale = isBar ? BAR_SIZE : GEM_SIZE;
-            auto colour = assetManager.getLaneColour(gemCol, activePart, false);
-
-            LanePainter::Params lp {
-                gemCol, activePart,
-                startPos, adjustedEnd,
-                0.45f, sustW, colour, false,
-                (uint)renderWidth, (uint)renderHeight,
-                sceneRenderer.highwayPosEnd,
-                laneCoords, laneScale, -1,
-                {},
-                sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve
-            };
-
-            // LanePainter works in render space — replicate paint()'s full transform:
-            // 1. Scale to fit component  2. Translate by overflow for scene content
-            int w = renderWidth, totalH = renderHeight + topOverflow;
-            g.saveState();
-            if (stretchToFill && !PositionMath::bemaniMode)
-            {
-                float sx = (float)getWidth() / (float)w;
-                float sy = (float)getHeight() / (float)totalH;
-                g.addTransform(juce::AffineTransform::scale(sx, sy));
-            }
-            else
-            {
-                float s = std::min((float)getWidth() / (float)w, (float)getHeight() / (float)totalH);
-                float ox = ((float)getWidth() - (float)w * s) / 2.0f;
-                float oy = (float)getHeight() - (float)totalH * s;
-                g.addTransform(juce::AffineTransform(s, 0.0f, ox, 0.0f, s, oy));
-            }
-            // Scene content offset (notes/sustains/gridlines draw below overflow area)
-            if (topOverflow > 0)
-                g.addTransform(juce::AffineTransform::translation(0.0f, (float)topOverflow));
-            LanePainter::paint(g, lp);
-            g.restoreState();
-        }
+        float startPos = snapToNearestGridlineOrNote(
+            dragStartResult.normalizedPosition, dragLane);
 
         // Draw note head gem image
         if (dragLane >= 0)
@@ -498,11 +521,13 @@ void HighwayComponent::paintOverChildren(juce::Graphics& g)
     // Write mode hover cursor (disabled during playback and drag)
     else if (writeMode && hoverValid && !isDragging && !frameData.isPlaying)
     {
-        // Snap cursor to grid in draw mode
-        float ghostPos = (isDrawMode && drawModeSnapEnabled)
-            ? snapToNearestGridline(hoverResult.normalizedPosition)
-            : hoverResult.normalizedPosition;
-        auto ov = computeNoteOverlay(ghostPos, hoverResult.laneIndex);
+        // freeCursor: note icon snaps, guide line follows mouse
+        // !freeCursor: both snap together (original behavior)
+        float rawPos = hoverResult.normalizedPosition;
+        float snappedPos = (isDrawMode && drawModeSnapEnabled)
+            ? snapToNearestGridlineOrNote(rawPos, hoverResult.laneIndex)
+            : rawPos;
+        auto ov = computeNoteOverlay(snappedPos, hoverResult.laneIndex);
         auto ghostPath = buildCurvedNotePath(ov);
 
         if (hoverOnExistingNote)
@@ -520,11 +545,13 @@ void HighwayComponent::paintOverChildren(juce::Graphics& g)
             g.strokePath(ghostPath, juce::PathStrokeType(1.5f));
         }
 
-        // Time line across fretboard — uses the ghost's Y as the baseline
-        // so it always aligns exactly with where the note will be placed
+        // Guide line across fretboard
         {
             using namespace PositionConstants;
             bool isDrums = isDrumLike(activePart);
+            auto lineOv = freeCursor
+                ? computeNoteOverlay(rawPos, hoverResult.laneIndex)
+                : ov;
             int w = renderWidth, totalH = renderHeight + topOverflow;
             float sx, sy2, ox, oy;
             if (stretchToFill && !PositionMath::bemaniMode)
@@ -534,17 +561,17 @@ void HighwayComponent::paintOverChildren(juce::Graphics& g)
               sx = s; sy2 = s; ox = ((float)getWidth() - (float)w * s) / 2.0f; oy = (float)getHeight() - (float)totalH * s; }
 
             auto fbEdge = PositionMath::getFretboardEdge(
-                isDrums, ov.position, (uint)renderWidth, (uint)renderHeight,
+                isDrums, lineOv.position, (uint)renderWidth, (uint)renderHeight,
                 HIGHWAY_POS_START, HIGHWAY_POS_END);
             float fbScreenLeft  = fbEdge.leftX * sx + ox;
             float fbScreenRight = fbEdge.rightX * sx + ox;
             float fbScreenMid   = (fbScreenLeft + fbScreenRight) * 0.5f;
 
             // Nudge line toward strikeline to align with note visual center
-            float lineNudge = ov.screenH * 0.35f;
-            float lineY = ov.screenCenterY + lineNudge;
+            float lineNudge = lineOv.screenH * 0.35f;
+            float lineY = lineOv.screenCenterY + lineNudge;
 
-            if (std::abs(ov.curvature) > 0.001f)
+            if (std::abs(lineOv.curvature) > 0.001f)
             {
                 float fbWidthPx = (fbEdge.rightX - fbEdge.leftX) * FRETBOARD_SCALE;
                 const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
@@ -557,7 +584,7 @@ void HighwayComponent::paintOverChildren(juce::Graphics& g)
                 {
                     float normX = pts[i] / (float)renderWidth;
                     float d = (normX - fbCenterNorm) / fbHalfWNorm;
-                    yOff[i] = fbWidthPx * ov.curvature * (1.0f - d * d) * ov.sy;
+                    yOff[i] = fbWidthPx * lineOv.curvature * (1.0f - d * d) * lineOv.sy;
                 }
 
                 juce::Path linePath;
@@ -817,6 +844,30 @@ float HighwayComponent::snapToNearestGridline(float normalizedPos) const
     return bestPos;
 }
 
+float HighwayComponent::snapToNearestGridlineOrNote(float normalizedPos, int laneIndex) const
+{
+    float best = drawModeSnapEnabled ? snapToNearestGridline(normalizedPos) : normalizedPos;
+    float bestDist = std::abs(best - normalizedPos);
+
+    // Check if any note in this lane is closer
+    double windowTimeSpan = frameData.windowEndTime - frameData.windowStartTime;
+    if (windowTimeSpan > 0.0 && laneIndex >= 0 && laneIndex < (int)LANE_COUNT)
+    {
+        for (const auto& [time, frame] : frameData.trackWindow)
+        {
+            if (frame[(size_t)laneIndex].gem == Gem::NONE) continue;
+            float notePos = (float)((time - frameData.windowStartTime) / windowTimeSpan);
+            float dist = std::abs(notePos - normalizedPos);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                best = notePos;
+            }
+        }
+    }
+    return best;
+}
+
 float HighwayComponent::findNextNotePosition(float afterNormalizedPos, int laneIndex) const
 {
     if (laneIndex < 0 || laneIndex >= (int)LANE_COUNT)
@@ -837,6 +888,29 @@ float HighwayComponent::findNextNotePosition(float afterNormalizedPos, int laneI
         ++it;
     }
     return -1.0f;
+}
+
+std::vector<float> HighwayComponent::findNotePositionsInRange(float fromPos, float toPos, int laneIndex) const
+{
+    std::vector<float> positions;
+    if (laneIndex < 0 || laneIndex >= (int)LANE_COUNT)
+        return positions;
+
+    double windowTimeSpan = frameData.windowEndTime - frameData.windowStartTime;
+    if (windowTimeSpan <= 0.0)
+        return positions;
+
+    double fromTime = (double)fromPos * windowTimeSpan + frameData.windowStartTime;
+    double toTime = (double)toPos * windowTimeSpan + frameData.windowStartTime;
+
+    for (const auto& [time, frame] : frameData.trackWindow)
+    {
+        if (time < fromTime - 0.01) continue;
+        if (time > toTime + 0.01) break;
+        if (frame[(size_t)laneIndex].gem != Gem::NONE)
+            positions.push_back((float)((time - frameData.windowStartTime) / windowTimeSpan));
+    }
+    return positions;
 }
 
 void HighwayComponent::setWriteMode(bool on, MidiWriter* writer, int trackIndex)
@@ -980,6 +1054,10 @@ void HighwayComponent::mouseMove(const juce::MouseEvent& event)
 
 void HighwayComponent::mouseExit(const juce::MouseEvent&)
 {
+    // Don't clear hover state during an active drag — focus changes
+    // (alt-tab, etc.) fire mouseExit but the drag is still valid
+    if (isDragging) return;
+
     if (writeMode && (hoverValid || hasSelection))
     {
         hoverValid = false;

@@ -6,6 +6,10 @@ Work from the top.
 
 ## Up Next
 
+- **1.3.0: Note Authoring (Write Mode)** — Full plan at `docs/WRITE_MODE.md`. Phase 1 landed (draw/edit modes, sustain drag, step grid). Remaining: sustain body hit testing (right-click sustain trail to shorten), shift-drag paint, right-drag erase sweep, marquee select, copy/paste, keyboard step input. See `docs/WRITE_MODE.md` for phased build plan.
+- **Sustain body hit testing** — Right-click on a sustain trail should shorten the note back to a short note. Requires hit testing against the sustain window (time range + lane), not just note heads. Touches HitTestMapper and the sustain window data structure. Needed for write mode phase 2.
+- **Sustain lanes bypass strikeline when paused** — When playback is stopped, sustain lane renders should extend through the strikeline instead of being eaten by it. The strikeline clip should only apply during playback (when hit animations are active).
+- **RenderContext struct** — Factor shared fields from NoteRenderer::drawGem and HighwayComponent drag preview GemParams packing into a per-frame struct set once by SceneRenderer. Two consumers now exist with near-identical param packing (see TODO at NoteRenderer.cpp:282).
 - **Test coverage expansion** — See details below in Test Coverage section.
 - **UI scale setting** — User-adjustable scale factor for toolbar, footer, and panel elements (not highway rendering). Lets users with high-DPI or small screens resize the chrome independently.
 - **All-difficulty overlay mode** — Show all 4 difficulties squeezed into the same highway. Each lane gets up to 4 notes stacked when all difficulties hit them. Color-code by difficulty instead of track color. All note data except specific pitches is shared across difficulties in the MIDI spec, so the data model supports this naturally.

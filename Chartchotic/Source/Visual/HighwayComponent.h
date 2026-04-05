@@ -55,6 +55,7 @@ public:
     void timerCallback() override;
 
     void setFrameData(const HighwayFrameData& data);
+    const HighwayFrameData& getFrameData() const { return frameData; }
     void rebuildTrack();
 
     // Visibility flags
@@ -134,6 +135,8 @@ public:
     // Write mode visual hints (set by WriteController)
     bool drawModeSnapEnabled = false;
     bool isDrawMode = false;
+    float minSustainNormalized = 0.0f;  // min sustain length in normalized position space
+    bool freeCursor = false;             // true = guide line free / note snaps; false = both snap together
 
 private:
     static constexpr int rebuildDebounceMs = 500;
@@ -190,9 +193,15 @@ private:
     // Snap a normalized highway position to the nearest gridline in frameData.gridlines
     float snapToNearestGridline(float normalizedPos) const;
 
+    // Snap to nearest gridline or existing note (whichever is closer)
+    float snapToNearestGridlineOrNote(float normalizedPos, int laneIndex) const;
+
     // Find the normalized position of the next note after a given time in a lane.
     // Returns -1.0 if no note exists ahead.
     float findNextNotePosition(float afterNormalizedPos, int laneIndex) const;
+
+    // Find all note positions in a lane between two normalized positions (inclusive of start boundary).
+    std::vector<float> findNotePositionsInRange(float fromPos, float toPos, int laneIndex) const;
 
     // Dimensions of the last full rebuild (track bake + asset rescale)
     int bakedRenderW = 0, bakedRenderH = 0, bakedOverflow = 0;

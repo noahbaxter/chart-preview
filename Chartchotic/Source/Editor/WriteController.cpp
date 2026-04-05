@@ -55,6 +55,20 @@ void WriteController::update(bool isPlaying)
     highway->isDrawMode = (mode == InteractionMode::DRAW);
     highway->drawModeSnapEnabled = snapEnabled;
 
+    // Compute min sustain in normalized position space for preview threshold
+    constexpr double SUSTAIN_MIN_PPQ = 1.0 / 3.0;
+    double cursorTime = processor->reaperMidiProvider.getCurrentCursorPosition();
+    double cursorPPQ = processor->reaperMidiProvider.timeToPpq(cursorTime);
+    if (cursorPPQ >= 0.0)
+    {
+        double minEndTime = processor->reaperMidiProvider.ppqToTime(cursorPPQ + SUSTAIN_MIN_PPQ);
+        double minDurationSec = minEndTime - cursorTime;
+        auto& fd = highway->getFrameData();
+        double windowSpan = fd.windowEndTime - fd.windowStartTime;
+        highway->minSustainNormalized = (windowSpan > 0.0)
+            ? (float)(minDurationSec / windowSpan) : 0.0f;
+    }
+
     // Clear selection when playback starts
     if (isPlaying && !wasPlaying)
         selection = WriteSelection::none();
@@ -117,7 +131,8 @@ void WriteController::wireCallbacks()
         auto* w = processor->reaperMidiProvider.getWriter();
         if (!w) return;
 
-        int pitch = pitchForLane(startLane);
+        // Use the current lane (where mouse is now), not where drag started
+        int pitch = pitchForLane(endLane);
         if (pitch < 0) return;
 
         int trackIdx = (int)state->getProperty("reaperTrack") - 1;
@@ -127,42 +142,72 @@ void WriteController::wireCallbacks()
         double endPPQ = processor->reaperMidiProvider.timeToPpq(cursorTimeSec + endTime);
         if (startPPQ < 0.0) startPPQ = 0.0;
 
-        startPPQ = snapToGrid(startPPQ);
-        endPPQ = snapToGrid(endPPQ);
-
-        // Cap sustain at next note in the same lane
-        double nextPPQ = findNextNotePPQ(startPPQ, pitch);
-        if (nextPPQ > 0.0 && endPPQ > nextPPQ)
-            endPPQ = nextPPQ;
+        startPPQ = snapToGridOrNote(startPPQ, pitch);
+        endPPQ = snapToGridOrNote(endPPQ, pitch);
 
         constexpr double SUSTAIN_MIN_PPQ = 1.0 / 3.0;
-        double duration = endPPQ - startPPQ;
 
-        // Check if dragging from an existing note — adjust its sustain
+        // Check if dragging from an existing note — cascade sustain through all notes in range
         double existingPPQ;
         int existingIdx = findNoteIndex(startTime, pitch, existingPPQ);
         if (existingIdx >= 0)
         {
-            // Use the actual note's PPQ, not the click-derived position
             auto allNotes = processor->reaperMidiProvider.getAllNotesFromTrack(trackIdx);
             if (existingIdx < (int)allNotes.size())
                 existingPPQ = allNotes[existingIdx].startPPQ;
 
-            double nextFromExisting = findNextNotePPQ(existingPPQ, pitch);
-            if (nextFromExisting > 0.0 && endPPQ > nextFromExisting)
-                endPPQ = nextFromExisting;
-            double existingDuration = endPPQ - existingPPQ;
-            double newEnd = (existingDuration >= SUSTAIN_MIN_PPQ) ? endPPQ : existingPPQ + 0.0625;
-            w->moveNote(trackIdx, existingIdx, existingPPQ, newEnd, pitch);
-        }
-        else if (duration >= SUSTAIN_MIN_PPQ)
-        {
-            w->insertNote(trackIdx, startPPQ, endPPQ, 0, pitch, 100);
+            // Collect all notes in this pitch between start and drag end (uncapped)
+            struct NoteHit { int idx; double ppq; };
+            std::vector<NoteHit> hits;
+            for (int i = 0; i < (int)allNotes.size(); i++)
+            {
+                if (allNotes[i].pitch == pitch &&
+                    allNotes[i].startPPQ >= existingPPQ - 0.25 &&
+                    allNotes[i].startPPQ <= endPPQ + 0.25)
+                    hits.push_back({ i, allNotes[i].startPPQ });
+            }
+            std::sort(hits.begin(), hits.end(), [](const NoteHit& a, const NoteHit& b) {
+                return a.ppq < b.ppq;
+            });
+
+            w->beginBatch("Chartchotic: Cascade sustain");
+            for (size_t h = 0; h < hits.size(); h++)
+            {
+                double noteStart = hits[h].ppq;
+                double noteEnd;
+                if (h + 1 < hits.size())
+                    noteEnd = hits[h + 1].ppq;  // extend to next note
+                else
+                    noteEnd = endPPQ;            // last note extends to drag end
+
+                // Cap at next note after this one (per-segment cap)
+                double nextAfter = findNextNotePPQ(noteStart, pitch);
+                if (nextAfter > 0.0 && noteEnd > nextAfter)
+                    noteEnd = nextAfter;
+
+                double dur = noteEnd - noteStart;
+                double finalEnd = (dur >= SUSTAIN_MIN_PPQ) ? noteEnd : noteStart + 0.0625;
+                w->batchMoveNote(trackIdx, hits[h].idx, noteStart, finalEnd, pitch);
+            }
+            w->endBatch();
         }
         else
         {
-            double shortEnd = startPPQ + 0.0625;
-            w->insertNote(trackIdx, startPPQ, shortEnd, 0, pitch, 100);
+            // New note — cap at next note in lane
+            double nextPPQ = findNextNotePPQ(startPPQ, pitch);
+            if (nextPPQ > 0.0 && endPPQ > nextPPQ)
+                endPPQ = nextPPQ;
+
+            double duration = endPPQ - startPPQ;
+            if (duration >= SUSTAIN_MIN_PPQ)
+            {
+                w->insertNote(trackIdx, startPPQ, endPPQ, 0, pitch, 100);
+            }
+            else
+            {
+                double shortEnd = startPPQ + 0.0625;
+                w->insertNote(trackIdx, startPPQ, shortEnd, 0, pitch, 100);
+            }
         }
     };
 
@@ -410,4 +455,25 @@ double WriteController::snapToGrid(double ppq) const
     double step = stepSizeInPPQ();
     if (step <= 0.0) return ppq;
     return std::round(ppq / step) * step;
+}
+
+double WriteController::snapToGridOrNote(double ppq, int pitch)
+{
+    double gridSnapped = snapToGrid(ppq);
+    double bestDist = std::abs(gridSnapped - ppq);
+    double best = gridSnapped;
+
+    int trackIdx = (int)state->getProperty("reaperTrack") - 1;
+    auto allNotes = processor->reaperMidiProvider.getAllNotesFromTrack(trackIdx);
+    for (const auto& note : allNotes)
+    {
+        if (note.pitch != pitch) continue;
+        double dist = std::abs(note.startPPQ - ppq);
+        if (dist < bestDist)
+        {
+            bestDist = dist;
+            best = note.startPPQ;
+        }
+    }
+    return best;
 }
