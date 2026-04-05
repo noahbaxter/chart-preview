@@ -22,8 +22,6 @@
 #include "Utils/HitTestMapper.h"
 #include "Painters/NotePainter.h"
 
-class MidiWriter;
-
 class TrackImageCache;
 
 struct HighwayFrameData {
@@ -106,7 +104,7 @@ public:
     void deferRebuild() { startTimer(rebuildDebounceMs); repaint(); }
 
     // Write mode
-    void setWriteMode(bool on, MidiWriter* writer, int trackIndex);
+    void setWriteMode(bool on);
     bool isWriteMode() const { return writeMode; }
 
     // Mouse overrides (active in write mode only)
@@ -132,11 +130,14 @@ public:
     void setSelection(double timeFromCursor, int lane);
     void clearSelection();
 
-    // Write mode visual hints (set by WriteController)
-    bool drawModeSnapEnabled = false;
-    bool isDrawMode = false;
-    float minSustainNormalized = 0.0f;  // min sustain length in normalized position space
-    bool freeCursor = false;             // true = guide line free / note snaps; false = both snap together
+    // Write mode visual hints (set by WriteController each frame)
+    struct WriteHints {
+        bool snapEnabled = false;
+        bool drawMode = false;
+        float minSustainNormalized = 0.0f;
+        bool freeCursor = false;
+    };
+    WriteHints writeHints;
 
 private:
     static constexpr int rebuildDebounceMs = 500;
@@ -156,52 +157,61 @@ private:
 
     // Write mode state
     bool writeMode = false;
-    MidiWriter* midiWriter = nullptr;
-    int writeTrackIndex = -1;
     HitTestMapper hitTestMapper;
+
+    // Hover state
     HitTestResult hoverResult;
     bool hoverValid = false;
     bool hoverOnExistingNote = false;
 
-    // Drag tracking
-    bool isDragging = false;
-    bool dragIsLeftButton = false;
-    HitTestResult dragStartResult;
-    juce::Point<float> mouseDownScreenPos;
-    static constexpr float dragDistanceThreshold = 3.0f;
+    // Drag state
+    struct DragState {
+        bool active = false;
+        bool isLeftButton = false;
+        HitTestResult startResult;
+        juce::Point<float> mouseDownScreenPos;
+        static constexpr float distanceThreshold = 3.0f;
+    };
+    DragState drag;
 
     // Selection state
     bool hasSelection = false;
-    double selectedTime = 0.0;   // time key from trackWindow
+    double selectedTime = 0.0;
     int selectedLane = -1;
 
+    // Coordinate conversion helpers
+    float timeToNormalized(double time) const;
+    double normalizedToTime(float pos) const;
+    double windowTimeSpan() const;
+
+    // Lane visual resolution (deduplicates isDrums/guitar branching for lane→gemCol+coords)
+    struct LaneVisuals { uint gemCol; PositionConstants::NormalizedCoordinates laneCoords; };
+    LaneVisuals resolveLaneVisuals(int lane) const;
+
     // Find a note in the current trackWindow near the given position+lane.
-    // Returns true and sets outTime/outLane if found.
     bool findNoteAtPosition(float normalizedPosition, int laneIndex,
                             double& outTime, int& outLane) const;
 
-    // Convert screen pixel to render-space pixel (inverts the paint() transform)
-    juce::Point<float> screenToRenderCoords(juce::Point<float> screen) const;
+    // Render-space transform: maps render coords to component coords (or inverse).
+    // Returns the forward transform (render → screen). Use inverted() for screen → render.
+    juce::AffineTransform getRenderTransform() const;
 
-    // Run hit test at a screen position and return the result
+    juce::Point<float> screenToRenderCoords(juce::Point<float> screen) const;
     HitTestResult performHitTest(juce::Point<float> screenPos) const;
 
-    // Compute note overlay using NotePainter with current component state
     NotePainter::NoteRect computeNoteOverlay(float position, int lane) const;
     juce::Path buildCurvedNotePath(const NotePainter::NoteRect& nr, float expand = 0.0f) const;
 
-    // Snap a normalized highway position to the nearest gridline in frameData.gridlines
     float snapToNearestGridline(float normalizedPos) const;
-
-    // Snap to nearest gridline or existing note (whichever is closer)
     float snapToNearestGridlineOrNote(float normalizedPos, int laneIndex) const;
-
-    // Find the normalized position of the next note after a given time in a lane.
-    // Returns -1.0 if no note exists ahead.
     float findNextNotePosition(float afterNormalizedPos, int laneIndex) const;
-
-    // Find all note positions in a lane between two normalized positions (inclusive of start boundary).
     std::vector<float> findNotePositionsInRange(float fromPos, float toPos, int laneIndex) const;
+
+    // Extracted paint helpers (write mode)
+    void paintSustainDragPreview(juce::Graphics& g);
+    void paintDragGemHead(juce::Graphics& g);
+    void paintHoverCursor(juce::Graphics& g);
+    void paintSelectionHighlight(juce::Graphics& g);
 
     // Dimensions of the last full rebuild (track bake + asset rescale)
     int bakedRenderW = 0, bakedRenderH = 0, bakedOverflow = 0;

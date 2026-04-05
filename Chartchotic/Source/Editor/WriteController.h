@@ -68,8 +68,11 @@ private:
     void wireCallbacks();
     void clearCallbacks();
 
+    // Common helpers
+    int getTrackIndex() const;
+    double timeFromCursorToPPQ(double timeFromCursor) const;
+
     int findNoteIndex(double timeFromCursor, int pitch, double& outPPQ);
-    // Overload: find by PPQ + pitch directly (for selection-based operations)
     int findNoteIndexByPPQ(double ppq, int pitch);
     void resolvePitches(std::vector<uint>& out);
     int pitchForLane(int lane);

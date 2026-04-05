@@ -4,6 +4,13 @@
 #include "../Midi/Utils/InstrumentMapper.h"
 #include "../UI/ControlConstants.h"
 
+namespace {
+    constexpr double SUSTAIN_MIN_PPQ  = 1.0 / 3.0;   // Minimum sustain duration (1/3 quarter note)
+    constexpr double SHORT_NOTE_PPQ   = 0.0625;       // Default short note length (1/16 quarter note)
+    constexpr double PPQ_TOLERANCE    = 0.25;          // Tolerance for note matching by PPQ position
+    constexpr int    DEFAULT_VELOCITY = 100;
+}
+
 WriteController::~WriteController()
 {
     clearCallbacks();
@@ -26,6 +33,25 @@ void WriteController::init(ChartchoticAudioProcessor& proc,
         snapEnabled = (bool)st.getProperty("writeSnap");
 }
 
+// =============================================================================
+// Common helpers
+// =============================================================================
+
+int WriteController::getTrackIndex() const
+{
+    return (int)state->getProperty("reaperTrack") - 1;
+}
+
+double WriteController::timeFromCursorToPPQ(double timeFromCursor) const
+{
+    double cursorTimeSec = processor->reaperMidiProvider.getCurrentCursorPosition();
+    return processor->reaperMidiProvider.timeToPpq(cursorTimeSec + timeFromCursor);
+}
+
+// =============================================================================
+// Toggle / Update
+// =============================================================================
+
 void WriteController::toggle()
 {
     auto* writer = processor->reaperMidiProvider.getWriter();
@@ -33,9 +59,7 @@ void WriteController::toggle()
         return;
 
     active = !active;
-    int trackIndex = (int)state->getProperty("reaperTrack") - 1;
-
-    highway->setWriteMode(active, writer, trackIndex);
+    highway->setWriteMode(active);
 
     if (active)
         wireCallbacks();
@@ -52,11 +76,10 @@ void WriteController::update(bool isPlaying)
         return;
 
     // Push visual hints to highway
-    highway->isDrawMode = (mode == InteractionMode::DRAW);
-    highway->drawModeSnapEnabled = snapEnabled;
+    highway->writeHints.drawMode = (mode == InteractionMode::DRAW);
+    highway->writeHints.snapEnabled = snapEnabled;
 
     // Compute min sustain in normalized position space for preview threshold
-    constexpr double SUSTAIN_MIN_PPQ = 1.0 / 3.0;
     double cursorTime = processor->reaperMidiProvider.getCurrentCursorPosition();
     double cursorPPQ = processor->reaperMidiProvider.timeToPpq(cursorTime);
     if (cursorPPQ >= 0.0)
@@ -65,7 +88,7 @@ void WriteController::update(bool isPlaying)
         double minDurationSec = minEndTime - cursorTime;
         auto& fd = highway->getFrameData();
         double windowSpan = fd.windowEndTime - fd.windowStartTime;
-        highway->minSustainNormalized = (windowSpan > 0.0)
+        highway->writeHints.minSustainNormalized = (windowSpan > 0.0)
             ? (float)(minDurationSec / windowSpan) : 0.0f;
     }
 
@@ -87,6 +110,10 @@ void WriteController::update(bool isPlaying)
 
     highway->setSelection(timeFromCursor, selection.lane);
 }
+
+// =============================================================================
+// Callbacks
+// =============================================================================
 
 void WriteController::wireCallbacks()
 {
@@ -135,17 +162,14 @@ void WriteController::wireCallbacks()
         int pitch = pitchForLane(endLane);
         if (pitch < 0) return;
 
-        int trackIdx = (int)state->getProperty("reaperTrack") - 1;
-        double cursorTimeSec = processor->reaperMidiProvider.getCurrentCursorPosition();
+        int trackIdx = getTrackIndex();
 
-        double startPPQ = processor->reaperMidiProvider.timeToPpq(cursorTimeSec + startTime);
-        double endPPQ = processor->reaperMidiProvider.timeToPpq(cursorTimeSec + endTime);
+        double startPPQ = timeFromCursorToPPQ(startTime);
+        double endPPQ = timeFromCursorToPPQ(endTime);
         if (startPPQ < 0.0) startPPQ = 0.0;
 
         startPPQ = snapToGridOrNote(startPPQ, pitch);
         endPPQ = snapToGridOrNote(endPPQ, pitch);
-
-        constexpr double SUSTAIN_MIN_PPQ = 1.0 / 3.0;
 
         // Check if dragging from an existing note — cascade sustain through all notes in range
         double existingPPQ;
@@ -162,8 +186,8 @@ void WriteController::wireCallbacks()
             for (int i = 0; i < (int)allNotes.size(); i++)
             {
                 if (allNotes[i].pitch == pitch &&
-                    allNotes[i].startPPQ >= existingPPQ - 0.25 &&
-                    allNotes[i].startPPQ <= endPPQ + 0.25)
+                    allNotes[i].startPPQ >= existingPPQ - PPQ_TOLERANCE &&
+                    allNotes[i].startPPQ <= endPPQ + PPQ_TOLERANCE)
                     hits.push_back({ i, allNotes[i].startPPQ });
             }
             std::sort(hits.begin(), hits.end(), [](const NoteHit& a, const NoteHit& b) {
@@ -186,7 +210,7 @@ void WriteController::wireCallbacks()
                     noteEnd = nextAfter;
 
                 double dur = noteEnd - noteStart;
-                double finalEnd = (dur >= SUSTAIN_MIN_PPQ) ? noteEnd : noteStart + 0.0625;
+                double finalEnd = (dur >= SUSTAIN_MIN_PPQ) ? noteEnd : noteStart + SHORT_NOTE_PPQ;
                 w->batchMoveNote(trackIdx, hits[h].idx, noteStart, finalEnd, pitch);
             }
             w->endBatch();
@@ -200,14 +224,9 @@ void WriteController::wireCallbacks()
 
             double duration = endPPQ - startPPQ;
             if (duration >= SUSTAIN_MIN_PPQ)
-            {
-                w->insertNote(trackIdx, startPPQ, endPPQ, 0, pitch, 100);
-            }
+                w->insertNote(trackIdx, startPPQ, endPPQ, 0, pitch, DEFAULT_VELOCITY);
             else
-            {
-                double shortEnd = startPPQ + 0.0625;
-                w->insertNote(trackIdx, startPPQ, shortEnd, 0, pitch, 100);
-            }
+                w->insertNote(trackIdx, startPPQ, startPPQ + SHORT_NOTE_PPQ, 0, pitch, DEFAULT_VELOCITY);
         }
     };
 
@@ -220,10 +239,9 @@ void WriteController::wireCallbacks()
             if (!selection.hasSelection()) return;
             auto* w = processor->reaperMidiProvider.getWriter();
             if (!w) return;
-            int trackIdx = (int)state->getProperty("reaperTrack") - 1;
             int matchIdx = findNoteIndexByPPQ(selection.ppq, selection.pitch);
             if (matchIdx >= 0)
-                w->deleteNote(trackIdx, matchIdx);
+                w->deleteNote(getTrackIndex(), matchIdx);
             return;
         }
 
@@ -232,7 +250,7 @@ void WriteController::wireCallbacks()
             if (!selection.hasSelection()) return;
             auto* w = processor->reaperMidiProvider.getWriter();
             if (!w) return;
-            int trackIdx = (int)state->getProperty("reaperTrack") - 1;
+            int trackIdx = getTrackIndex();
             int matchIdx = findNoteIndexByPPQ(selection.ppq, selection.pitch);
             if (matchIdx < 0) return;
 
@@ -262,7 +280,7 @@ void WriteController::wireCallbacks()
             if (newLane < 0 || newLane >= (int)pitches.size()) return;  // stop at edges
 
             int newPitch = (int)pitches[(size_t)newLane];
-            int trackIdx = (int)state->getProperty("reaperTrack") - 1;
+            int trackIdx = getTrackIndex();
             int matchIdx = findNoteIndexByPPQ(selection.ppq, selection.pitch);
             if (matchIdx < 0) return;
 
@@ -288,17 +306,21 @@ void WriteController::clearCallbacks()
     highway->onKeyAction = nullptr;
 }
 
+// =============================================================================
+// Note lookup
+// =============================================================================
+
 int WriteController::findNoteIndex(double timeFromCursor, int pitch, double& outPPQ)
 {
-    double cursorTimeSec = processor->reaperMidiProvider.getCurrentCursorPosition();
-    double absoluteTimeSec = cursorTimeSec + timeFromCursor;
-    double ppq = processor->reaperMidiProvider.timeToPpq(absoluteTimeSec);
+    double ppq = timeFromCursorToPPQ(timeFromCursor);
     if (ppq < 0.0) ppq = 0.0;
     outPPQ = ppq;
+    return findNoteIndexByPPQ(ppq, pitch);
+}
 
-    int trackIdx = (int)state->getProperty("reaperTrack") - 1;
-    auto allNotes = processor->reaperMidiProvider.getAllNotesFromTrack(trackIdx);
-    constexpr double PPQ_TOLERANCE = 0.25;
+int WriteController::findNoteIndexByPPQ(double ppq, int pitch)
+{
+    auto allNotes = processor->reaperMidiProvider.getAllNotesFromTrack(getTrackIndex());
     for (int i = 0; i < (int)allNotes.size(); i++)
     {
         if (allNotes[i].pitch == pitch &&
@@ -325,15 +347,16 @@ int WriteController::pitchForLane(int lane)
     return (int)pitches[(size_t)lane];
 }
 
+// =============================================================================
+// Note operations
+// =============================================================================
+
 void WriteController::selectFromHit(double timeFromCursor, int lane)
 {
     int pitch = pitchForLane(lane);
     if (pitch < 0) return;
 
-    double cursorTimeSec = processor->reaperMidiProvider.getCurrentCursorPosition();
-    double absoluteTimeSec = cursorTimeSec + timeFromCursor;
-    double ppq = processor->reaperMidiProvider.timeToPpq(absoluteTimeSec);
-
+    double ppq = timeFromCursorToPPQ(timeFromCursor);
     selection = { ppq, pitch, lane };
 }
 
@@ -345,14 +368,11 @@ void WriteController::placeNote(double timeFromCursor, int lane)
     int pitch = pitchForLane(lane);
     if (pitch < 0) return;
 
-    int trackIdx = (int)state->getProperty("reaperTrack") - 1;
-    double cursorTimeSec = processor->reaperMidiProvider.getCurrentCursorPosition();
-    double ppq = processor->reaperMidiProvider.timeToPpq(cursorTimeSec + timeFromCursor);
+    double ppq = timeFromCursorToPPQ(timeFromCursor);
     if (ppq < 0.0) ppq = 0.0;
     ppq = snapToGrid(ppq);
 
-    double endPPQ = ppq + 0.0625;
-    w->insertNote(trackIdx, ppq, endPPQ, 0, pitch, 100);
+    w->insertNote(getTrackIndex(), ppq, ppq + SHORT_NOTE_PPQ, 0, pitch, DEFAULT_VELOCITY);
     selection = { ppq, pitch, lane };
 }
 
@@ -364,35 +384,19 @@ void WriteController::eraseNote(double timeFromCursor, int lane)
     int pitch = pitchForLane(lane);
     if (pitch < 0) return;
 
-    int trackIdx = (int)state->getProperty("reaperTrack") - 1;
     double ppq;
     int matchIdx = findNoteIndex(timeFromCursor, pitch, ppq);
     if (matchIdx >= 0)
-        w->deleteNote(trackIdx, matchIdx);
-}
-
-int WriteController::findNoteIndexByPPQ(double ppq, int pitch)
-{
-    int trackIdx = (int)state->getProperty("reaperTrack") - 1;
-    auto allNotes = processor->reaperMidiProvider.getAllNotesFromTrack(trackIdx);
-    constexpr double PPQ_TOLERANCE = 0.25;
-    for (int i = 0; i < (int)allNotes.size(); i++)
-    {
-        if (allNotes[i].pitch == pitch &&
-            std::abs(allNotes[i].startPPQ - ppq) < PPQ_TOLERANCE)
-            return i;
-    }
-    return -1;
+        w->deleteNote(getTrackIndex(), matchIdx);
 }
 
 double WriteController::findNextNotePPQ(double afterPPQ, int pitch)
 {
-    int trackIdx = (int)state->getProperty("reaperTrack") - 1;
-    auto allNotes = processor->reaperMidiProvider.getAllNotesFromTrack(trackIdx);
+    auto allNotes = processor->reaperMidiProvider.getAllNotesFromTrack(getTrackIndex());
     double best = -1.0;
     for (const auto& note : allNotes)
     {
-        if (note.pitch == pitch && note.startPPQ > afterPPQ + 0.25)
+        if (note.pitch == pitch && note.startPPQ > afterPPQ + PPQ_TOLERANCE)
         {
             if (best < 0.0 || note.startPPQ < best)
                 best = note.startPPQ;
@@ -401,14 +405,18 @@ double WriteController::findNextNotePPQ(double afterPPQ, int pitch)
     return best;
 }
 
-// --- Sub-mode ---
+// =============================================================================
+// Sub-mode
+// =============================================================================
 
 void WriteController::toggleMode()
 {
     mode = (mode == InteractionMode::DRAW) ? InteractionMode::EDIT : InteractionMode::DRAW;
 }
 
-// --- Grid config ---
+// =============================================================================
+// Grid config
+// =============================================================================
 
 void WriteController::setStepDivision(int div)
 {
@@ -463,8 +471,7 @@ double WriteController::snapToGridOrNote(double ppq, int pitch)
     double bestDist = std::abs(gridSnapped - ppq);
     double best = gridSnapped;
 
-    int trackIdx = (int)state->getProperty("reaperTrack") - 1;
-    auto allNotes = processor->reaperMidiProvider.getAllNotesFromTrack(trackIdx);
+    auto allNotes = processor->reaperMidiProvider.getAllNotesFromTrack(getTrackIndex());
     for (const auto& note : allNotes)
     {
         if (note.pitch != pitch) continue;
