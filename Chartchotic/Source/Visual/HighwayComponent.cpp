@@ -417,6 +417,35 @@ void HighwayComponent::paintOverChildren(juce::Graphics& g)
                     }
                 }
 
+                // Per-note-type and per-column scale (match NoteRenderer)
+                float typeScale = sceneRenderer.gemTypeScales.normal;
+                float baseW = isBar ? BAR_SCALE.width : GEM_SCALE.width;
+                float baseH = isBar ? BAR_SCALE.height : GEM_SCALE.height;
+                float wScale = baseW * (isBar ? 1.0f : typeScale);
+                float hScale = baseH * (isBar ? 1.0f : typeScale);
+
+                if (!PositionMath::bemaniMode && !isBar)
+                {
+                    float colSNear = 1.0f, colSFar = 1.0f, colW = 1.0f, colH = 1.0f;
+                    if (!isDrums && gemCol < GUITAR_LANE_COUNT) {
+                        const auto& ca = sceneRenderer.guitarColAdjust[gemCol];
+                        colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
+                    } else if (isDrums) {
+                        uint drumIdx = drumColumnIndex((uint)gemCol);
+                        const auto& ca = sceneRenderer.drumColAdjust[drumIdx];
+                        colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
+                    }
+#ifdef DEBUG
+                    float vpDepth = PositionMath::perspParams(isDrums).vanishingPointDepth;
+#else
+                    float vpDepth = getPerspectiveParams(isDrums).vanishingPointDepth;
+#endif
+                    float t = juce::jlimit(0.0f, 1.0f, startPos / vpDepth);
+                    float colScale = colSNear + (colSFar - colSNear) * t;
+                    wScale *= colScale * colW;
+                    hScale *= colScale * colH;
+                }
+
                 NotePainter::GemParams gp;
                 gp.position = startPos;
                 gp.gemColumn = (int)gemCol;
@@ -428,8 +457,8 @@ void HighwayComponent::paintOverChildren(juce::Graphics& g)
                 gp.imageAspect = (float)glyphImage->getWidth() / (float)glyphImage->getHeight();
                 gp.sizeScale = isBar ? BAR_SIZE : GEM_SIZE;
                 gp.userScale = 1.0f;
-                gp.wScale = isBar ? BAR_SCALE.width : GEM_SCALE.width;
-                gp.hScale = isBar ? BAR_SCALE.height : GEM_SCALE.height;
+                gp.wScale = wScale;
+                gp.hScale = hScale;
                 gp.foreshorten = foreshorten;
                 gp.rawZOffset = rawZOff;
                 gp.strikeWidth = strikeWidth;

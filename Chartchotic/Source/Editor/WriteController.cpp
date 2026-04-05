@@ -143,7 +143,11 @@ void WriteController::wireCallbacks()
         int existingIdx = findNoteIndex(startTime, pitch, existingPPQ);
         if (existingIdx >= 0)
         {
-            // Use the existing note's actual position, not the grid-snapped drag start
+            // Use the actual note's PPQ, not the click-derived position
+            auto allNotes = processor->reaperMidiProvider.getAllNotesFromTrack(trackIdx);
+            if (existingIdx < (int)allNotes.size())
+                existingPPQ = allNotes[existingIdx].startPPQ;
+
             double nextFromExisting = findNextNotePPQ(existingPPQ, pitch);
             if (nextFromExisting > 0.0 && endPPQ > nextFromExisting)
                 endPPQ = nextFromExisting;
