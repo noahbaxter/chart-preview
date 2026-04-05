@@ -27,6 +27,7 @@ public:
     GridlineRenderer(juce::ValueTree& state, AssetManager& assetManager);
 
     Part activePart = Part::GUITAR;
+    bool writeMode = false;
 
     void populate(DrawCallMap& drawCallMap, const TimeBasedGridlineMap& gridlines,
                   double windowStartTime, double windowEndTime,

@@ -24,6 +24,10 @@ struct FrameContext
     float scrollOffset;
     PPQ smoothedLatencyInPPQ;   // Only used by standard mode
 
+    // Write mode grid config (0 = inactive, no step lines)
+    int stepDivision = 0;   // 1/N note (4=quarter, 8=eighth, etc.)
+    int tuplet = 0;         // 0=normal, 3=triplet, 5=quintuplet, 7=septuplet
+
     // Slot access (for batched mode)
     HighwaySlot* slots;
     int activeSlotCount;

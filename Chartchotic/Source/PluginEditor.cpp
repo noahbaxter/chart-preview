@@ -701,18 +701,43 @@ void ChartchoticAudioProcessorEditor::paintOverChildren(juce::Graphics& g)
     if (showFps)
         drawFpsOverlay(g);
 
-    // Write mode indicator
+    // Write mode indicator + grid state
     if (writeController.isActive())
     {
+        int tbH = toolbar.getHeight();
+        float rightEdge = (float)getWidth() - 8.0f;
+        float y = (float)tbH + 8.0f;
+
+        // Mode pill (DRAW / EDIT)
         auto font = Theme::getUIFont(16.0f);
         g.setFont(font);
-        int tbH = toolbar.getHeight();
-        auto pill = juce::Rectangle<float>(
-            (float)getWidth() - 70.0f, (float)tbH + 8.0f, 58.0f, 24.0f);
-        g.setColour(juce::Colours::red.withAlpha(0.8f));
+        float pillW = 58.0f, pillH = 24.0f;
+        auto pill = juce::Rectangle<float>(rightEdge - pillW, y, pillW, pillH);
+
+        bool isDraw = writeController.getMode() == InteractionMode::DRAW;
+        g.setColour(isDraw ? juce::Colour(0xcc3399ff) : juce::Colour(0xccff6633));
         g.fillRoundedRectangle(pill, 4.0f);
         g.setColour(juce::Colours::white);
-        g.drawText("EDIT", pill, juce::Justification::centred);
+        g.drawText(isDraw ? "DRAW" : "EDIT", pill, juce::Justification::centred);
+
+        // Grid state line below the pill
+        auto smallFont = Theme::getUIFont(12.0f);
+        g.setFont(smallFont);
+        y += pillH + 4.0f;
+
+        // Step size (e.g. "1/8", "1/16T", "1/4 x5")
+        juce::String stepStr = "1/" + juce::String(writeController.getStepDivision());
+        int tup = writeController.getTuplet();
+        if (tup == 3) stepStr += "T";
+        else if (tup == 5) stepStr += " x5";
+        else if (tup == 7) stepStr += " x7";
+
+        if (!writeController.isSnapEnabled())
+            stepStr += "  FREE";
+
+        g.setColour(juce::Colours::white.withAlpha(0.7f));
+        g.drawText(stepStr, juce::Rectangle<float>(rightEdge - 80.0f, y, 80.0f, 16.0f),
+                   juce::Justification::centredRight);
     }
 
 #ifdef DEBUG
@@ -1193,6 +1218,8 @@ FrameContext ChartchoticAudioProcessorEditor::buildFrameContext()
         displayWindowTimeSeconds,
         computeScrollOffset(),
         smoothedLatencyInPPQ(),
+        writeController.isActive() ? writeController.getStepDivision() : 0,
+        writeController.isActive() ? writeController.getTuplet() : 0,
         slots.data(),
         activeSlotCount
     };

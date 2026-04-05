@@ -110,20 +110,30 @@ public:
 
     // Mouse overrides (active in write mode only)
     void mouseDown(const juce::MouseEvent& event) override;
+    void mouseUp(const juce::MouseEvent& event) override;
+    void mouseDrag(const juce::MouseEvent& event) override;
     void mouseDoubleClick(const juce::MouseEvent& event) override;
     void mouseMove(const juce::MouseEvent& event) override;
     void mouseExit(const juce::MouseEvent& event) override;
     bool keyPressed(const juce::KeyPress& key) override;
 
-    // Callbacks — editor wires these to REAPER MIDI operations
-    std::function<void(double timeFromCursor, int pitch)> onNoteEditRequested;
-    std::function<void(double timeFromCursor, int pitch)> onNoteDeleteRequested;
-    std::function<void(double timeFromCursor, int pitch, int direction)> onNoteMoveRequested;
-    std::function<void(double timeFromCursor, int lane, bool noteExists)> onNoteClicked;
+    // Key actions for WriteController
+    enum KeyAction { KA_DELETE, KA_MOVE_UP, KA_MOVE_DOWN, KA_LANE_LEFT, KA_LANE_RIGHT };
+
+    // Callbacks — generic input events, WriteController interprets based on mode
+    std::function<void(double timeFromCursor, int lane, bool noteExists)> onLeftClick;
+    std::function<void(double timeFromCursor, int lane, bool noteExists)> onRightClick;
+    std::function<void(double timeFromCursor, int lane, bool noteExists)> onDoubleClick;
+    std::function<void(double startTime, int startLane, double endTime, int endLane)> onDragComplete;
+    std::function<void(int action)> onKeyAction;
 
     // Selection — set externally by PluginEditor each frame (PPQ-based, scroll-stable)
     void setSelection(double timeFromCursor, int lane);
     void clearSelection();
+
+    // Write mode visual hints (set by WriteController)
+    bool drawModeSnapEnabled = false;
+    bool isDrawMode = false;
 
 private:
     static constexpr int rebuildDebounceMs = 500;
@@ -150,6 +160,13 @@ private:
     bool hoverValid = false;
     bool hoverOnExistingNote = false;
 
+    // Drag tracking
+    bool isDragging = false;
+    bool dragIsLeftButton = false;
+    HitTestResult dragStartResult;
+    juce::Point<float> mouseDownScreenPos;
+    static constexpr float dragDistanceThreshold = 3.0f;
+
     // Selection state
     bool hasSelection = false;
     double selectedTime = 0.0;   // time key from trackWindow
@@ -169,6 +186,9 @@ private:
     // Compute note overlay using NotePainter with current component state
     NotePainter::NoteRect computeNoteOverlay(float position, int lane) const;
     juce::Path buildCurvedNotePath(const NotePainter::NoteRect& nr, float expand = 0.0f) const;
+
+    // Snap a normalized highway position to the nearest gridline in frameData.gridlines
+    float snapToNearestGridline(float normalizedPos) const;
 
     // Dimensions of the last full rebuild (track bake + asset rescale)
     int bakedRenderW = 0, bakedRenderH = 0, bakedOverflow = 0;

@@ -11,8 +11,8 @@
 #include "TrackImageCache.h"
 #include "../UI/ControlConstants.h"
 #include "../Midi/Providers/MidiWriter.h"
-#include "../Midi/Utils/InstrumentMapper.h"
 #include "../UI/Theme.h"
+#include "Painters/LanePainter.h"
 
 HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetManager)
     : state(state),
@@ -265,10 +265,105 @@ void HighwayComponent::paintOverChildren(juce::Graphics& g)
         g.drawText(diffName, textBounds, juce::Justification::centredLeft);
     }
 
-    // Write mode hover cursor (disabled during playback)
-    if (writeMode && hoverValid && !frameData.isPlaying)
+    // Sustain drag preview
+    if (writeMode && isDragging && dragIsLeftButton && dragStartResult.valid && hoverValid && !frameData.isPlaying)
     {
-        auto ov = computeNoteOverlay(hoverResult.normalizedPosition, hoverResult.laneIndex);
+        int dragLane = hoverResult.valid ? hoverResult.laneIndex : dragStartResult.laneIndex;
+
+        // Snap start position to grid if snap is enabled
+        float startPos = drawModeSnapEnabled
+            ? snapToNearestGridline(dragStartResult.normalizedPosition)
+            : dragStartResult.normalizedPosition;
+
+        auto headOv = computeNoteOverlay(startPos, dragLane);
+
+        // Draw sustain tail using LanePainter if cursor is forward in time
+        float hoverPos = drawModeSnapEnabled
+            ? snapToNearestGridline(hoverResult.normalizedPosition)
+            : hoverResult.normalizedPosition;
+
+        if (hoverPos > startPos && dragLane >= 0)
+        {
+            using namespace PositionConstants;
+            bool isDrums = isDrumLike(activePart);
+
+            // Resolve lane coordinates and column for LanePainter
+            uint gemCol;
+            NormalizedCoordinates laneCoords;
+            if (isDrums) {
+                uint dIdx = (dragLane == 0) ? 0 : (uint)dragLane;
+                gemCol = (dragLane == 0) ? 0 : (uint)dragLane;
+                laneCoords = drumBezierLaneCoords[dIdx];
+            } else {
+                gemCol = (uint)dragLane;
+                laneCoords = guitarBezierLaneCoords[gemCol];
+            }
+
+            bool isBar = isBarNote(gemCol, activePart);
+            float sustW = isBar ? SUSTAIN_OPEN_WIDTH : SUSTAIN_WIDTH;
+            float laneScale = isBar ? BAR_SIZE : GEM_SIZE;
+            auto colour = assetManager.getLaneColour(gemCol, activePart, false);
+
+            LanePainter::Params lp {
+                gemCol, activePart,
+                startPos, hoverPos,
+                0.45f, sustW, colour, false,
+                (uint)renderWidth, (uint)renderHeight,
+                sceneRenderer.highwayPosEnd,
+                laneCoords, laneScale, -1,
+                {},
+                sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve
+            };
+
+            // LanePainter works in render space — replicate paint()'s full transform:
+            // 1. Scale to fit component  2. Translate by overflow for scene content
+            int w = renderWidth, totalH = renderHeight + topOverflow;
+            g.saveState();
+            if (stretchToFill && !PositionMath::bemaniMode)
+            {
+                float sx = (float)getWidth() / (float)w;
+                float sy = (float)getHeight() / (float)totalH;
+                g.addTransform(juce::AffineTransform::scale(sx, sy));
+            }
+            else
+            {
+                float s = std::min((float)getWidth() / (float)w, (float)getHeight() / (float)totalH);
+                float ox = ((float)getWidth() - (float)w * s) / 2.0f;
+                float oy = (float)getHeight() - (float)totalH * s;
+                g.addTransform(juce::AffineTransform(s, 0.0f, ox, 0.0f, s, oy));
+            }
+            // Scene content offset (notes/sustains/gridlines draw below overflow area)
+            if (topOverflow > 0)
+                g.addTransform(juce::AffineTransform::translation(0.0f, (float)topOverflow));
+            LanePainter::paint(g, lp);
+            g.restoreState();
+        }
+
+        // Draw note head gem via NotePainter
+        if (dragLane >= 0)
+        {
+            bool isDrms = isDrumLike(activePart);
+            GemWrapper gw(Gem::NOTE, false);
+            juce::Image* gemImg = isDrms
+                ? assetManager.getDrumGlyphImage(gw, (uint)dragLane, false)
+                : assetManager.getGuitarGlyphImage(gw, (uint)dragLane, false);
+            if (gemImg && !gemImg->isNull())
+            {
+                float w = headOv.screenRightX - headOv.screenLeftX;
+                float h = headOv.screenH;
+                juce::Rectangle<float> gemRect(headOv.screenLeftX, headOv.screenCenterY - h * 0.5f, w, h);
+                NotePainter::paintGem(g, *gemImg, gemRect, 0.75f);
+            }
+        }
+    }
+    // Write mode hover cursor (disabled during playback and drag)
+    else if (writeMode && hoverValid && !isDragging && !frameData.isPlaying)
+    {
+        // Snap cursor to grid in draw mode
+        float ghostPos = (isDrawMode && drawModeSnapEnabled)
+            ? snapToNearestGridline(hoverResult.normalizedPosition)
+            : hoverResult.normalizedPosition;
+        auto ov = computeNoteOverlay(ghostPos, hoverResult.laneIndex);
         auto ghostPath = buildCurvedNotePath(ov);
 
         if (hoverOnExistingNote)
@@ -561,11 +656,34 @@ juce::Path HighwayComponent::buildCurvedNotePath(const NotePainter::NoteRect& nr
     return NotePainter::buildCurvedPath(nr, activePart, renderWidth, renderHeight, expand);
 }
 
+float HighwayComponent::snapToNearestGridline(float normalizedPos) const
+{
+    double windowTimeSpan = frameData.windowEndTime - frameData.windowStartTime;
+    if (windowTimeSpan <= 0.0 || frameData.gridlines.empty())
+        return normalizedPos;
+
+    float bestPos = normalizedPos;
+    float bestDist = std::numeric_limits<float>::max();
+
+    for (const auto& gl : frameData.gridlines)
+    {
+        float glPos = (float)((gl.time - frameData.windowStartTime) / windowTimeSpan);
+        float dist = std::abs(glPos - normalizedPos);
+        if (dist < bestDist)
+        {
+            bestDist = dist;
+            bestPos = glPos;
+        }
+    }
+    return bestPos;
+}
+
 void HighwayComponent::setWriteMode(bool on, MidiWriter* writer, int trackIndex)
 {
     writeMode = on;
     midiWriter = on ? writer : nullptr;
     writeTrackIndex = on ? trackIndex : -1;
+    sceneRenderer.writeMode = on;
     if (!on) clearSelection();
 }
 
@@ -714,80 +832,128 @@ void HighwayComponent::mouseDown(const juce::MouseEvent& event)
     if (!writeMode || frameData.isPlaying)
         return;
 
-    // Grab keyboard focus for DELETE/arrow keys
     grabKeyboardFocus();
 
-    auto hit = performHitTest(event.position);
-    if (!hit.valid || hit.laneIndex < 0)
+    // Store for click-vs-drag disambiguation
+    mouseDownScreenPos = event.position;
+    dragStartResult = performHitTest(event.position);
+    isDragging = false;
+    dragIsLeftButton = !event.mods.isRightButtonDown();
+}
+
+void HighwayComponent::mouseUp(const juce::MouseEvent& event)
+{
+    if (!writeMode || frameData.isPlaying)
+        return;
+
+    if (isDragging)
     {
-        if (onNoteClicked) onNoteClicked(0.0, -1, false);
+        // Drag complete — resolve end position
+        auto endHit = performHitTest(event.position);
+        if (dragIsLeftButton && dragStartResult.valid && endHit.valid && onDragComplete)
+        {
+            onDragComplete(dragStartResult.timeFromCursor, dragStartResult.laneIndex,
+                           endHit.timeFromCursor, endHit.laneIndex);
+        }
+        isDragging = false;
+        repaint();
         return;
     }
 
-    // Check if there's an existing note at this position — controller handles PPQ resolution
-    double noteTime; int noteLane;
-    bool noteExists = findNoteAtPosition(hit.normalizedPosition, hit.laneIndex, noteTime, noteLane);
+    // Click (not drag) — check note existence and fire appropriate callback
+    if (!dragStartResult.valid || dragStartResult.laneIndex < 0)
+    {
+        // Clicked outside highway
+        if (dragIsLeftButton && onLeftClick)
+            onLeftClick(0.0, -1, false);
+        return;
+    }
 
-    if (onNoteClicked)
-        onNoteClicked(noteExists ? noteTime : hit.timeFromCursor, noteExists ? noteLane : hit.laneIndex, noteExists);
+    double noteTime; int noteLane;
+    bool noteExists = findNoteAtPosition(dragStartResult.normalizedPosition, dragStartResult.laneIndex, noteTime, noteLane);
+    double time = noteExists ? noteTime : dragStartResult.timeFromCursor;
+    int lane = noteExists ? noteLane : dragStartResult.laneIndex;
+
+    if (dragIsLeftButton)
+    {
+        if (onLeftClick) onLeftClick(time, lane, noteExists);
+    }
+    else
+    {
+        if (onRightClick) onRightClick(time, lane, noteExists);
+    }
+}
+
+void HighwayComponent::mouseDrag(const juce::MouseEvent& event)
+{
+    if (!writeMode || frameData.isPlaying)
+        return;
+
+    if (!isDragging)
+    {
+        float dist = event.position.getDistanceFrom(mouseDownScreenPos);
+        if (dist >= dragDistanceThreshold)
+            isDragging = true;
+        else
+            return;
+    }
+
+    // Update hover for live lane tracking during drag
+    auto hit = performHitTest(event.position);
+    hoverResult = hit;
+    hoverValid = hit.valid;
+    repaint();
 }
 
 void HighwayComponent::mouseDoubleClick(const juce::MouseEvent& event)
 {
-    if (!writeMode || !midiWriter || writeTrackIndex < 0 || frameData.isPlaying)
+    if (!writeMode || frameData.isPlaying)
         return;
 
     auto hit = performHitTest(event.position);
-
     if (!hit.valid || hit.laneIndex < 0)
         return;
 
-    bool isDrums = isDrumLike(activePart);
-    SkillLevel skill = (SkillLevel)(int)state.getProperty("skillLevel");
-    auto pitches = isDrums
-        ? InstrumentMapper::getDrumPitchesForSkill(skill)
-        : InstrumentMapper::getGuitarPitchesForSkill(skill);
+    double noteTime; int noteLane;
+    bool noteExists = findNoteAtPosition(hit.normalizedPosition, hit.laneIndex, noteTime, noteLane);
+    double time = noteExists ? noteTime : hit.timeFromCursor;
+    int lane = noteExists ? noteLane : hit.laneIndex;
 
-    if (hit.laneIndex >= (int)pitches.size())
-        return;
-
-    int pitch = (int)pitches[(size_t)hit.laneIndex];
-
-    if (onNoteEditRequested)
-        onNoteEditRequested(hit.timeFromCursor, pitch);
+    if (onDoubleClick) onDoubleClick(time, lane, noteExists);
 }
 
 bool HighwayComponent::keyPressed(const juce::KeyPress& key)
 {
-    if (!writeMode || !hasSelection || frameData.isPlaying)
+    if (!writeMode || frameData.isPlaying)
         return false;
-
-    bool isDrums = isDrumLike(activePart);
-    SkillLevel skill = (SkillLevel)(int)state.getProperty("skillLevel");
-    auto pitches = isDrums
-        ? InstrumentMapper::getDrumPitchesForSkill(skill)
-        : InstrumentMapper::getGuitarPitchesForSkill(skill);
-
-    if (selectedLane < 0 || selectedLane >= (int)pitches.size())
-        return false;
-
-    int pitch = (int)pitches[(size_t)selectedLane];
 
     if (key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey)
     {
-        if (onNoteDeleteRequested)
-            onNoteDeleteRequested(selectedTime, pitch);
+        if (onKeyAction) onKeyAction(KA_DELETE);
         return true;
     }
 
-    if (key == juce::KeyPress::upKey || key == juce::KeyPress::downKey)
+    if (key == juce::KeyPress::upKey)
     {
-        if (onNoteMoveRequested)
-        {
-            int dir = key == juce::KeyPress::upKey ? 1 : -1;
-            onNoteMoveRequested(selectedTime, pitch, dir);
-            // Selection stays — WriteController updates selection.ppq in the callback
-        }
+        if (onKeyAction) onKeyAction(KA_MOVE_UP);
+        return true;
+    }
+
+    if (key == juce::KeyPress::downKey)
+    {
+        if (onKeyAction) onKeyAction(KA_MOVE_DOWN);
+        return true;
+    }
+
+    if (key == juce::KeyPress::leftKey)
+    {
+        if (onKeyAction) onKeyAction(KA_LANE_LEFT);
+        return true;
+    }
+
+    if (key == juce::KeyPress::rightKey)
+    {
+        if (onKeyAction) onKeyAction(KA_LANE_RIGHT);
         return true;
     }
 

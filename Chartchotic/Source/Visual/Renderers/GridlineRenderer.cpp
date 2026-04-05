@@ -47,10 +47,23 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
                 float fadeOpacity = PositionMath::bemaniMode ? 1.0f : calculateFarFade(normalizedPosition, farFadeEnd, farFadeLen, farFadeCurve);
 
                 float opacity = 1.0f;
-                switch (gridlineType) {
-                    case Gridline::MEASURE: opacity = MEASURE_OPACITY; break;
-                    case Gridline::BEAT: opacity = BEAT_OPACITY; break;
-                    case Gridline::HALF_BEAT: opacity = HALF_BEAT_OPACITY; break;
+                if (writeMode)
+                {
+                    switch (gridlineType) {
+                        case Gridline::MEASURE:  opacity = 1.0f; break;
+                        case Gridline::BEAT:     opacity = 0.6f; break;
+                        case Gridline::HALF_BEAT: opacity = 0.35f; break;
+                        case Gridline::STEP:     opacity = 0.25f; break;
+                    }
+                }
+                else
+                {
+                    switch (gridlineType) {
+                        case Gridline::MEASURE:  opacity = MEASURE_OPACITY; break;
+                        case Gridline::BEAT:     opacity = BEAT_OPACITY; break;
+                        case Gridline::HALF_BEAT: opacity = HALF_BEAT_OPACITY; break;
+                        case Gridline::STEP:     opacity = HALF_BEAT_OPACITY * 0.7f; break;
+                    }
                 }
                 opacity *= fadeOpacity;
                 if (PositionMath::bemaniMode)
@@ -71,4 +84,3 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
         }
     }
 }
-
