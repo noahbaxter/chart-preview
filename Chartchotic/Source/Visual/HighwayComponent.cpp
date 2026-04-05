@@ -163,9 +163,17 @@ void HighwayComponent::paint(juce::Graphics& g)
                     float segEnd = (n + 1 < notePositions.size())
                         ? notePositions[n + 1] + endOffset
                         : hoverPos + endOffset;
-                    float nextAfter = findNextNotePosition(segStart, dragLane);
-                    if (nextAfter > 0.0f && segEnd > nextAfter + endOffset)
-                        segEnd = nextAfter + endOffset;
+                    // Only cap at next-note-beyond-cascade for the last segment;
+                    // middle segments already end at notePositions[n+1] which IS
+                    // the next note. Calling findNextNotePosition for every segment
+                    // hits a float precision bug: the float→double round-trip can
+                    // cause upper_bound to return the SAME note, crushing the segment.
+                    if (n + 1 >= notePositions.size())
+                    {
+                        float nextAfter = findNextNotePosition(segStart, dragLane);
+                        if (nextAfter > 0.0f && segEnd > nextAfter + endOffset)
+                            segEnd = nextAfter + endOffset;
+                    }
                     segEnd = std::max(segStart + 0.01f, segEnd);
                     segments.push_back({ segStart, segEnd });
                 }
