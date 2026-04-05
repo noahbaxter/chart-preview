@@ -79,6 +79,37 @@ namespace NotePainter
         juce::Rectangle<float> overlayDrawRect;   // overlay final (when hasOverlay)
     };
 
+    // =========================================================================
+    // Render context — per-frame invariants, set once by SceneRenderer
+    // =========================================================================
+
+    struct NoteRenderContext
+    {
+        uint viewportW = 0, viewportH = 0;
+        float posEnd = 0;
+        bool isDrums = false;
+        Part activePart = Part::GUITAR;
+        float depthForeshorten = PositionConstants::NOTE_DEPTH_FORESHORTEN;
+        float gemZOffset = 0, barZOffset = 0;
+        float noteCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
+        float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE;
+        PositionConstants::GemTypeScales gemTypeScales;
+        PositionConstants::ElementScale gemScale = PositionConstants::GEM_SCALE;
+        PositionConstants::ElementScale barScale = PositionConstants::BAR_SCALE;
+        const PositionConstants::ColumnAdjust* guitarColAdjust = nullptr;
+        const PositionConstants::ColumnAdjust* drumColAdjust = nullptr;
+        const PositionConstants::NormalizedCoordinates* laneCoordsGuitar = nullptr;
+        const PositionConstants::NormalizedCoordinates* laneCoordsDrums = nullptr;
+
+        /** Build a GemParams for a specific note at a given position and column.
+            Handles foreshortening, column scale, Z offset, strike width, lane coords,
+            per-type scale, curvature, and bemani nudge. */
+        GemParams buildGemParams(float position, uint gemColumn,
+                                 float imageAspect,
+                                 Gem gemType = Gem::NOTE, bool starPower = false,
+                                 float userScale = 1.0f) const;
+    };
+
     /** Compute render-space rects for a gem given pre-resolved orchestration params. */
     GemRects computeGemRects(const GemParams& p);
 

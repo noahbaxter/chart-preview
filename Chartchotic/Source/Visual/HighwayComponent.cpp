@@ -612,7 +612,9 @@ void HighwayComponent::paintSustainDragPreview(juce::Graphics& g)
         if (hoverPos > startPos && dragLane >= 0)
         {
             using namespace PositionConstants;
-            auto [gemCol, laneCoords] = resolveLaneVisuals(dragLane);
+            auto laneVis = resolveLaneVisuals(dragLane);
+            uint gemCol = laneVis.gemCol;
+            auto laneCoords = laneVis.laneCoords;
             bool isBar = isBarNote(gemCol, activePart);
             float endOffset = isBar ? BAR_SUSTAIN_END_OFFSET : SUSTAIN_END_OFFSET;
             float sustW = isBar ? SUSTAIN_OPEN_WIDTH : SUSTAIN_WIDTH;
@@ -706,111 +708,15 @@ void HighwayComponent::paintDragGemHead(juce::Graphics& g)
 
     float startPos = snapToNearestGridlineOrNote(drag.startResult.normalizedPosition, dragLane);
 
-    using namespace PositionConstants;
-    bool isDrums = isDrumLike(activePart);
     auto [gemCol, laneCoords] = resolveLaneVisuals(dragLane);
-    bool isBar = isBarNote(gemCol, activePart);
     GemWrapper defaultGem(Gem::NOTE, false);
     juce::Image* glyphImage = isGuitarLike(activePart)
         ? assetManager.getGuitarGlyphImage(defaultGem, gemCol, false)
         : assetManager.getDrumGlyphImage(defaultGem, gemCol, false);
-
     if (glyphImage == nullptr) return;
 
-    float noteCurv = isDrums ? sceneRenderer.noteCurvatureDrums
-                             : sceneRenderer.noteCurvatureGuitar;
-    float curvature = isBar ? BAR_CURVATURE : noteCurv;
-
-    // Foreshorten
-    float foreshorten = 1.0f;
-    if (!PositionMath::bemaniMode)
-    {
-        float adjustedPos = isBar ? startPos + BAR_NOTE_POS_OFFSET : startPos;
-#ifdef DEBUG
-        const auto& pp = PositionMath::perspParams(isDrums);
-#else
-        auto pp = getPerspectiveParams(isDrums);
-#endif
-        float depth = std::max(0.0f, adjustedPos) / pp.vanishingPointDepth;
-        float scaleNear = 1.0f + (pp.highwayDepth / pp.playerDistance) * pp.perspectiveStrength;
-        float psCur = scaleNear / (1.0f + depth * (scaleNear - 1.0f));
-        float rawRatio = psCur / scaleNear;
-        foreshorten = 1.0f - (1.0f - rawRatio) * NOTE_DEPTH_FORESHORTEN;
-    }
-
-    // Strike width for perspective Z scaling
-    float rawZOff = isBar ? sceneRenderer.getBarZOffset() : sceneRenderer.getGemZOffset();
-    float strikeWidth = 1.0f;
-    if (!PositionMath::bemaniMode)
-    {
-        if (isBar)
-        {
-            auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f,
-                (uint)renderWidth, (uint)renderHeight,
-                HIGHWAY_POS_START, sceneRenderer.highwayPosEnd);
-            strikeWidth = (fbStrike.rightX - fbStrike.leftX) * BAR_FRETBOARD_FIT * BAR_SIZE;
-        }
-        else
-        {
-            auto strikeEdge = PositionMath::getColumnPosition(isDrums, 0.0f,
-                (uint)renderWidth, (uint)renderHeight,
-                HIGHWAY_POS_START, sceneRenderer.highwayPosEnd,
-                laneCoords, GEM_SIZE, FRETBOARD_SCALE, -1);
-            strikeWidth = strikeEdge.rightX - strikeEdge.leftX;
-        }
-    }
-
-    // Per-note-type and per-column scale (match NoteRenderer)
-    float typeScale = sceneRenderer.gemTypeScales.normal;
-    float baseW = isBar ? BAR_SCALE.width : GEM_SCALE.width;
-    float baseH = isBar ? BAR_SCALE.height : GEM_SCALE.height;
-    float wScale = baseW * (isBar ? 1.0f : typeScale);
-    float hScale = baseH * (isBar ? 1.0f : typeScale);
-
-    if (!PositionMath::bemaniMode && !isBar)
-    {
-        float colSNear = 1.0f, colSFar = 1.0f, colW = 1.0f, colH = 1.0f;
-        if (!isDrums && gemCol < GUITAR_LANE_COUNT) {
-            const auto& ca = sceneRenderer.guitarColAdjust[gemCol];
-            colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
-        } else if (isDrums) {
-            uint drumIdx = drumColumnIndex((uint)gemCol);
-            const auto& ca = sceneRenderer.drumColAdjust[drumIdx];
-            colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
-        }
-#ifdef DEBUG
-        float vpDepth = PositionMath::perspParams(isDrums).vanishingPointDepth;
-#else
-        float vpDepth = getPerspectiveParams(isDrums).vanishingPointDepth;
-#endif
-        float t = juce::jlimit(0.0f, 1.0f, startPos / vpDepth);
-        float colScale = colSNear + (colSFar - colSNear) * t;
-        wScale *= colScale * colW;
-        hScale *= colScale * colH;
-    }
-
-    NotePainter::GemParams gp;
-    gp.position = startPos;
-    gp.gemColumn = (int)gemCol;
-    gp.isBar = isBar;
-    gp.isDrums = isDrums;
-    gp.viewportW = (uint)renderWidth;
-    gp.viewportH = (uint)renderHeight;
-    gp.posEnd = sceneRenderer.highwayPosEnd;
-    gp.imageAspect = (float)glyphImage->getWidth() / (float)glyphImage->getHeight();
-    gp.sizeScale = isBar ? BAR_SIZE : GEM_SIZE;
-    gp.userScale = 1.0f;
-    gp.wScale = wScale;
-    gp.hScale = hScale;
-    gp.foreshorten = foreshorten;
-    gp.rawZOffset = rawZOff;
-    gp.strikeWidth = strikeWidth;
-    gp.curvature = curvature;
-    gp.laneCoords = laneCoords;
-    gp.bemaniLaneIdx = -1;
-    gp.bemaniNudgeY = 0.0f;
-    gp.hasOverlay = false;
-    gp.overlayAdj = {};
+    float aspect = (float)glyphImage->getWidth() / (float)glyphImage->getHeight();
+    auto gp = sceneRenderer.noteRenderCtx.buildGemParams(startPos, gemCol, aspect);
 
     g.saveState();
     g.addTransform(getRenderTransform());

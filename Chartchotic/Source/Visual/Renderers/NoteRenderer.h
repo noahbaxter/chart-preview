@@ -59,6 +59,9 @@ private:
     juce::ValueTree& state;
     AssetManager& assetManager;
 
+    // Per-frame render context (built in populate from copied fields)
+    NotePainter::NoteRenderContext renderCtx;
+
     // Cached per-populate call
     DrawCallMap* currentDrawCallMap = nullptr;
     uint width = 0, height = 0;

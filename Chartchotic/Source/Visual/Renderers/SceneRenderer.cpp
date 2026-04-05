@@ -97,6 +97,25 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     noteRenderer.laneCoordsDrums = drumLaneCoordsLocal;
     noteRenderer.isPlaying = isPlaying;
 
+    // Populate shared render context for external consumers (drag preview, etc.)
+    noteRenderCtx.viewportW = width;
+    noteRenderCtx.viewportH = height;
+    noteRenderCtx.posEnd = highwayPosEnd;
+    noteRenderCtx.isDrums = isDrums;
+    noteRenderCtx.activePart = activePart;
+    noteRenderCtx.depthForeshorten = depthForeshorten;
+    noteRenderCtx.gemZOffset = noteRenderer.gemZOffset;
+    noteRenderCtx.barZOffset = noteRenderer.barZOffset;
+    noteRenderCtx.noteCurvatureGuitar = noteCurvatureGuitar;
+    noteRenderCtx.noteCurvatureDrums = noteCurvatureDrums;
+    noteRenderCtx.gemTypeScales = gemTypeScales;
+    noteRenderCtx.gemScale = gemScale;
+    noteRenderCtx.barScale = barScale;
+    noteRenderCtx.guitarColAdjust = noteRenderer.guitarColAdjust;
+    noteRenderCtx.drumColAdjust = noteRenderer.drumColAdjust;
+    noteRenderCtx.laneCoordsGuitar = guitarLaneCoordsLocal;
+    noteRenderCtx.laneCoordsDrums = drumLaneCoordsLocal;
+
     {
         ScopedPhaseMeasure m(lastPhaseTiming.notes_us, collectPhaseTiming);
         if (showGems || showBars)
@@ -109,7 +128,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
         ScopedPhaseMeasure m(lastPhaseTiming.sustains_us, collectPhaseTiming);
         sustainRenderer.laneShape = laneShape;
         sustainRenderer.populate(drawCallMap, sustainWindow, windowStartTime, windowEndTime,
-                                 width, height, showLanes, showSustains,
+                                 width, height, showLanes, showSustains, isPlaying,
                                  highwayPosEnd,
                                  farFadeEnd, farFadeLen, farFadeCurve,
                                  guitarLaneCoordsLocal, drumLaneCoordsLocal);

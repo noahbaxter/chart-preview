@@ -126,6 +126,9 @@ class SceneRenderer
             PositionConstants::drumBezierLaneCoords[4]
         };
 
+        // Per-frame render context for note drawing (populated by paint(), read by HighwayComponent)
+        NotePainter::NoteRenderContext noteRenderCtx;
+
     private:
         juce::ValueTree &state;
         AssetManager &assetManager;

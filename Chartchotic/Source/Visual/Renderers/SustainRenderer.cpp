@@ -21,6 +21,7 @@ SustainRenderer::SustainRenderer(juce::ValueTree& state, AssetManager& assetMana
 void SustainRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedSustainWindow& sustainWindow,
                                double windowStartTime, double windowEndTime,
                                uint width, uint height, bool showLanes, bool showSustains,
+                               bool isPlaying,
                                float posEnd,
                                float farFadeEnd, float farFadeLen, float farFadeCurve,
                                const NormalizedCoordinates* laneCoordsGuitar,
@@ -31,6 +32,7 @@ void SustainRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedSustainW
     this->height = height;
     this->showLanes = showLanes;
     this->showSustains = showSustains;
+    this->isPlaying = isPlaying;
     this->posEnd = posEnd;
     this->farFadeEnd = farFadeEnd;
     this->farFadeLen = farFadeLen;
@@ -56,13 +58,15 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     bool hitAnimationsOn = state.getProperty("hitIndicators");
 
-    // Determine clip position
+    // Determine clip position — only clip at strikeline during playback with hit animations.
+    // When paused (even with hits enabled), show everything to support browsing/editing.
+    bool clipAtStrike = hitAnimationsOn && isPlaying;
     float clipPos;
     if (isLane)
     {
         clipPos = HIGHWAY_POS_START;
     }
-    else if (hitAnimationsOn)
+    else if (clipAtStrike)
     {
         clipPos = isBarNote(sustain.gemColumn, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS)
             ? BAR_SUSTAIN_CLIP : SUSTAIN_CLIP;

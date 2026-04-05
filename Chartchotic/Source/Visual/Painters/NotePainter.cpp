@@ -34,6 +34,194 @@ namespace
 namespace NotePainter
 {
 
+// =============================================================================
+// NoteRenderContext::buildGemParams
+// =============================================================================
+
+GemParams NoteRenderContext::buildGemParams(float position, uint gemColumn,
+                                            float imageAspect,
+                                            Gem gemType, bool starPower,
+                                            float userScale) const
+{
+    bool isBar = isBarNote(gemColumn, activePart);
+    float sizeScale = isBar ? BAR_SIZE : GEM_SIZE;
+
+    // Foreshorten
+    float foreshorten = 1.0f;
+    if (depthForeshorten > 0.0f && !PositionMath::bemaniMode)
+    {
+        float adjustedPos = isBar ? position + BAR_NOTE_POS_OFFSET : position;
+#ifdef DEBUG
+        const auto& pp = PositionMath::perspParams(isDrums);
+#else
+        auto pp = getPerspectiveParams(isDrums);
+#endif
+        float depth = std::max(0.0f, adjustedPos) / pp.vanishingPointDepth;
+        float scaleNear = 1.0f + (pp.highwayDepth / pp.playerDistance) * pp.perspectiveStrength;
+        float psCur = scaleNear / (1.0f + depth * (scaleNear - 1.0f));
+        float rawRatio = psCur / scaleNear;
+        foreshorten = 1.0f - (1.0f - rawRatio) * depthForeshorten;
+    }
+
+    // Curvature
+    float noteCurv = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
+    float baseCurv = isBar ? BAR_CURVATURE : noteCurv;
+    float curvature = PositionMath::bemaniMode ? baseCurv * bemaniConfig.curvature : baseCurv;
+
+    // Base scale
+    float baseW, baseH;
+    if (PositionMath::bemaniMode)
+    {
+        baseW = isBar ? bemaniConfig.barW : bemaniConfig.gemW;
+        baseH = isBar ? bemaniConfig.barH : bemaniConfig.gemH;
+    }
+    else
+    {
+        const auto& bs = isBar ? barScale : gemScale;
+        baseW = bs.width;
+        baseH = bs.height;
+    }
+
+    // Per-note-type scale
+    float typeScale = 1.0f;
+    if (!isBar)
+    {
+        if (!isDrums)
+        {
+            switch (gemType) {
+            case Gem::NOTE:        typeScale = gemTypeScales.normal; break;
+            case Gem::HOPO_GHOST:  typeScale = gemTypeScales.hopo; break;
+            case Gem::TAP_ACCENT:  typeScale = gemTypeScales.gTap; break;
+            default: break;
+            }
+        }
+        else
+        {
+            switch (gemType) {
+            case Gem::NOTE:        typeScale = gemTypeScales.normal; break;
+            case Gem::HOPO_GHOST:  typeScale = gemTypeScales.dGhost; break;
+            case Gem::TAP_ACCENT:  typeScale = gemTypeScales.dAccent; break;
+            case Gem::CYM:         typeScale = gemTypeScales.cymbal; break;
+            case Gem::CYM_GHOST:   typeScale = gemTypeScales.cGhost; break;
+            case Gem::CYM_ACCENT:  typeScale = gemTypeScales.cAccent; break;
+            default: break;
+            }
+        }
+
+        // Star power multiplier
+        if (starPower && std::abs(gemTypeScales.spGem - 1.0f) > 0.001f)
+            typeScale *= gemTypeScales.spGem;
+    }
+
+    float wScale = baseW * typeScale;
+    float hScale = baseH * typeScale;
+
+    // Per-column adjustments + Z offset + strikeline width (perspective only)
+    float rawZOff = 0.0f;
+    float strikeWidth = 1.0f;
+    NormalizedCoordinates laneCoords{};
+    int bemaniLaneIdx = -1;
+
+    if (!PositionMath::bemaniMode)
+    {
+        rawZOff = isBar ? barZOffset : gemZOffset;
+
+        if (!isBar)
+        {
+            float colSNear = 1.0f, colSFar = 1.0f, colW = 1.0f, colH = 1.0f;
+            if (!isDrums && gemColumn < GUITAR_LANE_COUNT && guitarColAdjust) {
+                const auto& ca = guitarColAdjust[gemColumn];
+                colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
+            } else if (isDrums && drumColAdjust) {
+                uint drumIdx = drumColumnIndex(gemColumn);
+                const auto& ca = drumColAdjust[drumIdx];
+                colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
+                rawZOff += ca.z;
+            }
+
+#ifdef DEBUG
+            float vpDepth = PositionMath::perspParams(isDrums).vanishingPointDepth;
+#else
+            float vpDepth = getPerspectiveParams(isDrums).vanishingPointDepth;
+#endif
+            float t = juce::jlimit(0.0f, 1.0f, position / vpDepth);
+            float colScale = colSNear + (colSFar - colSNear) * t;
+            wScale *= colScale * colW;
+            hScale *= colScale * colH;
+        }
+
+        // Strike width for perspective Z scaling
+        if (isBar)
+        {
+            auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f,
+                viewportW, viewportH, HIGHWAY_POS_START, posEnd);
+            strikeWidth = (fbStrike.rightX - fbStrike.leftX) * BAR_FRETBOARD_FIT * BAR_SIZE;
+        }
+        else if (laneCoordsGuitar && laneCoordsDrums)
+        {
+            const auto& colCoordsRef = isGuitarLike(activePart)
+                ? laneCoordsGuitar[(gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1]
+                : laneCoordsDrums[drumColumnIndex(gemColumn)];
+            auto strikeEdge = PositionMath::getColumnPosition(isDrums, 0.0f,
+                viewportW, viewportH, HIGHWAY_POS_START, posEnd,
+                colCoordsRef, GEM_SIZE, FRETBOARD_SCALE);
+            strikeWidth = strikeEdge.rightX - strikeEdge.leftX;
+        }
+    }
+
+    // Lane coords
+    if (!isBar)
+    {
+        if (!isDrums && laneCoordsGuitar) {
+            int idx = (gemColumn < GUITAR_LANE_COUNT) ? (int)gemColumn : 1;
+            laneCoords = laneCoordsGuitar[idx];
+            bemaniLaneIdx = idx - 1;
+        } else if (isDrums && laneCoordsDrums) {
+            uint drumIdx = drumColumnIndex(gemColumn);
+            laneCoords = laneCoordsDrums[drumIdx];
+            bemaniLaneIdx = (int)drumIdx - 1;
+        }
+    }
+
+    // Bemani nudge
+    float bemaniNudgeY = 0.0f;
+    if (PositionMath::bemaniMode)
+    {
+        float nudge = isBar ? bemaniConfig.barNudge : bemaniConfig.gemNudge(isDrums);
+        float pixelsPerUnit = REFERENCE_HEIGHT * bemaniConfig.strikelinePos
+                            / std::max(0.1f, PositionMath::bemaniHwyScale);
+        bemaniNudgeY = pixelsPerUnit * nudge;
+    }
+
+    GemParams gp;
+    gp.position = position;
+    gp.gemColumn = (int)gemColumn;
+    gp.isBar = isBar;
+    gp.isDrums = isDrums;
+    gp.viewportW = viewportW;
+    gp.viewportH = viewportH;
+    gp.posEnd = posEnd;
+    gp.imageAspect = imageAspect;
+    gp.sizeScale = sizeScale;
+    gp.userScale = userScale;
+    gp.wScale = wScale;
+    gp.hScale = hScale;
+    gp.foreshorten = foreshorten;
+    gp.rawZOffset = rawZOff;
+    gp.strikeWidth = strikeWidth;
+    gp.curvature = curvature;
+    gp.laneCoords = laneCoords;
+    gp.bemaniLaneIdx = bemaniLaneIdx;
+    gp.bemaniNudgeY = bemaniNudgeY;
+    gp.hasOverlay = false;
+    gp.overlayAdj = {};
+    return gp;
+}
+
+// =============================================================================
+// Ghost cursor / selection overlay
+// =============================================================================
+
 NoteRect computeRect(float position, int lane, Part activePart,
                      int renderW, int renderH, float posEnd, int topOverflow,
                      bool stretchToFill, int componentW, int componentH,

@@ -32,6 +32,7 @@ public:
     void populate(DrawCallMap& drawCallMap, const TimeBasedSustainWindow& sustainWindow,
                   double windowStartTime, double windowEndTime,
                   uint width, uint height, bool showLanes, bool showSustains,
+                  bool isPlaying,
                   float posEnd,
                   float farFadeEnd, float farFadeLen, float farFadeCurve,
                   const PositionConstants::NormalizedCoordinates* laneCoordsGuitar,
@@ -49,6 +50,7 @@ private:
     const PositionConstants::NormalizedCoordinates* laneCoordsGuitar = nullptr;
     const PositionConstants::NormalizedCoordinates* laneCoordsDrums = nullptr;
     bool showLanes = true, showSustains = true;
+    bool isPlaying = false;
 
     void drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime);
 };
