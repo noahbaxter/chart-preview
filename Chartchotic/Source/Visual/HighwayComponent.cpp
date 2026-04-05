@@ -603,7 +603,7 @@ std::vector<float> HighwayComponent::findNotePositionsInRange(float fromPos, flo
 
 void HighwayComponent::paintSustainDragPreview(juce::Graphics& g)
 {
-    if (writeMode && drag.active && drag.isLeftButton && drag.startResult.valid && hoverValid && !frameData.isPlaying)
+    if (writeMode && drag.active && drag.isLeftButton && !drag.isPaintDrag && drag.startResult.valid && hoverValid && !frameData.isPlaying)
     {
         int dragLane = hoverResult.valid ? hoverResult.laneIndex : drag.startResult.laneIndex;
         float startPos = snapToNearestGridlineOrNote(drag.startResult.normalizedPosition, dragLane);
@@ -700,7 +700,7 @@ void HighwayComponent::paintSustainDragPreview(juce::Graphics& g)
 
 void HighwayComponent::paintDragGemHead(juce::Graphics& g)
 {
-    if (!(writeMode && drag.active && drag.isLeftButton && drag.startResult.valid && hoverValid && !frameData.isPlaying))
+    if (!(writeMode && drag.active && drag.isLeftButton && !drag.isPaintDrag && drag.startResult.valid && hoverValid && !frameData.isPlaying))
         return;
 
     int dragLane = hoverResult.valid ? hoverResult.laneIndex : drag.startResult.laneIndex;
@@ -1029,14 +1029,23 @@ void HighwayComponent::mouseUp(const juce::MouseEvent& event)
 
     if (drag.active)
     {
-        // Drag complete — resolve end position
-        auto endHit = performHitTest(event.position);
-        if (drag.isLeftButton && drag.startResult.valid && endHit.valid && onDragComplete)
+        // Sustain drag complete (left drag without shift) — fire onDragComplete
+        if (drag.isLeftButton && !drag.isPaintDrag)
         {
-            onDragComplete(drag.startResult.timeFromCursor, drag.startResult.laneIndex,
-                           endHit.timeFromCursor, endHit.laneIndex);
+            auto endHit = performHitTest(event.position);
+            if (drag.startResult.valid && endHit.valid && onDragComplete)
+            {
+                onDragComplete(drag.startResult.timeFromCursor, drag.startResult.laneIndex,
+                               endHit.timeFromCursor, endHit.laneIndex);
+            }
+        }
+        // Paint drag and right-drag erase: signal end for undo batching
+        if (drag.isPaintDrag || !drag.isLeftButton)
+        {
+            if (onContinuousDragEnd) onContinuousDragEnd();
         }
         drag.active = false;
+        drag.isPaintDrag = false;
         repaint();
         return;
     }
@@ -1086,7 +1095,11 @@ void HighwayComponent::mouseDrag(const juce::MouseEvent& event)
     {
         float dist = event.position.getDistanceFrom(drag.mouseDownScreenPos);
         if (dist >= DragState::distanceThreshold)
+        {
             drag.active = true;
+            drag.isPaintDrag = drag.isLeftButton && event.mods.isShiftDown();
+            drag.lastPaintPos = -1.0f;
+        }
         else
             return;
     }
@@ -1095,6 +1108,31 @@ void HighwayComponent::mouseDrag(const juce::MouseEvent& event)
     auto hit = performHitTest(event.position);
     hoverResult = hit;
     hoverValid = hit.valid;
+
+    // Shift+left drag: paint notes at grid positions
+    if (drag.isPaintDrag && hit.valid && hit.laneIndex >= 0)
+    {
+        float snappedPos = snapToNearestGridlineOrNote(hit.normalizedPosition, hit.laneIndex);
+        if (std::abs(snappedPos - drag.lastPaintPos) > 0.001f)
+        {
+            drag.lastPaintPos = snappedPos;
+            double snappedTime = normalizedToTime(snappedPos);
+            if (onPaintDragTick)
+                onPaintDragTick(snappedTime, hit.laneIndex);
+        }
+    }
+
+    // Right drag: erase note heads or shorten sustain bodies
+    if (!drag.isLeftButton && hit.valid && hit.laneIndex >= 0 && onEraseDragTick)
+    {
+        double hitTime; int hitLane;
+        double sustainStart;
+        if (findNoteAtPosition(hit.normalizedPosition, hit.laneIndex, hitTime, hitLane))
+            onEraseDragTick(hitTime, hitLane);
+        else if (findSustainAtPosition(hit.normalizedPosition, hit.laneIndex, sustainStart))
+            onEraseDragTick(sustainStart, hit.laneIndex);
+    }
+
     repaint();
 }
 

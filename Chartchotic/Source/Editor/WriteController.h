@@ -64,6 +64,7 @@ private:
     int stepDivision = 4;      // 1/N note (1,2,4,8,16,32,64)
     int tuplet = 0;            // 0=normal, 3=triplet, 5=quintuplet, 7=septuplet
     bool snapEnabled = true;
+    bool batchOpen = false;
 
     void wireCallbacks();
     void clearCallbacks();

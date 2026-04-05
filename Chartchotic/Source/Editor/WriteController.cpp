@@ -146,6 +146,65 @@ void WriteController::wireCallbacks()
             shortenSustain(sustainStartTime, lane);
     };
 
+    // Shift+left drag: DRAW = paint notes at grid positions
+    highway->onPaintDragTick = [this](double timeFromCursor, int lane) {
+        if (mode != InteractionMode::DRAW || lane < 0) return;
+        int pitch = pitchForLane(lane);
+        if (pitch < 0) return;
+
+        double ppq;
+        if (findNoteIndex(timeFromCursor, pitch, ppq) >= 0) return;
+
+        auto* w = processor->reaperMidiProvider.getWriter();
+        if (!w) return;
+        if (!batchOpen) { w->beginBatch("Chartchotic: Paint notes"); batchOpen = true; }
+        double p = timeFromCursorToPPQ(timeFromCursor);
+        if (p < 0.0) p = 0.0;
+        p = snapToGrid(p);
+        w->batchInsertNote(getTrackIndex(), p, p + SHORT_NOTE_PPQ, 0, pitch, DEFAULT_VELOCITY);
+    };
+
+    // Right drag: DRAW = erase note heads or shorten sustain bodies
+    highway->onEraseDragTick = [this](double timeFromCursor, int lane) {
+        if (mode != InteractionMode::DRAW) return;
+        int pitch = pitchForLane(lane);
+        if (pitch < 0) return;
+
+        int trackIdx = getTrackIndex();
+        auto allNotes = processor->reaperMidiProvider.getAllNotesFromTrack(trackIdx);
+        double ppq = timeFromCursorToPPQ(timeFromCursor);
+        if (ppq < 0.0) ppq = 0.0;
+
+        int matchIdx = -1;
+        for (int i = 0; i < (int)allNotes.size(); i++)
+        {
+            if (allNotes[i].pitch == pitch &&
+                std::abs(allNotes[i].startPPQ - ppq) < PPQ_TOLERANCE)
+            { matchIdx = i; break; }
+        }
+        if (matchIdx < 0) return;
+
+        auto* w = processor->reaperMidiProvider.getWriter();
+        if (!w) return;
+        if (!batchOpen) { w->beginBatch("Chartchotic: Erase notes"); batchOpen = true; }
+
+        // Sustain → shorten; short note → delete
+        bool hasSustain = (allNotes[matchIdx].endPPQ - allNotes[matchIdx].startPPQ) > SHORT_NOTE_PPQ + 0.01;
+        if (hasSustain)
+            w->batchMoveNote(trackIdx, matchIdx, allNotes[matchIdx].startPPQ,
+                             allNotes[matchIdx].startPPQ + SHORT_NOTE_PPQ, pitch);
+        else
+            w->batchDeleteNote(trackIdx, matchIdx);
+    };
+
+    // End batch on continuous drag release
+    highway->onContinuousDragEnd = [this]() {
+        if (!batchOpen) return;
+        auto* w = processor->reaperMidiProvider.getWriter();
+        if (w) w->endBatch();
+        batchOpen = false;
+    };
+
     // Double click: EDIT = place/erase toggle
     highway->onDoubleClick = [this](double timeFromCursor, int lane, bool noteExists) {
         if (mode == InteractionMode::EDIT)
@@ -310,6 +369,9 @@ void WriteController::clearCallbacks()
     highway->onDoubleClick = nullptr;
     highway->onDragComplete = nullptr;
     highway->onSustainRightClick = nullptr;
+    highway->onPaintDragTick = nullptr;
+    highway->onEraseDragTick = nullptr;
+    highway->onContinuousDragEnd = nullptr;
     highway->onKeyAction = nullptr;
 }
 
@@ -407,7 +469,11 @@ void WriteController::shortenSustain(double sustainStartTime, int lane)
 
     double ppq;
     int matchIdx = findNoteIndex(sustainStartTime, pitch, ppq);
-    if (matchIdx >= 0)
+    if (matchIdx < 0) return;
+
+    if (batchOpen)
+        w->batchMoveNote(getTrackIndex(), matchIdx, ppq, ppq + SHORT_NOTE_PPQ, pitch);
+    else
         w->moveNote(getTrackIndex(), matchIdx, ppq, ppq + SHORT_NOTE_PPQ, pitch);
 }
 

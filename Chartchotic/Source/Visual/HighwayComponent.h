@@ -125,6 +125,9 @@ public:
     std::function<void(double timeFromCursor, int lane, bool noteExists)> onDoubleClick;
     std::function<void(double startTime, int startLane, double endTime, int endLane)> onDragComplete;
     std::function<void(double sustainStartTime, int lane)> onSustainRightClick;
+    std::function<void(double timeFromCursor, int lane)> onPaintDragTick;
+    std::function<void(double timeFromCursor, int lane)> onEraseDragTick;
+    std::function<void()> onContinuousDragEnd;
     std::function<void(int action)> onKeyAction;
 
     // Selection — set externally by PluginEditor each frame (PPQ-based, scroll-stable)
@@ -169,8 +172,10 @@ private:
     struct DragState {
         bool active = false;
         bool isLeftButton = false;
+        bool isPaintDrag = false;      // shift+left drag (place notes at grid positions)
         HitTestResult startResult;
         juce::Point<float> mouseDownScreenPos;
+        float lastPaintPos = -1.0f;    // last snapped position where a note was placed (paint drag)
         static constexpr float distanceThreshold = 3.0f;
     };
     DragState drag;
