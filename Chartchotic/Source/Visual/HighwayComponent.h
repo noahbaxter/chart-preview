@@ -114,6 +114,7 @@ public:
     void mouseDoubleClick(const juce::MouseEvent& event) override;
     void mouseMove(const juce::MouseEvent& event) override;
     void mouseExit(const juce::MouseEvent& event) override;
+    void modifierKeysChanged(const juce::ModifierKeys& mods) override;
     bool keyPressed(const juce::KeyPress& key) override;
 
     // Key actions for WriteController
@@ -167,6 +168,7 @@ private:
     HitTestResult hoverResult;
     bool hoverValid = false;
     bool hoverOnExistingNote = false;
+    juce::ModifierKeys hoverModifiers;
 
     // Drag state
     struct DragState {

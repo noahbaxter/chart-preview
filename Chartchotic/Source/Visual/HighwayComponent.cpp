@@ -731,8 +731,13 @@ void HighwayComponent::paintDragGemHead(juce::Graphics& g)
 
 void HighwayComponent::paintHoverCursor(juce::Graphics& g)
 {
-    if (!(writeMode && hoverValid && !drag.active && !frameData.isPlaying))
+    bool isEraseDrag = writeMode && hoverValid && drag.active && !drag.isLeftButton && !frameData.isPlaying;
+    bool isHover = writeMode && hoverValid && !drag.active && !frameData.isPlaying;
+
+    if (!isHover && !isEraseDrag)
         return;
+
+    bool isPaintMode = isHover && hoverModifiers.isShiftDown();
 
     float rawPos = hoverResult.normalizedPosition;
     float snappedPos = (writeHints.drawMode && writeHints.snapEnabled)
@@ -741,7 +746,43 @@ void HighwayComponent::paintHoverCursor(juce::Graphics& g)
     auto ov = computeNoteOverlay(snappedPos, hoverResult.laneIndex);
     auto ghostPath = buildCurvedNotePath(ov);
 
-    if (hoverOnExistingNote)
+    // Shift held: draw stacked ghost copies offset behind the main note
+    if (isPaintMode)
+    {
+        float noteW = ov.screenRightX - ov.screenLeftX;
+        float noteH = ov.screenH;
+        constexpr float offsets[] = { 0.18f, 0.33f };
+        constexpr float alphas[] = { 0.12f, 0.06f };
+        for (int i = 1; i >= 0; i--)
+        {
+            float dx = noteW * offsets[i];
+            float dy = noteH * offsets[i];
+            juce::Path offsetPath = ghostPath;
+            offsetPath.applyTransform(juce::AffineTransform::translation(dx, dy));
+            g.setColour(juce::Colours::white.withAlpha(alphas[i]));
+            g.fillPath(offsetPath);
+            g.setColour(juce::Colours::white.withAlpha(alphas[i] * 2.5f));
+            g.strokePath(offsetPath, juce::PathStrokeType(1.0f));
+        }
+    }
+
+    // Draw the main ghost note
+    if (isEraseDrag)
+    {
+        g.setColour(juce::Colour(0x30ff4444));
+        g.fillPath(ghostPath);
+        g.setColour(juce::Colour(0xccff6666));
+        g.strokePath(ghostPath, juce::PathStrokeType(2.0f));
+
+        // Draw X mark centered on the ghost note
+        float xSize = (ov.screenRightX - ov.screenLeftX) * 0.3f;
+        float cx = (ov.screenLeftX + ov.screenRightX) * 0.5f;
+        float cy = ov.screenCenterY;
+        g.setColour(juce::Colour(0xccff6666));
+        g.drawLine(cx - xSize, cy - xSize, cx + xSize, cy + xSize, 2.0f);
+        g.drawLine(cx - xSize, cy + xSize, cx + xSize, cy - xSize, 2.0f);
+    }
+    else if (hoverOnExistingNote)
     {
         g.setColour(juce::Colour(0x30ff4444));
         g.fillPath(ghostPath);
@@ -776,6 +817,13 @@ void HighwayComponent::paintHoverCursor(juce::Graphics& g)
     float lineNudge = lineOv.screenH * GUIDE_LINE_Y_NUDGE;
     float lineY = lineOv.screenCenterY + lineNudge;
 
+    auto glowColour = isEraseDrag
+        ? juce::Colour(0xccff6666).withAlpha(GUIDE_LINE_GLOW_ALPHA)
+        : juce::Colours::white.withAlpha(GUIDE_LINE_GLOW_ALPHA);
+    auto coreColour = isEraseDrag
+        ? juce::Colour(0xccff6666).withAlpha(GUIDE_LINE_CORE_ALPHA)
+        : juce::Colours::white.withAlpha(GUIDE_LINE_CORE_ALPHA);
+
     if (std::abs(lineOv.curvature) > 0.001f)
     {
         float fbWidthPx = (fbEdge.rightX - fbEdge.leftX) * FRETBOARD_SCALE;
@@ -797,16 +845,16 @@ void HighwayComponent::paintHoverCursor(juce::Graphics& g)
         linePath.quadraticTo(fbScreenMid, lineY + yOff[1],
                              fbScreenRight, lineY + yOff[2]);
 
-        g.setColour(juce::Colours::white.withAlpha(GUIDE_LINE_GLOW_ALPHA));
+        g.setColour(glowColour);
         g.strokePath(linePath, juce::PathStrokeType(GUIDE_LINE_GLOW_WIDTH));
-        g.setColour(juce::Colours::white.withAlpha(GUIDE_LINE_CORE_ALPHA));
+        g.setColour(coreColour);
         g.strokePath(linePath, juce::PathStrokeType(GUIDE_LINE_CORE_WIDTH));
     }
     else
     {
-        g.setColour(juce::Colours::white.withAlpha(GUIDE_LINE_GLOW_ALPHA));
+        g.setColour(glowColour);
         g.drawLine(fbScreenLeft, lineY, fbScreenRight, lineY, GUIDE_LINE_GLOW_WIDTH);
-        g.setColour(juce::Colours::white.withAlpha(GUIDE_LINE_CORE_ALPHA));
+        g.setColour(coreColour);
         g.drawLine(fbScreenLeft, lineY, fbScreenRight, lineY, GUIDE_LINE_CORE_WIDTH);
     }
 }
@@ -981,6 +1029,7 @@ void HighwayComponent::mouseMove(const juce::MouseEvent& event)
 
     hoverResult = performHitTest(event.position);
     hoverValid = hoverResult.valid && hoverResult.laneIndex >= 0;
+    hoverModifiers = event.mods;
 
     // Check if hovering over an existing note
     hoverOnExistingNote = false;
@@ -1006,6 +1055,13 @@ void HighwayComponent::mouseExit(const juce::MouseEvent&)
         hoverOnExistingNote = false;
         repaint();
     }
+}
+
+void HighwayComponent::modifierKeysChanged(const juce::ModifierKeys& mods)
+{
+    if (!writeMode || !hoverValid) return;
+    hoverModifiers = mods;
+    repaint();
 }
 
 void HighwayComponent::mouseDown(const juce::MouseEvent& event)
