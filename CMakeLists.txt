@@ -249,7 +249,7 @@ juce_add_binary_data(ChartchoticData
         # Default highway textures
         assets/static/highways/kanaizo_amber.png
         assets/static/highways/kanaizo_darkwood.png
-        assets/static/highways/kanaizo_gothic.png
+        assets/static/highways/gothic_default.png
         assets/static/highways/kanaizo_ornate.png
         assets/static/highways/kanaizo_BlueCaustic.png
         assets/static/highways/kanaizo_FretWood.png

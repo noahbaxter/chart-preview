@@ -901,8 +901,8 @@ void ChartchoticAudioProcessorEditor::loadState()
     }
 
     // Default to gothic if no saved preference (first launch only)
-    if (!state.hasProperty("highwayTexture") && assets.getHighwayTextureNames().contains("kanaizo_gothic"))
-        state.setProperty("highwayTexture", "kanaizo_gothic", nullptr);
+    if (!state.hasProperty("highwayTexture") && assets.getHighwayTextureNames().contains("gothic_default"))
+        state.setProperty("highwayTexture", "gothic_default", nullptr);
 
     toolbar.loadState();
 
