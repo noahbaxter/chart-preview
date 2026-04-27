@@ -718,6 +718,8 @@ Open/kick authoring needs to be fast inside the same interaction model as normal
 
 ### Note-type authoring model
 
+**Scope decision (locked):** all note-type variants listed below ship in V1. This includes the full drum hit/kick/cymbal-tom matrix and the full guitar open/tap/force-HOPO/force-strum set. Cutting any of these from V1 would force users back into the piano roll for common authoring tasks.
+
 V1 should explicitly support note-type selection instead of assuming every placed note is "plain."
 
 Recommended model:
@@ -866,10 +868,11 @@ If later testing proves this feels too restrictive, partial dropping can be reco
 
 ### Project map
 
-Add a future navigation strip to the plan:
+**Scope decision (locked):** deferred. Tier 3 / post-1.3.0. Not part of any V1 milestone. Listed here only to make sure the eventual implementation has a remembered destination.
+
+Future navigation strip:
 
 - purpose: scroll/navigation overview of the whole song
-- not required for first authoring implementation
 - initial version should stay visually clean
 - likely content:
   - current viewport marker
@@ -979,6 +982,7 @@ Manual validation is still required for:
 
 - what should copy/paste align to when it lands later: cursor, viewport center, or original absolute timing?
 - do we need direct chord-authoring beyond normal selection/copy workflows, or is that future-only?
+- **right-of-highway bulk select** (currently in spec as "drag in a dedicated region to the right of the highway = select all visible") — keep in V1 as a quick affordance, or punt until proper `Cmd+A` scope is settled? Adds UX surface area (a special click zone with implicit semantics). Strong instinct says punt; codex review should weigh in.
 
 ---
 
