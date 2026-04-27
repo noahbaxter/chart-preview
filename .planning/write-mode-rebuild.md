@@ -372,6 +372,115 @@ These were never built on the old branch. Greenfield.
 
 ---
 
+## Cross-cutting concerns
+
+Decisions that span phases and need to be settled once.
+
+### Threading model
+
+REAPER's MIDI write API (`MIDI_InsertNote`, `MIDI_DeleteNote`, `Undo_BeginBlock2/EndBlock2`) is **main-thread only**. Plugin GUI callbacks run on the message thread, which on macOS/Windows is the main thread when the plugin window is active — but **not guaranteed**. JUCE's `MessageManager::callAsync` posts onto the main thread.
+
+- **All `MidiWriter` calls from `WriteController` must be on the main thread.** Verify with `JUCE_ASSERT_MESSAGE_THREAD` in `ReaperMidiWriter` entry points (mirroring the assertions in `ReaperMidiProvider.cpp`).
+- **Audio thread never writes.** No place in this design crosses into audio-thread code paths.
+- **Hover/drag rendering is on GUI thread already.** Repaints triggered by `mouseMove` / `mouseDrag` are fine.
+- **Existing `da1d115` precedent**: REAPER read APIs were moved off audio thread in v1.2.3. Same discipline here for writes.
+
+### State persistence (ValueTree)
+
+The plugin already uses `juce::ValueTree state` for persisted properties. Write mode adds:
+
+| Property | Persist | Why |
+|---|---|---|
+| `writeMode` (bool) | NO | Transient — every session starts in non-write mode by default |
+| `writeSubMode` (Draw/Edit) | YES | Remembered across sessions; user-preference-like |
+| `stepDivision` (int) | YES | User's working grid setting |
+| `tuplet` (int) | YES | Same |
+| `snapEnabled` (bool) | YES | Same |
+| `selection` (set) | NO | Transient; cleared on plugin re-init |
+
+`WriteController::init()` reads ValueTree on startup; `set*()` calls write back. Selection lives in `WriteController` only, not state.
+
+### Multi-highway / multi-instance
+
+Chartchotic supports up to 4 highway slots in one plugin instance, plus multiple plugin instances per project.
+
+- **Write mode is global to the plugin instance, not per slot.** One `WriteController` per instance.
+- **Active write target is the slot the user clicks in.** `HighwayComponent::mouseDown` resolves which slot owns the click; `WriteController` writes to that slot's MIDI track.
+- **Track index passed to `MidiWriter` per call** (`writer.insertNote(trackIndex, ...)`). The track index comes from the slot's `InstrumentSession`.
+- **Multiple plugin instances**: each has its own `WriteController`. They don't coordinate. If two instances are in write mode and you click in instance A's window, only instance A reacts. (Standard JUCE focus behavior.)
+- **Cross-slot selection isn't supported.** Selection is scoped to the active write-target slot.
+
+### Per-instrument lane → pitch mapping
+
+`HitTestMapper` returns `(time, lane)`. Lane → MIDI pitch is instrument-specific:
+
+- **Guitar / Bass / Coop / Rhythm**: lane 0-4 = green/red/yellow/blue/orange = pitches per `Part::*` constants for current difficulty
+- **Drums (4-lane)**: lane 0=kick, 1-4 = red/yellow/blue/green
+- **Drums (5-lane)**: lane 0=kick, 1-5 = red/yellow/blue/orange/green
+- **Cymbals**: cymbal pitch class lives at the same lane as its tom counterpart but with velocity ≥110 (per `TrackResolver` cymbal detection). Write mode toggles cymbal-vs-tom by **velocity** of the placed note.
+- **Difficulty filter**: writes go to the **currently selected difficulty** for the active part. Switching difficulty after placing a note doesn't move the note (correctly).
+
+`WriteController::pitchForLane(int lane)` already exists in `7aa736a`'s structure; need to confirm it covers all parts and difficulties.
+
+### New note default properties
+
+When `WriteController::placeNote(time, lane)` runs, the new MIDI note gets:
+
+- **Velocity**: 100 (standard). Cymbals get 110+ to be detected as cymbal per `TrackResolver`.
+- **Channel**: 0
+- **HOPO/tap modifier**: not applied automatically. Auto-HOPO threshold detection runs on read (TrackResolver), not on write — so a placed note becomes a HOPO automatically if it's close enough to the previous note.
+- **Forced HOPO/strum**: not set. Future keybind could toggle (out of scope for 1.3.0).
+- **No cymbal flag for newly placed drum notes** unless the user is on a cymbal lane (yellow/blue/green in pro drums) — in which case velocity 110 on tom pitch.
+
+### Other-mode interactions
+
+- **Bemani mode**: write mode operations work the same. `HitTestMapper` already handles the bemani projection (passes `bemaniMode` flag to `PositionMath`). Visual feedback (ghost cursor, drag preview) renders flat in bemani.
+- **Disco flip regions**: write mode places notes by lane. If the note lands inside an active disco-flip region, the rendered position will be flipped per `DiscoFlipState`, but the underlying MIDI is **not** flipped — `TrackResolver` does the swap on read. No special handling needed in write.
+- **Star Power regions**: same — SP is a separate MIDI track range read by `TrackResolver`. Write mode doesn't touch SP unless you explicitly add SP-region editing later.
+- **Lane events**: write mode places **notes**, not lane events. Lane editing (drum fills, BREs) is greenfield, not in this plan.
+
+### Performance
+
+- **`mouseMove` triggers repaint**: ghost cursor moves with the cursor. Cost: one `paintOverChildren` per move. Already optimized at 60Hz in JUCE; no extra work needed.
+- **Drag preview repaint**: same. Don't trigger a full `populate` — drag preview reuses cached frame data.
+- **Curved image cache**: write mode reads the same cache `NoteRenderer` already uses. No new cache.
+- **Selection rendering**: per-note highlight in `paintOverChildren`; cost is O(selected count), bounded.
+
+### Cancellation semantics
+
+- **Esc during drag**: cancels the drag, no write. Undo block is **not** opened until commit.
+- **Focus loss during drag**: same — drag cancels, no write.
+- **Esc during paint stroke / erase sweep**: cancels the gesture cleanly, undo block is closed if opened, partial work IS committed (REAPER undo will roll it back as one entry).
+- **Plugin re-attach mid-drag**: existing JUCE component teardown cancels mouse capture; drag state in `WriteController` resets via `clearCallbacks()`.
+
+### Test infrastructure
+
+Existing unit test framework: **Catch2** at `tests/unit/`. Tests build via `tests/unit/CMakeLists.txt`. Pure-function tests only — no JUCE GUI or REAPER API in tests.
+
+Tests in scope for write mode:
+- `test_write_controller.cpp` — state machine, step bounds, snap math, selection set ops
+- `test_hit_test_mapper.cpp` — pixel↔music round-trip, edge cases (out-of-bounds, below-strikeline)
+- `test_marquee_geometry.cpp` (Phase 4) — perspective trapezoid math, point-in-polygon
+
+`MidiWriter` operations can't be unit-tested without a REAPER stub. Validate via integration / manual.
+
+### Shipping strategy
+
+- Each phase ships as an incremental dev-channel build (`dev-latest` prerelease) on `dev` branch
+- `wip/authoring` → merge into `dev` after each phase passes manual validation
+- Tag/release `1.3.0-alpha` after Phase 1, `1.3.0-beta` after Phase 2+5, `1.3.0` after Phases 1-5 ship-quality
+- Phase 6 features ship as `1.3.x` patches or `1.4.0`
+- **No painter classes are ever resurrected** — if a future phase wants painter-style separation, do it as a separate refactor PR after write mode stabilizes
+
+### Open question resolutions (taken from `WRITE_MODE.md`)
+
+- **Snap-off resolution**: lock at **1/128** for 1.3.0. Revisit if community feedback suggests otherwise.
+- **STEP gridline asset**: needs its own image (lower opacity than HALF_BEAT). Alias would visually under-distinguish step from half-beat. Add as `step.png` in assets.
+- **Cmd+A scope**: limit to "all visible in the current window" for 1.3.0. Track-wide select all is greenfield future work.
+- **2x kick key (`K`)**: defer to Phase 6. Placeholder in spec only — final binding TBD.
+
+---
+
 ## Decision log
 
 Captures decisions already made so future work doesn't relitigate:
@@ -386,6 +495,15 @@ Captures decisions already made so future work doesn't relitigate:
 | `HitTestMapper` as standalone util | Pure pixel→music conversion, no DAW-specific logic. Reusable for future features (e.g., note-info tooltips). |
 | Drag preview renders in `HighwayComponent::paintOverChildren` | Already has the right transform context. Don't introduce a new rendering layer. |
 | `SustainRenderer` exposes single-sustain entry point | For drag preview tail. Replaces LanePainter from old branch. |
+| `writeMode` is transient (not persisted), `subMode/step/snap/tuplet` are persisted in ValueTree | Mode should not auto-engage on session restart; user preferences should. |
+| All `MidiWriter` calls main-thread only with `JUCE_ASSERT_MESSAGE_THREAD` | REAPER write APIs are main-thread only; mirrors v1.2.3's `da1d115` discipline for read APIs. |
+| Cymbal-vs-tom distinguished by velocity (≥110 = cymbal) on write | Matches `TrackResolver`'s read-side detection; no separate cymbal flag needed. |
+| HOPO/tap detected on read, not stamped on write | Auto-HOPO threshold runs in `TrackResolver`. Placing a note close to another auto-promotes it. |
+| Bemani mode supported in write mode | `HitTestMapper` and `PositionMath` already handle bemani projection. No mode-specific write logic needed. |
+| Selection scoped to active write-target slot | Cross-slot selection adds complexity without clear use case. Defer indefinitely. |
+| `Cmd+A` scope: visible-window only for 1.3.0 | Track-wide select-all is bigger scope; defer. |
+| Snap-off resolution: 1/128 | Reasonable default; revisit on community feedback. |
+| Esc / focus-loss cancels in-progress drag without write | Standard pattern; undo block isn't opened until commit, so no cleanup needed for cancel. |
 
 ---
 
