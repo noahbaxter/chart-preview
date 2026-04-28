@@ -48,6 +48,25 @@ void AssetManager::initAssets()
     markerHalfBeatImage = juce::ImageCache::getFromMemory(BinaryData::marker_half_beat_png, BinaryData::marker_half_beat_pngSize);
     markerMeasureImage = juce::ImageCache::getFromMemory(BinaryData::marker_measure_png, BinaryData::marker_measure_pngSize);
 
+    // STEP marker — programmatic placeholder (no dedicated PNG asset yet).
+    // Match the half-beat marker's footprint so the perspective scaling logic in
+    // GridlineRenderer treats it consistently. Filled with solid white; the
+    // renderer applies the per-type opacity (STEP is the lowest at 0.25).
+    if (markerHalfBeatImage.isValid())
+    {
+        int sw = markerHalfBeatImage.getWidth();
+        int sh = std::max(1, markerHalfBeatImage.getHeight());
+        markerStepImage = juce::Image(juce::Image::ARGB, sw, sh, true);
+        juce::Graphics gs(markerStepImage);
+        gs.fillAll(juce::Colours::white);
+    }
+    else
+    {
+        markerStepImage = juce::Image(juce::Image::ARGB, 256, 2, true);
+        juce::Graphics gs(markerStepImage);
+        gs.fillAll(juce::Colours::white);
+    }
+
     noteBlueImage = juce::ImageCache::getFromMemory(BinaryData::note_blue_png, BinaryData::note_blue_pngSize);
     noteGreenImage = juce::ImageCache::getFromMemory(BinaryData::note_green_png, BinaryData::note_green_pngSize);
     noteOrangeImage = juce::ImageCache::getFromMemory(BinaryData::note_orange_png, BinaryData::note_orange_pngSize);
@@ -162,7 +181,7 @@ void AssetManager::initAssets()
         {&openAnimationFrames[6], openAnimationFrames[6]},
         // Gridline markers
         {&markerBeatImage, markerBeatImage}, {&markerHalfBeatImage, markerHalfBeatImage},
-        {&markerMeasureImage, markerMeasureImage},
+        {&markerMeasureImage, markerMeasureImage}, {&markerStepImage, markerStepImage},
     };
 #endif // CHARTCHOTIC_NO_BINARY_DATA
 }
@@ -366,6 +385,7 @@ juce::Image* AssetManager::getGridlineImage(Gridline gridlineType)
     case Gridline::MEASURE: return getMarkerMeasureImage();
     case Gridline::BEAT: return getMarkerBeatImage();
     case Gridline::HALF_BEAT: return getMarkerHalfBeatImage();
+    case Gridline::STEP: return getMarkerStepImage();
     }
 
     return nullptr;

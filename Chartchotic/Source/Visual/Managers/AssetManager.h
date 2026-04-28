@@ -62,6 +62,7 @@ public:
     juce::Image* getMarkerBeatImage() { return &markerBeatImage; }
     juce::Image* getMarkerHalfBeatImage() { return &markerHalfBeatImage; }
     juce::Image* getMarkerMeasureImage() { return &markerMeasureImage; }
+    juce::Image* getMarkerStepImage() { return &markerStepImage; }
 
     // Regular notes
     juce::Image* getNoteBlueImage() { return &noteBlueImage; }
@@ -160,6 +161,7 @@ private:
     juce::Image markerBeatImage;
     juce::Image markerHalfBeatImage;
     juce::Image markerMeasureImage;
+    juce::Image markerStepImage;   // Generated programmatically (write-mode STEP overlay)
 
     // Regular notes
     juce::Image noteBlueImage;

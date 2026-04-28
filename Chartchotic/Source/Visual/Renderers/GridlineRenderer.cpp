@@ -62,10 +62,23 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
             continue;
 
         float baseOpacity = 1.0f;
-        switch (gridlineType) {
-            case Gridline::MEASURE:    baseOpacity = MEASURE_OPACITY;   break;
-            case Gridline::BEAT:       baseOpacity = BEAT_OPACITY;      break;
-            case Gridline::HALF_BEAT:  baseOpacity = HALF_BEAT_OPACITY; break;
+        if (writeMode)
+        {
+            switch (gridlineType) {
+                case Gridline::MEASURE:    baseOpacity = WRITE_MEASURE_OPACITY;   break;
+                case Gridline::BEAT:       baseOpacity = WRITE_BEAT_OPACITY;      break;
+                case Gridline::HALF_BEAT:  baseOpacity = WRITE_HALF_BEAT_OPACITY; break;
+                case Gridline::STEP:       baseOpacity = WRITE_STEP_OPACITY;      break;
+            }
+        }
+        else
+        {
+            switch (gridlineType) {
+                case Gridline::MEASURE:    baseOpacity = MEASURE_OPACITY;   break;
+                case Gridline::BEAT:       baseOpacity = BEAT_OPACITY;      break;
+                case Gridline::HALF_BEAT:  baseOpacity = HALF_BEAT_OPACITY; break;
+                case Gridline::STEP:       baseOpacity = HALF_BEAT_OPACITY; break; // unreachable: not emitted when writeMode off
+            }
         }
         float fadeOpacity = PositionMath::bemaniMode
                           ? 1.0f

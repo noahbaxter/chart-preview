@@ -55,6 +55,9 @@ class SceneRenderer
         bool showLaneSeparators = true;
         bool showStrikeline = true;
 
+        // Forward write-mode flag to gridline renderer (changes opacities + enables STEP)
+        void setWriteMode(bool on) { gridlineRenderer.writeMode = on; }
+
 #ifdef DEBUG
         bool collectPhaseTiming = true;
 #else

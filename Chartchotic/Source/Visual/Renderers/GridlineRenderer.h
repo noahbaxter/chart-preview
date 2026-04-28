@@ -26,6 +26,7 @@ public:
     GridlineRenderer(juce::ValueTree& state, AssetManager& assetManager);
 
     Part activePart = Part::GUITAR;
+    bool writeMode = false;   // When true, use write-mode opacities and paint STEP lines
 
     void populate(DrawCallMap& drawCallMap, const TimeBasedGridlineMap& gridlines,
                   double windowStartTime, double windowEndTime,
