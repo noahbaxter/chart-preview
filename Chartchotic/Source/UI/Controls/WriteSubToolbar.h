@@ -5,8 +5,9 @@
 #include "../../Editor/WriteController.h"
 
 // Read-only display strip that appears below the main toolbar while write
-// mode is active. Shows step division, snap state, and tuplet — all sourced
-// live from WriteController. Pure display: keys ([/]/S/T) are still the only
+// mode is active. Headlined by a prominent DRAW/EDIT pill on the left, with
+// step / snap / tuplet readouts following to the right — all sourced live
+// from WriteController. Pure display: keys (W/Q/[/]/S/T) are still the only
 // way to change these. Clickable controls land in a later milestone.
 class WriteSubToolbar : public juce::Component
 {
@@ -33,6 +34,41 @@ public:
         const int h = getHeight();
         if (h <= 0) return;
 
+        const int margin = juce::jmax(8, h / 2);
+        const int gap    = juce::jmax(8, h / 3);
+
+        // ---- Mode pill (leftmost, prominent) ----
+        // Sub-toolbar is only visible while write mode is on, so this is
+        // always either DRAW or EDIT — never an off state.
+        const bool drawMode = writeController.subMode() == SubMode::Draw;
+        const juce::Colour pillColour = drawMode
+            ? juce::Colour(Theme::green)
+            : juce::Colour(Theme::coral);
+        const juce::String pillLabel = drawMode ? "DRAW" : "EDIT";
+
+        // Bigger / bolder than the slot text — this is the headline.
+        const float pillFontH = juce::jmax(11.0f, (float)h * 0.55f);
+        juce::Font pillFont = Theme::getUIFont(pillFontH).boldened();
+
+        const int pillTextW = pillFont.getStringWidth(pillLabel);
+        const int pillPadX  = juce::jmax(10, h / 2);
+        const int pillW     = pillTextW + pillPadX * 2;
+        const int pillH     = juce::jmax(1, h - juce::jmax(4, h / 5));
+        const int pillY     = (h - pillH) / 2;
+        const int pillX     = margin;
+
+        auto pillBounds = juce::Rectangle<float>(
+            (float)pillX, (float)pillY, (float)pillW, (float)pillH);
+
+        const float pillCorner = juce::jmax(2.0f, (float)pillH * 0.5f);
+        g.setColour(pillColour);
+        g.fillRoundedRectangle(pillBounds, pillCorner);
+
+        g.setColour(juce::Colour(Theme::textWhite));
+        g.setFont(pillFont);
+        g.drawText(pillLabel, pillBounds.toNearestInt(), juce::Justification::centred);
+
+        // ---- Status slots (step / snap / tuplet) ----
         const auto step    = juce::String("1/") + juce::String(writeController.stepDivision());
         const auto snap    = juce::String("Snap: ") + (writeController.snapEnabled() ? "ON" : "OFF");
         const int  tuplet  = writeController.tuplet();
@@ -41,12 +77,6 @@ public:
             : (juce::String("Tuplet: ") + juce::String(tuplet));
 
         g.setFont(Theme::smallFont);
-
-        // Three slots, each a fixed-ish chunk laid out horizontally with a
-        // small left margin. Reading a chart, the user wants to glance at
-        // these; centering the row keeps it balanced regardless of width.
-        const int gap    = juce::jmax(8,  h / 3);
-        const int margin = juce::jmax(8,  h / 2);
 
         struct Slot { const juce::String& text; juce::Colour fg; };
         Slot slots[3] = {
@@ -59,7 +89,7 @@ public:
                          : juce::Colour(Theme::yellow) },
         };
 
-        // Measure each slot's natural width.
+        // Measure each slot's natural width (mirrors the previous layout).
         int widths[3];
         int totalW = 0;
         for (int i = 0; i < 3; ++i)
@@ -69,7 +99,10 @@ public:
         }
         totalW += gap * 2;
 
-        int x = juce::jmax(margin, (getWidth() - totalW) / 2);
+        // Slots flow to the right of the pill, centered in the remaining
+        // space so a wide window keeps them visually balanced.
+        const int slotsLeft = pillX + pillW + gap;
+        int x = juce::jmax(slotsLeft, slotsLeft + (getWidth() - slotsLeft - margin - totalW) / 2);
         for (int i = 0; i < 3; ++i)
         {
             g.setColour(slots[i].fg);

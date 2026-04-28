@@ -90,11 +90,12 @@ void ToolbarComponent::initTopBar()
     highwayLengthStepper.setTooltip("Highway Length");
     addAndMakeVisible(highwayLengthStepper);
 
-    // Write-mode pill — display only. PluginEditor wires
+    // Write-mode icon — small, top-left, display only. PluginEditor wires
     // writeController.onStateChanged → refreshFromWriteController() so this
-    // updates when W or Q is pressed.
-    writeModePill.setState(writeController.writeModeActive(), writeController.subMode());
-    addAndMakeVisible(writeModePill);
+    // updates when W or Q is pressed. Prominent DRAW/EDIT indicator lives in
+    // the sub-toolbar; this icon just gives a glance-friendly status up top.
+    writeModeIcon.setState(writeController.writeModeActive(), writeController.subMode());
+    addAndMakeVisible(writeModeIcon);
 
     // Sub-toolbar — only shown while write mode is active. PluginEditor's
     // resized() reads getReportedHeight() to give the row its space and
@@ -528,7 +529,16 @@ void ToolbarComponent::resized()
     logo.setFontSize((float)logoH * logoFontRatio);
     int logoW = (int)std::ceil(logo.getIdealWidth()) + juce::roundToInt(8.0f * scale);
     logo.setBounds(x, 0, logoW, logoH);
-    int leftEdge = logo.getRight();
+    int logoRight = logo.getRight();
+
+    // Write-mode icon — small square slot just to the right of the logo.
+    // Sized off the control height (h ≈ 28 at reference) so it scales with
+    // the rest of the toolbar without crowding the logo.
+    int iconSize = juce::roundToInt((float)h * 0.85f);
+    int iconGap  = juce::roundToInt(8.0f * scale);
+    int iconY    = (stripH - iconSize) / 2;
+    writeModeIcon.setBounds(logoRight + iconGap, iconY, iconSize, iconSize);
+    int leftEdge = writeModeIcon.getRight();
 
     // Right side: popup buttons (compute positions first for centering)
     int btnW = juce::roundToInt(46.0f * scale);
@@ -540,13 +550,7 @@ void ToolbarComponent::resized()
     chartButton.setScale(scale);
     settingsButton.setScale(scale);
 
-    // Write-mode pill — rightmost slot, after the gear. Wide enough for
-    // the split DRAW | EDIT layout.
-    int pillW = juce::roundToInt(90.0f * scale);
-    rx -= pillW;
-    writeModePill.setBounds(rx, y, pillW, h);
-
-    rx -= (gap + gearW);
+    rx -= gearW;
     settingsButton.setBounds(rx, y, gearW, h);
     rx -= (gap + btnW);
     chartButton.setBounds(rx, y, btnW, h);
@@ -772,7 +776,7 @@ int ToolbarComponent::getReportedHeight(int baseStripHeight) const
 
 bool ToolbarComponent::refreshFromWriteController()
 {
-    writeModePill.setState(writeController.writeModeActive(), writeController.subMode());
+    writeModeIcon.setState(writeController.writeModeActive(), writeController.subMode());
     writeSubToolbar.refreshFromController();
 
     bool nowVisible = writeController.writeModeActive();

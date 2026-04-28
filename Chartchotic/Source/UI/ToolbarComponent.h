@@ -12,7 +12,7 @@
 #include "Controls/SegmentedButtons.h"
 #include "Controls/PanelSectionHeader.h"
 #include "Controls/PopupMenuButton.h"
-#include "Controls/WriteModePill.h"
+#include "Controls/WriteModeIcon.h"
 #include "Controls/WriteSubToolbar.h"
 #include "MenuGroup.h"
 #include "../Utils/ChartTypes.h"
@@ -151,14 +151,14 @@ public:
     ChartchoticLogo& getLogo() { return logo; }
 
     // Re-read write-mode state from WriteController and refresh both the mode
-    // pill and the sub-toolbar. Wired to WriteController::onStateChanged in
+    // icon and the sub-toolbar. Wired to WriteController::onStateChanged in
     // PluginEditor. Returns true if the toolbar's reported height changed
     // (i.e. write-mode visibility flipped) so the caller can trigger a
     // parent re-layout to reclaim/yield highway space.
     bool refreshFromWriteController();
 
     // Back-compat alias — kept so existing callers that only care about the
-    // pill keep working. Equivalent to refreshFromWriteController() but
+    // mode icon keep working. Equivalent to refreshFromWriteController() but
     // discards the height-changed return.
     void repaintModePill() { refreshFromWriteController(); }
 
@@ -175,7 +175,7 @@ private:
     CircleIconSelector instrumentSelector;
     CircleIconSelector difficultySelector;
     ValueStepper noteSpeedStepper{"Speed"};
-    WriteModePill writeModePill;
+    WriteModeIcon writeModeIcon;
 
     // Second toolbar row — only visible while write mode is active.
     WriteSubToolbar writeSubToolbar { writeController };
