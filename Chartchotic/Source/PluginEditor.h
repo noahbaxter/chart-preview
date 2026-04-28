@@ -23,6 +23,7 @@
 #include "UI/UpdateChecker.h"
 #include "UI/LookAndFeel/ChartchoticLookAndFeel.h"
 #include "UI/ToolbarComponent.h"
+#include "UI/Controls/WriteModeIcon.h"
 #include "UI/UpdateBannerComponent.h"
 #include "UI/FooterComponent.h"
 #include "Editor/AssetController.h"
@@ -154,6 +155,11 @@ private:
 
     // UI Components
     ToolbarComponent toolbar;
+
+    // Floating mode chip — owned by the editor so it sits over the highway
+    // (top-left, just below the toolbar). Click toggles write mode; key
+    // shortcuts (W/Q) still work via WriteController.
+    WriteModeIcon writeModeIcon;
 
     //==============================================================================
     // UI Elements

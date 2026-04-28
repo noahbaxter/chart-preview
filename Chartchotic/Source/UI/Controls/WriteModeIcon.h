@@ -4,17 +4,18 @@
 #include "../Theme.h"
 #include "../../Editor/WriteController.h"  // for SubMode
 
-// Tiny non-interactive icon shown at the top-left of the main toolbar that
-// reflects WriteController state at a glance:
+// Floating mode-status chip rendered over the highway (top-left). Reflects
+// WriteController state at a glance:
 //   - Write mode OFF      : glyph drawn dim, reflects last-used sub-mode
 //   - Write mode ON, Draw : glyph drawn green, pencil
 //   - Write mode ON, Edit : glyph drawn coral, mouse-cursor arrow
-// Pure display — interaction stays on W (toggle) and Q (swap sub-mode).
-// State is pushed via setState() from ToolbarComponent::refreshFromWriteController().
+// Clicking toggles write mode (same effect as the W key); Q still swaps
+// sub-mode. State is pushed via setState() from PluginEditor (which forwards
+// WriteController::onStateChanged).
 class WriteModeIcon : public juce::Component
 {
 public:
-    WriteModeIcon() { setInterceptsMouseClicks(false, false); }
+    WriteModeIcon() { setInterceptsMouseClicks(true, false); }
 
     void setState(bool writeModeActive, SubMode subMode)
     {
@@ -24,27 +25,56 @@ public:
         repaint();
     }
 
+    // Fired on click — wire to WriteController toggle in PluginEditor.
+    std::function<void()> onClick;
+
     void paint(juce::Graphics& g) override
     {
         auto bounds = getLocalBounds().toFloat();
-        // Use the smaller of width/height as the design unit so the glyph stays
-        // square and centered no matter the bounding box.
-        const float side = juce::jmin(bounds.getWidth(), bounds.getHeight());
-        auto box = juce::Rectangle<float>(side, side).withCentre(bounds.getCentre());
+        const bool hovering = isMouseOver();
+
+        // Frame: subtle rounded chip so the icon reads as a distinct UI
+        // element on the dark highway. Hover slightly brightens the fill +
+        // edge to advertise interactivity.
+        const float corner = juce::jmax(3.0f, bounds.getHeight() * 0.22f);
+        const float fillAlpha   = hovering ? 0.6f : 0.4f;
+        const float borderAlpha = hovering ? 0.45f : 0.25f;
+
+        auto frame = bounds.reduced(0.5f);
+        g.setColour(juce::Colour(Theme::darkBgLighter).withAlpha(fillAlpha));
+        g.fillRoundedRectangle(frame, corner);
+        g.setColour(juce::Colour(Theme::textDim).withAlpha(borderAlpha));
+        g.drawRoundedRectangle(frame, corner, 1.0f);
+
+        // Glyph occupies an inset square inside the frame so it never kisses
+        // the rounded border.
+        const float pad = juce::jmax(3.0f, bounds.getHeight() * 0.18f);
+        auto inner = bounds.reduced(pad);
+        const float side = juce::jmin(inner.getWidth(), inner.getHeight());
+        auto box = juce::Rectangle<float>(side, side).withCentre(inner.getCentre());
 
         const juce::Colour onColour = (mode == SubMode::Draw)
             ? juce::Colour(Theme::green)
             : juce::Colour(Theme::coral);
-        const juce::Colour colour = active
-            ? onColour
-            : juce::Colour(Theme::textDim).withAlpha(0.55f);
+        const juce::Colour glyphColour = active
+            ? (hovering ? onColour.brighter(0.12f) : onColour)
+            : juce::Colour(Theme::textDim).withAlpha(hovering ? 0.75f : 0.55f);
 
-        g.setColour(colour);
+        g.setColour(glyphColour);
 
         if (mode == SubMode::Draw)
             drawPencil(g, box);
         else
             drawArrow(g, box);
+    }
+
+    void mouseEnter(const juce::MouseEvent&) override { repaint(); }
+    void mouseExit(const juce::MouseEvent&) override { repaint(); }
+
+    void mouseUp(const juce::MouseEvent& e) override
+    {
+        if (getLocalBounds().contains(e.getPosition()) && onClick)
+            onClick();
     }
 
 private:

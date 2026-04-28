@@ -5,10 +5,11 @@
 #include "../../Editor/WriteController.h"
 
 // Read-only display strip that appears below the main toolbar while write
-// mode is active. Headlined by a prominent DRAW/EDIT pill on the left, with
-// step / snap / tuplet readouts following to the right — all sourced live
-// from WriteController. Pure display: keys (W/Q/[/]/S/T) are still the only
-// way to change these. Clickable controls land in a later milestone.
+// mode is active. Shows snap / division / tuplet readouts grouped as a single
+// cluster, all sourced live from WriteController. The strip washes the active
+// mode colour (green / coral) so the mode is visible without a separate pill.
+// Pure display: keys (W/Q/[/]/S/T) are still the only way to change these.
+// Clickable controls land in a later milestone.
 class WriteSubToolbar : public juce::Component
 {
 public:
@@ -26,9 +27,10 @@ public:
         const juce::Colour modeColour = drawMode
             ? juce::Colour(Theme::green)
             : juce::Colour(Theme::coral);
+        const bool snapOn = writeController.snapEnabled();
 
         // Whole strip washes the active mode color so you can't miss which
-        // mode you're in. Low alpha so the pill + slot text stay legible.
+        // mode you're in. Low alpha so the slot text stays legible.
         g.setColour(juce::Colour(Theme::darkBgLighter).withAlpha(0.85f));
         g.fillRect(getLocalBounds());
         g.setColour(modeColour.withAlpha(0.18f));
@@ -43,77 +45,91 @@ public:
         if (h <= 0) return;
 
         const int margin = juce::jmax(8, h / 2);
-        const int gap    = juce::jmax(8, h / 3);
+        const int gap    = juce::jmax(6, h / 4);
 
-        // ---- Mode pill (leftmost, prominent) ----
-        // Sub-toolbar is only visible while write mode is on, so this is
-        // always either DRAW or EDIT — never an off state.
-        const juce::Colour pillColour = modeColour;
-        const juce::String pillLabel = drawMode ? "DRAW" : "EDIT";
+        // ---- Cluster: snap pill | division | tuplet ----
+        // Snap is the master gate (leftmost). When snap is OFF, division and
+        // tuplet fade to textDim — they're meaningless without it.
 
-        // Bigger / bolder than the slot text — this is the headline.
-        const float pillFontH = juce::jmax(11.0f, (float)h * 0.55f);
-        juce::Font pillFont = Theme::getUIFont(pillFontH).boldened();
-
-        const int pillTextW = pillFont.getStringWidth(pillLabel);
-        const int pillPadX  = juce::jmax(10, h / 2);
-        const int pillW     = pillTextW + pillPadX * 2;
-        const int pillH     = juce::jmax(1, h - juce::jmax(4, h / 5));
-        const int pillY     = (h - pillH) / 2;
-        const int pillX     = margin;
-
-        auto pillBounds = juce::Rectangle<float>(
-            (float)pillX, (float)pillY, (float)pillW, (float)pillH);
-
-        const float pillCorner = juce::jmax(2.0f, (float)pillH * 0.5f);
-        g.setColour(pillColour);
-        g.fillRoundedRectangle(pillBounds, pillCorner);
-
-        g.setColour(juce::Colour(Theme::textWhite));
-        g.setFont(pillFont);
-        g.drawText(pillLabel, pillBounds.toNearestInt(), juce::Justification::centred);
-
-        // ---- Status slots (step / snap / tuplet) ----
-        const auto step    = juce::String("1/") + juce::String(writeController.stepDivision());
-        const auto snap    = juce::String("Snap: ") + (writeController.snapEnabled() ? "ON" : "OFF");
-        const int  tuplet  = writeController.tuplet();
-        const auto tuplStr = (tuplet == 0)
+        const juce::String divText  = juce::String("1/") + juce::String(writeController.stepDivision());
+        const int          tuplet   = writeController.tuplet();
+        const juce::String tuplText = (tuplet == 0)
             ? juce::String("Tuplet: off")
             : (juce::String("Tuplet: ") + juce::String(tuplet));
 
+        // Snap pill geometry — match PillToggle aesthetic (small, rounded).
+        const juce::String snapLabel = "Snap";
         g.setFont(Theme::smallFont);
+        const int snapTextW = g.getCurrentFont().getStringWidth(snapLabel);
+        const int snapPadX  = juce::jmax(8, h / 3);
+        const int snapW     = snapTextW + snapPadX * 2;
+        const int snapH     = juce::jmax(1, h - juce::jmax(6, h / 3));
 
-        struct Slot { const juce::String& text; juce::Colour fg; };
-        Slot slots[3] = {
-            { step,    juce::Colour(Theme::textWhite) },
-            { snap,    writeController.snapEnabled()
-                         ? juce::Colour(Theme::green)
-                         : juce::Colour(Theme::textDim) },
-            { tuplStr, (tuplet == 0)
-                         ? juce::Colour(Theme::textDim)
-                         : juce::Colour(Theme::yellow) },
-        };
+        // Measure division + tuplet text at the same font.
+        const int divW  = juce::jmax(28, g.getCurrentFont().getStringWidth(divText)  + margin / 2);
+        const int tuplW = juce::jmax(60, g.getCurrentFont().getStringWidth(tuplText) + margin / 2);
 
-        // Measure each slot's natural width (mirrors the previous layout).
-        int widths[3];
-        int totalW = 0;
-        for (int i = 0; i < 3; ++i)
+        // Cluster width = snap pill + gap + division + gap + tuplet, plus
+        // a little internal padding inside the cluster background.
+        const int clusterPadX = juce::jmax(6, h / 4);
+        const int innerW      = snapW + gap + divW + gap + tuplW;
+        const int clusterW    = innerW + clusterPadX * 2;
+        const int clusterH    = juce::jmax(1, h - juce::jmax(2, h / 6));
+        const int clusterY    = (h - clusterH) / 2;
+
+        // Centre the cluster horizontally with a margin guard on each edge.
+        const int availW = juce::jmax(0, getWidth() - margin * 2);
+        const int clusterX = juce::jmax(margin, margin + (availW - clusterW) / 2);
+
+        // Cluster background — subtle so the wash isn't fighting the cluster
+        // border. Low-alpha rounded rect spanning the trio.
+        const auto clusterBounds = juce::Rectangle<float>(
+            (float)clusterX, (float)clusterY, (float)clusterW, (float)clusterH);
+        const float clusterCorner = juce::jmax(3.0f, (float)clusterH * 0.3f);
+        g.setColour(juce::Colour(Theme::darkBgLighter).withAlpha(0.3f));
+        g.fillRoundedRectangle(clusterBounds, clusterCorner);
+
+        // ---- Snap pill (display-only; mirrors PillToggle aesthetic) ----
+        const int snapX = clusterX + clusterPadX;
+        const int snapY = (h - snapH) / 2;
+        auto snapBounds = juce::Rectangle<float>(
+            (float)snapX, (float)snapY, (float)snapW, (float)snapH).reduced(1.0f);
+        const float snapCorner = Theme::pillCorner;
+
+        if (snapOn)
         {
-            widths[i] = juce::jmax(40, g.getCurrentFont().getStringWidth(slots[i].text) + margin);
-            totalW += widths[i];
+            // Filled in the active mode colour so the pill reinforces the wash.
+            g.setColour(modeColour);
+            g.fillRoundedRectangle(snapBounds, snapCorner);
+            g.setColour(juce::Colour(Theme::textWhite));
         }
-        totalW += gap * 2;
-
-        // Slots flow to the right of the pill, centered in the remaining
-        // space so a wide window keeps them visually balanced.
-        const int slotsLeft = pillX + pillW + gap;
-        int x = juce::jmax(slotsLeft, slotsLeft + (getWidth() - slotsLeft - margin - totalW) / 2);
-        for (int i = 0; i < 3; ++i)
+        else
         {
-            g.setColour(slots[i].fg);
-            g.drawText(slots[i].text, x, 0, widths[i], h, juce::Justification::centred);
-            x += widths[i] + gap;
+            // Outlined / dim when off — same as PillToggle's off state.
+            g.setColour(juce::Colour(Theme::textDim).withAlpha(0.5f));
+            g.drawRoundedRectangle(snapBounds, snapCorner, 1.0f);
+            g.setColour(juce::Colour(Theme::textDim));
         }
+        g.setFont(Theme::smallFont);
+        g.drawText(snapLabel, juce::Rectangle<int>(snapX, snapY, snapW, snapH),
+                   juce::Justification::centred);
+
+        // ---- Division + tuplet readouts ----
+        // Both fade to textDim when snap is OFF (they don't apply without snap).
+        const juce::Colour divColour = snapOn
+            ? juce::Colour(Theme::textWhite)
+            : juce::Colour(Theme::textDim);
+        const juce::Colour tuplColour = snapOn
+            ? ((tuplet == 0) ? juce::Colour(Theme::textDim) : juce::Colour(Theme::yellow))
+            : juce::Colour(Theme::textDim);
+
+        int x = snapX + snapW + gap;
+        g.setColour(divColour);
+        g.drawText(divText, x, 0, divW, h, juce::Justification::centred);
+        x += divW + gap;
+
+        g.setColour(tuplColour);
+        g.drawText(tuplText, x, 0, tuplW, h, juce::Justification::centred);
     }
 
 private:
