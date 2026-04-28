@@ -27,9 +27,9 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     : AudioProcessorEditor(&p),
       state(state),
       audioProcessor(p),
+      assetManager(),
       writeController(state),
-      toolbar(state, writeController),
-      assetManager()
+      toolbar(state, writeController)
 {
     // Create scratch renderer for shared track image cache
     cacheRenderer = std::make_unique<TrackRenderer>(state);
