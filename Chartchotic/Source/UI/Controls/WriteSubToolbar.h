@@ -22,13 +22,21 @@ public:
 
     void paint(juce::Graphics& g) override
     {
-        // Slightly tinted strip so it reads as part of the toolbar but
-        // visually distinct from the main row.
+        const bool drawMode = writeController.subMode() == SubMode::Draw;
+        const juce::Colour modeColour = drawMode
+            ? juce::Colour(Theme::green)
+            : juce::Colour(Theme::coral);
+
+        // Whole strip washes the active mode color so you can't miss which
+        // mode you're in. Low alpha so the pill + slot text stay legible.
         g.setColour(juce::Colour(Theme::darkBgLighter).withAlpha(0.85f));
         g.fillRect(getLocalBounds());
+        g.setColour(modeColour.withAlpha(0.18f));
+        g.fillRect(getLocalBounds());
 
-        // Subtle top divider against the main toolbar.
-        g.setColour(juce::Colour(Theme::textDim).withAlpha(0.15f));
+        // Top divider in the mode color so the seam against the main toolbar
+        // also reads the active mode at a glance.
+        g.setColour(modeColour.withAlpha(0.55f));
         g.drawHorizontalLine(0, 0.0f, (float)getWidth());
 
         const int h = getHeight();
@@ -40,10 +48,7 @@ public:
         // ---- Mode pill (leftmost, prominent) ----
         // Sub-toolbar is only visible while write mode is on, so this is
         // always either DRAW or EDIT — never an off state.
-        const bool drawMode = writeController.subMode() == SubMode::Draw;
-        const juce::Colour pillColour = drawMode
-            ? juce::Colour(Theme::green)
-            : juce::Colour(Theme::coral);
+        const juce::Colour pillColour = modeColour;
         const juce::String pillLabel = drawMode ? "DRAW" : "EDIT";
 
         // Bigger / bolder than the slot text — this is the headline.
