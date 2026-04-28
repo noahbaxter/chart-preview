@@ -18,7 +18,10 @@ endif()
 # For local dev builds, generate a timestamped version automatically
 if(NOT DEFINED VERSION_STRING)
     if(BUILD_CHANNEL STREQUAL "DEV")
-        string(TIMESTAMP _timestamp "%Y%m%d%H%M%S" UTC)
+        # Local-time "MonDD-HHhMM" (e.g. Apr27-18h30). Abbreviated month name
+        # + hh-mm with an "h" separator reads instantly while iterating. CI /
+        # release builds pass -DVERSION_STRING explicitly and don't hit this.
+        string(TIMESTAMP _timestamp "%b%d-%Hh%M")
         execute_process(
             COMMAND git rev-parse --short HEAD
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
