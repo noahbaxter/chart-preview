@@ -15,10 +15,12 @@
 #include <JuceHeader.h>
 #include "../Utils/ChartTypes.h"
 #include "../Midi/Utils/TimeConverter.h"
+#include "../Editor/WriteController.h"
 #include "Renderers/SceneRenderer.h"
 #include "Renderers/TrackRenderer.h"
 #include "Managers/AssetManager.h"
 #include "Utils/DrawingConstants.h"
+#include "Utils/HitTestMapper.h"
 
 class TrackImageCache;
 
@@ -49,6 +51,28 @@ public:
     void paintOverChildren(juce::Graphics& g) override;
     void resized() override;
     void timerCallback() override;
+
+    // Mouse input — dispatches into write-mode callbacks (M1.3).
+    void mouseEnter(const juce::MouseEvent& e) override;
+    void mouseExit (const juce::MouseEvent& e) override;
+    void mouseMove (const juce::MouseEvent& e) override;
+    void mouseDown (const juce::MouseEvent& e) override;
+    void mouseDrag (const juce::MouseEvent& e) override;
+    void mouseUp   (const juce::MouseEvent& e) override;
+
+    // Authoring dispatch hooks. Wired by PluginEditor; null when unset.
+    using PointerCallback = std::function<void(const AuthoringPoint&, const AuthoringContext&)>;
+    void setOnPointerMove  (PointerCallback cb) { onPointerMove   = std::move(cb); }
+    void setOnPointerDown  (PointerCallback cb) { onPointerDown   = std::move(cb); }
+    void setOnPointerDrag  (PointerCallback cb) { onPointerDrag   = std::move(cb); }
+    void setOnPointerUp    (PointerCallback cb) { onPointerUp     = std::move(cb); }
+    void setOnPointerExit  (std::function<void()> cb) { onPointerExit   = std::move(cb); }
+    void setOnPointerCancel(std::function<void()> cb) { onPointerCancel = std::move(cb); }
+
+    // Coordinate-domain conversion at the dispatch boundary (M0-G design rule).
+    // Takes a "seconds offset from cursor" (the timeFromCursor returned by HitTestMapper)
+    // and returns project QN. If unset, mouse handlers fall back to rawProjectQN = 0.
+    void setSecondsToProjectQN(std::function<double(double)> fn) { secondsToProjectQN = std::move(fn); }
 
     void setFrameData(const HighwayFrameData& data);
     void rebuildTrack();
@@ -113,6 +137,21 @@ private:
     TrackImageCache* trackImageCache = nullptr;
 
     HighwayFrameData frameData;
+
+    // M1.3 mouse dispatch
+    HitTestMapper hitTestMapper;
+    PointerCallback onPointerMove;
+    PointerCallback onPointerDown;
+    PointerCallback onPointerDrag;
+    PointerCallback onPointerUp;
+    std::function<void()> onPointerExit;
+    std::function<void()> onPointerCancel;
+    std::function<double(double)> secondsToProjectQN;
+
+    // Build authoring payloads from a JUCE mouse event.
+    void buildAuthoringPayload(const juce::MouseEvent& e,
+                               AuthoringPoint& outPoint,
+                               AuthoringContext& outContext) const;
 
     int topOverflow = 0;
 
