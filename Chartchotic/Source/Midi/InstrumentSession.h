@@ -31,6 +31,10 @@ public:
     // Replace the discovery strategy (e.g. switching between Global and Local)
     void setDiscovery(std::unique_ptr<TrackDiscovery> newDiscovery);
 
+    // Force a refetch of one track's notes/text (e.g. after authoring writes).
+    // Does NOT re-run discovery — only refreshes data for an existing track index.
+    void invalidateTrack(int trackIdx);
+
 private:
     struct TrackData {
         std::vector<MidiCache::CachedNote> notes;

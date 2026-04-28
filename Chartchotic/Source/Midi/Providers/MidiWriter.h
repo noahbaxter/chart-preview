@@ -16,6 +16,9 @@
 /**
  * Abstract interface for writing MIDI notes back to the host DAW.
  *
+ * All time positions are project quarter notes (QN). Backends are responsible
+ * for converting to take-local time domains (e.g. take PPQ in REAPER).
+ *
  * Single-note operations wrap their own undo block.
  * Batch operations share one undo block between beginBatch/endBatch.
  */
@@ -29,25 +32,25 @@ public:
 
     // --- Single-note operations (each creates its own undo point) ---
 
-    virtual bool insertNote(int trackIndex, double startPPQ, double endPPQ,
+    virtual bool insertNote(int trackIndex, double startQN, double endQN,
                            int channel, int pitch, int velocity) = 0;
 
     virtual bool deleteNote(int trackIndex, int noteIndex) = 0;
 
     virtual bool moveNote(int trackIndex, int noteIndex,
-                         double newStartPPQ, double newEndPPQ, int newPitch) = 0;
+                         double newStartQN, double newEndQN, int newPitch) = 0;
 
     // --- Batch operations (single undo point for all) ---
 
     virtual void beginBatch(const char* undoDescription) = 0;
 
-    virtual bool batchInsertNote(int trackIndex, double startPPQ, double endPPQ,
+    virtual bool batchInsertNote(int trackIndex, double startQN, double endQN,
                                 int channel, int pitch, int velocity) = 0;
 
     virtual bool batchDeleteNote(int trackIndex, int noteIndex) = 0;
 
     virtual bool batchMoveNote(int trackIndex, int noteIndex,
-                              double newStartPPQ, double newEndPPQ, int newPitch) = 0;
+                              double newStartQN, double newEndQN, int newPitch) = 0;
 
     virtual void endBatch() = 0;
 };
