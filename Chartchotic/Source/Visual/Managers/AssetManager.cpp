@@ -49,22 +49,21 @@ void AssetManager::initAssets()
     markerMeasureImage = juce::ImageCache::getFromMemory(BinaryData::marker_measure_png, BinaryData::marker_measure_pngSize);
 
     // STEP marker — programmatic placeholder (no dedicated PNG asset yet).
-    // Match the half-beat marker's footprint so the perspective scaling logic in
-    // GridlineRenderer treats it consistently. Filled with solid white; the
-    // renderer applies the per-type opacity (STEP is the lowest at 0.25).
-    if (markerHalfBeatImage.isValid())
+    // Match the half-beat marker's footprint so the perspective scaling logic
+    // in GridlineRenderer treats it consistently, but draw a thin centered line
+    // on a transparent background — the existing marker PNGs are not solid
+    // fills, they're thin lines, so a solid-fill placeholder reads as a giant
+    // translucent slab on the highway.
     {
-        int sw = markerHalfBeatImage.getWidth();
-        int sh = std::max(1, markerHalfBeatImage.getHeight());
-        markerStepImage = juce::Image(juce::Image::ARGB, sw, sh, true);
+        int sw = markerHalfBeatImage.isValid() ? markerHalfBeatImage.getWidth()  : 256;
+        int sh = markerHalfBeatImage.isValid() ? std::max(1, markerHalfBeatImage.getHeight()) : 8;
+        markerStepImage = juce::Image(juce::Image::ARGB, sw, sh, true); // true = clear to transparent
         juce::Graphics gs(markerStepImage);
-        gs.fillAll(juce::Colours::white);
-    }
-    else
-    {
-        markerStepImage = juce::Image(juce::Image::ARGB, 256, 2, true);
-        juce::Graphics gs(markerStepImage);
-        gs.fillAll(juce::Colours::white);
+        gs.setColour(juce::Colours::white);
+        // Thin centered horizontal line. Use ~1/6 of the source height (min 1px).
+        int lineH = std::max(1, sh / 6);
+        int lineY = (sh - lineH) / 2;
+        gs.fillRect(0, lineY, sw, lineH);
     }
 
     noteBlueImage = juce::ImageCache::getFromMemory(BinaryData::note_blue_png, BinaryData::note_blue_pngSize);
