@@ -38,12 +38,16 @@ constexpr float MEASURE_OPACITY = 1.0f;      // Gridline opacity for measure lin
 constexpr float BEAT_OPACITY = 0.3f;         // Gridline opacity for beat lines
 constexpr float HALF_BEAT_OPACITY = 0.15f;   // Gridline opacity for half-beat lines
 
-// Write-mode gridline opacities (boosted so STEP/HALF_BEAT/BEAT all read clearly
-// against the highway while authoring). STEP is generated only in write mode.
-constexpr float WRITE_MEASURE_OPACITY   = 1.0f;
-constexpr float WRITE_BEAT_OPACITY      = 0.6f;
-constexpr float WRITE_HALF_BEAT_OPACITY = 0.35f;
-constexpr float WRITE_STEP_OPACITY      = 0.25f;
+// Write-mode gridline opacities. The marker PNGs already bake in alpha
+// (MEASURE peaks ~191/255, BEAT/HALF_BEAT peak ~128/255), which compresses
+// the per-type contrast. We pick multipliers that, AFTER the baked alpha,
+// keep MEASURE clearly brightest, BEAT clearly the rhythm anchor, and STEP
+// the dimmest "subgrid". HALF_BEAT is hidden in write mode (renderer skips it).
+// STEP is generated only in write mode.
+constexpr float WRITE_MEASURE_OPACITY   = 1.0f;   // baked-in 0.75 -> ~0.75 effective
+constexpr float WRITE_BEAT_OPACITY      = 0.9f;   // baked-in 0.50 -> ~0.45 effective
+constexpr float WRITE_HALF_BEAT_OPACITY = 0.35f;  // hidden in write mode (kept for completeness)
+constexpr float WRITE_STEP_OPACITY      = 0.25f;  // baked-in 0.50 -> ~0.13 effective (faded with depth)
 
 // Highway texture
 constexpr float TEXTURE_OPACITY_DEFAULT = 1.0f;  // Default highway texture opacity
