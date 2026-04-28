@@ -28,6 +28,7 @@ Work from the top.
 - **Better mouse scrolling** — shift=faster, ctrl=precise.
 - **Info display** — BPM, time sig, measure, beat position.
 - **Disco ball animation upgrade** — Replace static disco ball JPG with rotating disco ball (quarter-turn loop), "DISCO FLIP" text underneath in disco/rainbow colors. Fun polish.
+- **Write-mode UI cleanup pass** — After M2 + M3 land, do a visual polish sweep on the floating mode chip, sub-toolbar cluster styling, snap pill being non-interactive (currently looks clickable but isn't until clickable controls land), divider colors, spacing. Tracked across commits `acdaded`/`6d2c7c5`/`311c9d8`. Defer until authoring interactions are stable.
 
 ### Done (1.2)
 
