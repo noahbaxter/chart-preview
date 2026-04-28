@@ -28,7 +28,18 @@ Work from the top.
 - **Better mouse scrolling** — shift=faster, ctrl=precise.
 - **Info display** — BPM, time sig, measure, beat position.
 - **Disco ball animation upgrade** — Replace static disco ball JPG with rotating disco ball (quarter-turn loop), "DISCO FLIP" text underneath in disco/rainbow colors. Fun polish.
-- **Write-mode UI cleanup pass** — After M2 + M3 land, do a visual polish sweep on the floating mode chip, sub-toolbar cluster styling, snap pill being non-interactive (currently looks clickable but isn't until clickable controls land), divider colors, spacing. Tracked across commits `acdaded`/`6d2c7c5`/`311c9d8`. Defer until authoring interactions are stable.
+- **Write-mode UI cleanup pass (post-authoring)** — Bundled visual + UX polish after M3 / M4 land, before `1.3.0` ship. By then all authoring visual elements (hover ghost, drag preview, selection highlight, erase indicator, marquee) exist and the cohesive look can be designed in one pass. Collected items:
+  - **Mode chip stability**: floating icon currently shifts when sub-toolbar appears/disappears. Should hold a fixed position regardless of sub-toolbar visibility. Also conflicts with instrument/difficulty selection — need a placement that doesn't interfere.
+  - **Bring back the explicit DRAW/EDIT label** — sub-toolbar wash is good but a literal label was clearer at a glance.
+  - **Mouse cursor glyph** — currently doesn't read well, looks shifted left in its frame, not centered. Needs a better arrow shape or a different "edit" metaphor.
+  - **Tuplet "off" coloring** — should be `textWhite` like division (it's a valid setting, not a disabled state). Currently dim, indistinguishable from snap-disabled fade.
+  - **Snap as checkbox / toggle** — pill aesthetic implies clickability we don't have yet. Consider checkbox or pure label, possibly with a transient toast ("Snap Enabled" / "Snap Disabled") when key shortcuts fire to give keyboard-only users feedback.
+  - **Note-icon notation for division/tuplet** — could replace "1/8" / "Tuplet: 3" text with proper musical notation glyphs (like MuseScore). Tradeoff: more polished but more rendering work.
+  - **Sub-toolbar height jump between Draw and Edit** — toolbar height changes between modes; should not. Want zero reflow when toggling between draw/edit (only visibility changes).
+  - **Toolbar width** — currently full-width strip; consider centered, only-as-wide-as-needed. TBD.
+  - **Default gridlines in write mode** — when write mode is on, ONLY the user-chosen grid should render (plus measure anchors). Currently the existing MEASURE/BEAT/HALF_BEAT all keep rendering, masking the user's selected step+tuplet grid (visible bug: 1/4 + tuplet=3 shows the default 8th-note grid drowning out the actual triplet lines). This may bite M3 usability; revisit if so during M3.
+  - **Division/tuplet broken below 1/8** — likely same root cause as above.
+- **Dedicated STEP gridline asset** — Currently aliased to `marker_half_beat_png`, differentiated only by opacity (STEP 0.25 vs HALF_BEAT 0.35). Add a real `marker_step.png` if a thinner / more subtle visual is wanted; register in BinaryData + AssetManager. Don't reinvent rendering paths.
 
 ### Done (1.2)
 

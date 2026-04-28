@@ -48,23 +48,11 @@ void AssetManager::initAssets()
     markerHalfBeatImage = juce::ImageCache::getFromMemory(BinaryData::marker_half_beat_png, BinaryData::marker_half_beat_pngSize);
     markerMeasureImage = juce::ImageCache::getFromMemory(BinaryData::marker_measure_png, BinaryData::marker_measure_pngSize);
 
-    // STEP marker — programmatic placeholder (no dedicated PNG asset yet).
-    // Match the half-beat marker's footprint so the perspective scaling logic
-    // in GridlineRenderer treats it consistently, but draw a thin centered line
-    // on a transparent background — the existing marker PNGs are not solid
-    // fills, they're thin lines, so a solid-fill placeholder reads as a giant
-    // translucent slab on the highway.
-    {
-        int sw = markerHalfBeatImage.isValid() ? markerHalfBeatImage.getWidth()  : 256;
-        int sh = markerHalfBeatImage.isValid() ? std::max(1, markerHalfBeatImage.getHeight()) : 8;
-        markerStepImage = juce::Image(juce::Image::ARGB, sw, sh, true); // true = clear to transparent
-        juce::Graphics gs(markerStepImage);
-        gs.setColour(juce::Colours::white);
-        // Thin centered horizontal line. Use ~1/6 of the source height (min 1px).
-        int lineH = std::max(1, sh / 6);
-        int lineY = (sh - lineH) / 2;
-        gs.fillRect(0, lineY, sw, lineH);
-    }
+    // STEP gridlines reuse the half-beat marker image — same loading path,
+    // same scaling, same visual treatment. They're differentiated from
+    // half-beats by opacity in GridlineRenderer (STEP 0.25 vs HALF_BEAT 0.35),
+    // not by a separate asset. Adding a dedicated thinner PNG is an asset-pack
+    // task tracked in BACKLOG.md — do not invent parallel rendering paths.
 
     noteBlueImage = juce::ImageCache::getFromMemory(BinaryData::note_blue_png, BinaryData::note_blue_pngSize);
     noteGreenImage = juce::ImageCache::getFromMemory(BinaryData::note_green_png, BinaryData::note_green_pngSize);
@@ -180,7 +168,7 @@ void AssetManager::initAssets()
         {&openAnimationFrames[6], openAnimationFrames[6]},
         // Gridline markers
         {&markerBeatImage, markerBeatImage}, {&markerHalfBeatImage, markerHalfBeatImage},
-        {&markerMeasureImage, markerMeasureImage}, {&markerStepImage, markerStepImage},
+        {&markerMeasureImage, markerMeasureImage},
     };
 #endif // CHARTCHOTIC_NO_BINARY_DATA
 }
@@ -384,7 +372,7 @@ juce::Image* AssetManager::getGridlineImage(Gridline gridlineType)
     case Gridline::MEASURE: return getMarkerMeasureImage();
     case Gridline::BEAT: return getMarkerBeatImage();
     case Gridline::HALF_BEAT: return getMarkerHalfBeatImage();
-    case Gridline::STEP: return getMarkerStepImage();
+    case Gridline::STEP: return getMarkerHalfBeatImage(); // alias — opacity differentiates
     }
 
     return nullptr;
