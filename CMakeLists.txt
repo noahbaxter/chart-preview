@@ -207,6 +207,7 @@ target_sources(Chartchotic
         Chartchotic/Source/UI/Controls/SegmentedButtons.h
         Chartchotic/Source/UI/Controls/ValueStepper.h
         Chartchotic/Source/UI/Controls/WriteModePill.h
+        Chartchotic/Source/UI/Controls/WriteSubToolbar.h
         # UI - LookAndFeel
         Chartchotic/Source/UI/LookAndFeel/ChartchoticLookAndFeel.cpp
         Chartchotic/Source/UI/LookAndFeel/ChartchoticLookAndFeel.h

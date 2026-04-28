@@ -91,10 +91,16 @@ void ToolbarComponent::initTopBar()
     addAndMakeVisible(highwayLengthStepper);
 
     // Write-mode pill — display only. PluginEditor wires
-    // writeController.onStateChanged → repaintModePill() so this updates
-    // when W or Q is pressed.
+    // writeController.onStateChanged → refreshFromWriteController() so this
+    // updates when W or Q is pressed.
     writeModePill.setState(writeController.writeModeActive(), writeController.subMode());
     addAndMakeVisible(writeModePill);
+
+    // Sub-toolbar — only shown while write mode is active. PluginEditor's
+    // resized() reads getReportedHeight() to give the row its space and
+    // reflow the highway accordingly.
+    writeSubToolbar.setVisible(writeController.writeModeActive());
+    addChildComponent(writeSubToolbar);
 }
 
 //==============================================================================
@@ -477,6 +483,20 @@ void ToolbarComponent::resized()
     int stripH = getStripHeight();
     float scale = (float)stripH / (float)referenceHeight;
 
+    // Sub-toolbar at the bottom (only when write mode is active). Lay it out
+    // first so the strip code below uses stripH (top-row only) cleanly.
+    if (writeController.writeModeActive())
+    {
+        int subH = getHeight() - stripH;
+        writeSubToolbar.setVisible(true);
+        writeSubToolbar.setBounds(0, stripH, getWidth(), subH);
+    }
+    else
+    {
+        writeSubToolbar.setVisible(false);
+        writeSubToolbar.setBounds(0, stripH, getWidth(), 0);
+    }
+
     int h = juce::roundToInt(28.0f * scale);
     Theme::setControlHeight((float)h);
     int gap = juce::roundToInt(6.0f * scale);
@@ -729,9 +749,45 @@ void ToolbarComponent::setReaperMode(bool isReaper)
     reaperMode = isReaper;
 }
 
-void ToolbarComponent::repaintModePill()
+int ToolbarComponent::getStripHeight() const
+{
+    // When the sub-toolbar is visible, the strip is the top portion only.
+    if (writeController.writeModeActive())
+    {
+        int subH = juce::roundToInt((float)getHeight()
+            * (subToolbarHeightRatio / (1.0f + subToolbarHeightRatio)));
+        return juce::jmax(0, getHeight() - subH);
+    }
+    return getHeight();
+}
+
+int ToolbarComponent::getReportedHeight(int baseStripHeight) const
+{
+    if (!writeController.writeModeActive())
+        return baseStripHeight;
+
+    int subH = juce::roundToInt((float)baseStripHeight * subToolbarHeightRatio);
+    return baseStripHeight + subH;
+}
+
+bool ToolbarComponent::refreshFromWriteController()
 {
     writeModePill.setState(writeController.writeModeActive(), writeController.subMode());
+    writeSubToolbar.refreshFromController();
+
+    bool nowVisible = writeController.writeModeActive();
+    if (writeSubToolbar.isVisible() != nowVisible)
+    {
+        // Visibility flipped — relayout the toolbar internally and signal
+        // the caller so the parent (PluginEditor) reflows the highway.
+        resized();
+        return true;
+    }
+
+    // Visibility didn't change, but content might have — make sure the row
+    // is laid out and repainted.
+    resized();
+    return false;
 }
 
 //==============================================================================
