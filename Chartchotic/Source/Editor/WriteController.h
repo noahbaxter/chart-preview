@@ -47,6 +47,11 @@ public:
 
     const OverlayState& getOverlayState() const { return overlayState; }
 
+    // Optional listener fired when writeModeActive or subMode actually changes.
+    // Wired by PluginEditor to repaint the toolbar mode pill. Null when unset
+    // so the controller stays testable in isolation.
+    std::function<void()> onStateChanged;
+
 private:
     void loadPersistedState();
 

@@ -12,6 +12,7 @@
 #include "Controls/SegmentedButtons.h"
 #include "Controls/PanelSectionHeader.h"
 #include "Controls/PopupMenuButton.h"
+#include "Controls/WriteModePill.h"
 #include "MenuGroup.h"
 #include "../Utils/ChartTypes.h"
 #include "../Visual/Utils/DrawingConstants.h"
@@ -136,6 +137,10 @@ public:
     ValueStepper& getNoteSpeedStepper() { return noteSpeedStepper; }
     ChartchoticLogo& getLogo() { return logo; }
 
+    // Re-read write-mode state from WriteController and refresh the mode pill.
+    // Wired to WriteController::onStateChanged in PluginEditor.
+    void repaintModePill();
+
 private:
     juce::ValueTree& state;
     WriteController& writeController;
@@ -149,6 +154,7 @@ private:
     CircleIconSelector instrumentSelector;
     CircleIconSelector difficultySelector;
     ValueStepper noteSpeedStepper{"Speed"};
+    WriteModePill writeModePill;
 
     // Multi-select instrument state (Global mode with 2+ parts)
     std::vector<Part> discoveredParts;

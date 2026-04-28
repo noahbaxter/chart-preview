@@ -89,6 +89,12 @@ void ToolbarComponent::initTopBar()
     highwayLengthStepper.setLabelRatio(0.0f);
     highwayLengthStepper.setTooltip("Highway Length");
     addAndMakeVisible(highwayLengthStepper);
+
+    // Write-mode pill — display only. PluginEditor wires
+    // writeController.onStateChanged → repaintModePill() so this updates
+    // when W or Q is pressed.
+    writeModePill.setState(writeController.writeModeActive(), writeController.subMode());
+    addAndMakeVisible(writeModePill);
 }
 
 //==============================================================================
@@ -531,6 +537,12 @@ void ToolbarComponent::resized()
     tuningPanel.getButton().setBounds(rx, y + h - sqSize, sqSize, sqSize);
 #endif
 
+    // Write-mode pill — sits to the left of the right-side button cluster.
+    // Compact, fits a 4-letter label.
+    int pillW = juce::roundToInt(48.0f * scale);
+    rx -= (gap + pillW);
+    writeModePill.setBounds(rx, y, pillW, h);
+
     // Note Speed + Highway Length steppers — centered between logo and right-side buttons
     int stepW = juce::roundToInt(66.0f * scale);
     int stepGap = juce::roundToInt(4.0f * scale);
@@ -715,6 +727,11 @@ void ToolbarComponent::updateVisibility()
 void ToolbarComponent::setReaperMode(bool isReaper)
 {
     reaperMode = isReaper;
+}
+
+void ToolbarComponent::repaintModePill()
+{
+    writeModePill.setState(writeController.writeModeActive(), writeController.subMode());
 }
 
 //==============================================================================
