@@ -16,6 +16,8 @@
 #include "../Utils/ChartTypes.h"
 #include "../Visual/Utils/DrawingConstants.h"
 #include "ControlConstants.h"
+
+class WriteController;
 #ifdef DEBUG
 #include "../DebugTools/DebugToolbarPanel.h"
 #include "../DebugTools/DebugTuningPanel.h"
@@ -32,7 +34,7 @@ public:
 
     int getStripHeight() const { return getHeight(); }
 
-    ToolbarComponent(juce::ValueTree& state);
+    ToolbarComponent(juce::ValueTree& state, WriteController& writeController);
     ~ToolbarComponent() override;
 
     void paint(juce::Graphics& g) override;
@@ -136,6 +138,7 @@ public:
 
 private:
     juce::ValueTree& state;
+    WriteController& writeController;
     bool reaperMode = false;
     bool multiInstrumentMode = false;
 

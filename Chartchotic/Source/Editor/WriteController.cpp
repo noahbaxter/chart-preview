@@ -115,8 +115,63 @@ void WriteController::onPointerExit() {}
 
 void WriteController::onPointerCancel() {}
 
-bool WriteController::onKeyPress([[maybe_unused]] const juce::KeyPress& key)
+bool WriteController::onKeyPress(const juce::KeyPress& key)
 {
+    const int code = key.getKeyCode();
+
+    // W toggles write mode regardless of current state.
+    if (code == 'W')
+    {
+        setWriteModeActive(!writeModeActive());
+        return true;
+    }
+
+    // Remaining shortcuts only apply while write mode is active.
+    if (!writeModeActive())
+        return false;
+
+    if (code == 'Q')
+    {
+        setSubMode(subMode() == SubMode::Draw ? SubMode::Edit : SubMode::Draw);
+        return true;
+    }
+
+    if (code == 'S')
+    {
+        setSnapEnabled(!snapEnabled());
+        return true;
+    }
+
+    if (code == 'T')
+    {
+        // Cycle 0 -> 3 -> 5 -> 7 -> 0
+        int next = 0;
+        switch (tuplet())
+        {
+            case 0: next = 3; break;
+            case 3: next = 5; break;
+            case 5: next = 7; break;
+            case 7: next = 0; break;
+            default: next = 0; break;
+        }
+        setTuplet(next);
+        return true;
+    }
+
+    if (code == '[')
+    {
+        // Halve, clamped to min 1 (setter no-ops if same value).
+        setStepDivision(std::max(1, stepDivision() / 2));
+        return true;
+    }
+
+    if (code == ']')
+    {
+        // Double; setter clamps to max 64.
+        setStepDivision(stepDivision() * 2);
+        return true;
+    }
+
     return false;
 }
 

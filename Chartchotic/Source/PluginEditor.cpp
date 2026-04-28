@@ -27,8 +27,9 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     : AudioProcessorEditor(&p),
       state(state),
       audioProcessor(p),
-      toolbar(state),
-      assetManager()
+      assetManager(),
+      writeController(state),
+      toolbar(state, writeController)
 {
     // Create scratch renderer for shared track image cache
     cacheRenderer = std::make_unique<TrackRenderer>(state);
@@ -51,6 +52,7 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         slot.highway->setActivePart(slot.part);
         slot.highway->setVisible(true);
         activeSlotCount = 1;
+        writeController.setActivePart(slot.part);
     }
     setLookAndFeel(&chartPreviewLnF);
 
@@ -188,6 +190,12 @@ void ChartchoticAudioProcessorEditor::onFrame()
         toolbar.setReaperMode(true);
         toolbar.updateVisibility();
     }
+
+    // Keep write controller in sync with the primary slot's part. Cheap (just stores
+    // an enum) and idempotent — covers SessionController paths that don't have a
+    // direct hook into the editor.
+    if (activeSlotCount > 0)
+        writeController.setActivePart(slots[0].part);
 
     updateTrackInfoDisplay();
 
@@ -395,6 +403,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         Part newPart = getPartFromState(state);
         primaryInterpreter().instrumentPart = newPart;
         slots[0].part = newPart;
+        writeController.setActivePart(newPart);
 
         if (!PositionMath::bemaniMode)
         {
@@ -508,6 +517,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
             slot.highway->showDifficultyLabel = false;
             slot.highway->setVisible(true);
             activeSlotCount = 1;
+            writeController.setActivePart(slot.part);
 
             toolbar.setMultiInstrumentMode(false);
             toolbar.resetToManualMode();
@@ -1066,6 +1076,7 @@ void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::Lo
         slot.highway->setActivePart(slot.part);
         slot.highway->setVisible(true);
         activeSlotCount = 1;
+        writeController.setActivePart(slot.part);
 
         resized();
         loadState();
@@ -1107,6 +1118,10 @@ void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::Lo
     }
 
     activeSlotCount = slotIdx;
+
+    // Sync write controller to the primary slot's part.
+    if (activeSlotCount > 0)
+        writeController.setActivePart(slots[0].part);
 
     // Multi-highway mode: show part labels and all toolbar options
     bool multiSlot = activeSlotCount > 1;
