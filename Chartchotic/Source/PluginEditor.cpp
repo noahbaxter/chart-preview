@@ -616,6 +616,9 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onOpenBackgroundFolder = [this]() { assets.getBackgroundDirectory().revealToUser(); };
     toolbar.onOpenTextureFolder = [this]() { assets.getHighwayTextureDirectory().revealToUser(); };
 
+    // Refresh the toolbar mode pill whenever write-mode state changes (W or Q).
+    writeController.onStateChanged = [this]() { toolbar.repaintModePill(); };
+
 #ifdef DEBUG
     debug.wireCallbacks(toolbar, primaryHighway(), [this]() { repaint(); });
 #endif

@@ -58,7 +58,9 @@ void WriteController::loadPersistedState()
 
 void WriteController::setWriteModeActive(bool active)
 {
+    if (writeModeActiveFlag == active) return;
     writeModeActiveFlag = active;
+    if (onStateChanged) onStateChanged();
 }
 
 void WriteController::setSubMode(SubMode mode)
@@ -66,6 +68,7 @@ void WriteController::setSubMode(SubMode mode)
     if (currentSubMode == mode) return;
     currentSubMode = mode;
     state.setProperty(kWriteSubMode, subModeToString(mode), nullptr);
+    if (onStateChanged) onStateChanged();
 }
 
 void WriteController::setStepDivision(int division)
