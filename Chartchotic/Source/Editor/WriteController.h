@@ -121,4 +121,6 @@ private:
     Part currentActivePart      = Part::GUITAR;
 
     OverlayState overlayState;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WriteController)
 };
