@@ -40,6 +40,38 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         slots[i].highway = std::make_unique<HighwayComponent>(state, assetManager);
         slots[i].highway->setTrackImageCache(&trackImageCache);
         slots[i].highway->setVisible(false);
+
+        // Wire mouse dispatch into the write controller (M1.3). Callbacks are
+        // no-ops in M1; this just verifies events reach the controller.
+        auto& hw = *slots[i].highway;
+        hw.setOnPointerMove  ([this](const AuthoringPoint& p, const AuthoringContext& c) { writeController.onPointerMove (p, c); });
+        hw.setOnPointerDown  ([this](const AuthoringPoint& p, const AuthoringContext& c) { writeController.onPointerDown (p, c); });
+        hw.setOnPointerDrag  ([this](const AuthoringPoint& p, const AuthoringContext& c) { writeController.onPointerDrag (p, c); });
+        hw.setOnPointerUp    ([this](const AuthoringPoint& p, const AuthoringContext& c) { writeController.onPointerUp   (p, c); });
+        hw.setOnPointerExit  ([this]() { writeController.onPointerExit  (); });
+        hw.setOnPointerCancel([this]() { writeController.onPointerCancel(); });
+
+        // Coordinate-domain conversion: HitTestMapper returns "seconds offset
+        // from cursor"; the controller wants project QN. Convert at the
+        // dispatch boundary (M0-G design rule).
+        hw.setSecondsToProjectQN([this](double secondsFromCursor) -> double {
+            double cursorQN = lastKnownPosition.toDouble();
+            auto& reaperProvider = audioProcessor.getReaperMidiProvider();
+            if (reaperProvider.isReaperApiAvailable())
+            {
+                double cursorTime = reaperProvider.ppqToTime(cursorQN);
+                return reaperProvider.timeToPpq(cursorTime + secondsFromCursor);
+            }
+            // Standard fallback: use instantaneous BPM.
+            double bpm = defaultBPM;
+            if (auto* playHead = audioProcessor.getPlayHead())
+            {
+                auto positionInfo = playHead->getPosition();
+                if (positionInfo.hasValue())
+                    bpm = positionInfo->getBpm().orFallback(defaultBPM);
+            }
+            return cursorQN + secondsFromCursor * (bpm / 60.0);
+        });
     }
 
     // Activate slot 0 as default

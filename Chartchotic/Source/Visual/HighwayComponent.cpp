@@ -375,6 +375,96 @@ void HighwayComponent::rebuildTrack()
     if (topOverflow != prevOverflow && onOverflowChanged) onOverflowChanged();
 }
 
+// =============================================================================
+// Mouse dispatch (M1.3) — turns JUCE mouse events into AuthoringPoint/Context
+// payloads and forwards them to write-mode callbacks. Callbacks are no-op stubs
+// in M1; this is purely the wire-up.
+// =============================================================================
+
+void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
+                                             AuthoringPoint& outPoint,
+                                             AuthoringContext& outContext) const
+{
+    auto local = e.getPosition().toFloat();
+
+    bool isDrums = isDrumLike(activePart);
+    auto hit = hitTestMapper.hitTest(local.x, local.y,
+                                     (uint)juce::jmax(0, getWidth()),
+                                     (uint)juce::jmax(0, getHeight()),
+                                     frameData.windowStartTime, frameData.windowEndTime,
+                                     isDrums, sceneRenderer.farFadeEnd);
+
+    outPoint.screenPos = local;
+    if (hit.valid && hit.laneIndex >= 0)
+    {
+        outPoint.onHighway = true;
+        outPoint.laneIndex = hit.laneIndex;
+    }
+    else
+    {
+        outPoint.onHighway = false;
+        outPoint.laneIndex = -1;
+    }
+
+    // Convert "seconds offset from cursor" → project QN if conversion is wired,
+    // otherwise leave as 0.0 (M1 controllers don't use it).
+    outPoint.rawProjectQN = secondsToProjectQN ? secondsToProjectQN(hit.timeFromCursor) : 0.0;
+
+    // Gem hit-testing is M3.
+    outPoint.overExistingNote = false;
+    outPoint.hitNoteStartQN = 0.0;
+    outPoint.hitNotePitch = -1;
+
+    outContext.mods = juce::ModifierKeys::getCurrentModifiers();
+    outContext.leftButton  = e.mods.isLeftButtonDown();
+    outContext.rightButton = e.mods.isRightButtonDown();
+}
+
+void HighwayComponent::mouseEnter(const juce::MouseEvent& e)
+{
+    if (!onPointerMove) return;
+    AuthoringPoint p; AuthoringContext ctx;
+    buildAuthoringPayload(e, p, ctx);
+    onPointerMove(p, ctx);
+}
+
+void HighwayComponent::mouseExit(const juce::MouseEvent&)
+{
+    if (onPointerExit) onPointerExit();
+}
+
+void HighwayComponent::mouseMove(const juce::MouseEvent& e)
+{
+    if (!onPointerMove) return;
+    AuthoringPoint p; AuthoringContext ctx;
+    buildAuthoringPayload(e, p, ctx);
+    onPointerMove(p, ctx);
+}
+
+void HighwayComponent::mouseDown(const juce::MouseEvent& e)
+{
+    if (!onPointerDown) return;
+    AuthoringPoint p; AuthoringContext ctx;
+    buildAuthoringPayload(e, p, ctx);
+    onPointerDown(p, ctx);
+}
+
+void HighwayComponent::mouseDrag(const juce::MouseEvent& e)
+{
+    if (!onPointerDrag) return;
+    AuthoringPoint p; AuthoringContext ctx;
+    buildAuthoringPayload(e, p, ctx);
+    onPointerDrag(p, ctx);
+}
+
+void HighwayComponent::mouseUp(const juce::MouseEvent& e)
+{
+    if (!onPointerUp) return;
+    AuthoringPoint p; AuthoringContext ctx;
+    buildAuthoringPayload(e, p, ctx);
+    onPointerUp(p, ctx);
+}
+
 void HighwayComponent::onInstrumentChanged()
 {
     setActivePart(getPartFromState(state));
