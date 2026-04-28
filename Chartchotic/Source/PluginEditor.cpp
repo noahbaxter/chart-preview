@@ -229,6 +229,10 @@ void ChartchoticAudioProcessorEditor::onFrame()
     if (activeSlotCount > 0)
         writeController.setActivePart(slots[0].part);
 
+    // Per-frame tick — controller uses this for hover refresh under stationary
+    // cursor and to enforce playback-gated authoring (no-op in M1, real in M3).
+    writeController.onFrameTick(lastKnownPosition.toDouble(), lastPlayingState);
+
     updateTrackInfoDisplay();
 
     // Create InstrumentSession on first REAPER detection (if multi-highway enabled)
