@@ -76,7 +76,7 @@ void FrameDataBuilder::buildReaper(HighwayFrameData& out,
     PPQ cursorPPQ = trackWindowStartPPQ;
     out.trackWindow = TimeConverter::convertTrackWindow(diffWindow.trackWindow, cursorPPQ, ppqToTime);
     out.sustainWindow = TimeConverter::convertSustainWindow(diffWindow.sustainWindow, cursorPPQ, ppqToTime);
-    out.gridlines = GridlineGenerator::generateGridlines(tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
+    out.gridlines = GridlineGenerator::generateGridlines(tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime, ctx.writeGridConfig);
     out.eventMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(tempoTimeSigMap, cursorPPQ, ppqToTime);
     out.windowStartTime = 0.0;
     out.windowEndTime = ctx.displayWindowTimeSeconds;
@@ -125,7 +125,7 @@ void FrameDataBuilder::buildReaperBatched(HighwayFrameData& primaryOut,
     }
 
     TimeBasedGridlineMap sharedGridlines = GridlineGenerator::generateGridlines(
-        tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
+        tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime, ctx.writeGridConfig);
     TimeBasedEventMarkers sharedMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(
         tempoTimeSigMap, cursorPPQ, ppqToTime);
 
@@ -273,7 +273,7 @@ void FrameDataBuilder::buildStandard(HighwayFrameData& out,
     PPQ cursorPPQ = trackWindowStartPPQ;
     out.trackWindow = TimeConverter::convertTrackWindow(diffWindow.trackWindow, cursorPPQ, ppqToTime);
     out.sustainWindow = TimeConverter::convertSustainWindow(diffWindow.sustainWindow, cursorPPQ, ppqToTime);
-    out.gridlines = GridlineGenerator::generateGridlines(tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime);
+    out.gridlines = GridlineGenerator::generateGridlines(tempoTimeSigMap, extendedStart, trackWindowEndPPQ, cursorPPQ, ppqToTime, ctx.writeGridConfig);
     out.eventMarkers = TempoTimeSignatureEventHelper::buildTempoEventMarkers(tempoTimeSigMap, cursorPPQ, ppqToTime);
     out.windowStartTime = 0.0;
     out.windowEndTime = ctx.displayWindowTimeSeconds;

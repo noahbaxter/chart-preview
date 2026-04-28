@@ -633,6 +633,8 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     // resized() so the highway reclaims/yields the row's space.
     writeController.onStateChanged = [this]() {
         writeModeIcon.setState(writeController.writeModeActive(), writeController.subMode());
+        bool wm = writeController.writeModeActive();
+        forAllHighways([wm](auto& hw) { hw.setWriteMode(wm); });
         if (toolbar.refreshFromWriteController())
             resized();
     };
@@ -1263,6 +1265,11 @@ float ChartchoticAudioProcessorEditor::computeScrollOffset()
 
 FrameContext ChartchoticAudioProcessorEditor::buildFrameContext()
 {
+    WriteGridConfig wgc;
+    wgc.active        = writeController.writeModeActive() && writeController.snapEnabled();
+    wgc.stepDivision  = writeController.stepDivision();
+    wgc.tuplet        = writeController.tuplet();
+
     return FrameContext {
         audioProcessor,
         state,
@@ -1272,7 +1279,8 @@ FrameContext ChartchoticAudioProcessorEditor::buildFrameContext()
         computeScrollOffset(),
         smoothedLatencyInPPQ(),
         slots.data(),
-        activeSlotCount
+        activeSlotCount,
+        wgc
     };
 }
 
