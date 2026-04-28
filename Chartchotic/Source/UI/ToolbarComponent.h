@@ -13,6 +13,7 @@
 #include "Controls/PanelSectionHeader.h"
 #include "Controls/PopupMenuButton.h"
 #include "Controls/WriteModePill.h"
+#include "Controls/WriteSubToolbar.h"
 #include "MenuGroup.h"
 #include "../Utils/ChartTypes.h"
 #include "../Visual/Utils/DrawingConstants.h"
@@ -33,7 +34,19 @@ public:
     static constexpr float stripFraction = 1.0f;   // strip is the full toolbar height
     static constexpr float logoFontRatio = 0.90f;  // logo font size as fraction of strip height
 
-    int getStripHeight() const { return getHeight(); }
+    // Sub-toolbar reference height — laid out below the main strip when write
+    // mode is active. Scales with the strip the same way other elements do.
+    static constexpr float subToolbarHeightRatio = 0.62f; // fraction of the strip height
+
+    // Total height the toolbar reports to its parent. Equals baseStripHeight
+    // when write mode is off; baseStripHeight + sub-row when on. PluginEditor
+    // calls this in resized() to compute the toolbar bounds and reflow the
+    // highway below.
+    int getReportedHeight(int baseStripHeight) const;
+
+    // Strip-only height (top row). When the sub-toolbar is visible, this is
+    // less than getHeight(); when off, it equals getHeight().
+    int getStripHeight() const;
 
     ToolbarComponent(juce::ValueTree& state, WriteController& writeController);
     ~ToolbarComponent() override;
@@ -137,9 +150,17 @@ public:
     ValueStepper& getNoteSpeedStepper() { return noteSpeedStepper; }
     ChartchoticLogo& getLogo() { return logo; }
 
-    // Re-read write-mode state from WriteController and refresh the mode pill.
-    // Wired to WriteController::onStateChanged in PluginEditor.
-    void repaintModePill();
+    // Re-read write-mode state from WriteController and refresh both the mode
+    // pill and the sub-toolbar. Wired to WriteController::onStateChanged in
+    // PluginEditor. Returns true if the toolbar's reported height changed
+    // (i.e. write-mode visibility flipped) so the caller can trigger a
+    // parent re-layout to reclaim/yield highway space.
+    bool refreshFromWriteController();
+
+    // Back-compat alias — kept so existing callers that only care about the
+    // pill keep working. Equivalent to refreshFromWriteController() but
+    // discards the height-changed return.
+    void repaintModePill() { refreshFromWriteController(); }
 
 private:
     juce::ValueTree& state;
@@ -155,6 +176,9 @@ private:
     CircleIconSelector difficultySelector;
     ValueStepper noteSpeedStepper{"Speed"};
     WriteModePill writeModePill;
+
+    // Second toolbar row — only visible while write mode is active.
+    WriteSubToolbar writeSubToolbar { writeController };
 
     // Multi-select instrument state (Global mode with 2+ parts)
     std::vector<Part> discoveredParts;

@@ -47,9 +47,10 @@ public:
 
     const OverlayState& getOverlayState() const { return overlayState; }
 
-    // Optional listener fired when writeModeActive or subMode actually changes.
-    // Wired by PluginEditor to repaint the toolbar mode pill. Null when unset
-    // so the controller stays testable in isolation.
+    // Optional listener fired when any observable state actually changes:
+    // writeModeActive, subMode, stepDivision, tuplet, or snapEnabled. Wired by
+    // PluginEditor to refresh the toolbar mode pill and write-mode sub-toolbar.
+    // Null when unset so the controller stays testable in isolation.
     std::function<void()> onStateChanged;
 
 private:

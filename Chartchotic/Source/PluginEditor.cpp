@@ -616,8 +616,14 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onOpenBackgroundFolder = [this]() { assets.getBackgroundDirectory().revealToUser(); };
     toolbar.onOpenTextureFolder = [this]() { assets.getHighwayTextureDirectory().revealToUser(); };
 
-    // Refresh the toolbar mode pill whenever write-mode state changes (W or Q).
-    writeController.onStateChanged = [this]() { toolbar.repaintModePill(); };
+    // Refresh the toolbar mode pill + sub-toolbar whenever write-mode state
+    // changes (W/Q toggles, [/]/S/T grid changes). When the sub-toolbar's
+    // visibility flips, the toolbar reports a new height — trigger our own
+    // resized() so the highway reclaims/yields the row's space.
+    writeController.onStateChanged = [this]() {
+        if (toolbar.refreshFromWriteController())
+            resized();
+    };
 
 #ifdef DEBUG
     debug.wireCallbacks(toolbar, primaryHighway(), [this]() { repaint(); });
@@ -778,7 +784,11 @@ void ChartchoticAudioProcessorEditor::resized()
     // The 0.09 vertical ratio ensures toolbar + tallest panel + footer all fit.
     int fromWidth = juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio);
     int fromHeight = juce::roundToInt(getHeight() * 0.09f);
-    int tbHeight = std::min({ fromWidth, fromHeight, ToolbarComponent::maxToolbarHeight });
+    int tbStripHeight = std::min({ fromWidth, fromHeight, ToolbarComponent::maxToolbarHeight });
+
+    // Total toolbar height — grows when write mode is active (sub-toolbar row).
+    int tbHeight = toolbar.getReportedHeight(tbStripHeight);
+
     if (PositionMath::bemaniMode)
     {
         // Bemani: enforce minimum aspect ratio, but grow taller to fill available space
@@ -793,7 +803,8 @@ void ChartchoticAudioProcessorEditor::resized()
 
     const int margin = 10;
 
-    // Toolbar at top — scales with editor width
+    // Toolbar at top — scales with editor width. Height includes sub-toolbar
+    // row when write mode is active.
     toolbar.setBounds(0, 0, getWidth(), tbHeight);
 
     // Footer bar height — same min(width, height) logic as toolbar
@@ -899,10 +910,12 @@ void ChartchoticAudioProcessorEditor::resized()
     }
 
     #ifdef DEBUG
-    int stripH = toolbar.getStripHeight();
-    debug.getClearButton().setBounds(margin, stripH + 4, 100, 20);
-    debug.getCopyButton().setBounds(margin + 104, stripH + 4, 60, 20);
-    debug.getConsole().setBounds(margin, stripH + 28, getWidth() - (2 * margin), getHeight() - stripH - 38);
+    // Debug console floats below the entire toolbar (including the
+    // sub-toolbar row when write mode is active).
+    int debugTop = tbHeight;
+    debug.getClearButton().setBounds(margin, debugTop + 4, 100, 20);
+    debug.getCopyButton().setBounds(margin + 104, debugTop + 4, 60, 20);
+    debug.getConsole().setBounds(margin, debugTop + 28, getWidth() - (2 * margin), getHeight() - debugTop - 38);
     #endif
 
 }
