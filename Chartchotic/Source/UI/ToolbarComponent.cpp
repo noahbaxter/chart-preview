@@ -520,7 +520,13 @@ void ToolbarComponent::resized()
     chartButton.setScale(scale);
     settingsButton.setScale(scale);
 
-    rx -= gearW;
+    // Write-mode pill — rightmost slot, after the gear. Wide enough for
+    // the split DRAW | EDIT layout.
+    int pillW = juce::roundToInt(90.0f * scale);
+    rx -= pillW;
+    writeModePill.setBounds(rx, y, pillW, h);
+
+    rx -= (gap + gearW);
     settingsButton.setBounds(rx, y, gearW, h);
     rx -= (gap + btnW);
     chartButton.setBounds(rx, y, btnW, h);
@@ -536,12 +542,6 @@ void ToolbarComponent::resized()
     tuningPanel.getButton().setPanelTopMargin(getHeight());
     tuningPanel.getButton().setBounds(rx, y + h - sqSize, sqSize, sqSize);
 #endif
-
-    // Write-mode pill — sits to the left of the right-side button cluster.
-    // Compact, fits a 4-letter label.
-    int pillW = juce::roundToInt(48.0f * scale);
-    rx -= (gap + pillW);
-    writeModePill.setBounds(rx, y, pillW, h);
 
     // Note Speed + Highway Length steppers — centered between logo and right-side buttons
     int stepW = juce::roundToInt(66.0f * scale);
