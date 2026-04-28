@@ -31,6 +31,15 @@ struct ReaperAPIs
     void* (*GetMediaItem)(void* proj, int itemidx) = nullptr;
     void* (*GetActiveTake)(void* item) = nullptr;
     void* (*GetMediaItemTake_Track)(void* take) = nullptr;
+    int (*CountTrackMediaItems)(void* track) = nullptr;
+    void* (*GetTrackMediaItem)(void* track, int itemidx) = nullptr;
+
+    // Item selection / action invocation (used by lazy item consolidation)
+    void (*Main_OnCommand)(int command, int flag) = nullptr;
+    void (*SetMediaItemSelected)(void* item, bool selected) = nullptr;
+    bool (*IsMediaItemSelected)(void* item) = nullptr;
+    int (*CountSelectedMediaItems)(void* proj) = nullptr;
+    void* (*GetSelectedMediaItem)(void* proj, int selitem) = nullptr;
 
     // Playback state functions
     double (*GetPlayPosition2Ex)(void* proj) = nullptr;
@@ -163,6 +172,15 @@ public:
         outAPIs.GetMediaItem = (void*(*)(void*, int))apiFunc("GetMediaItem");
         outAPIs.GetActiveTake = (void*(*)(void*))apiFunc("GetActiveTake");
         outAPIs.GetMediaItemTake_Track = (void*(*)(void*))apiFunc("GetMediaItemTake_Track");
+        outAPIs.CountTrackMediaItems = (int(*)(void*))apiFunc("CountTrackMediaItems");
+        outAPIs.GetTrackMediaItem = (void*(*)(void*, int))apiFunc("GetTrackMediaItem");
+
+        // Item selection / action invocation (for item consolidation)
+        outAPIs.Main_OnCommand = (void(*)(int, int))apiFunc("Main_OnCommand");
+        outAPIs.SetMediaItemSelected = (void(*)(void*, bool))apiFunc("SetMediaItemSelected");
+        outAPIs.IsMediaItemSelected = (bool(*)(void*))apiFunc("IsMediaItemSelected");
+        outAPIs.CountSelectedMediaItems = (int(*)(void*))apiFunc("CountSelectedMediaItems");
+        outAPIs.GetSelectedMediaItem = (void*(*)(void*, int))apiFunc("GetSelectedMediaItem");
 
         // Playback state
         outAPIs.GetPlayPosition2Ex = (double(*)(void*))apiFunc("GetPlayPosition2Ex");

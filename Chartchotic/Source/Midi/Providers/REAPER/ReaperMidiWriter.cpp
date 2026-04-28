@@ -10,6 +10,13 @@
 #include "ReaperMidiWriter.h"
 #include "ReaperApiHelpers.h"
 
+namespace
+{
+    // REAPER action IDs
+    constexpr int ACTION_ITEM_GLUE          = 40543; // Item: Glue items
+    constexpr int ACTION_ITEM_UNSELECT_ALL  = 40289; // Item: Unselect all items
+}
+
 ReaperMidiWriter::ReaperMidiWriter(const ReaperAPIs& apis,
                                    std::function<void*(const char*)> reaperGetFunc)
     : apis(apis), getReaperApi(std::move(reaperGetFunc))
@@ -57,6 +64,72 @@ void* ReaperMidiWriter::getFirstMidiTake(void* project, int trackIndex)
 }
 
 // =============================================================================
+// Lazy item consolidation
+// =============================================================================
+
+bool ReaperMidiWriter::consolidateItemsIfNeeded(void* project, int trackIndex)
+{
+    if (!project) return false;
+
+    // Need full set of selection + action APIs to safely glue.
+    if (!apis.GetTrack || !apis.CountTrackMediaItems || !apis.GetTrackMediaItem ||
+        !apis.Main_OnCommand || !apis.SetMediaItemSelected || !apis.IsMediaItemSelected ||
+        !apis.CountSelectedMediaItems || !apis.GetSelectedMediaItem)
+    {
+        // No consolidation infrastructure — just proceed; the writer will
+        // target the first MIDI item.
+        return true;
+    }
+
+    void* track = apis.GetTrack(project, trackIndex);
+    if (!track) return false;
+
+    int trackItemCount = apis.CountTrackMediaItems(track);
+    if (trackItemCount <= 1)
+        return true; // nothing to consolidate
+
+    juce::Logger::writeToLog("ReaperMidiWriter: consolidating "
+                             + juce::String(trackItemCount)
+                             + " items on track " + juce::String(trackIndex));
+
+    // Save current item selection so we can restore it.
+    int prevSelCount = apis.CountSelectedMediaItems(project);
+    std::vector<void*> prevSelection;
+    prevSelection.reserve((size_t)prevSelCount);
+    for (int i = 0; i < prevSelCount; ++i)
+    {
+        if (void* it = apis.GetSelectedMediaItem(project, i))
+            prevSelection.push_back(it);
+    }
+
+    // Unselect everything, then select only this track's items.
+    apis.Main_OnCommand(ACTION_ITEM_UNSELECT_ALL, 0);
+    for (int i = 0; i < trackItemCount; ++i)
+    {
+        if (void* it = apis.GetTrackMediaItem(track, i))
+            apis.SetMediaItemSelected(it, true);
+    }
+
+    // Glue them. Wrap in its own undo step.
+    juce::String desc = "Chartchotic: Consolidate items on track " + juce::String(trackIndex);
+    apis.Main_OnCommand(ACTION_ITEM_GLUE, 0);
+    if (apis.MarkProjectDirty)
+        apis.MarkProjectDirty(project);
+    if (apis.Undo_OnStateChange)
+        apis.Undo_OnStateChange(desc.toRawUTF8());
+
+    // Restore prior selection (best-effort — glued items have new pointers,
+    // so previously-selected items on this track simply won't reappear).
+    apis.Main_OnCommand(ACTION_ITEM_UNSELECT_ALL, 0);
+    for (void* it : prevSelection)
+    {
+        if (it) apis.SetMediaItemSelected(it, true);
+    }
+
+    return true;
+}
+
+// =============================================================================
 // Undo helpers
 // =============================================================================
 
@@ -82,7 +155,7 @@ void ReaperMidiWriter::endUndoBlock(void* project, const char* description)
 // Single-note operations
 // =============================================================================
 
-bool ReaperMidiWriter::insertNote(int trackIndex, double startPPQ, double endPPQ,
+bool ReaperMidiWriter::insertNote(int trackIndex, double startQN, double endQN,
                                   int channel, int pitch, int velocity)
 {
     juce::ScopedLock lock(writeLock);
@@ -90,14 +163,16 @@ bool ReaperMidiWriter::insertNote(int trackIndex, double startPPQ, double endPPQ
     void* project = ReaperApiHelpers::getProject(getReaperApi);
     if (!project) return false;
 
+    consolidateItemsIfNeeded(project, trackIndex);
+
     void* take = getFirstMidiTake(project, trackIndex);
     if (!take) return false;
 
     beginUndoBlock(project, "Chartchotic: Insert note");
 
     // Convert project QN to take PPQ
-    double takePPQStart = apis.MIDI_GetPPQPosFromProjQN(take, startPPQ);
-    double takePPQEnd = apis.MIDI_GetPPQPosFromProjQN(take, endPPQ);
+    double takePPQStart = apis.MIDI_GetPPQPosFromProjQN(take, startQN);
+    double takePPQEnd = apis.MIDI_GetPPQPosFromProjQN(take, endQN);
 
     bool ok = apis.MIDI_InsertNote(take, true, false,
                                    takePPQStart, takePPQEnd,
@@ -117,6 +192,8 @@ bool ReaperMidiWriter::deleteNote(int trackIndex, int noteIndex)
     void* project = ReaperApiHelpers::getProject(getReaperApi);
     if (!project) return false;
 
+    consolidateItemsIfNeeded(project, trackIndex);
+
     void* take = getFirstMidiTake(project, trackIndex);
     if (!take) return false;
 
@@ -132,12 +209,14 @@ bool ReaperMidiWriter::deleteNote(int trackIndex, int noteIndex)
 }
 
 bool ReaperMidiWriter::moveNote(int trackIndex, int noteIndex,
-                                double newStartPPQ, double newEndPPQ, int newPitch)
+                                double newStartQN, double newEndQN, int newPitch)
 {
     juce::ScopedLock lock(writeLock);
 
     void* project = ReaperApiHelpers::getProject(getReaperApi);
     if (!project) return false;
+
+    consolidateItemsIfNeeded(project, trackIndex);
 
     void* take = getFirstMidiTake(project, trackIndex);
     if (!take) return false;
@@ -145,8 +224,8 @@ bool ReaperMidiWriter::moveNote(int trackIndex, int noteIndex,
     beginUndoBlock(project, "Chartchotic: Move note");
 
     // Convert project QN to take PPQ
-    double takePPQStart = apis.MIDI_GetPPQPosFromProjQN(take, newStartPPQ);
-    double takePPQEnd = apis.MIDI_GetPPQPosFromProjQN(take, newEndPPQ);
+    double takePPQStart = apis.MIDI_GetPPQPosFromProjQN(take, newStartQN);
+    double takePPQEnd = apis.MIDI_GetPPQPosFromProjQN(take, newEndQN);
 
     bool ok = apis.MIDI_SetNote(take, noteIndex,
                                 nullptr, nullptr,          // selected, muted: no change
@@ -179,11 +258,13 @@ void ReaperMidiWriter::beginBatch(const char* undoDescription)
     beginUndoBlock(batchProject, batchDescription.toRawUTF8());
 }
 
-bool ReaperMidiWriter::batchInsertNote(int trackIndex, double startPPQ, double endPPQ,
+bool ReaperMidiWriter::batchInsertNote(int trackIndex, double startQN, double endQN,
                                        int channel, int pitch, int velocity)
 {
     juce::ScopedLock lock(writeLock);
     if (!inBatch || !batchProject) return false;
+
+    consolidateItemsIfNeeded(batchProject, trackIndex);
 
     void* take = getFirstMidiTake(batchProject, trackIndex);
     if (!take) return false;
@@ -196,8 +277,8 @@ bool ReaperMidiWriter::batchInsertNote(int trackIndex, double startPPQ, double e
         batchTake = take;
     }
 
-    double takePPQStart = apis.MIDI_GetPPQPosFromProjQN(take, startPPQ);
-    double takePPQEnd = apis.MIDI_GetPPQPosFromProjQN(take, endPPQ);
+    double takePPQStart = apis.MIDI_GetPPQPosFromProjQN(take, startQN);
+    double takePPQEnd = apis.MIDI_GetPPQPosFromProjQN(take, endQN);
 
     const bool noSort = true;
     return apis.MIDI_InsertNote(take, true, false,
@@ -209,6 +290,8 @@ bool ReaperMidiWriter::batchDeleteNote(int trackIndex, int noteIndex)
 {
     juce::ScopedLock lock(writeLock);
     if (!inBatch || !batchProject) return false;
+
+    consolidateItemsIfNeeded(batchProject, trackIndex);
 
     void* take = getFirstMidiTake(batchProject, trackIndex);
     if (!take) return false;
@@ -224,10 +307,12 @@ bool ReaperMidiWriter::batchDeleteNote(int trackIndex, int noteIndex)
 }
 
 bool ReaperMidiWriter::batchMoveNote(int trackIndex, int noteIndex,
-                                     double newStartPPQ, double newEndPPQ, int newPitch)
+                                     double newStartQN, double newEndQN, int newPitch)
 {
     juce::ScopedLock lock(writeLock);
     if (!inBatch || !batchProject) return false;
+
+    consolidateItemsIfNeeded(batchProject, trackIndex);
 
     void* take = getFirstMidiTake(batchProject, trackIndex);
     if (!take) return false;
@@ -239,8 +324,8 @@ bool ReaperMidiWriter::batchMoveNote(int trackIndex, int noteIndex,
         batchTake = take;
     }
 
-    double takePPQStart = apis.MIDI_GetPPQPosFromProjQN(take, newStartPPQ);
-    double takePPQEnd = apis.MIDI_GetPPQPosFromProjQN(take, newEndPPQ);
+    double takePPQStart = apis.MIDI_GetPPQPosFromProjQN(take, newStartQN);
+    double takePPQEnd = apis.MIDI_GetPPQPosFromProjQN(take, newEndQN);
 
     const bool noSort = true;
     return apis.MIDI_SetNote(take, noteIndex,

@@ -57,6 +57,11 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
         if (normalizedPosition < HIGHWAY_POS_START || normalizedPosition > farFadeEnd)
             continue;
 
+        // In write mode the user only wants measure anchors + their chosen step
+        // grid visible; the default BEAT / HALF_BEAT lines mask the STEP overlay.
+        if (writeMode && (gridlineType == Gridline::BEAT || gridlineType == Gridline::HALF_BEAT))
+            continue;
+
         juce::Image* markerImage = assetManager.getGridlineImage(gridlineType);
         if (markerImage == nullptr)
             continue;
