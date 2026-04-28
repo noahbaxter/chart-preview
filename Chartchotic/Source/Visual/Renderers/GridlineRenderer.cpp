@@ -90,6 +90,14 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
         float fadeOpacity = PositionMath::bemaniMode
                           ? 1.0f
                           : calculateFarFade(normalizedPosition, farFadeEnd, farFadeLen, farFadeCurve);
+
+        // In write mode, MEASURE / BEAT are structural anchors — fading them
+        // with distance lets dense STEP grids visually drown them at typical
+        // viewing positions. Keep anchors at full per-type opacity; only the
+        // STEP subgrid fades with depth.
+        if (writeMode && (gridlineType == Gridline::MEASURE || gridlineType == Gridline::BEAT))
+            fadeOpacity = 1.0f;
+
         float opacity = baseOpacity * fadeOpacity;
 
         if (PositionMath::bemaniMode)
