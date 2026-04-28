@@ -146,6 +146,16 @@ private:
         double nextHalfBeat = std::ceil(relativeToAnchor / halfBeatSpacing) * halfBeatSpacing;
         currentPPQ = measureAnchor + nextHalfBeat;
 
+        // Pre-compute write-mode step spacing for the BEAT alignment filter
+        // below. Only meaningful when writeGridConfig.active.
+        double stepSpacingForFilter = 0.0;
+        if (writeGridConfig.active && writeGridConfig.stepDivision > 0)
+        {
+            stepSpacingForFilter = (writeGridConfig.tuplet > 0)
+                ? (8.0 / (static_cast<double>(writeGridConfig.stepDivision) * writeGridConfig.tuplet))
+                : (4.0 / static_cast<double>(writeGridConfig.stepDivision));
+        }
+
         // Generate gridlines from first half-beat to section end
         int iterationCount = 0;
         const int maxIterations = 100000; // Safety limit
@@ -173,9 +183,27 @@ private:
                 lineType = Gridline::HALF_BEAT;
             }
 
-            // Add the gridline
-            double time = ppqToTime(currentPPQ) - cursorTime;
-            result.push_back({time, lineType});
+            // Write-mode alignment filter: in write mode, BEAT lines only
+            // render if they coincide with the user's step grid. A beat that
+            // falls between step positions is misleading (looks snappable but
+            // isn't). MEASURE always renders (anchor); HALF_BEAT is skipped
+            // in the renderer anyway.
+            bool emit = true;
+            if (writeGridConfig.active && lineType == Gridline::BEAT && stepSpacingForFilter > 0.0)
+            {
+                double stepCount = relativePos / stepSpacingForFilter;
+                double stepFrac  = std::abs(stepCount - std::round(stepCount));
+                // 1/480 QN = one MIDI tick at 480 PPQN; matches dedupEpsilon below.
+                const double alignEpsilon = 1.0 / 480.0;
+                if (stepFrac > alignEpsilon)
+                    emit = false;
+            }
+
+            if (emit)
+            {
+                double time = ppqToTime(currentPPQ) - cursorTime;
+                result.push_back({time, lineType});
+            }
 
             // Move to next half-beat
             currentPPQ += halfBeatSpacing;
