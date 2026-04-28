@@ -1,12 +1,13 @@
 #include "ToolbarComponent.h"
 #include "TooltipStrings.h"
+#include "../Editor/WriteController.h"
 
 static const juce::StringArray framerateLabels = { "15 FPS", "30 FPS", "60 FPS", "Native" };
 static const juce::StringArray latencyLabels = { "0ms", "250ms", "500ms", "750ms", "1000ms", "1500ms" };
 static const juce::StringArray hopoThresholdLabels = { "Tight", "Default", "Loose" };
 
-ToolbarComponent::ToolbarComponent(juce::ValueTree& state)
-    : state(state)
+ToolbarComponent::ToolbarComponent(juce::ValueTree& state, WriteController& writeController)
+    : state(state), writeController(writeController)
 {
     initTopBar();
     initChartPanel();

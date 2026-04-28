@@ -28,6 +28,7 @@
 #include "Editor/AssetController.h"
 #include "Editor/SessionController.h"
 #include "Editor/FrameDataBuilder.h"
+#include "Editor/WriteController.h"
 #ifdef DEBUG
 #include "DebugTools/DebugEditorController.h"
 #endif
@@ -55,6 +56,10 @@ public:
 
     bool keyPressed(const juce::KeyPress& key) override
     {
+        // Write-mode shortcuts win — they must run before debug/global routing.
+        if (writeController.onKeyPress(key))
+            return true;
+
 #ifdef DEBUG
         if (debug.keyPressed(key, toolbar))
             return true;
@@ -143,6 +148,9 @@ private:
 
     // Custom look and feel
     ChartchoticLookAndFeel chartPreviewLnF;
+
+    // Write-mode controller (must be declared before toolbar — toolbar holds a reference)
+    WriteController writeController;
 
     // UI Components
     ToolbarComponent toolbar;
