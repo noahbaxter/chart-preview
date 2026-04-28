@@ -230,6 +230,20 @@ These should be treated as settled before writing the first implementation patch
 
 The older multi-highway framing should be removed from the implementation plan unless the general preview architecture later reintroduces a clearly subordinate secondary display.
 
+#### A.1 Target resolution policy (locked)
+
+**Storage convention:** one REAPER track per part, identified by track name (`matchTrackNameToPart` in `TrackDiscovery.h:15`). This is already enforced on the read side (`ReaperGlobalDiscovery::discoverTracks` — first match wins, duplicates skipped). Authoring follows the same convention. The "single MIDI file with multiple named subtracks" alternative (Type 1 MIDI internal subtracks) is **not** supported — when importing a notes.mid into REAPER, let REAPER split it into one track per named subtrack. This matches the read model and avoids inventing a parallel write path.
+
+**Working time domain:** project QN (quarter notes, project-relative). Consistent across items and takes. Conversion to take-PPQ happens at the `MidiWriter` boundary only (already done by `MIDI_GetPPQPosFromProjQN` in `ReaperMidiWriter.cpp:99`). All `MidiWriter` parameters currently named `startPPQ` / `endPPQ` are actually project QN — rename to `startQN` / `endQN` before M3 to stop lying.
+
+**Whole-timeline behavior:** the writable surface is the entire timeline of the part's track, not a single MIDI item. Read path already aggregates across items.
+
+**Multiple items on a part track:** lazy auto-consolidate on first write. When a write op targets a part track that has more than one MIDI item, the writer first consolidates all items on that track into one item spanning min-start to max-end (REAPER's "Glue items" or equivalent). All subsequent writes go to the single item. Surface this as a status message the first time it happens per session ("Consolidated N items on PART X") so it's not silent. Consolidation is a single REAPER undo step; the actual write is a separate undo step.
+
+**Empty part track:** if no MIDI item exists, create one. Span: from time 0 (or session start) to a sensible default (e.g. one measure past the write target), let REAPER auto-extend on subsequent writes.
+
+**Active take:** always operate on the active take of the consolidated item. Take swaps are out of scope; if the user changes active takes mid-session, the next write uses the new active take.
+
 ### B. Persisted vs transient state
 
 | Property key | Type | Persisted? | Notes |
@@ -247,15 +261,21 @@ The older multi-highway framing should be removed from the implementation plan u
 
 `WriteController::init()` reads these on startup; setter methods write back. Property keys live in `Source/Utils/ChartTypes.h` or a dedicated `WriteStateKeys` header to avoid stringly-typed sprawl.
 
-### C. Note identity for edit mode
+### C. Note identity for edit mode (locked)
 
-Before edit mode is built, choose one of these strategies explicitly:
+**Decision: musical identity, resolved to REAPER index at write time.**
 
-- stable note references captured from the current resolved window
-- on-demand re-hit-test by musical position
-- raw REAPER note index only for immediate operations
+A "selected note" is stored as `{ part, track, takeRef, startQN, pitch, channel }` — not as a REAPER note index. At commit time (delete / move / property edit), the controller asks the cached note list (or REAPER directly) for the current index of the note matching that musical identity, then issues the writer call.
 
-The old plan assumed `noteIndex` would be enough. That is risky for multi-step edit operations because indices can shift after mutations. The edit-mode plan should prefer a musical identity model first, then resolve to host note indices at commit time.
+Why not raw indices: REAPER reorders/renumbers notes after every `MIDI_InsertNote` / `MIDI_DeleteNote` / `MIDI_Sort`. An index captured at click time is invalid after the next commit. This is fine for single-shot ops (click → immediately delete that one note) but breaks for any multi-step gesture or any operation that commits after another commit elsewhere on the same take.
+
+Why not stable refs from REAPER: REAPER does not expose stable note IDs across the C API. Indices are the only addressable thing, and they shift.
+
+Trade-off: musical identity costs one cache lookup per commit. With the existing `InstrumentSession` note cache that's a hash-keyed lookup — negligible.
+
+**Edge cases:**
+- Two notes at identical `{startQN, pitch, channel}` on the same take: should not happen in practice (a duplicate note is the same note). If it does, the resolver picks any one — a duplicate is functionally one note for authoring purposes.
+- Note that has been deleted by an outside action (REAPER MIDI editor) before the commit: lookup returns "not found" → the operation no-ops gracefully and selection drops that note.
 
 ### D. Threading rule
 
@@ -267,6 +287,20 @@ Enforcement:
 - Audio thread never enters `WriteController` or `MidiWriter`. The plan does not introduce any code path that crosses this boundary.
 - Hover, drag, paint, erase, selection ops all originate from JUCE GUI events, which are already on the message thread.
 - Async work (e.g. coalescing rapid edits) is not in scope for V1. If introduced later, marshal to message thread via `MessageManager::callAsync`.
+
+**Undo mechanism (REAPER reality):** `Undo_BeginBlock2` / `EndBlock2` do **not** work from plugin GUI threads — the block never closes and swallows all subsequent operations into one runaway block. Current `ReaperMidiWriter` (lines 63-79) intentionally uses `Undo_OnStateChange` once per `endBatch()` instead, which produces one undo point per gesture. The plan's "one undo per gesture" semantics are achieved this way. `docs/WRITE_MODE.md:172` still references the broken BeginBlock2 approach and needs to be updated to match the writer.
+
+### D.1 Post-write cache invalidation (locked)
+
+`InstrumentSession::pollForChanges()` is hash-polled (`InstrumentSession.cpp:22`). Between a `MidiWriter` commit and the next poll, the cached note list is stale.
+
+**Rule:** every successful `MidiWriter` mutation triggers an immediate refetch of the affected track in `InstrumentSession` before control returns to the caller. With the M0-C musical-identity decision, this matters less for single-note ops (musical identity is resilient to index shifts) but is still required so the next render frame and the next musical-identity → index lookup both see the post-write state.
+
+**Where the hook lives:** in `WriteController` — it sits naturally between the writer and the rest of the system, knows the active part track, and can call into `InstrumentSession` immediately after every successful commit. Keeping it out of `MidiWriter` keeps the writer DAW-agnostic. Keeping it out of `SessionController` avoids a long round-trip on every gesture.
+
+**API:** the per-track refetch already exists as private `InstrumentSession::fetchTrackData(int idx)` at `InstrumentSession.h:42`. M3 just exposes it (either make public, or add a thin public `invalidateTrack(int trackIdx)` wrapper). Signature matches existing `getNotes(int)` / `tracks` convention. `WriteController` does the `Part → trackIdx` lookup itself (cheap; the active target already resolves to a track index).
+
+**Batch ops:** `WriteController` invalidates once at `endBatch()`, not per `batchInsertNote` call.
 
 ### E. Interaction semantics already decided
 
@@ -309,11 +343,101 @@ This table is the source of truth for interaction behavior. If prose elsewhere c
 | Edit | Selected note(s) | Left drag | Begin move immediately when mouse moves; show non-destructive preview | Commit moved notes atomically | Moved notes remain selected after release |
 | Edit | Unselected note | Left drag | Select that note immediately and begin move preview | Commit moved note atomically | Keeps edit mode direct and avoids select-then-drag friction |
 | Edit | Empty area | Left drag | Show snapped trapezoid marquee aligned to highway geometry | Select notes inside the snapped lane/time region | Marquee begins and ends from cursor positions snapped onto the highway plane |
-| Edit | Region right of highway | Left drag | Show bulk-select gesture for visible content | Select all visible selectable notes in current target | Temporary v1 affordance for quick select-all |
+| Both | Any selection gesture | Hold scope-modifier (TBD key) | Marquee/selection set expands to "all visible regardless of filter" or filters to "bars only" — see Selection scope modifier section | Same selection action, hold-modifier flips the scope | Replaces the previously-considered right-of-highway drag affordance and `Cmd+A`, both rejected |
 | Edit | Empty cell | Double click | Place note immediately | Immediate | Contextual create |
 | Edit | Existing note | Double click | Delete note immediately | Immediate | Contextual delete |
 
 If a row is missing here, treat it as undecided behavior — surface it before implementing the affected milestone.
+
+### G. WriteController event API (locked)
+
+Concrete input surface `HighwayComponent` and `PluginEditor` use to drive the controller.
+
+#### Event payloads
+
+```cpp
+// AuthoringEvent.h  (new, alongside WriteController)
+
+struct AuthoringPoint
+{
+    juce::Point<float> screenPos;   // HighwayComponent local space
+
+    // Coupled invariant:
+    //   onHighway == true   ⇔   laneIndex >= 0
+    //   onHighway == false  ⇔   laneIndex == -1
+    // Lanes are wall-to-wall on the highway — there is no "between lanes."
+    // off-highway gutter / open-kick zone / toolbar all set onHighway = false.
+    bool onHighway = false;
+    int  laneIndex = -1;
+
+    // RAW (unsnapped) project QN under cursor. Snap is applied by
+    // WriteController, not the dispatcher.
+    double rawProjectQN = 0.0;
+
+    // Cheap result of HighwayComponent's gem hit-test against the visible
+    // frame. Controller may re-resolve via its own cache for sustain bodies
+    // or below-strikeline placement.
+    bool   overExistingNote = false;
+    double hitNoteStartQN   = 0.0;
+    int    hitNotePitch     = -1;
+};
+
+struct AuthoringContext
+{
+    juce::ModifierKeys mods;
+    bool leftButton  = false;
+    bool rightButton = false;
+};
+```
+
+#### Controller input methods
+
+```cpp
+class WriteController
+{
+public:
+    // Pointer events from HighwayComponent
+    void onPointerMove  (const AuthoringPoint&, const AuthoringContext&);
+    void onPointerDown  (const AuthoringPoint&, const AuthoringContext&);
+    void onPointerDrag  (const AuthoringPoint&, const AuthoringContext&);
+    void onPointerUp    (const AuthoringPoint&, const AuthoringContext&);
+    void onPointerExit  ();
+    void onPointerCancel();   // mode flip mid-drag, focus loss, Esc, teardown
+
+    // Keyboard from PluginEditor — returns true if consumed
+    bool onKeyPress(const juce::KeyPress&);
+
+    // Frame tick from PluginEditor (after frame data built)
+    void onFrameTick(double currentProjectQN, bool isPlaying);
+
+    // Read-only overlay snapshot for HighwayComponent::paintOverChildren
+    const OverlayState& getOverlayState() const;
+};
+```
+
+#### Design rules
+
+- **Snap lives in the controller.** Dispatchers always send raw QN. Changing snap doesn't touch dispatcher code.
+- **Gem hit-test is dual-sourced.** Cheap hit included in `AuthoringPoint`; controller may re-resolve for edge cases (sustain bodies, below-strikeline).
+- **One method per phase.** Maps 1:1 to JUCE mouse callbacks; clearer than a phase enum.
+- **`onFrameTick` is non-optional.** Needed for hover refresh under stationary cursor when notes change, and to cancel in-flight gestures across playback transitions.
+- **`OverlayState` is a snapshot, not a callback.** Renderer pulls; no observer/threading concerns.
+- **Keyboard routes through one method.** `PluginEditor::keyPressed` calls `controller.onKeyPress(k)` first; falls through if unconsumed.
+- **`onPointerCancel` is a first-class signal**, not optional. All gestures must define their cancel path on day one.
+- **`onHighway` and `laneIndex` are coupled.** Lanes are wall-to-wall — never "between lanes." Either you're on the highway with a valid lane, or you're off it with `laneIndex == -1`.
+
+#### Coordinate-domain conversion
+
+`HitTestMapper` stays time-domain pure (returns `timeFromCursor` in seconds). The seconds → project QN conversion **already exists** as `ReaperMidiProvider::timeToPpq(double timeInSeconds)` (`ReaperMidiProvider.h:98`, `.cpp:259-271`). Inverse is `ppqToTime(double ppq)`. Both are wired through `TimeMap2_timeToQN` / `TimeMap2_QNToTime` and already include a 120 BPM fallback for non-REAPER use.
+
+**Naming gotcha (existing codebase, not new):** `timeToPpq` returns project QN, not take PPQ — the function name predates the QN/PPQ distinction being made cleanly. Same loose naming as `MidiWriter::startPPQ` parameters (which the plan flags for rename in M3). Use the function as-is for M3; tighter naming is a separate cleanup pass post-V1.
+
+**How it threads:** `HighwayComponent` already has the `MidiProvider` reachable through `PluginEditor` / state. Pass the provider reference (or just the two conversion methods bound as `std::function<double(double)>`) into `HighwayComponent` so it can populate `AuthoringPoint::rawProjectQN` before dispatching. No new bridge class needed — the existing methods are the bridge.
+
+#### Open follow-ups
+
+- Whether `AuthoringPoint::overExistingNote` should carry full `NoteData` (velocity, channel, end) or stay lightweight and force re-lookup. Lean lightweight; revisit if controller hits the cache too often.
+- Whether `onFrameTick` should take `HighwayFrameData&` directly or just the bits the controller cares about. Lean "just the bits"; revisit if the param list bloats past ~5.
 
 ---
 
@@ -409,11 +533,14 @@ That reduces UI churn while authoring behavior is still moving.
 
 **Modify:**
 - `Chartchotic/Source/Utils/ChartTypes.h` — add `Gridline::STEP` enum value
-- `Chartchotic/Source/Visual/Managers/GridlineGenerator.{h,cpp}` — emit STEP gridlines per current step/tuplet when write mode active
-- `Chartchotic/Source/Editor/FrameDataBuilder.{h,cpp}` — pass write-grid config into gridline generation
+- `Chartchotic/Source/Visual/Managers/GridlineGenerator.h` — header-only template; thread new write-grid params through `generateGridlines<>` and `generateGridlinesForSection<>` to emit STEP gridlines per current step/tuplet when write mode active
+- `Chartchotic/Source/Editor/FrameDataBuilder.{h,cpp}` — pass write-grid config into gridline generation at all three call sites (~lines 77, 186, 274)
 - `Chartchotic/Source/Visual/Managers/AssetManager.{h,cpp}` — register STEP gridline asset (own image, not aliased to HALF_BEAT)
 - `Chartchotic/Source/Visual/Renderers/GridlineRenderer.{h,cpp}` — `bool writeMode` member; opacity branch for write-mode gridlines (MEASURE 1.0 / BEAT 0.6 / HALF_BEAT 0.35 / STEP 0.25)
 - `Chartchotic/Source/UI/ToolbarComponent.{h,cpp}` — mode pill expands to show DRAW/EDIT in distinct colors
+
+**Wire (no new files needed):**
+- Thread `MidiProvider`'s existing `timeToPpq` / `ppqToTime` (returns project QN despite the name — see M0-G "Coordinate-domain conversion") through `PluginEditor` into `HighwayComponent` so it can populate `AuthoringPoint::rawProjectQN`. Same conversion already drives gridline placement via `FrameDataBuilder` callers, so this is reuse, not new infrastructure.
 
 ### Definition of done
 
@@ -436,7 +563,6 @@ That reduces UI churn while authoring behavior is still moving.
 - minimum sustain handling
 - one undo action per gesture
 - hover ghost and drag preview sufficient to make placement trustworthy
-- contextual delete-on-release for existing notes
 - sustain extension from existing notes by drag
 - multi-note sustain pass across successive notes in-lane
 - right-drag erase sweep with immediate visual removal
@@ -451,10 +577,11 @@ Treat these as required for the first draw-mode milestone:
 - lane follows cursor during drag
 - drag threshold
 - gesture-scoped undo
-- delete only commits on release
-- click existing can promote into sustain instead of delete
+- left-click on existing note in draw is a no-op (erase is right-click only — see matrix)
+- left-drag from existing note promotes into sustain authoring
 - drag across note runs can extend each note to the next note start
 - right-drag erase should remove crossed notes immediately while still committing as one gesture
+- modifier-note write primitives (TOM range insert/extend/trim) so cymbal/tom is authorable from M3 onward
 
 ### Main risk
 
@@ -474,6 +601,10 @@ The second hardest part is preserving the intended sustain semantics when draggi
 
 **Modify:**
 - `Chartchotic/Source/Editor/WriteController.{h,cpp}` — `placeNote`, `eraseNote`, `commitSustain`, drag state machine, multi-note sustain extension across crossed notes
+- `Chartchotic/Source/Midi/Providers/MidiWriter.h` — add `JUCE_ASSERT_MESSAGE_THREAD` discipline; rename `startPPQ`/`endPPQ` parameters to `startQN`/`endQN` (they're project QN, not PPQ — see M0-A.1). No new "modifier-range" primitives needed: TOM ranges are just MIDI notes on pitches 110/111/112, the existing `insertNote`/`deleteNote`/`moveNote`/batch API composes them. Modifier-range *application logic* (merge/split/trim adjacent ranges) lives in `WriteController` or a small helper, not in the writer.
+- **Reuse `ModifierRange` / `ModifierRanges` types from `Chartchotic/Source/Midi/Processing/SharedTrackData.h:24-65`** for any modifier-range manipulation in `WriteController`. The read side already uses them (with `tomYellow` / `tomBlue` / `tomGreen` vectors); writing should produce/consume the same shape, not parallel structs.
+- `Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiWriter.{h,cpp}` — same parameter rename; add lazy item consolidation when a part track has >1 MIDI item (M0-A.1); ensure active take is used (not just first take)
+- `Chartchotic/Source/Midi/InstrumentSession.{h,cpp}` — `fetchTrackData(int idx)` already exists at `InstrumentSession.h:42` but is **private**. Either make it public, or expose a thin public wrapper named `invalidateTrack(int trackIdx)` that calls it. Either way: no new mechanism, just visibility change. Signature already matches the `int trackIdx` convention.
 - `Chartchotic/Source/Visual/HighwayComponent.{h,cpp}` — mouse handlers in DRAW mode, drag preview painting in `paintOverChildren`, hover ghost geometry
 - `Chartchotic/Source/Visual/Renderers/SustainRenderer.{h,cpp}` — public single-sustain entry point for drag preview tail (replaces the old `LanePainter::paint` call)
 - `Chartchotic/Source/Visual/Renderers/NoteRenderer.{h,cpp}` — make `getCurvedImage(...)` public so ghost cursor matches real note curvature
@@ -566,10 +697,14 @@ Keyboard nudges should follow the charting mental model:
 - collision-safe atomic commit for group drag moves
 - copy/paste
 
-Copy/paste rule:
+Copy/paste rule (locked):
 
-- pasted notes overwrite collided destination notes on commit
-- this should match the move semantics so paste does not introduce a second collision model
+- **Anchor:** cursor position. First note in the clipboard aligns to the cursor; relative timings between notes are preserved.
+- **Collision (start hit):** if a pasted note's start lands at the same time as an existing note in the same lane, the pasted note overwrites the existing note (start-on-start replacement).
+- **Collision (mid-note insert):** if a pasted note's start lands *between* an existing note's start and end in the same lane, the existing note's end is shortened to just before the pasted note's start. The existing note is preserved (still selectable, still has its original start), just trimmed.
+- **Single undo step:** the entire paste — including all start-on-start replacements and all mid-note shortenings — is one REAPER undo action.
+- **Selection after paste:** pasted notes are selected; previous selection is cleared.
+- This collision model also applies to drag-move commits, so paste and move share the same collision logic.
 
 ### Important note
 
@@ -596,7 +731,9 @@ Paint/erase stroke rule:
 
 - paint strokes are additive only
 - erase strokes are subtractive only
-- revisiting a cell during the same paint stroke should do nothing
+- revisiting a step+lane cell during the same paint stroke should do nothing (no flip-flop)
+- revisiting the same time-step in a **different** lane during the same paint stroke replaces the gesture's previously-placed note in that step (matches `docs/WRITE_MODE.md:65-72` "one note per time step from a single paint stroke" rule)
+- pre-existing notes outside the current gesture are never affected by paint
 - stroke behavior should not flip notes back and forth within one gesture
 
 ### Definition of done
@@ -689,24 +826,36 @@ The product assumption is one active writable target at a time.
 
 ### Instrument mapping
 
-Lane-to-pitch mapping needs one authoritative implementation in the controller or a helper it owns. It should not be spread across event handlers.
+Lane-to-pitch mapping needs one authoritative implementation. The forward direction (pitch→column) **already exists** in `Chartchotic/Source/Midi/Utils/InstrumentMapper.h` — `getGuitarColumn(pitch, skill)`, `getDrumColumn(pitch, skill, kick2x)`, `getGuitarPitchesForSkill(skill)`, `getDrumPitchesForSkill(skill)`, plus `isDrumKick`, `isModifier`, modifier-pitch helpers.
+
+For authoring, M3 adds the **inverse** in the same file: `columnToGuitarPitch(skill, col)` and `columnToDrumPitch(skill, col, kick2x)`. The existing per-skill ordered pitch vectors make this a straightforward indexed lookup, not new logic. Don't put column→pitch anywhere else.
 
 This mapping must account for:
 
 - guitar/bass five-lane + open handling
 - drums lane variants
 - difficulty context
-- cymbal/tom encoding rules
+- cymbal/tom encoding rules (see below)
 
-**Cymbal vs tom encoding (decision):** matches `TrackResolver`'s read-side detection — drum notes on yellow/blue/green pitch with velocity ≥110 are interpreted as cymbals, lower velocities as toms. Write mode follows the same convention:
+**Cymbal vs tom encoding (decision):** matches `TrackResolver`'s read-side detection. Pro-drums uses dedicated **TOM modifier notes on separate pitches** — `TOM_YELLOW=110`, `TOM_BLUE=111`, `TOM_GREEN=112` (see `MidiTypes.h`). Yellow/Blue/Green lane notes are **cymbals by default**; a TOM modifier note covering the same time range flips that lane to a tom (`TrackResolver.cpp:179-187`). Red is always tom; no modifier needed.
 
-- placing a tom-style note: standard velocity (e.g. 100)
-- placing a cymbal: same pitch, velocity 110+
-- toggling cymbal/tom on a selected note: rewrite the velocity in place, no pitch change
+Velocity is **independent** of cymbal/tom — it controls `Dynamic` (NONE / GHOST=1 / ACCENT=127, see `MidiTypes.h:33`).
 
-This avoids a separate "cymbal flag" parallel to the existing read path.
+Write mode must therefore manipulate two parallel streams:
 
-**New-note default velocity:** 100 (tom / standard). Cymbal placement uses 110+. Velocity 0 is reserved for note-off.
+- lane note (the gem itself, on EXPERT_YELLOW/BLUE/GREEN/etc.)
+- TOM modifier range (separate notes on pitches 110/111/112)
+
+Authoring rules:
+- place cymbal on Y/B/G: insert lane note only
+- place tom on Y/B/G: insert lane note + ensure a TOM modifier range covers it
+- toggle cymbal→tom on selected notes: insert/extend matching TOM modifier ranges
+- toggle tom→cymbal on selected notes: trim/remove matching TOM modifier ranges
+- accent/ghost/normal: vary lane-note velocity (NONE / GHOST=1 / ACCENT=127), no modifier needed
+
+This means `MidiWriter` needs primitives for **modifier-note range edits** (insert / extend / trim / split / merge) in addition to single-note insert/delete/move. That work lands in M3 alongside basic placement — it cannot be deferred without forcing users back to the piano roll for cymbal/tom toggles.
+
+**New-note default velocity:** 100 (NORMAL Dynamic). Accent uses 127, ghost uses 1. Velocity 0 is reserved for note-off.
 
 This is one of the main product-critical areas still to design clearly. The authoring model needs to make it easy to intentionally place:
 
@@ -854,17 +1003,11 @@ Tuplet-aware placement still matters:
 - the write-mode math should avoid creating unusably precise placements outside the intended authoring constraints
 - this should be documented explicitly alongside the authoring rules so users understand the precision floor and tuplet behavior
 
-### Lane-bound behavior recommendation
+### Lane-bound behavior (locked)
 
-Recommended rule: clamp the entire move so no selected note can move off the edge of the highway.
+**Decision: clamp the entire move at the highway edge.** No selected note can move off either edge; the whole selection is held back so its relative shape is preserved. Same rule for arrow-key lane nudges and drag-move.
 
-Why:
-
-- it is more predictable than partially dropping notes
-- it preserves the relative shape of the selection
-- it avoids a destructive surprise during what should feel like a reversible transform
-
-If later testing proves this feels too restrictive, partial dropping can be reconsidered, but full-selection clamp is the safer default for edit mode.
+This is more predictable than partially dropping notes, preserves relative shape, and avoids destructive surprise during what should be a reversible transform.
 
 ### Project map
 
@@ -906,17 +1049,20 @@ Manual validation is still required for:
 - Edit-mode note identity model is underspecified
 - Marquee behavior may be harder than the old draft assumed
 - Sustains and overlap rules can get subtle quickly
-- Target-to-track write targeting must be correct
+- **Visible-target → writable take resolution**: `getFirstMidiTake` (current `ReaperMidiWriter.cpp:28-57`) walks all media items and returns the first MIDI take whose track matches. Fine for V1 single-item charts, brittle for split clips, multiple MIDI items per track, pooled items, or active-take changes mid-session. Lock the resolution policy before M3.
+- **Note-type read/write parity**: drum cymbal/tom is encoded via TOM modifier ranges (pitches 110/111/112), not velocity. Write logic must round-trip cleanly through `TrackResolver` or the preview will show authored notes incorrectly.
+- **Post-write cache invalidation**: hash-poll latency in `InstrumentSession` can leave stale note indices between commit and next poll; multi-step batch operations that re-reference indices will corrupt without an explicit refetch hook.
 
 ### Medium
 
 - Gridline expansion could sprawl if not kept inside frame generation
 - Toolbar UI could churn if the full sub-toolbar is attempted too early
 - Ghost/preview visuals may tempt logic duplication from renderers
+- **Top-level keybind routing in REAPER VST3/AU contexts**: host focus and key capture are inconsistent across DAWs and plugin formats. Plan to manually validate keybind routing in REAPER (VST3 + AU) before marking M1 done.
+- Coordinate-system contract is not documented end-to-end (screen → highway plane → project QN → take PPQ). `ReaperMidiWriter` parameters are named `startPPQ` but are actually project QN until the writer converts them. Worth a named contract somewhere in `WriteController` or a small types header.
 
 ### Low
 
-- top-level keybind routing
 - persisted controller settings
 - basic write-mode toggling
 
@@ -980,26 +1126,33 @@ Manual validation is still required for:
 
 ### Before Milestone 5
 
-- what should copy/paste align to when it lands later: cursor, viewport center, or original absolute timing?
 - do we need direct chord-authoring beyond normal selection/copy workflows, or is that future-only?
-- **right-of-highway bulk select** (currently in spec as "drag in a dedicated region to the right of the highway = select all visible") — keep in V1 as a quick affordance, or punt until proper `Cmd+A` scope is settled? Adds UX surface area (a special click zone with implicit semantics). Strong instinct says punt; codex review should weigh in.
+- **Selection scope modifier (resolved in concept, key TBD):** instead of `Cmd+A` or a right-of-highway zone, marquee/selection gestures support a held-modifier that changes the *scope* of what gets selected. Two scopes proposed:
+  - **"select everything"** — include filtered/hidden notes (e.g. notes the kick filter has faded out)
+  - **"bars only"** — restrict to kick/open notes (the horizontal "bar" gems)
+  - Works in both Draw and Edit modes (the modifier overrides the mode's default selection behavior for the duration of the gesture)
+  - Open: which key(s)? Shift is taken (add/remove from selection). Likely candidates: Alt (scope = everything), Cmd/Ctrl (scope = bars only). Lock these before M5 starts.
+- copy/paste semantics — **resolved**, see "Copy/paste rule (locked)" in M5 deliverables. Spec `docs/WRITE_MODE.md:138-143` still says TBD; update to match.
+- **right-of-highway bulk select** — **resolved: punt from V1.** Replaced by the modifier-driven selection scope above.
 
 ---
 
 ## Shipping Strategy
 
-Each milestone maps to a dev-channel build. `wip/authoring` merges into `dev` after passing manual validation; `dev` builds publish a `dev-latest` prerelease. Stable tag (`1.3.0`) is cut after Milestones 1-4 are ship-quality and the visible-target resolution is solid.
+Each milestone maps to a dev-channel build. `wip/authoring` merges into `dev` after passing manual validation; `dev` builds publish a `dev-latest` prerelease.
+
+**Release gate (locked):** `1.3.0` ships when M1-4 are ship-quality **and** the V1 note-type write infrastructure (modifier-note primitives, cymbal/tom toggle, kick/2x kick, force HOPO/strum, tap, open) is proven, **and** visible-target → take resolution is solid. Multi-note paint and marquee (M5) are **not** required for `1.3.0` — they ship as `1.3.1` / `1.4.0`.
 
 | Milestone | Dev channel tag | Ship target | Notes |
 |---|---|---|---|
 | 1: Authoring shell | `1.3.0-alpha.1` | dev only | Mode toggle works, no editing |
 | 2: Grid + UI feedback | `1.3.0-alpha.2` | dev only | Mode pill + grid changes visible |
-| 3: Single-note draw | `1.3.0-beta.1` | dev only | First useful authoring loop |
-| 4: Edit mode core | `1.3.0-beta.2` | dev → main candidate | Selection, nudge, delete, drag-move |
-| 5: Multi-note + multi-select | `1.3.0` | main, tagged release | Stroke + marquee tools |
-| 6: Power tools | `1.3.x` patches | as ready | Step input, kick filter, 2x kick, copy/paste, sub-toolbar |
+| 3: Single-note draw + note-type write infra | `1.3.0-beta.1` | dev only | First useful authoring loop, modifier-note primitives in place |
+| 4: Edit mode core | `1.3.0-beta.2` → `1.3.0` | main, tagged release | Selection, nudge, delete, drag-move; this is the `1.3.0` cut |
+| 5: Multi-note + multi-select | `1.3.1` / `1.4.0` | main, follow-up release | Stroke + marquee tools |
+| 6: Power tools | `1.3.x` / `1.4.x` patches | as ready | Step input, kick filter, 2x kick alternation helper, copy/paste (if not already in M5), sub-toolbar |
 
-No milestone is gated on Milestone 6. If Milestones 1-4 land cleanly, `1.3.0` ships without paint stroke / marquee — those become `1.3.1` / `1.4.0`.
+Copy/paste placement: keep as M5 deliverable (it depends on the multi-select work). If M5 is broken into smaller releases later, copy/paste can move into the first follow-up patch. Spec note: `docs/WRITE_MODE.md:138-143` still says copy/paste is TBD — lock cursor anchor, overwrite semantics, post-paste selection state, and undo boundary before M5 starts.
 
 **Painter classes never come back.** If a future structural refactor wants painter-style separation, that's a separate post-1.3.0 PR after authoring is stable.
 
@@ -1071,11 +1224,26 @@ The rebuild is successful if:
 
 ## Immediate Next Step
 
-Before any implementation patch, do a short design pass for these remaining concrete decisions:
+The big architectural decisions are now locked (see M0-A.1, M0-C, M0-D.1, M0-G, lane-bound clamp, copy/paste rule). M1 has no remaining hard blockers — implementation can start.
 
-1. visible-target to writable-track resolution
-2. edit-mode note identity model
-3. lane-bound clamp implementation for group moves
-4. exact visual treatment for move preview translucency and overlap feedback
+**Blockers before M3:**
 
-Once those are explicit, Milestone 1 can be implemented cleanly.
+1. **Item-consolidation implementation choice.** REAPER action `40543` (Glue items) vs manual item-merge via the API. Pick before M3.
+2. **Modifier-range application logic location.** Helper class vs direct in `WriteController`. Lightweight decision, just pick.
+3. **Coordinate-system rename.** `MidiWriter` parameter rename (`startPPQ`→`startQN`) is a small but cross-file edit; do it as part of M3 setup.
+
+**Blockers before M5:**
+
+4. **Selection-scope modifier keys.** Pick keys for "select everything" and "bars only" scopes.
+
+**Blockers before M5 visuals:**
+
+5. **Move preview translucency / overlap feedback** visual treatment.
+
+**Spec hygiene (do anytime, before users see the doc):**
+
+6. `docs/WRITE_MODE.md:172` — replace `Undo_BeginBlock2`/`EndBlock2` with `Undo_OnStateChange`.
+7. `docs/WRITE_MODE.md:65-72` — confirm the canonical paint rule (same-lane revisit = no-op, different-lane revisit in same step = replace).
+8. `docs/WRITE_MODE.md:138-143` — replace "TBD" with the locked copy/paste rule.
+9. Drop right-of-highway drag and `Cmd+A` from spec; document the selection-scope modifier instead.
+10. Add a UX note: make the strikeline's project position more legible so it visibly matches REAPER's playhead.
