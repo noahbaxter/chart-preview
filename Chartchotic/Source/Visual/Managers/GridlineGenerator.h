@@ -183,13 +183,15 @@ private:
                 lineType = Gridline::HALF_BEAT;
             }
 
-            // Write-mode alignment filter: in write mode, BEAT lines only
-            // render if they coincide with the user's step grid. A beat that
-            // falls between step positions is misleading (looks snappable but
-            // isn't). MEASURE always renders (anchor); HALF_BEAT is skipped
-            // in the renderer anyway.
+            // Write-mode alignment filter: in write mode, BEAT and HALF_BEAT
+            // lines only render if they coincide with the user's step grid.
+            // A beat or half-beat that falls between step positions is
+            // misleading (looks snappable but isn't). MEASURE always renders
+            // (it's the structural anchor regardless of the user's grid).
             bool emit = true;
-            if (writeGridConfig.active && lineType == Gridline::BEAT && stepSpacingForFilter > 0.0)
+            if (writeGridConfig.active
+                && (lineType == Gridline::BEAT || lineType == Gridline::HALF_BEAT)
+                && stepSpacingForFilter > 0.0)
             {
                 double stepCount = relativePos / stepSpacingForFilter;
                 double stepFrac  = std::abs(stepCount - std::round(stepCount));

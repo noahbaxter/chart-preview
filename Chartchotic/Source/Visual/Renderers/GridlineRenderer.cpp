@@ -57,12 +57,10 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
         if (normalizedPosition < HIGHWAY_POS_START || normalizedPosition > farFadeEnd)
             continue;
 
-        // In write mode the default HALF_BEAT line is replaced by the user's
-        // STEP grid (which acts as the sub-beat division). MEASURE and BEAT
-        // stay visible — they're the rhythm structure the user is placing
-        // notes within, same as any MIDI editor grid.
-        if (writeMode && gridlineType == Gridline::HALF_BEAT)
-            continue;
+        // No renderer-side type filter in write mode — the generator already
+        // decides which MEASURE/BEAT/HALF_BEAT lines emit (HALF_BEAT and BEAT
+        // are filtered to step-grid alignment in the generator). All four
+        // types render here at their per-type write-mode opacity.
 
         juce::Image* markerImage = assetManager.getGridlineImage(gridlineType);
         if (markerImage == nullptr)
