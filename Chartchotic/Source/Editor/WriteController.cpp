@@ -1,5 +1,12 @@
 #include "WriteController.h"
 
+#include <cmath>
+
+#include "../Midi/Providers/MidiWriter.h"
+#include "../Midi/InstrumentSession.h"
+#include "../Midi/Discovery/TrackDiscovery.h"
+#include "../Midi/Utils/InstrumentMapper.h"
+
 namespace
 {
     // Persisted ValueTree property keys
@@ -102,14 +109,95 @@ void WriteController::setActivePart(Part part)
     currentActivePart = part;
 }
 
+void WriteController::setActiveSkill(SkillLevel skill)
+{
+    currentActiveSkill = skill;
+}
+
+//==============================================================================
+// Helpers (file-scope, unit-testable in isolation)
+
+namespace
+{
+    // Mirrors GridlineGenerator.h:247-249. Step spacing in QN for the current
+    // step division and tuplet ratio.
+    double stepSpacingQN(int stepDivision, int tuplet)
+    {
+        if (tuplet > 0)
+            return 8.0 / (double(stepDivision) * double(tuplet));
+        return 4.0 / double(stepDivision);
+    }
+
+    double snapToStep(double rawQN, int stepDivision, int tuplet)
+    {
+        const double spacing = stepSpacingQN(stepDivision, tuplet);
+        if (spacing <= 0.0)
+            return rawQN;
+
+        double snapped = std::round(rawQN / spacing) * spacing;
+
+        // Final precision floor: round to nearest 1/128 QN if the residual is
+        // below ~1e-6 (kills floating-point fuzz that would otherwise leak into
+        // REAPER's PPQ conversion).
+        const double oneOver128 = 1.0 / 128.0;
+        const double quantized  = std::round(snapped / oneOver128) * oneOver128;
+        if (std::abs(snapped - quantized) < 1e-6)
+            snapped = quantized;
+        return snapped;
+    }
+
+    // Find the first track in the session whose .part matches `part`. Returns
+    // the REAPER (backend-opaque) track index, or -1 if not found.
+    int resolveTrackIndexForPart(InstrumentSession* session, Part part)
+    {
+        if (session == nullptr) return -1;
+        for (const auto& info : session->getTracks())
+            if (info.part == part)
+                return info.sourceTrackIndex;
+        return -1;
+    }
+}
+
 //==============================================================================
 // Input methods — no-ops in M1.1.
 
 void WriteController::onPointerMove([[maybe_unused]] const AuthoringPoint& p,
                                     [[maybe_unused]] const AuthoringContext& ctx) {}
 
-void WriteController::onPointerDown([[maybe_unused]] const AuthoringPoint& p,
-                                    [[maybe_unused]] const AuthoringContext& ctx) {}
+void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
+{
+    // M3.1: left-click in Draw places a single short note. Everything else
+    // (right-click erase, drag-to-sustain, hover ghost, hit-test for "click on
+    // existing = no-op") is deferred to later milestones.
+    if (!writeModeActive())                  return;
+    if (currentSubMode != SubMode::Draw)     return;
+    if (!ctx.leftButton)                     return;
+    if (!p.onHighway)                        return;
+    if (p.laneIndex < 0)                     return;
+    if (midiWriter == nullptr)               return;
+    if (!midiWriter->isAvailable())          return;
+    if (instrumentSession == nullptr)        return;
+
+    const int trackIdx = resolveTrackIndexForPart(instrumentSession, currentActivePart);
+    if (trackIdx < 0) return;
+
+    const bool drums = isDrumLike(currentActivePart);
+    const int  pitch = drums
+        ? InstrumentMapper::columnToDrumPitch  (currentActiveSkill, p.laneIndex, /*kick2x*/ false)
+        : InstrumentMapper::columnToGuitarPitch(currentActiveSkill, p.laneIndex);
+    if (pitch < 0) return;
+
+    const double startQN = snapEnabled()
+        ? snapToStep(p.rawProjectQN, currentStepDivision, currentTuplet)
+        : p.rawProjectQN;
+
+    // Fixed short duration for M3.1 — visually reads as a tap gem in any sane
+    // step grid, large enough that REAPER doesn't drop it.
+    const double endQN = startQN + 0.1;
+
+    if (midiWriter->insertNote(trackIdx, startQN, endQN, /*channel*/ 0, pitch, /*velocity*/ 100))
+        instrumentSession->invalidateTrack(trackIdx);
+}
 
 void WriteController::onPointerDrag([[maybe_unused]] const AuthoringPoint& p,
                                     [[maybe_unused]] const AuthoringContext& ctx) {}

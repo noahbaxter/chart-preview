@@ -2,7 +2,11 @@
 
 #include <JuceHeader.h>
 #include "AuthoringTypes.h"
-#include "../UI/ControlConstants.h"  // Part enum
+#include "../UI/ControlConstants.h"  // Part enum, SkillLevel
+
+// Forward declarations to avoid pulling in MIDI / REAPER headers transitively.
+class MidiWriter;
+class InstrumentSession;
 
 //==============================================================================
 // WriteController — owns write-mode state, receives input, emits overlay state.
@@ -19,13 +23,20 @@ class WriteController
 public:
     explicit WriteController(juce::ValueTree& state);
 
+    // Post-construction wiring. MidiWriter is owned by ReaperMidiProvider and
+    // only exists once REAPER has connected — set/clear via the editor. The
+    // InstrumentSession pointer follows the same lifecycle.
+    void setMidiWriter(MidiWriter* writer)            { midiWriter = writer; }
+    void setInstrumentSession(InstrumentSession* sess){ instrumentSession = sess; }
+
     // Getters
-    bool      writeModeActive() const { return writeModeActiveFlag; }
-    SubMode   subMode()         const { return currentSubMode; }
-    int       stepDivision()    const { return currentStepDivision; }
-    int       tuplet()          const { return currentTuplet; }
-    bool      snapEnabled()     const { return snapEnabledFlag; }
-    Part      activePart()      const { return currentActivePart; }
+    bool       writeModeActive() const { return writeModeActiveFlag; }
+    SubMode    subMode()         const { return currentSubMode; }
+    int        stepDivision()    const { return currentStepDivision; }
+    int        tuplet()          const { return currentTuplet; }
+    bool       snapEnabled()     const { return snapEnabledFlag; }
+    Part       activePart()      const { return currentActivePart; }
+    SkillLevel activeSkill()     const { return currentActiveSkill; }
 
     // Setters — only the persisted ones write to ValueTree.
     void setWriteModeActive(bool active);              // transient
@@ -34,6 +45,7 @@ public:
     void setTuplet(int t);                             // persisted (0/3/5/7)
     void setSnapEnabled(bool enabled);                 // persisted
     void setActivePart(Part part);                     // transient
+    void setActiveSkill(SkillLevel skill);             // transient
 
     // Controller input methods (M0-G) — no-ops in M1.1.
     void onPointerMove   (const AuthoringPoint& p, const AuthoringContext& ctx);
@@ -65,8 +77,13 @@ private:
     bool    snapEnabledFlag     = true;
 
     // Transient
-    bool writeModeActiveFlag    = false;
-    Part currentActivePart      = Part::GUITAR;
+    bool       writeModeActiveFlag = false;
+    Part       currentActivePart   = Part::GUITAR;
+    SkillLevel currentActiveSkill  = SkillLevel::EXPERT;
+
+    // Non-owning. Lifecycle managed by PluginEditor / ChartchoticAudioProcessor.
+    MidiWriter*        midiWriter        = nullptr;
+    InstrumentSession* instrumentSession = nullptr;
 
     OverlayState overlayState;
 
