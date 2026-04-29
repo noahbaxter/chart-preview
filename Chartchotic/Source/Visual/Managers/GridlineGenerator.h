@@ -54,11 +54,13 @@ public:
         TimeBasedGridlineMap result;
         double cursorTime = ppqToTime(cursorPPQ.toDouble());
 
-        // If no tempo/timesig events, use default 120 BPM, 4/4
+        // If no tempo/timesig events, use default 120 BPM, 4/4. The empty
+        // map still works for measure numbering — pPqToMeasureNumber falls
+        // through to the default 4/4 segment math.
         if (tempoTimeSigMap.empty())
         {
             generateGridlinesForSection(result, startPPQ, endPPQ, cursorPPQ, cursorTime,
-                                       PPQ(0.0), 120.0, 4, 4, ppqToTime, writeGridConfig);
+                                       PPQ(0.0), 120.0, 4, 4, ppqToTime, writeGridConfig, &tempoTimeSigMap);
             return result;
         }
 
@@ -93,7 +95,7 @@ public:
             generateGridlinesForSection(result, sectionStart, sectionEnd, cursorPPQ, cursorTime,
                                        sectionMeasureAnchor, event.bpm,
                                        event.timeSigNumerator, event.timeSigDenominator,
-                                       ppqToTime, writeGridConfig);
+                                       ppqToTime, writeGridConfig, &tempoTimeSigMap);
 
             // Move to next section
             ++it;
@@ -117,7 +119,8 @@ private:
         int timeSigNum,
         int timeSigDenom,
         PPQToTimeFunc ppqToTime,
-        const WriteGridConfig& writeGridConfig)
+        const WriteGridConfig& writeGridConfig,
+        const TempoTimeSignatureMap* tempoMapForMeasureNumbering)
     {
         // Safety check: invalid time signature or empty section
         if (timeSigDenom <= 0 || timeSigNum <= 0 || sectionStart >= sectionEnd)
@@ -204,7 +207,27 @@ private:
             if (emit)
             {
                 double time = ppqToTime(currentPPQ) - cursorTime;
-                result.push_back({time, lineType});
+                int measureNumber = -1;
+                double beatInMeasure = -1.0;
+                if (tempoMapForMeasureNumbering != nullptr
+                    && (lineType == Gridline::MEASURE
+                        || lineType == Gridline::BEAT
+                        || lineType == Gridline::HALF_BEAT))
+                {
+                    measureNumber = TempoTimeSignatureEventHelper::pPqToMeasureNumber(
+                        PPQ(currentPPQ), *tempoMapForMeasureNumbering);
+                    // beatInMeasure: 1-indexed continuous beat position within
+                    // the measure. 1.0 / 2.0 / ... for BEATs; 1.5 / 2.5 / ...
+                    // for HALF_BEATs. Used by the renderer for "M.B" / "M.B.5"
+                    // label formatting.
+                    if (lineType != Gridline::MEASURE)
+                    {
+                        double beatsFromAnchor = relativePos / beatSpacing;
+                        // measure-relative beat index, 1-indexed
+                        beatInMeasure = std::fmod(beatsFromAnchor, (double)timeSigNum) + 1.0;
+                    }
+                }
+                result.push_back({time, lineType, measureNumber, beatInMeasure});
             }
 
             // Move to next half-beat
@@ -258,7 +281,16 @@ private:
             if (distToHalfBeat > dedupEpsilon)
             {
                 double time = ppqToTime(stepCurrent) - cursorTime;
-                result.push_back({time, Gridline::STEP});
+                int measureNumber = -1;
+                double beatInMeasure = -1.0;
+                if (tempoMapForMeasureNumbering != nullptr)
+                {
+                    measureNumber = TempoTimeSignatureEventHelper::pPqToMeasureNumber(
+                        PPQ(stepCurrent), *tempoMapForMeasureNumbering);
+                    double beatsFromAnchor = stepRelPos / beatSpacing;
+                    beatInMeasure = std::fmod(beatsFromAnchor, (double)timeSigNum) + 1.0;
+                }
+                result.push_back({time, Gridline::STEP, measureNumber, beatInMeasure});
             }
 
             stepCurrent += stepSpacing;
