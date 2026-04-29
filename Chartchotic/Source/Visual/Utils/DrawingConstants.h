@@ -49,6 +49,46 @@ constexpr float WRITE_BEAT_OPACITY      = 0.9f;   // baked-in 0.50 -> ~0.45 effe
 constexpr float WRITE_HALF_BEAT_OPACITY = 0.35f;  // hidden in write mode (kept for completeness)
 constexpr float WRITE_STEP_OPACITY      = 0.25f;  // baked-in 0.50 -> ~0.13 effective (faded with depth)
 
+// Side-of-highway protrusions: flat white tabs at write-mode MEASURE/BEAT
+// gridlines, sticking horizontally outward from each highway edge. STEP
+// gets no protrusion. The protrusion is THE structural anchor indicator —
+// the on-highway lines stay subtle (same look as the placement grid).
+//
+// All sizes are fractions of strike-reference highway width — they scale
+// with the highway like gems/glyphs do, NOT with absolute window pixels.
+// Multiplied by widthRatio at render time for perspective foreshortening.
+constexpr float WRITE_PROTRUSION_MEASURE_LENGTH_FRAC    = 0.080f;
+constexpr float WRITE_PROTRUSION_BEAT_LENGTH_FRAC       = 0.045f;
+constexpr float WRITE_PROTRUSION_MEASURE_THICKNESS_FRAC = 0.008f;
+constexpr float WRITE_PROTRUSION_BEAT_THICKNESS_FRAC    = 0.008f;
+// Small downward (closer-to-camera) Y nudge — protrusions are flat 2D, so
+// they draw at the gridline's projected centerY, but the marker PNG's
+// visible alpha line sits slightly below sprite center on the highway
+// plane. This nudges the tabs to visually meet the line as drawn.
+constexpr float WRITE_PROTRUSION_Z_NUDGE_FRAC           = 0.006f;
+
+// Right-side measure number labels in write mode. Font size and gap are
+// fractions of strike-reference highway width (scale with the highway
+// the same way gems do). Anchored past the MEASURE protrusion's tip so
+// the label sits clear of the white tab. Left-aligned so digits read
+// consistently. REAPER-style 1-indexed display.
+constexpr float WRITE_MEASURE_LABEL_FONT_FRAC      = 0.075f;
+constexpr float WRITE_MEASURE_LABEL_GAP_FRAC       = 0.030f;
+constexpr float WRITE_MEASURE_LABEL_MIN_FONT_PX    = 9.0f;   // screen-pixel readability floor — kept absolute
+
+// Single visibility knob: approximate maximum number of labels visible
+// across the rendered highway at once.
+//
+// Higher = more labels (denser, sub-divisions fill in). Lower = fewer
+// (sparser, only structural beats). Internally converted to a normalized-
+// position spacing threshold (1.0 / count) — labels are linear in TIME /
+// scroll speed, so faster scroll naturally fits fewer measures-of-music
+// per highway and finer divisions drop out, while the back of the
+// highway can't stack regardless of perspective compression.
+//
+// Priority order when filtering: MEASURE > BEAT > HALF_BEAT > STEP.
+constexpr float WRITE_LABEL_TARGET_COUNT = 3.0f;
+
 // Highway texture
 constexpr float TEXTURE_OPACITY_DEFAULT = 1.0f;  // Default highway texture opacity
 

@@ -43,6 +43,8 @@ struct TimeBasedGridline
 {
     double time;  // seconds from cursor
     Gridline type;
+    int measureNumber = -1;     // 0-indexed bar number; filled for MEASURE/BEAT/HALF_BEAT (-1 for STEP)
+    double beatInMeasure = -1;  // 1-indexed beat-in-measure: 1.0/2.0/... for BEAT, X.5 for HALF_BEAT (-1 elsewhere)
 };
 
 using TimeBasedGridlineMap = std::vector<TimeBasedGridline>;

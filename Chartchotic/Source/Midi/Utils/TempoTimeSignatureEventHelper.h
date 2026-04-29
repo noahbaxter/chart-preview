@@ -184,6 +184,60 @@ public:
     }
 
     /**
+     * Return the 0-indexed bar/measure number at a given PPQ, accumulated
+     * from PPQ(0) by walking the tempo/timesig map.
+     *
+     * Each segment contributes (segmentLengthQN / measureLenQN) measures.
+     * Measure length = timeSigNum * (4 / timeSigDenom) QN. Mid-bar time-sig
+     * changes are flattened to the next bar boundary (REAPER's default
+     * authoring convention) — accurate for the typical case, off by one
+     * for projects that author time-sig changes mid-measure.
+     *
+     * REAPER's TimeMap2_timeToBeats handles those mid-bar cases natively;
+     * if cross-host divergence shows up in practice, swap the renderer to
+     * use the host API directly via the provider.
+     *
+     * @param targetPpq  Position to compute measure number for
+     * @param map        Tempo/timesig event map
+     * @return           0-indexed bar number (0 == first bar of song)
+     */
+    static int pPqToMeasureNumber(PPQ targetPpq, const TempoTimeSignatureMap& map)
+    {
+        double t = targetPpq.toDouble();
+        if (t <= 0.0) return 0;
+
+        int totalMeasures = 0;
+        double prevPpq = 0.0;
+        int prevNum = 4, prevDenom = 4;
+
+        for (const auto& [eventPpq, event] : map)
+        {
+            double ePpq = eventPpq.toDouble();
+            if (ePpq >= t) break;
+
+            double measureLenQN = (double)prevNum * (4.0 / (double)prevDenom);
+            if (measureLenQN > 0.0)
+                totalMeasures += (int)std::floor((ePpq - prevPpq) / measureLenQN + 0.5);
+
+            prevPpq = ePpq;
+            if (event.timeSigNumerator > 0 && event.timeSigDenominator > 0)
+            {
+                prevNum = event.timeSigNumerator;
+                prevDenom = event.timeSigDenominator;
+            }
+        }
+
+        // Final segment: prevPpq → targetPpq with the time sig in effect.
+        // Floor (not round) here — we want the measure number CONTAINING
+        // targetPpq, i.e., the count of completed bars before it.
+        double measureLenQN = (double)prevNum * (4.0 / (double)prevDenom);
+        if (measureLenQN > 0.0)
+            totalMeasures += (int)std::floor((t - prevPpq) / measureLenQN + 1e-6);
+
+        return totalMeasures;
+    }
+
+    /**
      * Build event markers for tempo and time signature changes.
      * Skips the first event (initial state) and emits a marker for each
      * subsequent change in BPM or time signature.
