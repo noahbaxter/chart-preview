@@ -48,6 +48,15 @@ void AssetManager::initAssets()
     markerHalfBeatImage = juce::ImageCache::getFromMemory(BinaryData::marker_half_beat_png, BinaryData::marker_half_beat_pngSize);
     markerMeasureImage = juce::ImageCache::getFromMemory(BinaryData::marker_measure_png, BinaryData::marker_measure_pngSize);
 
+    // Write-mode markers: copies of the same source PNGs with their alpha
+    // amplified. The original PNGs bake alpha (~0.75 MEASURE / ~0.50 BEAT)
+    // which caps gridline opacity even with the renderer's per-type
+    // multiplier at 1.0. Boost at load time so write mode can render
+    // structural anchors at full opacity through the same perspective sprite
+    // path as everything else (no parallel render code).
+    markerMeasureWriteImage = makeAlphaBoostedCopy(markerMeasureImage);
+    markerBeatWriteImage    = makeAlphaBoostedCopy(markerBeatImage);
+
     // STEP gridlines reuse the half-beat marker image — same loading path,
     // same scaling, same visual treatment. They're differentiated from
     // half-beats by opacity in GridlineRenderer (STEP 0.25 vs HALF_BEAT 0.35),
@@ -169,8 +178,34 @@ void AssetManager::initAssets()
         // Gridline markers
         {&markerBeatImage, markerBeatImage}, {&markerHalfBeatImage, markerHalfBeatImage},
         {&markerMeasureImage, markerMeasureImage},
+        {&markerMeasureWriteImage, markerMeasureWriteImage},
+        {&markerBeatWriteImage,    markerBeatWriteImage},
     };
 #endif // CHARTCHOTIC_NO_BINARY_DATA
+}
+
+juce::Image AssetManager::makeAlphaBoostedCopy(const juce::Image& src)
+{
+    if (!src.isValid())
+        return {};
+
+    juce::Image out = src.createCopy();
+    juce::Image::BitmapData bd(out, juce::Image::BitmapData::readWrite);
+    for (int y = 0; y < bd.height; ++y)
+    {
+        juce::uint8* line = bd.getLinePointer(y);
+        for (int x = 0; x < bd.width; ++x)
+        {
+            juce::uint8* px = line + x * bd.pixelStride;
+            // ARGB byte order on macOS/Win is BGRA in memory; alpha is the
+            // 4th byte regardless. juce::PixelARGB stores it as the A
+            // component — use the explicit getter for portability.
+            juce::PixelARGB* pixel = reinterpret_cast<juce::PixelARGB*>(px);
+            if (pixel->getAlpha() > 0)
+                pixel->setAlpha(255);
+        }
+    }
+    return out;
 }
 
 juce::Image AssetManager::downscale(const juce::Image& src, int targetWidth)

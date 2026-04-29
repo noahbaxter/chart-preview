@@ -40,6 +40,8 @@ Work from the top.
   - **Default gridlines in write mode** — when write mode is on, ONLY the user-chosen grid should render (plus measure anchors). Currently the existing MEASURE/BEAT/HALF_BEAT all keep rendering, masking the user's selected step+tuplet grid (visible bug: 1/4 + tuplet=3 shows the default 8th-note grid drowning out the actual triplet lines). This may bite M3 usability; revisit if so during M3.
   - **Division/tuplet broken below 1/8** — likely same root cause as above.
 - **Dedicated STEP gridline asset** — Currently aliased to `marker_half_beat_png`, differentiated only by opacity (STEP 0.25 vs HALF_BEAT 0.35). Add a real `marker_step.png` if a thinner / more subtle visual is wanted; register in BinaryData + AssetManager. Don't reinvent rendering paths.
+- **Highway time-position column (glass panes)** — Optional column on the right side of the highway showing musical position per gridline (measure number, beat number, time). Like a row of glass panes alongside the chart. Mostly useful in write mode for orienting against REAPER's timeline. Probably needs perspective-aware text rendering (text scales with depth) which the renderer doesn't currently do — non-trivial.
+- **Write-mode gridlines on top of bars** — Currently MEASURE/BEAT render at `DrawOrder::GRID` (below `BAR`), so bar gems (kicks/opens) cover the rhythmic structure. Multi-pass alpha boost (`5ad78b3` follow-up) helps prominence in non-bar zones but doesn't solve occlusion. Option: in write mode, emit MEASURE/BEAT at a higher draw order (above `BAR`, below `NOTE`) so structural anchors cut through bars like in any MIDI editor. Easy enum addition + per-emit override.
 
 ### Done (1.2)
 

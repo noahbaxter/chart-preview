@@ -132,6 +132,16 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
         float curWidth = edge.rightX - edge.leftX;
         float widthRatio = (strikeWidth > 0.0f) ? (curWidth / strikeWidth) : 1.0f;
 
+        // In write mode, swap MEASURE/BEAT to a brighter "write" version of
+        // the marker image. The boosted images have their alpha amplified at
+        // load time in AssetManager, so we get full opacity through the same
+        // perspective sprite path (no parallel rendering code).
+        if (writeMode && gridlineType == Gridline::MEASURE)
+            markerImage = assetManager.getMarkerMeasureWriteImage();
+        else if (writeMode && gridlineType == Gridline::BEAT)
+            markerImage = assetManager.getMarkerBeatWriteImage();
+        if (markerImage == nullptr) markerImage = assetManager.getGridlineImage(gridlineType);
+
         juce::Point<float> anchor((edge.leftX + edge.rightX) * 0.5f, edge.centerY);
         juce::Point<float> frameScale(widthRatio, widthRatio);
 

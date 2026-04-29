@@ -62,6 +62,10 @@ public:
     juce::Image* getMarkerBeatImage() { return &markerBeatImage; }
     juce::Image* getMarkerHalfBeatImage() { return &markerHalfBeatImage; }
     juce::Image* getMarkerMeasureImage() { return &markerMeasureImage; }
+    // Write-mode boosted variants — alpha amplified at load time so write
+    // mode anchors render at full opacity through the same sprite path.
+    juce::Image* getMarkerMeasureWriteImage() { return &markerMeasureWriteImage; }
+    juce::Image* getMarkerBeatWriteImage()    { return &markerBeatWriteImage; }
 
     // Regular notes
     juce::Image* getNoteBlueImage() { return &noteBlueImage; }
@@ -160,6 +164,13 @@ private:
     juce::Image markerBeatImage;
     juce::Image markerHalfBeatImage;
     juce::Image markerMeasureImage;
+    juce::Image markerMeasureWriteImage;
+    juce::Image markerBeatWriteImage;
+
+    // Returns a copy of `src` with each pixel's alpha amplified to fully
+    // saturate (any non-zero alpha → 255). Preserves RGB. Used to build the
+    // write-mode marker variants without touching the source PNGs.
+    static juce::Image makeAlphaBoostedCopy(const juce::Image& src);
 
     // Regular notes
     juce::Image noteBlueImage;
