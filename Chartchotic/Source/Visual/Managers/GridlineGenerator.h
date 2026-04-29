@@ -244,6 +244,8 @@ private:
         // Spacing formula (in QN):
         //   No tuplet (T == 0): spacing = 4.0 / stepDivision
         //   Tuplet T > 0:        spacing = 8.0 / (stepDivision * T)
+        // IMPORTANT: WriteController.cpp duplicates this formula for click-snap. Any
+        // change to step-spacing semantics must update both sites.
         double stepSpacing = (writeGridConfig.tuplet > 0)
             ? (8.0 / (static_cast<double>(writeGridConfig.stepDivision) * writeGridConfig.tuplet))
             : (4.0 / static_cast<double>(writeGridConfig.stepDivision));

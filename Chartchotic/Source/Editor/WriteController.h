@@ -10,7 +10,9 @@ class InstrumentSession;
 
 //==============================================================================
 // WriteController — owns write-mode state, receives input, emits overlay state.
-// M1.1: skeleton only. Input methods are no-ops; getOverlayState returns default.
+// onPointerDown commits left-click placement in Draw mode. Other pointer methods
+// are stubbed pending later milestones; getOverlayState returns default until
+// hover/drag previews are wired up.
 
 enum class SubMode
 {
@@ -47,7 +49,8 @@ public:
     void setActivePart(Part part);                     // transient
     void setActiveSkill(SkillLevel skill);             // transient
 
-    // Controller input methods (M0-G) — no-ops in M1.1.
+    // Controller input methods. onPointerDown handles left-click placement;
+    // the rest are stubs until later milestones.
     void onPointerMove   (const AuthoringPoint& p, const AuthoringContext& ctx);
     void onPointerDown   (const AuthoringPoint& p, const AuthoringContext& ctx);
     void onPointerDrag   (const AuthoringPoint& p, const AuthoringContext& ctx);

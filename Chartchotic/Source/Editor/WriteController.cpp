@@ -119,8 +119,13 @@ void WriteController::setActiveSkill(SkillLevel skill)
 
 namespace
 {
-    // Mirrors GridlineGenerator.h:247-249. Step spacing in QN for the current
-    // step division and tuplet ratio.
+    // Fixed short-note duration in QN for click-to-place. Drag-to-sustain
+    // will replace this in a future milestone.
+    constexpr double kShortNoteDurationQN = 0.1;
+
+    // IMPORTANT: must stay in lock-step with GridlineGenerator.h's stepSpacingQN
+    // formula (search there for the same expression). The snapped position must
+    // land exactly on a rendered gridline; if these diverge, clicks land off-grid.
     double stepSpacingQN(int stepDivision, int tuplet)
     {
         if (tuplet > 0)
@@ -159,14 +164,17 @@ namespace
 }
 
 //==============================================================================
-// Input methods — no-ops in M1.1.
+// Pointer / key / frame input methods. onPointerDown handles left-click
+// placement; the rest are stubs until later milestones.
 
 void WriteController::onPointerMove([[maybe_unused]] const AuthoringPoint& p,
                                     [[maybe_unused]] const AuthoringContext& ctx) {}
 
 void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
-    // M3.1: left-click in Draw places a single short note. Everything else
+    JUCE_ASSERT_MESSAGE_THREAD;
+
+    // Left-click in Draw places a single short note. Everything else
     // (right-click erase, drag-to-sustain, hover ghost, hit-test for "click on
     // existing = no-op") is deferred to later milestones.
     if (!writeModeActive())                  return;
@@ -191,9 +199,9 @@ void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringCont
         ? snapToStep(p.rawProjectQN, currentStepDivision, currentTuplet)
         : p.rawProjectQN;
 
-    // Fixed short duration for M3.1 — visually reads as a tap gem in any sane
-    // step grid, large enough that REAPER doesn't drop it.
-    const double endQN = startQN + 0.1;
+    // Visually reads as a tap gem in any sane step grid, large enough that
+    // REAPER doesn't drop it.
+    const double endQN = startQN + kShortNoteDurationQN;
 
     if (midiWriter->insertNote(trackIdx, startQN, endQN, /*channel*/ 0, pitch, /*velocity*/ 100))
         instrumentSession->invalidateTrack(trackIdx);
