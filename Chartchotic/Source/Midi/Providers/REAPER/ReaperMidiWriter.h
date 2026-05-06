@@ -49,11 +49,27 @@ private:
     // Resolve the first MIDI take on the given track
     void* getFirstMidiTake(void* project, int trackIndex);
 
-    // If the target track has >1 MIDI item, glue them into one item via
-    // REAPER action 40543. Wrapped in its own undo step so it's distinct
-    // from the subsequent write. Logs once per consolidation event.
-    // Returns true if consolidation either succeeded or was unnecessary.
-    bool consolidateItemsIfNeeded(void* project, int trackIndex);
+    // Same as getFirstMidiTake, but also returns the owning item via outItem.
+    void* getFirstMidiTakeAndItem(void* project, int trackIndex, void** outItem);
+
+    // Ensure the active MIDI item on `track` covers the project-time range
+    // [startQN, endQN]. Extends D_LENGTH (and D_POSITION if needed) if an
+    // item exists; creates a new MIDI item if the track has none. Returns
+    // the take to write into, or nullptr on failure.
+    void* ensureItemCoversRange(void* project, int trackIndex,
+                                double startQN, double endQN);
+
+    // Lowers D_POSITION and/or grows D_LENGTH on `item`, while keeping existing
+    // MIDI notes anchored at their original project-time positions when the
+    // position changes. `take` must be the active take of `item`.
+    void resizeItemKeepingNoteTimes(void* item, void* take,
+                                    double oldPos, double newPos,
+                                    double oldLen, double newLen);
+
+    // Disable REAPER's "Loop source" on the item so extending D_LENGTH past the
+    // MIDI source's natural end leaves blank space instead of replicating
+    // content. No-op if SetMediaItemInfo_Value isn't available.
+    void disableSourceLoop(void* item);
 
     // Undo/sort helpers
     void beginUndoBlock(void* project, const char* description);
@@ -66,4 +82,16 @@ private:
     juce::String batchDescription;
 
     juce::CriticalSection writeLock;
+
+    // Cached last-known covering item so ensureItemCoversRange can skip the
+    // full per-track enumeration when the same item still covers the range.
+    struct CachedItem
+    {
+        int    trackIndex = -1;
+        void*  item       = nullptr;
+        void*  take       = nullptr;
+        double pos        = 0.0;
+        double len        = 0.0;
+    };
+    CachedItem cachedItem;
 };
