@@ -67,6 +67,7 @@ void WriteController::setWriteModeActive(bool active)
 {
     if (writeModeActiveFlag == active) return;
     writeModeActiveFlag = active;
+    recomputeGhost();
     if (onStateChanged) onStateChanged();
 }
 
@@ -75,6 +76,7 @@ void WriteController::setSubMode(SubMode mode)
     if (currentSubMode == mode) return;
     currentSubMode = mode;
     state.setProperty(kWriteSubMode, subModeToString(mode), nullptr);
+    recomputeGhost();
     if (onStateChanged) onStateChanged();
 }
 
@@ -84,6 +86,7 @@ void WriteController::setStepDivision(int division)
     if (currentStepDivision == clamped) return;
     currentStepDivision = clamped;
     state.setProperty(kWriteStepDivision, clamped, nullptr);
+    recomputeGhost();
     if (onStateChanged) onStateChanged();
 }
 
@@ -93,6 +96,7 @@ void WriteController::setTuplet(int t)
     if (currentTuplet == t) return;
     currentTuplet = t;
     state.setProperty(kWriteTuplet, t, nullptr);
+    recomputeGhost();
     if (onStateChanged) onStateChanged();
 }
 
@@ -101,6 +105,7 @@ void WriteController::setSnapEnabled(bool enabled)
     if (snapEnabledFlag == enabled) return;
     snapEnabledFlag = enabled;
     state.setProperty(kWriteSnap, enabled, nullptr);
+    recomputeGhost();
     if (onStateChanged) onStateChanged();
 }
 
@@ -171,21 +176,33 @@ void WriteController::onPointerMove(const AuthoringPoint& p,
                                     [[maybe_unused]] const AuthoringContext& ctx)
 {
     JUCE_ASSERT_MESSAGE_THREAD;
+    lastPoint = p;
+    lastPointValid = true;
+    recomputeGhost();
+}
 
+void WriteController::recomputeGhost()
+{
     overlayState.ghostVisible    = false;
     overlayState.ghostLane       = -1;
     overlayState.ghostQN         = 0.0;
     overlayState.ghostShowsErase = false;
 
-    if (!writeModeActive())               return;
-    if (currentSubMode != SubMode::Draw)  return;
-    if (!p.onHighway || p.laneIndex < 1)  return;  // lane 0 (bar zone) deferred
+    if (!lastPointValid)                          return;
+    if (!writeModeActive())                       return;
+    if (playingStatePtr && *playingStatePtr)       return;
+    if (currentSubMode != SubMode::Draw)          return;
+    if (!lastPoint.onHighway || lastPoint.laneIndex < 0) return;
+
+    double qn = snapEnabled()
+        ? snapToStep(lastPoint.rawProjectQN, currentStepDivision, currentTuplet)
+        : lastPoint.rawProjectQN;
+
+    if (qn < 0.0) qn = 0.0;
 
     overlayState.ghostVisible = true;
-    overlayState.ghostLane    = p.laneIndex;
-    overlayState.ghostQN      = snapEnabled()
-        ? snapToStep(p.rawProjectQN, currentStepDivision, currentTuplet)
-        : p.rawProjectQN;
+    overlayState.ghostLane    = lastPoint.laneIndex;
+    overlayState.ghostQN      = qn;
 }
 
 void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
@@ -196,6 +213,7 @@ void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringCont
     // (right-click erase, drag-to-sustain, hover ghost, hit-test for "click on
     // existing = no-op") is deferred to later milestones.
     if (!writeModeActive())                  return;
+    if (playingStatePtr && *playingStatePtr)  return;
     if (currentSubMode != SubMode::Draw)     return;
     if (!ctx.leftButton)                     return;
     if (!p.onHighway)                        return;
@@ -233,6 +251,7 @@ void WriteController::onPointerUp([[maybe_unused]] const AuthoringPoint& p,
 
 void WriteController::onPointerExit()
 {
+    lastPointValid = false;
     overlayState.ghostVisible   = false;
     overlayState.ghostLane      = -1;
     overlayState.ghostQN        = 0.0;
@@ -302,4 +321,7 @@ bool WriteController::onKeyPress(const juce::KeyPress& key)
 }
 
 void WriteController::onFrameTick([[maybe_unused]] double currentProjectQN,
-                                  [[maybe_unused]] bool isPlaying) {}
+                                  [[maybe_unused]] bool isPlaying)
+{
+    recomputeGhost();
+}

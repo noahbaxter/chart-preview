@@ -30,6 +30,7 @@ public:
     // InstrumentSession pointer follows the same lifecycle.
     void setMidiWriter(MidiWriter* writer)            { midiWriter = writer; }
     void setInstrumentSession(InstrumentSession* sess){ instrumentSession = sess; }
+    void setPlayingStatePtr(const bool* ptr)          { playingStatePtr = ptr; }
 
     // Getters
     bool       writeModeActive() const { return writeModeActiveFlag; }
@@ -87,8 +88,13 @@ private:
     // Non-owning. Lifecycle managed by PluginEditor / ChartchoticAudioProcessor.
     MidiWriter*        midiWriter        = nullptr;
     InstrumentSession* instrumentSession = nullptr;
+    const bool*        playingStatePtr   = nullptr;
 
     OverlayState overlayState;
+    AuthoringPoint lastPoint;
+    bool lastPointValid = false;
+
+    void recomputeGhost();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WriteController)
 };
