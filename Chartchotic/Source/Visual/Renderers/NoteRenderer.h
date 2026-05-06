@@ -65,6 +65,11 @@ public:
                   float posEnd,
                   float farFadeEnd, float farFadeLen, float farFadeCurve);
 
+    // Render a single ghost sprite through the same pipeline as real notes.
+    // Call AFTER populate() so internal state (curvature, scales, etc.) is configured.
+    void renderGhost(DrawCallMap& drawCallMap, int lane, float position,
+                     juce::Image* image, float opacity);
+
 private:
     juce::ValueTree& state;
     AssetManager& assetManager;
@@ -108,10 +113,13 @@ private:
         float fbStrikeCenterX = 0.0f;      // fretboard center X at strike (pixels)
     };
 
+    SharedFrameContext buildFrameContext(float position);
     void drawNoteRow(const TimeBasedTrackFrame& gems, float position, double frameTime);
     void appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper, float position,
                           double frameTime, const SharedFrameContext& ctx,
-                          Render::Frame& outFrame);
+                          Render::Frame& outFrame,
+                          juce::Image* imageOverride = nullptr,
+                          float opacityOverride = -1.0f);
     // Bemani path: flat / no perspective. Builds and draws its own single-gem
     // Frame directly (anchor at gem's screen position, scale 1.0). Doesn't
     // contribute to the shared composite — bemani has no chord-stack drift.

@@ -63,6 +63,11 @@ void AssetManager::initAssets()
     // not by a separate asset. Adding a dedicated thinner PNG is an asset-pack
     // task tracked in BACKLOG.md — do not invent parallel rendering paths.
 
+    noteBlankImage = juce::ImageCache::getFromMemory(BinaryData::note_blank_png, BinaryData::note_blank_pngSize);
+    hopoBlankImage = juce::ImageCache::getFromMemory(BinaryData::hopo_blank_png, BinaryData::hopo_blank_pngSize);
+    cymBlankImage  = juce::ImageCache::getFromMemory(BinaryData::cym_blank_png, BinaryData::cym_blank_pngSize);
+    barBlankImage  = juce::ImageCache::getFromMemory(BinaryData::bar_blank_png, BinaryData::bar_blank_pngSize);
+
     noteBlueImage = juce::ImageCache::getFromMemory(BinaryData::note_blue_png, BinaryData::note_blue_pngSize);
     noteGreenImage = juce::ImageCache::getFromMemory(BinaryData::note_green_png, BinaryData::note_green_pngSize);
     noteOrangeImage = juce::ImageCache::getFromMemory(BinaryData::note_orange_png, BinaryData::note_orange_pngSize);
@@ -180,6 +185,9 @@ void AssetManager::initAssets()
         {&markerMeasureImage, markerMeasureImage},
         {&markerMeasureWriteImage, markerMeasureWriteImage},
         {&markerBeatWriteImage,    markerBeatWriteImage},
+        // Ghost cursor blanks
+        {&noteBlankImage, noteBlankImage}, {&hopoBlankImage, hopoBlankImage},
+        {&cymBlankImage, cymBlankImage}, {&barBlankImage, barBlankImage},
     };
 #endif // CHARTCHOTIC_NO_BINARY_DATA
 }
@@ -234,6 +242,11 @@ void AssetManager::rescaleForWidth(int viewportWidth)
         *asset.target = downscale(asset.fullRes, targetWidth);
 
     lastScaledWidth = targetWidth;
+}
+
+juce::Image* AssetManager::getGhostCursorImage(bool /*isDrums*/, int lane)
+{
+    return (lane == 0) ? &barBlankImage : &noteBlankImage;
 }
 
 juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive)
