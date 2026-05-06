@@ -117,6 +117,28 @@ void HighwayComponent::paint(juce::Graphics& g)
     if (overflow > 0)
         g.addTransform(juce::AffineTransform::translation(0.0f, (float)overflow));
 
+    // Ghost cursor: set before paint so it renders through the note pipeline.
+    sceneRenderer.ghostCursor.visible = false;
+    if (overlayStateGetter)
+    {
+        const auto& ov = overlayStateGetter();
+        if (ov.ghostVisible && ov.ghostLane >= 1 && projectQNToSeconds)
+        {
+            double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
+            if (std::abs(windowSpan) > 1e-9)
+            {
+                double sec = projectQNToSeconds(ov.ghostQN);
+                float pos = (float)((sec - frameData.windowStartTime) / windowSpan);
+                sceneRenderer.ghostCursor.visible = true;
+                sceneRenderer.ghostCursor.lane = ov.ghostLane;
+                sceneRenderer.ghostCursor.position = pos;
+                sceneRenderer.ghostCursor.image = sceneRenderer.useColoredGhostCursor
+                    ? nullptr
+                    : assetManager.getGhostCursorImage(isDrumLike(activePart), ov.ghostLane);
+            }
+        }
+    }
+
     sceneRenderer.paint(g, w, h,
                         frameData.trackWindow, frameData.sustainWindow, frameData.gridlines,
                         frameData.flipRegions, frameData.eventMarkers,
@@ -381,16 +403,53 @@ void HighwayComponent::rebuildTrack()
 // in M1; this is purely the wire-up.
 // =============================================================================
 
+juce::Point<float> HighwayComponent::screenToRenderCoords(juce::Point<float> screen) const
+{
+    int w        = renderWidth;
+    int h        = renderHeight;
+    int overflow = topOverflow;
+    int totalH   = h + overflow;
+
+    if (w <= 0 || totalH <= 0)
+        return screen;
+
+    if (stretchToFill && !PositionMath::bemaniMode)
+    {
+        float sx = (float)getWidth()  / (float)w;
+        float sy = (float)getHeight() / (float)totalH;
+        return { screen.x / sx, screen.y / sy };
+    }
+    else
+    {
+        float scale = std::min((float)getWidth()  / (float)w,
+                               (float)getHeight() / (float)totalH);
+        float scaledW = (float)w * scale;
+        float scaledH = (float)totalH * scale;
+        float offsetX = ((float)getWidth() - scaledW) * 0.5f;
+        float offsetY = (float)getHeight() - scaledH;
+        return { (screen.x - offsetX) / scale, (screen.y - offsetY) / scale };
+    }
+}
+
 void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
                                              AuthoringPoint& outPoint,
                                              AuthoringContext& outContext) const
 {
     auto local = e.getPosition().toFloat();
 
+    // The hit-test math operates in render space (renderWidth x renderHeight
+    // virtual canvas). Component-local pixels must be inverse-mapped through
+    // the same paint() transform the ghost render uses, otherwise the click
+    // resolves to a different render-space position than the ghost was drawn
+    // at and ghost/click drift apart (especially under stretchToFill or any
+    // letterboxing).
+    auto renderPt = screenToRenderCoords(local);
+    float hitY = renderPt.y - (float)topOverflow;
+
     bool isDrums = isDrumLike(activePart);
-    auto hit = hitTestMapper.hitTest(local.x, local.y,
-                                     (uint)juce::jmax(0, getWidth()),
-                                     (uint)juce::jmax(0, getHeight()),
+    auto hit = hitTestMapper.hitTest(renderPt.x, hitY,
+                                     (uint)juce::jmax(0, renderWidth),
+                                     (uint)juce::jmax(0, renderHeight),
                                      frameData.windowStartTime, frameData.windowEndTime,
                                      isDrums, sceneRenderer.farFadeEnd);
 
@@ -431,6 +490,14 @@ void HighwayComponent::mouseEnter(const juce::MouseEvent& e)
 void HighwayComponent::mouseExit(const juce::MouseEvent&)
 {
     if (onPointerExit) onPointerExit();
+
+    // Clear the hover ghost when the cursor leaves the highway — only repaint
+    // if a ghost was actually being drawn.
+    if (overlayStateGetter && lastGhost.visible)
+    {
+        lastGhost = LastGhostState{};
+        repaint();
+    }
 }
 
 void HighwayComponent::mouseMove(const juce::MouseEvent& e)
@@ -439,6 +506,21 @@ void HighwayComponent::mouseMove(const juce::MouseEvent& e)
     AuthoringPoint p; AuthoringContext ctx;
     buildAuthoringPayload(e, p, ctx);
     onPointerMove(p, ctx);
+
+    // Only repaint when the ghost actually changed. Vblank already handles
+    // continuous repaints at 60fps; this avoids piling extra full-renders on
+    // top during dense step grids (mouseMove fires at 100+ Hz).
+    if (overlayStateGetter)
+    {
+        const auto& ov = overlayStateGetter();
+        if (ov.ghostVisible != lastGhost.visible ||
+            ov.ghostLane    != lastGhost.lane    ||
+            ov.ghostQN      != lastGhost.qn)
+        {
+            lastGhost = { ov.ghostVisible, ov.ghostLane, ov.ghostQN };
+            repaint();
+        }
+    }
 }
 
 void HighwayComponent::mouseDown(const juce::MouseEvent& e)

@@ -93,6 +93,10 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
             noteRenderer.populate(drawCallMap, trackWindow, windowStartTime, windowEndTime,
                                   width, height, highwayPosEnd,
                                   farFadeEnd, farFadeLen, farFadeCurve);
+
+        if (ghostCursor.visible)
+            noteRenderer.renderGhost(drawCallMap, ghostCursor.lane, ghostCursor.position,
+                                     ghostCursor.image, ghostCursor.opacity);
     }
 
     {

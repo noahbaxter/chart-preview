@@ -75,6 +75,13 @@ public:
     juce::Image* getNoteWhiteImage() { return &noteWhiteImage; }
     juce::Image* getNoteYellowImage() { return &noteYellowImage; }
 
+    // Ghost cursor blanks (write-mode hover preview)
+    juce::Image* getNoteBlankImage() { return &noteBlankImage; }
+    juce::Image* getHopoBlankImage() { return &hopoBlankImage; }
+    juce::Image* getCymBlankImage()  { return &cymBlankImage; }
+    juce::Image* getBarBlankImage()  { return &barBlankImage; }
+    juce::Image* getGhostCursorImage(bool isDrums, int lane);
+
     // Overlay graphics
     juce::Image* getOverlayCymAccentImage() { return &overlayCymAccentImage; }
     juce::Image* getOverlayCymGhostImage() { return &overlayCymGhostImage; }
@@ -179,6 +186,12 @@ private:
     juce::Image noteRedImage;
     juce::Image noteWhiteImage;
     juce::Image noteYellowImage;
+
+    // Ghost cursor blanks
+    juce::Image noteBlankImage;
+    juce::Image hopoBlankImage;
+    juce::Image cymBlankImage;
+    juce::Image barBlankImage;
 
     // Overlay graphics
     juce::Image overlayCymAccentImage;

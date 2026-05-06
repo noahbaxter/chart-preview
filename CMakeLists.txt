@@ -287,6 +287,11 @@ juce_add_binary_data(ChartchoticData
         assets/generated/notes/cym_red.png
         assets/generated/notes/cym_white.png
         assets/generated/notes/cym_yellow.png
+        # Ghost cursor templates (write-mode hover preview)
+        assets/generated/templates/note_blank.png
+        assets/generated/templates/hopo_blank.png
+        assets/generated/templates/cym_blank.png
+        assets/generated/templates/bar_blank.png
         # Bars (generated from PDFs)
         assets/generated/bars/bar_kick.png
         assets/generated/bars/bar_kick_2x.png

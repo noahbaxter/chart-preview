@@ -167,8 +167,26 @@ namespace
 // Pointer / key / frame input methods. onPointerDown handles left-click
 // placement; the rest are stubs until later milestones.
 
-void WriteController::onPointerMove([[maybe_unused]] const AuthoringPoint& p,
-                                    [[maybe_unused]] const AuthoringContext& ctx) {}
+void WriteController::onPointerMove(const AuthoringPoint& p,
+                                    [[maybe_unused]] const AuthoringContext& ctx)
+{
+    JUCE_ASSERT_MESSAGE_THREAD;
+
+    overlayState.ghostVisible    = false;
+    overlayState.ghostLane       = -1;
+    overlayState.ghostQN         = 0.0;
+    overlayState.ghostShowsErase = false;
+
+    if (!writeModeActive())               return;
+    if (currentSubMode != SubMode::Draw)  return;
+    if (!p.onHighway || p.laneIndex < 1)  return;  // lane 0 (bar zone) deferred
+
+    overlayState.ghostVisible = true;
+    overlayState.ghostLane    = p.laneIndex;
+    overlayState.ghostQN      = snapEnabled()
+        ? snapToStep(p.rawProjectQN, currentStepDivision, currentTuplet)
+        : p.rawProjectQN;
+}
 
 void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
@@ -213,7 +231,13 @@ void WriteController::onPointerDrag([[maybe_unused]] const AuthoringPoint& p,
 void WriteController::onPointerUp([[maybe_unused]] const AuthoringPoint& p,
                                   [[maybe_unused]] const AuthoringContext& ctx) {}
 
-void WriteController::onPointerExit() {}
+void WriteController::onPointerExit()
+{
+    overlayState.ghostVisible   = false;
+    overlayState.ghostLane      = -1;
+    overlayState.ghostQN        = 0.0;
+    overlayState.ghostShowsErase = false;
+}
 
 void WriteController::onPointerCancel() {}
 
