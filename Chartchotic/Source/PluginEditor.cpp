@@ -72,6 +72,33 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
             }
             return cursorQN + secondsFromCursor * (bpm / 60.0);
         });
+
+        // Inverse of the above — used by the hover-ghost renderer to convert a
+        // snapped project QN back into a seconds-from-cursor offset (then into a
+        // normalized highway position).
+        hw.setProjectQNToSeconds([this](double projectQN) -> double {
+            double cursorQN = lastKnownPosition.toDouble();
+            auto& reaperProvider = audioProcessor.getReaperMidiProvider();
+            if (reaperProvider.isReaperApiAvailable())
+            {
+                double cursorTime = reaperProvider.ppqToTime(cursorQN);
+                double targetTime = reaperProvider.ppqToTime(projectQN);
+                return targetTime - cursorTime;
+            }
+            double bpm = defaultBPM;
+            if (auto* playHead = audioProcessor.getPlayHead())
+            {
+                auto positionInfo = playHead->getPosition();
+                if (positionInfo.hasValue())
+                    bpm = positionInfo->getBpm().orFallback(defaultBPM);
+            }
+            return (projectQN - cursorQN) * (60.0 / bpm);
+        });
+
+        // Read access to the WriteController's overlay state (hover ghost lives there).
+        hw.setOverlayStateGetter([this]() -> const OverlayState& {
+            return writeController.getOverlayState();
+        });
     }
 
     // Activate slot 0 as default
