@@ -30,9 +30,11 @@ HitTestResult HitTestMapper::hitTest(float screenX, float screenY,
     float position = invertYToPosition(screenY, viewportWidth, viewportHeight,
                                        isDrums, farFadeEnd);
 
-    // Reject clicks outside the visible highway range
-    if (position < HIGHWAY_POS_START || position > farFadeEnd)
-        return result;
+    // Clamp at the visible highway bottom (HIGHWAY_POS_START).
+    // Negative positions are valid — they're "in front of" the strikeline.
+    // PPQ floor at 0 is applied downstream when converting to absolute time.
+    if (position < HIGHWAY_POS_START)
+        position = HIGHWAY_POS_START;
 
     double windowTimeSpan = windowEndTime - windowStartTime;
     result.normalizedPosition = position;
@@ -76,6 +78,15 @@ static float invertYBemani(float screenY, uint viewportHeight, float farFadeEnd)
 //   progress = (1 - depth) / (1 + depth * k)
 //   depth = (1 - progress) / (progress * k + 1)
 //   position = depth * vanishingPointDepth
+//
+// Forward/inverse divergence above the vanishing-point line (yPos < A):
+//   The forward path compresses position 1..farFadeEnd into a tiny screen
+//   strip ([0, A] — typically ~2px). The asymptotic inverse can technically
+//   resolve clicks in that strip back to position > 1, but the user can't
+//   reliably target 2 pixels. Instead, we linearly interpolate position
+//   from 1.0 (at progress=0) to farFadeEnd (at the viewport top edge,
+//   progress = -A/B). Forward visuals stay perspective-accurate; the click
+//   path gives the user a usable click target in the extended zone.
 // =============================================================================
 
 static float invertYPerspective(float screenY, uint viewportWidth, uint viewportHeight,
@@ -105,16 +116,39 @@ static float invertYPerspective(float screenY, uint viewportWidth, uint viewport
 
     float progress = (screenY - A) / B;
 
-    // progress must be in (0, 1] for valid highway positions
-    if (progress <= 0.0f || progress > 1.0f)
-        return -1.0f;
+    // Above the vanishing-point line (progress < 0): linear extrapolation
+    // up to farFadeEnd, so the user has a clickable strip past position=1.0.
+    // See divergence note in the header comment above.
+    if (progress < 0.0f)
+    {
+        float topStripProgress = -A / B;  // progress at viewport top edge (yPos=0)
+        if (topStripProgress > 0.001f)
+        {
+            float t = (-progress) / topStripProgress;  // 0 at progress=0, 1 at top edge
+            float position = 1.0f + t * (farFadeEnd - 1.0f);
+            return std::min(position, farFadeEnd);
+        }
+        // topStripProgress too small — VP line is essentially at screen top,
+        // no usable linear strip. Clamp to farFadeEnd rather than falling
+        // through to the asymptotic inverse which is unreliable here.
+        return farFadeEnd;
+    }
 
     // Invert: depth = (1 - progress) / (progress * k + 1)
+    // progress in (0,1]: depth in [0,~1] (normal highway range)
+    // progress > 1: depth < 0 (below strikeline, valid for authoring)
+    // Only truly invalid when denominator hits zero (singularity)
     float denom = progress * k + 1.0f;
     if (std::abs(denom) < 0.0001f)
-        return -1.0f;
+        return farFadeEnd;  // At the singularity, clamp to highway end
 
     float depth = (1.0f - progress) / denom;
+
+    // depth < 0 from progress > 1 = below strikeline (valid, negative position)
+    // depth < 0 from progress < 0 with bad denom = past singularity (clamp)
+    if (depth < 0.0f && progress <= 0.0f)
+        return farFadeEnd;
+
     return depth * pp.vanishingPointDepth;
 }
 
@@ -142,47 +176,33 @@ int HitTestMapper::identifyLane(float screenX, float position,
     int numLanes = isDrums ? (int)DRUM_LANE_COUNT : (int)GUITAR_LANE_COUNT;
     const auto* laneCoords = isDrums ? drumBezierLaneCoords : guitarBezierLaneCoords;
 
-    float bestDist = std::numeric_limits<float>::max();
-    int bestLane = -1;
+    // Outside fretboard — left = open/kick, right = last lane (or 2x kick)
+    auto fbEdge = PositionMath::getFretboardEdge(
+        isDrums, position, viewportWidth, viewportHeight,
+        HIGHWAY_POS_START, HIGHWAY_POS_END);
 
-    for (int i = 0; i < numLanes; i++)
+    if (screenX < fbEdge.leftX)
+        return 0;
+
+    if (screenX > fbEdge.rightX)
+    {
+        if (isDrums)
+            return (int)DRUM_LANE_COUNT;  // expert 2x kick
+        return (int)GUITAR_LANE_COUNT - 1;
+    }
+
+    // Right-to-left: left of lane N's left edge = lane N-1, etc.
+    // Left of lane 1's left edge = open/kick (lane 0).
+    for (int i = numLanes - 1; i >= 1; i--)
     {
         auto corners = PositionMath::getColumnPosition(
             isDrums, position, viewportWidth, viewportHeight,
             HIGHWAY_POS_START, HIGHWAY_POS_END,
-            laneCoords[i],
-            isDrums ? BAR_SIZE : GEM_SIZE,
-            fretboardScale,
+            laneCoords[i], GEM_SIZE, fretboardScale,
             PositionMath::bemaniMode ? i : -1);
-
-        if (screenX >= corners.leftX && screenX <= corners.rightX)
-            return i;  // Direct hit
-
-        // Track nearest lane for close misses
-        float center = (corners.leftX + corners.rightX) * 0.5f;
-        float dist = std::abs(screenX - center);
-        if (dist < bestDist)
-        {
-            bestDist = dist;
-            bestLane = i;
-        }
+        if (screenX >= corners.leftX)
+            return i;
     }
 
-    // Allow a small tolerance for near-misses (half a lane width)
-    if (bestLane >= 0)
-    {
-        auto corners = PositionMath::getColumnPosition(
-            isDrums, position, viewportWidth, viewportHeight,
-            HIGHWAY_POS_START, HIGHWAY_POS_END,
-            laneCoords[bestLane],
-            isDrums ? BAR_SIZE : GEM_SIZE,
-            fretboardScale,
-            PositionMath::bemaniMode ? bestLane : -1);
-
-        float laneWidth = corners.rightX - corners.leftX;
-        if (bestDist < laneWidth * 0.5f)
-            return bestLane;
-    }
-
-    return -1;
+    return 0;
 }
