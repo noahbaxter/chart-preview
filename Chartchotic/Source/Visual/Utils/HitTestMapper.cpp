@@ -116,40 +116,26 @@ static float invertYPerspective(float screenY, uint viewportWidth, uint viewport
 
     float progress = (screenY - A) / B;
 
-    // Above the vanishing-point line (progress < 0): linear extrapolation
-    // up to farFadeEnd, so the user has a clickable strip past position=1.0.
-    // See divergence note in the header comment above.
-    if (progress < 0.0f)
-    {
-        float topStripProgress = -A / B;  // progress at viewport top edge (yPos=0)
-        if (topStripProgress > 0.001f)
-        {
-            float t = (-progress) / topStripProgress;  // 0 at progress=0, 1 at top edge
-            float position = 1.0f + t * (farFadeEnd - 1.0f);
-            return std::min(position, farFadeEnd);
-        }
-        // topStripProgress too small — VP line is essentially at screen top,
-        // no usable linear strip. Clamp to farFadeEnd rather than falling
-        // through to the asymptotic inverse which is unreliable here.
-        return farFadeEnd;
-    }
-
     // Invert: depth = (1 - progress) / (progress * k + 1)
-    // progress in (0,1]: depth in [0,~1] (normal highway range)
-    // progress > 1: depth < 0 (below strikeline, valid for authoring)
-    // Only truly invalid when denominator hits zero (singularity)
+    // Works for the full range:
+    //   progress > 0  → normal highway (position 0→~1.0)
+    //   progress < 0  → above VP line (position > 1.0, grows as cursor moves up)
+    //   progress < -1/k → past singularity (clamp to farFadeEnd)
     float denom = progress * k + 1.0f;
     if (std::abs(denom) < 0.0001f)
-        return farFadeEnd;  // At the singularity, clamp to highway end
+        return farFadeEnd;
 
     float depth = (1.0f - progress) / denom;
 
-    // depth < 0 from progress > 1 = below strikeline (valid, negative position)
-    // depth < 0 from progress < 0 with bad denom = past singularity (clamp)
-    if (depth < 0.0f && progress <= 0.0f)
+    // Below strikeline (progress > 1 → negative depth): valid for authoring
+    if (depth < 0.0f && progress > 1.0f)
+        return depth * pp.vanishingPointDepth;
+
+    // Past singularity (negative depth, progress < 0)
+    if (depth < 0.0f)
         return farFadeEnd;
 
-    return depth * pp.vanishingPointDepth;
+    return std::min(depth * pp.vanishingPointDepth, farFadeEnd);
 }
 
 // =============================================================================
