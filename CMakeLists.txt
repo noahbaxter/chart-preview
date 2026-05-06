@@ -131,6 +131,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiProvider.h
         Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiWriter.cpp
         Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiWriter.h
+        Chartchotic/Source/Midi/Providers/REAPER/ReaperItemManager.cpp
+        Chartchotic/Source/Midi/Providers/REAPER/ReaperItemManager.h
         Chartchotic/Source/Midi/Providers/REAPER/ReaperNoteFetcher.cpp
         Chartchotic/Source/Midi/Providers/REAPER/ReaperNoteFetcher.h
         # Midi / Providers

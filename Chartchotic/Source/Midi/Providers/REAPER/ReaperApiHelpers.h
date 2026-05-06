@@ -71,7 +71,11 @@ struct ReaperAPIs
     void (*MIDI_DisableSort)(void* take) = nullptr;
     double (*MIDI_GetPPQPosFromProjQN)(void* take, double projqn) = nullptr;
 
-    // Media item info accessors (used to extend item bounds for out-of-range writes)
+    // MIDI item extents — the correct way to resize MIDI items (handles PPQ
+    // mapping internally, unlike SetMediaItemInfo_Value("D_POSITION") which corrupts it).
+    bool (*MIDI_SetItemExtents)(void* item, double startQN, double endQN) = nullptr;
+
+    // Media item info accessors
     double (*GetMediaItemInfo_Value)(void* item, const char* parmname) = nullptr;
     bool   (*SetMediaItemInfo_Value)(void* item, const char* parmname, double newvalue) = nullptr;
 
@@ -224,8 +228,9 @@ public:
         outAPIs.MIDI_Sort = (void(*)(void*))apiFunc("MIDI_Sort");
         outAPIs.MIDI_DisableSort = (void(*)(void*))apiFunc("MIDI_DisableSort");
         outAPIs.MIDI_GetPPQPosFromProjQN = (double(*)(void*, double))apiFunc("MIDI_GetPPQPosFromProjQN");
+        outAPIs.MIDI_SetItemExtents = (bool(*)(void*, double, double))apiFunc("MIDI_SetItemExtents");
 
-        // Media item info / creation (for auto-extending item bounds on out-of-range writes)
+        // Media item info / creation
         outAPIs.GetMediaItemInfo_Value = (double(*)(void*, const char*))apiFunc("GetMediaItemInfo_Value");
         outAPIs.SetMediaItemInfo_Value = (bool(*)(void*, const char*, double))apiFunc("SetMediaItemInfo_Value");
         outAPIs.CreateNewMIDIItemInProj = (void*(*)(void*, double, double, const bool*))
