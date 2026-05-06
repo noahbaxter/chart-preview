@@ -279,6 +279,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
     // moment they appear (and clears them on tear-down).
     writeController.setMidiWriter(audioProcessor.getReaperMidiProvider().getWriter());
     writeController.setInstrumentSession(audioProcessor.getInstrumentSession());
+    writeController.setPlayingStatePtr(&lastPlayingState);
 
     // Per-frame tick — controller uses this for hover refresh under stationary
     // cursor and to enforce playback-gated authoring (no-op in M1, real in M3).
