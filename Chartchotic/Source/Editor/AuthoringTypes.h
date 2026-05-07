@@ -16,6 +16,7 @@ struct AuthoringPoint
     int    laneIndex = -1;
     double rawProjectQN = 0.0;
     bool   overExistingNote = false;
+    bool   hitSustainBody = false;
     double hitNoteStartQN = 0.0;
     int    hitNotePitch = -1;
 };

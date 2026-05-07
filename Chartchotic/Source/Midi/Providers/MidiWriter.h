@@ -43,9 +43,6 @@ public:
     virtual int findNoteIndex(int trackIndex, double targetQN, int pitch,
                               double toleranceQN = 0.25) { (void)trackIndex; (void)targetQN; (void)pitch; (void)toleranceQN; return -1; }
 
-    /** Returns the start QN of the note most recently found by findNoteIndex. */
-    virtual double getLastFoundNoteStartQN() { return -1.0; }
-
     struct NoteInfo {
         int    noteIndex;
         double startQN;

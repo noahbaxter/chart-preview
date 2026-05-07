@@ -250,12 +250,11 @@ void WriteController::onFrameTick([[maybe_unused]] double currentProjectQN,
 void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, int pitch, bool drums)
 {
     double clickQN = snapQN(p.rawProjectQN);
-    bool existingNote = noteEditor.findNote(trackIdx, clickQN, pitch) >= 0;
 
     if (!drums)
         noteEditor.beginBatch("Chartchotic: Sustain note");
 
-    if (!existingNote)
+    if (!p.overExistingNote)
     {
         noteEditor.createNote(trackIdx, clickQN, pitch);
         if (drums) return;
@@ -265,9 +264,7 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
 
     if (drums) return;
 
-    // Clicked on existing note/sustain body — anchor at the note's actual start
-    double anchorQN = noteEditor.resolveNoteStart(trackIdx, clickQN, pitch);
-    enterSustainDrag(trackIdx, anchorQN, p.laneIndex, pitch);
+    enterSustainDrag(trackIdx, p.hitNoteStartQN, p.laneIndex, pitch);
 }
 
 void WriteController::handleUpdateSustain(const AuthoringPoint& p)
@@ -310,18 +307,28 @@ void WriteController::handleBeginErase(const AuthoringPoint& p, int trackIdx, in
     eraseDragActive   = true;
     eraseDragTrackIdx = trackIdx;
     noteEditor.beginBatch("Chartchotic: Erase notes");
-    noteEditor.eraseNoteAt(trackIdx, p.rawProjectQN, pitch, drums, p.laneIndex, currentActiveSkill);
+
+    if (!p.overExistingNote) return;
+
+    if (p.hitSustainBody)
+        noteEditor.truncateNote(trackIdx, p.hitNoteStartQN, pitch);
+    else
+        noteEditor.eraseNoteAt(trackIdx, p.hitNoteStartQN, pitch, drums, p.laneIndex, currentActiveSkill);
 }
 
 void WriteController::handleContinueErase(const AuthoringPoint& p)
 {
     if (!p.onHighway || p.laneIndex < 0) return;
+    if (!p.overExistingNote) return;
 
     bool drums = isDrumLike(currentActivePart);
     int  pitch = resolvePitch(p.laneIndex, drums);
     if (pitch < 0) return;
 
-    noteEditor.eraseNoteAt(eraseDragTrackIdx, p.rawProjectQN, pitch, drums, p.laneIndex, currentActiveSkill);
+    if (p.hitSustainBody)
+        noteEditor.truncateNote(eraseDragTrackIdx, p.hitNoteStartQN, pitch);
+    else
+        noteEditor.eraseNoteAt(eraseDragTrackIdx, p.hitNoteStartQN, pitch, drums, p.laneIndex, currentActiveSkill);
 }
 
 void WriteController::handleEndErase()

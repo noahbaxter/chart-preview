@@ -16,11 +16,11 @@ public:
     bool createNote  (int trackIdx, double startQN, int pitch);
     bool eraseNoteAt (int trackIdx, double rawQN, int pitch,
                       bool drums, int lane, SkillLevel skill);
+    bool truncateNote(int trackIdx, double noteStartQN, int pitch);
     bool extendNote  (int trackIdx, double startQN, double endQN, int pitch);
     int  findNote    (int trackIdx, double qn, int pitch);
 
-    bool chainExtendNotes (int trackIdx, double startQN, double endQN, int pitch);
-    double resolveNoteStart (int trackIdx, double qn, int pitch);
+    bool chainExtendNotes(int trackIdx, double startQN, double endQN, int pitch);
 
     void beginBatch(const char* description);
     void endBatch();

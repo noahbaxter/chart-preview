@@ -42,24 +42,25 @@ bool NoteEditor::eraseNoteAt(int trackIdx, double rawQN, int pitch,
 
     if (noteIdx < 0) return false;
 
-    // Body click → truncate sustain to note head. Head click → delete.
-    double noteStartQN = midiWriter->getLastFoundNoteStartQN();
-    bool bodyClick = noteStartQN >= 0 && std::abs(rawQN - noteStartQN) > 0.25;
+    bool ok = batchActive
+        ? midiWriter->batchDeleteNote(trackIdx, noteIdx, rawQN)
+        : midiWriter->deleteNoteAtQN(trackIdx, noteIdx, rawQN);
 
-    bool ok;
-    if (bodyClick)
-    {
-        double shortEnd = noteStartQN + kShortNoteDurationQN;
-        ok = batchActive
-            ? midiWriter->batchMoveNote(trackIdx, noteIdx, noteStartQN, shortEnd, pitch)
-            : midiWriter->moveNote(trackIdx, noteIdx, noteStartQN, shortEnd, pitch);
-    }
-    else
-    {
-        ok = batchActive
-            ? midiWriter->batchDeleteNote(trackIdx, noteIdx, rawQN)
-            : midiWriter->deleteNoteAtQN(trackIdx, noteIdx, rawQN);
-    }
+    if (ok) instrumentSession->invalidateTrack(trackIdx);
+    return ok;
+}
+
+bool NoteEditor::truncateNote(int trackIdx, double noteStartQN, int pitch)
+{
+    if (!midiWriter || !instrumentSession) return false;
+
+    int idx = midiWriter->findNoteIndex(trackIdx, noteStartQN, pitch);
+    if (idx < 0) return false;
+
+    double shortEnd = noteStartQN + kShortNoteDurationQN;
+    bool ok = batchActive
+        ? midiWriter->batchMoveNote(trackIdx, idx, noteStartQN, shortEnd, pitch)
+        : midiWriter->moveNote(trackIdx, idx, noteStartQN, shortEnd, pitch);
 
     if (ok) instrumentSession->invalidateTrack(trackIdx);
     return ok;
@@ -113,20 +114,6 @@ int NoteEditor::findNote(int trackIdx, double qn, int pitch)
 {
     if (!midiWriter) return -1;
     return midiWriter->findNoteIndex(trackIdx, qn, pitch);
-}
-
-double NoteEditor::resolveNoteStart(int trackIdx, double qn, int pitch)
-{
-    if (!midiWriter) return qn;
-
-    // Search backward to find the note whose body covers this position
-    auto notes = midiWriter->findNotesInRange(trackIdx, std::max(0.0, qn - 64.0), qn, pitch);
-
-    for (auto it = notes.rbegin(); it != notes.rend(); ++it)
-        if (it->startQN <= qn && it->endQN >= qn)
-            return it->startQN;
-
-    return qn;
 }
 
 void NoteEditor::beginBatch(const char* description)
