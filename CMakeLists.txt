@@ -86,6 +86,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Editor/AuthoringTypes.h
         Chartchotic/Source/Editor/WriteController.cpp
         Chartchotic/Source/Editor/WriteController.h
+        Chartchotic/Source/Editor/CommandMapper.cpp
+        Chartchotic/Source/Editor/CommandMapper.h
         Chartchotic/Source/Host/ReaperVST3.h
         # DebugTools
         Chartchotic/Source/DebugTools/DebugEditorController.cpp
