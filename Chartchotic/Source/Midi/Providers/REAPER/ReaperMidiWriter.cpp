@@ -71,23 +71,6 @@ int ReaperMidiWriter::findNoteIndex(int trackIndex, double targetQN, int pitch,
     return itemManager.findNoteIndex(project, trackIndex, targetQN, pitch, toleranceQN);
 }
 
-double ReaperMidiWriter::getLastFoundNoteStartQN()
-{
-    void* take = itemManager.getLastFoundTake();
-    if (!take || !apis.MIDI_GetNote || !apis.MIDI_GetProjQNFromPPQPos) return -1.0;
-
-    int idx = itemManager.getLastFoundIndex();
-    if (idx < 0) return -1.0;
-
-    double startPPQ = 0, endPPQ = 0;
-    int ch = 0, p = 0, vel = 0;
-    bool sel = false, muted = false;
-    if (!apis.MIDI_GetNote(take, idx, &sel, &muted, &startPPQ, &endPPQ, &ch, &p, &vel))
-        return -1.0;
-
-    return apis.MIDI_GetProjQNFromPPQPos(take, startPPQ);
-}
-
 std::vector<MidiWriter::NoteInfo>
 ReaperMidiWriter::findNotesInRange(int trackIndex, double startQN,
                                     double endQN, int pitch)

@@ -124,7 +124,6 @@ int ReaperItemManager::findNoteIndex(void* project, int trackIndex,
                                       double targetQN, int pitch, double toleranceQN)
 {
     lastFoundTake = nullptr;
-    lastFoundIdx  = -1;
     if (!apis.MIDI_CountEvts || !apis.MIDI_GetNote || !apis.MIDI_GetPPQPosFromProjQN)
         return -1;
 
@@ -158,7 +157,6 @@ int ReaperItemManager::findNoteIndex(void* project, int trackIndex,
                 bestDist = dist;
                 bestIdx = i;
                 lastFoundTake = it.take;
-                lastFoundIdx  = i;
             }
         }
     }
