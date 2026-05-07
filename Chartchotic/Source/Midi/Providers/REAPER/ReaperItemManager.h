@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "ReaperApiHelpers.h"
+#include "../MidiWriter.h"
 
 #include <vector>
 
@@ -19,6 +20,9 @@ public:
     // Caches the found take — retrieve via getLastFoundTake().
     int findNoteIndex(void* project, int trackIndex,
                       double targetQN, int pitch, double toleranceQN = 0.25);
+
+    std::vector<MidiWriter::NoteInfo> findNotesInRange(void* project, int trackIndex,
+                                                        double startQN, double endQN, int pitch);
 
     void* getLastFoundTake() const { return lastFoundTake; }
 

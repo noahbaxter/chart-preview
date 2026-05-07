@@ -71,6 +71,15 @@ int ReaperMidiWriter::findNoteIndex(int trackIndex, double targetQN, int pitch,
     return itemManager.findNoteIndex(project, trackIndex, targetQN, pitch, toleranceQN);
 }
 
+std::vector<MidiWriter::NoteInfo>
+ReaperMidiWriter::findNotesInRange(int trackIndex, double startQN,
+                                    double endQN, int pitch)
+{
+    void* project = ReaperApiHelpers::getProject(getReaperApi);
+    if (!project) return {};
+    return itemManager.findNotesInRange(project, trackIndex, startQN, endQN, pitch);
+}
+
 bool ReaperMidiWriter::deleteNote(int trackIndex, int noteIndex)
 {
     return deleteNoteAtQN(trackIndex, noteIndex, -1.0);

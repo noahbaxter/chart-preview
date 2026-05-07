@@ -31,6 +31,8 @@ public:
     bool deleteNoteAtQN(int trackIndex, int noteIndex, double hintQN) override;
     int findNoteIndex(int trackIndex, double targetQN, int pitch,
                       double toleranceQN = 0.25) override;
+    std::vector<NoteInfo> findNotesInRange(int trackIndex, double startQN,
+                                            double endQN, int pitch) override;
     bool moveNote(int trackIndex, int noteIndex,
                  double newStartQN, double newEndQN, int newPitch) override;
 

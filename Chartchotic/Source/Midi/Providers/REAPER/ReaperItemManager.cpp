@@ -1,5 +1,6 @@
 #include "ReaperItemManager.h"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -158,4 +159,48 @@ int ReaperItemManager::findNoteIndex(void* project, int trackIndex,
     }
 
     return bestIdx;
+}
+
+// =============================================================================
+// findNotesInRange — returns all notes matching pitch within a QN range
+// =============================================================================
+
+std::vector<MidiWriter::NoteInfo>
+ReaperItemManager::findNotesInRange(void* project, int trackIndex,
+                                     double startQN, double endQN, int pitch)
+{
+    std::vector<MidiWriter::NoteInfo> results;
+    if (!apis.MIDI_CountEvts || !apis.MIDI_GetNote || !apis.MIDI_GetPPQPosFromProjQN ||
+        !apis.MIDI_GetProjQNFromPPQPos)
+        return results;
+
+    auto items = collectMidiItems(project, trackIndex);
+
+    for (auto& it : items)
+    {
+        double startPPQ = apis.MIDI_GetPPQPosFromProjQN(it.take, startQN);
+        double endPPQ   = apis.MIDI_GetPPQPosFromProjQN(it.take, endQN);
+
+        int noteCount = 0;
+        apis.MIDI_CountEvts(it.take, &noteCount, nullptr, nullptr);
+
+        for (int i = 0; i < noteCount; ++i)
+        {
+            double nStart = 0, nEnd = 0;
+            int ch = 0, p = 0, vel = 0;
+            bool sel = false, muted = false;
+            if (!apis.MIDI_GetNote(it.take, i, &sel, &muted, &nStart, &nEnd, &ch, &p, &vel))
+                continue;
+            if (p != pitch) continue;
+            if (nStart < startPPQ || nStart > endPPQ) continue;
+
+            double noteStartQN = apis.MIDI_GetProjQNFromPPQPos(it.take, nStart);
+            double noteEndQN   = apis.MIDI_GetProjQNFromPPQPos(it.take, nEnd);
+            results.push_back({ i, noteStartQN, noteEndQN, p });
+        }
+    }
+
+    std::sort(results.begin(), results.end(),
+              [](const auto& a, const auto& b) { return a.startQN < b.startQN; });
+    return results;
 }
