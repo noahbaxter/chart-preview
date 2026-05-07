@@ -13,6 +13,8 @@
 
 #pragma once
 
+#include <vector>
+
 /**
  * Abstract interface for writing MIDI notes back to the host DAW.
  *
@@ -40,6 +42,17 @@ public:
 
     virtual int findNoteIndex(int trackIndex, double targetQN, int pitch,
                               double toleranceQN = 0.25) { (void)trackIndex; (void)targetQN; (void)pitch; (void)toleranceQN; return -1; }
+
+    struct NoteInfo {
+        int    noteIndex;
+        double startQN;
+        double endQN;
+        int    pitch;
+    };
+
+    virtual std::vector<NoteInfo> findNotesInRange(int trackIndex, double startQN,
+                                                    double endQN, int pitch)
+    { (void)trackIndex; (void)startQN; (void)endQN; (void)pitch; return {}; }
 
     virtual bool moveNote(int trackIndex, int noteIndex,
                          double newStartQN, double newEndQN, int newPitch) = 0;
