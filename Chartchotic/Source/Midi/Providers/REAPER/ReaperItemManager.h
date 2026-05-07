@@ -18,6 +18,11 @@ public:
     // Find the first MIDI take on the track (for read-only ops like delete/move).
     void* getFirstMidiTake(void* project, int trackIndex);
 
+    // Find the REAPER note index matching a project QN position and pitch.
+    // Returns -1 if no match found. Tolerance is in QN.
+    int findNoteIndex(void* project, int trackIndex,
+                      double targetQN, int pitch, double toleranceQN = 0.25);
+
 private:
     const ReaperAPIs& apis;
     std::function<void*(const char*)> getReaperApi;

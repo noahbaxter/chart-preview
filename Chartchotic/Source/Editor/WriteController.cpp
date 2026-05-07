@@ -205,17 +205,30 @@ void WriteController::recomputeGhost()
     overlayState.ghostQN      = qn;
 }
 
+void WriteController::eraseNoteUnderCursor(int trackIdx, double rawQN, int pitch, bool drums, int lane)
+{
+    if (!midiWriter || !instrumentSession) return;
+
+    int noteIdx = midiWriter->findNoteIndex(trackIdx, rawQN, pitch);
+
+    // For drum lane 0, also try 2x kick pitch
+    if (noteIdx < 0 && drums && lane == 0)
+    {
+        int kick2xPitch = InstrumentMapper::columnToDrumPitch(currentActiveSkill, 0, true);
+        noteIdx = midiWriter->findNoteIndex(trackIdx, rawQN, kick2xPitch);
+    }
+
+    if (noteIdx >= 0 && midiWriter->deleteNoteAtQN(trackIdx, noteIdx, rawQN))
+        instrumentSession->invalidateTrack(trackIdx);
+}
+
 void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
     JUCE_ASSERT_MESSAGE_THREAD;
 
-    // Left-click in Draw places a single short note. Everything else
-    // (right-click erase, drag-to-sustain, hover ghost, hit-test for "click on
-    // existing = no-op") is deferred to later milestones.
     if (!writeModeActive())                  return;
     if (playingStatePtr && *playingStatePtr)  return;
     if (currentSubMode != SubMode::Draw)     return;
-    if (!ctx.leftButton)                     return;
     if (!p.onHighway)                        return;
     if (p.laneIndex < 0)                     return;
     if (midiWriter == nullptr)               return;
@@ -231,23 +244,48 @@ void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringCont
         : InstrumentMapper::columnToGuitarPitch(currentActiveSkill, p.laneIndex);
     if (pitch < 0) return;
 
+    if (ctx.rightButton)
+    {
+        eraseDragActive = true;
+        eraseDragTrackIdx = trackIdx;
+        eraseNoteUnderCursor(trackIdx, p.rawProjectQN, pitch, drums, p.laneIndex);
+        return;
+    }
+
+    if (!ctx.leftButton) return;
+
     const double startQN = snapEnabled()
         ? snapToStep(p.rawProjectQN, currentStepDivision, currentTuplet)
         : p.rawProjectQN;
 
-    // Visually reads as a tap gem in any sane step grid, large enough that
-    // REAPER doesn't drop it.
     const double endQN = startQN + kShortNoteDurationQN;
 
     if (midiWriter->insertNote(trackIdx, startQN, endQN, /*channel*/ 0, pitch, /*velocity*/ 100))
         instrumentSession->invalidateTrack(trackIdx);
 }
 
-void WriteController::onPointerDrag([[maybe_unused]] const AuthoringPoint& p,
-                                    [[maybe_unused]] const AuthoringContext& ctx) {}
+void WriteController::onPointerDrag(const AuthoringPoint& p, const AuthoringContext& ctx)
+{
+    JUCE_ASSERT_MESSAGE_THREAD;
+
+    if (!eraseDragActive || !ctx.rightButton) return;
+    if (!p.onHighway || p.laneIndex < 0)     return;
+
+    const bool drums = isDrumLike(currentActivePart);
+    const int pitch = drums
+        ? InstrumentMapper::columnToDrumPitch(currentActiveSkill, p.laneIndex, false)
+        : InstrumentMapper::columnToGuitarPitch(currentActiveSkill, p.laneIndex);
+    if (pitch < 0) return;
+
+    eraseNoteUnderCursor(eraseDragTrackIdx, p.rawProjectQN, pitch, drums, p.laneIndex);
+}
 
 void WriteController::onPointerUp([[maybe_unused]] const AuthoringPoint& p,
-                                  [[maybe_unused]] const AuthoringContext& ctx) {}
+                                  [[maybe_unused]] const AuthoringContext& ctx)
+{
+    eraseDragActive = false;
+    eraseDragTrackIdx = -1;
+}
 
 void WriteController::onPointerExit()
 {

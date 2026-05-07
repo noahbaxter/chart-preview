@@ -36,6 +36,10 @@ public:
                            int channel, int pitch, int velocity) = 0;
 
     virtual bool deleteNote(int trackIndex, int noteIndex) = 0;
+    virtual bool deleteNoteAtQN(int trackIndex, int noteIndex, double hintQN) { return deleteNote(trackIndex, noteIndex); }
+
+    virtual int findNoteIndex(int trackIndex, double targetQN, int pitch,
+                              double toleranceQN = 0.25) { (void)trackIndex; (void)targetQN; (void)pitch; (void)toleranceQN; return -1; }
 
     virtual bool moveNote(int trackIndex, int noteIndex,
                          double newStartQN, double newEndQN, int newPitch) = 0;
