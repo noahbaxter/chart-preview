@@ -64,3 +64,31 @@ struct OverlayState
     bool                              marqueeVisible = false;
     std::array<juce::Point<float>, 4> marqueeQuad{};
 };
+
+enum class EventType { Down, Drag, Up };
+
+enum class MouseButton { None, Left, Right, Middle };
+
+enum class ModifierFlags : int {
+    None  = 0,
+    Shift = 1 << 0,
+    Ctrl  = 1 << 1,
+    Alt   = 1 << 2,
+};
+inline ModifierFlags operator|(ModifierFlags a, ModifierFlags b) {
+    return static_cast<ModifierFlags>(static_cast<int>(a) | static_cast<int>(b));
+}
+inline bool operator&(ModifierFlags a, ModifierFlags b) {
+    return (static_cast<int>(a) & static_cast<int>(b)) != 0;
+}
+
+enum class WriteCommand {
+    None,
+    BeginSustain,
+    UpdateSustain,
+    CommitSustain,
+    BeginErase,
+    ContinueErase,
+    EndErase,
+    ToggleBulldoze,
+};
