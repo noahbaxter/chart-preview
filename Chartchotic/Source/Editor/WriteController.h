@@ -93,8 +93,11 @@ private:
     OverlayState overlayState;
     AuthoringPoint lastPoint;
     bool lastPointValid = false;
+    bool eraseDragActive = false;
+    int  eraseDragTrackIdx = -1;
 
     void recomputeGhost();
+    void eraseNoteUnderCursor(int trackIdx, double rawQN, int pitch, bool drums, int lane);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WriteController)
 };

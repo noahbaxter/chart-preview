@@ -69,14 +69,29 @@ bool ReaperMidiWriter::insertNote(int trackIndex, double startQN, double endQN,
     return ok;
 }
 
+int ReaperMidiWriter::findNoteIndex(int trackIndex, double targetQN, int pitch,
+                                     double toleranceQN)
+{
+    void* project = ReaperApiHelpers::getProject(getReaperApi);
+    if (!project) return -1;
+    return itemManager.findNoteIndex(project, trackIndex, targetQN, pitch, toleranceQN);
+}
+
 bool ReaperMidiWriter::deleteNote(int trackIndex, int noteIndex)
+{
+    return deleteNoteAtQN(trackIndex, noteIndex, -1.0);
+}
+
+bool ReaperMidiWriter::deleteNoteAtQN(int trackIndex, int noteIndex, double hintQN)
 {
     juce::ScopedLock lock(writeLock);
 
     void* project = ReaperApiHelpers::getProject(getReaperApi);
     if (!project) return false;
 
-    void* take = itemManager.getFirstMidiTake(project, trackIndex);
+    void* take = (hintQN >= 0.0)
+        ? itemManager.getTakeForWrite(project, trackIndex, hintQN, hintQN + 0.1)
+        : itemManager.getFirstMidiTake(project, trackIndex);
     if (!take) return false;
 
     beginUndoBlock(project, "Chartchotic: Delete note");

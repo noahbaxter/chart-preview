@@ -137,3 +137,33 @@ void* ReaperItemManager::getTakeForWrite(void* project, int trackIndex,
         apis.SetMediaItemInfo_Value(newItem, "B_LOOPSRC", 0.0);
     return apis.GetActiveTake ? apis.GetActiveTake(newItem) : nullptr;
 }
+
+int ReaperItemManager::findNoteIndex(void* project, int trackIndex,
+                                      double targetQN, int pitch, double toleranceQN)
+{
+    void* take = getTakeForWrite(project, trackIndex, targetQN, targetQN + toleranceQN);
+    if (!take || !apis.MIDI_CountEvts || !apis.MIDI_GetNote || !apis.MIDI_GetPPQPosFromProjQN)
+        return -1;
+
+    double targetPPQ = apis.MIDI_GetPPQPosFromProjQN(take, targetQN);
+    double tolPPQ    = apis.MIDI_GetPPQPosFromProjQN(take, targetQN + toleranceQN) - targetPPQ;
+
+    int noteCount = 0;
+    apis.MIDI_CountEvts(take, &noteCount, nullptr, nullptr);
+
+
+    int bestIdx = -1;
+    double bestDist = tolPPQ;
+    for (int i = 0; i < noteCount; ++i)
+    {
+        double startPPQ = 0, endPPQ = 0;
+        int ch = 0, p = 0, vel = 0;
+        bool sel = false, muted = false;
+        if (!apis.MIDI_GetNote(take, i, &sel, &muted, &startPPQ, &endPPQ, &ch, &p, &vel))
+            continue;
+        if (p != pitch) continue;
+        double dist = std::abs(startPPQ - targetPPQ);
+        if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+    }
+    return bestIdx;
+}

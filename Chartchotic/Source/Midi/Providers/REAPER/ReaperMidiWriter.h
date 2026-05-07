@@ -30,6 +30,9 @@ public:
     bool insertNote(int trackIndex, double startQN, double endQN,
                    int channel, int pitch, int velocity) override;
     bool deleteNote(int trackIndex, int noteIndex) override;
+    bool deleteNoteAtQN(int trackIndex, int noteIndex, double hintQN) override;
+    int findNoteIndex(int trackIndex, double targetQN, int pitch,
+                      double toleranceQN = 0.25) override;
     bool moveNote(int trackIndex, int noteIndex,
                  double newStartQN, double newEndQN, int newPitch) override;
 
