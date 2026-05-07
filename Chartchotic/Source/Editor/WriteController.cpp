@@ -249,14 +249,25 @@ void WriteController::onFrameTick([[maybe_unused]] double currentProjectQN,
 
 void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, int pitch, bool drums)
 {
-    double startQN = snapQN(p.rawProjectQN);
+    double clickQN = snapQN(p.rawProjectQN);
+    bool existingNote = noteEditor.findNote(trackIdx, clickQN, pitch) >= 0;
 
-    if (noteEditor.findNote(trackIdx, startQN, pitch) < 0)
-        noteEditor.createNote(trackIdx, startQN, pitch);
+    if (!drums)
+        noteEditor.beginBatch("Chartchotic: Sustain note");
+
+    if (!existingNote)
+    {
+        noteEditor.createNote(trackIdx, clickQN, pitch);
+        if (drums) return;
+        enterSustainDrag(trackIdx, clickQN, p.laneIndex, pitch);
+        return;
+    }
 
     if (drums) return;
 
-    enterSustainDrag(trackIdx, startQN, p.laneIndex, pitch);
+    // Clicked on existing note/sustain body — anchor at the note's actual start
+    double anchorQN = noteEditor.resolveNoteStart(trackIdx, clickQN, pitch);
+    enterSustainDrag(trackIdx, anchorQN, p.laneIndex, pitch);
 }
 
 void WriteController::handleUpdateSustain(const AuthoringPoint& p)
@@ -284,8 +295,9 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
     double spacing = stepSpacingQN(currentStepDivision, currentTuplet);
 
     if (endQN - sustainDragStartQN >= spacing)
-        noteEditor.extendNote(sustainDragTrackIdx, sustainDragStartQN, endQN, sustainDragPitch);
+        noteEditor.chainExtendNotes(sustainDragTrackIdx, sustainDragStartQN, endQN, sustainDragPitch);
 
+    noteEditor.endBatch();
     clearSustainDrag();
     recomputeGhost();
 }

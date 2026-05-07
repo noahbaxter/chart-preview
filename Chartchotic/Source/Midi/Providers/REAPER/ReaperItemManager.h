@@ -24,12 +24,14 @@ public:
     std::vector<MidiWriter::NoteInfo> findNotesInRange(void* project, int trackIndex,
                                                         double startQN, double endQN, int pitch);
 
-    void* getLastFoundTake() const { return lastFoundTake; }
+    void* getLastFoundTake() const  { return lastFoundTake; }
+    int   getLastFoundIndex() const { return lastFoundIdx; }
 
 private:
     const ReaperAPIs& apis;
     std::function<void*(const char*)> getReaperApi;
     void* lastFoundTake = nullptr;
+    int   lastFoundIdx  = -1;
 
     struct MidiItemInfo { void* item; void* take; double pos; double len; };
     std::vector<MidiItemInfo> collectMidiItems(void* project, int trackIndex);

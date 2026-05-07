@@ -19,6 +19,9 @@ public:
     bool extendNote  (int trackIdx, double startQN, double endQN, int pitch);
     int  findNote    (int trackIdx, double qn, int pitch);
 
+    bool chainExtendNotes (int trackIdx, double startQN, double endQN, int pitch);
+    double resolveNoteStart (int trackIdx, double qn, int pitch);
+
     void beginBatch(const char* description);
     void endBatch();
     bool isBatching() const { return batchActive; }
