@@ -4,10 +4,6 @@
     ReaperMidiWriter.h
     REAPER implementation of MidiWriter
 
-    Wraps REAPER API calls with undo blocks, sort management, and dirty
-    marking. Item management (find/extend/create) is delegated to
-    ReaperItemManager.
-
   ==============================================================================
 */
 
@@ -17,6 +13,8 @@
 #include "../MidiWriter.h"
 #include "ReaperApiHelpers.h"
 #include "ReaperItemManager.h"
+
+#include <vector>
 
 class ReaperMidiWriter : public MidiWriter
 {
@@ -39,7 +37,7 @@ public:
     void beginBatch(const char* undoDescription) override;
     bool batchInsertNote(int trackIndex, double startQN, double endQN,
                         int channel, int pitch, int velocity) override;
-    bool batchDeleteNote(int trackIndex, int noteIndex) override;
+    bool batchDeleteNote(int trackIndex, int noteIndex, double hintQN = -1.0) override;
     bool batchMoveNote(int trackIndex, int noteIndex,
                       double newStartQN, double newEndQN, int newPitch) override;
     void endBatch() override;
@@ -49,12 +47,12 @@ private:
     std::function<void*(const char*)> getReaperApi;
     ReaperItemManager itemManager;
 
-    void beginUndoBlock(void* project, const char* description);
     void endUndoBlock(void* project, const char* description);
+    void addBatchTake(void* take);
 
     bool inBatch = false;
     void* batchProject = nullptr;
-    void* batchTake = nullptr;
+    std::vector<void*> batchTakes;
     juce::String batchDescription;
 
     juce::CriticalSection writeLock;

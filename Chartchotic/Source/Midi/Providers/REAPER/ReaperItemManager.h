@@ -3,27 +3,30 @@
 #include <JuceHeader.h>
 #include "ReaperApiHelpers.h"
 
+#include <vector>
+
 class ReaperItemManager
 {
 public:
     ReaperItemManager(const ReaperAPIs& apis, std::function<void*(const char*)> getFunc);
 
-    // Find a MIDI take covering [startQN, endQN] on the given track.
-    // If no item covers the range, extends the closest item via MIDI_SetItemExtents.
-    // If no items exist, creates a 1-bar item snapped to the measure floor.
-    // Returns the take to write into, or nullptr on failure.
+    // Resolve a project QN range to a MIDI take. Extends the closest item
+    // or creates a new one if nothing covers the range. Write operations only.
     void* getTakeForWrite(void* project, int trackIndex,
                           double startQN, double endQN);
 
-    // Find the first MIDI take on the track (for read-only ops like delete/move).
-    void* getFirstMidiTake(void* project, int trackIndex);
-
-    // Find the REAPER note index matching a project QN position and pitch.
-    // Returns -1 if no match found. Tolerance is in QN.
+    // Search ALL MIDI takes on the track for a note matching targetQN/pitch.
+    // Caches the found take — retrieve via getLastFoundTake().
     int findNoteIndex(void* project, int trackIndex,
                       double targetQN, int pitch, double toleranceQN = 0.25);
+
+    void* getLastFoundTake() const { return lastFoundTake; }
 
 private:
     const ReaperAPIs& apis;
     std::function<void*(const char*)> getReaperApi;
+    void* lastFoundTake = nullptr;
+
+    struct MidiItemInfo { void* item; void* take; double pos; double len; };
+    std::vector<MidiItemInfo> collectMidiItems(void* project, int trackIndex);
 };
