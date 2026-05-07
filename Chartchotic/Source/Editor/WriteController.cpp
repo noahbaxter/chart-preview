@@ -211,14 +211,19 @@ void WriteController::eraseNoteUnderCursor(int trackIdx, double rawQN, int pitch
 
     int noteIdx = midiWriter->findNoteIndex(trackIdx, rawQN, pitch);
 
-    // For drum lane 0, also try 2x kick pitch
     if (noteIdx < 0 && drums && lane == 0)
     {
         int kick2xPitch = InstrumentMapper::columnToDrumPitch(currentActiveSkill, 0, true);
         noteIdx = midiWriter->findNoteIndex(trackIdx, rawQN, kick2xPitch);
     }
 
-    if (noteIdx >= 0 && midiWriter->deleteNoteAtQN(trackIdx, noteIdx, rawQN))
+    if (noteIdx < 0) return;
+
+    bool ok = eraseDragActive
+        ? midiWriter->batchDeleteNote(trackIdx, noteIdx, rawQN)
+        : midiWriter->deleteNoteAtQN(trackIdx, noteIdx, rawQN);
+
+    if (ok)
         instrumentSession->invalidateTrack(trackIdx);
 }
 
@@ -248,6 +253,7 @@ void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringCont
     {
         eraseDragActive = true;
         eraseDragTrackIdx = trackIdx;
+        midiWriter->beginBatch("Chartchotic: Erase notes");
         eraseNoteUnderCursor(trackIdx, p.rawProjectQN, pitch, drums, p.laneIndex);
         return;
     }
@@ -283,6 +289,9 @@ void WriteController::onPointerDrag(const AuthoringPoint& p, const AuthoringCont
 void WriteController::onPointerUp([[maybe_unused]] const AuthoringPoint& p,
                                   [[maybe_unused]] const AuthoringContext& ctx)
 {
+    if (eraseDragActive && midiWriter)
+        midiWriter->endBatch();
+
     eraseDragActive = false;
     eraseDragTrackIdx = -1;
 }

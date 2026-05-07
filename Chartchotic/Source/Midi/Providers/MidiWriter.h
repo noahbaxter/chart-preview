@@ -51,7 +51,7 @@ public:
     virtual bool batchInsertNote(int trackIndex, double startQN, double endQN,
                                 int channel, int pitch, int velocity) = 0;
 
-    virtual bool batchDeleteNote(int trackIndex, int noteIndex) = 0;
+    virtual bool batchDeleteNote(int trackIndex, int noteIndex, double hintQN = -1.0) = 0;
 
     virtual bool batchMoveNote(int trackIndex, int noteIndex,
                               double newStartQN, double newEndQN, int newPitch) = 0;
