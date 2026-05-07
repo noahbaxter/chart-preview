@@ -3,14 +3,19 @@
 #include "AuthoringTypes.h"
 #include <vector>
 
-enum class SubMode;
-
 struct Binding
 {
     SubMode       mode;
     EventType     event;
     MouseButton   button;
     ModifierFlags modifiers;
+    WriteCommand  command;
+};
+
+struct KeyBinding
+{
+    int           keyCode;
+    bool          requiresWriteMode;
     WriteCommand  command;
 };
 
@@ -22,12 +27,13 @@ public:
     WriteCommand resolve(SubMode mode, EventType event,
                          const AuthoringContext& ctx) const;
 
-    const std::vector<Binding>& getBindings() const { return bindings; }
-    void setBindings(std::vector<Binding> newBindings) { bindings = std::move(newBindings); }
+    WriteCommand resolveKey(bool writeModeActive,
+                            const juce::KeyPress& key) const;
 
 private:
-    std::vector<Binding> bindings;
+    std::vector<Binding>    bindings;
+    std::vector<KeyBinding> keyBindings;
 
-    static MouseButton buttonFromContext(const AuthoringContext& ctx);
+    static MouseButton   buttonFromContext(const AuthoringContext& ctx);
     static ModifierFlags modifiersFromContext(const AuthoringContext& ctx);
 };
