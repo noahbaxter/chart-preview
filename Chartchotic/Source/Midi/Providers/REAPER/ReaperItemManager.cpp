@@ -148,8 +148,11 @@ int ReaperItemManager::findNoteIndex(void* project, int trackIndex,
             if (!apis.MIDI_GetNote(it.take, i, &sel, &muted, &startPPQ, &endPPQ, &ch, &p, &vel))
                 continue;
             if (p != pitch) continue;
-            double dist = std::abs(startPPQ - targetPPQ);
-            if (dist < tolPPQ && dist < bestDist)
+
+            // Match near note start OR inside sustain body [startPPQ, endPPQ]
+            bool insideBody = (targetPPQ >= startPPQ && targetPPQ < endPPQ);
+            double dist = insideBody ? 0.0 : std::abs(startPPQ - targetPPQ);
+            if ((insideBody || dist < tolPPQ) && dist < bestDist)
             {
                 bestDist = dist;
                 bestIdx = i;

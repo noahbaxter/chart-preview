@@ -1,15 +1,13 @@
 #pragma once
 
 #include <array>
+#include <cmath>
 #include <vector>
 #include <JuceHeader.h>
 
 //==============================================================================
-// Authoring event payloads (M0-G).
-//
-// Lightweight types shared between HighwayComponent (event dispatcher) and
-// WriteController (state owner). Lives in its own header so HighwayComponent
-// doesn't have to pull in the full controller declaration.
+// Authoring types shared between HighwayComponent (event dispatcher),
+// WriteController (state owner), and GridlineGenerator (step grid).
 
 struct AuthoringPoint
 {
@@ -84,11 +82,46 @@ inline bool operator&(ModifierFlags a, ModifierFlags b) {
 
 enum class WriteCommand {
     None,
+    // Mouse commands
     BeginSustain,
     UpdateSustain,
     CommitSustain,
     BeginErase,
     ContinueErase,
     EndErase,
-    ToggleBulldoze,
+    // Key commands
+    ToggleWriteMode,
+    ToggleSubMode,
+    ToggleSnap,
+    CycleTuplet,
+    StepDown,
+    StepUp,
 };
+
+enum class SubMode { Draw, Edit };
+
+//==============================================================================
+// Step grid math — shared between WriteController (click snap) and
+// GridlineGenerator (visual grid). One definition, no drift.
+
+inline double stepSpacingQN(int stepDivision, int tuplet)
+{
+    if (tuplet > 0)
+        return 8.0 / (double(stepDivision) * double(tuplet));
+    return 4.0 / double(stepDivision);
+}
+
+inline double snapToStep(double rawQN, int stepDivision, int tuplet)
+{
+    const double spacing = stepSpacingQN(stepDivision, tuplet);
+    if (spacing <= 0.0)
+        return rawQN;
+
+    double snapped = std::round(rawQN / spacing) * spacing;
+
+    const double oneOver128 = 1.0 / 128.0;
+    const double quantized  = std::round(snapped / oneOver128) * oneOver128;
+    if (std::abs(snapped - quantized) < 1e-6)
+        snapped = quantized;
+    return snapped;
+}

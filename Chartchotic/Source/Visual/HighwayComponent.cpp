@@ -139,8 +139,28 @@ void HighwayComponent::paint(juce::Graphics& g)
         }
     }
 
+    // Inject sustain drag preview into a local copy of the sustain window.
+    auto sustainWindow = frameData.sustainWindow;
+    if (overlayStateGetter && projectQNToSeconds)
+    {
+        const auto& ov = overlayStateGetter();
+        if (ov.drawPreviewVisible)
+        {
+            for (const auto& pn : ov.drawPreviewNotes)
+            {
+                sustainWindow.push_back({
+                    projectQNToSeconds(pn.startQN),
+                    projectQNToSeconds(pn.endQN),
+                    static_cast<uint>(pn.lane),
+                    SustainType::SUSTAIN,
+                    GemWrapper()
+                });
+            }
+        }
+    }
+
     sceneRenderer.paint(g, w, h,
-                        frameData.trackWindow, frameData.sustainWindow, frameData.gridlines,
+                        frameData.trackWindow, sustainWindow, frameData.gridlines,
                         frameData.flipRegions, frameData.eventMarkers,
                         frameData.windowStartTime, frameData.windowEndTime, frameData.isPlaying);
 
