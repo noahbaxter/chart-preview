@@ -135,6 +135,8 @@ void HighwayComponent::paint(juce::Graphics& g)
                 sceneRenderer.ghostCursor.image = sceneRenderer.useColoredGhostCursor
                     ? nullptr
                     : assetManager.getGhostCursorImage(isDrumLike(activePart), ov.ghostLane);
+                sceneRenderer.ghostCursor.positionLabel = formatPositionQN
+                    ? formatPositionQN(ov.ghostQN) : juce::String();
             }
         }
     }

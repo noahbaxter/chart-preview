@@ -82,6 +82,9 @@ public:
     using OverlayStateGetter = std::function<const OverlayState&()>;
     void setOverlayStateGetter(OverlayStateGetter g) { overlayStateGetter = std::move(g); }
 
+    // Format a project QN as "M.B" position label (e.g. "37.2.5"). Wired by PluginEditor.
+    void setFormatPositionQN(std::function<juce::String(double)> fn) { formatPositionQN = std::move(fn); }
+
     void setFrameData(const HighwayFrameData& data);
     void rebuildTrack();
 
@@ -158,6 +161,7 @@ private:
     std::function<double(double)> secondsToProjectQN;
     std::function<double(double)> projectQNToSeconds;
     OverlayStateGetter            overlayStateGetter;
+    std::function<juce::String(double)> formatPositionQN;
 
     // Last ghost state seen at end of mouseMove. Used to throttle repaint —
     // vblank already drives 60fps, mouseMove fires at 100+ Hz on fast pointers,
