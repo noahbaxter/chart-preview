@@ -217,6 +217,7 @@ void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringCont
     switch (cmd)
     {
         case WriteCommand::BeginSustain: handleBeginSustain(p, trackIdx, pitch, drums); break;
+        case WriteCommand::BeginPaint:   handleBeginPaint(p, trackIdx, pitch, drums);   break;
         case WriteCommand::BeginErase:   handleBeginErase(p, trackIdx, pitch, drums);   break;
         default: break;
     }
@@ -228,6 +229,7 @@ void WriteController::onPointerDrag(const AuthoringPoint& p,
     JUCE_ASSERT_MESSAGE_THREAD;
 
     if (sustainDragActive)   { handleUpdateSustain(p);  return; }
+    if (paintDragActive)     { handleContinuePaint(p);  return; }
     if (eraseDragActive)     { handleContinueErase(p);  return; }
 }
 
@@ -235,6 +237,7 @@ void WriteController::onPointerUp(const AuthoringPoint& p,
                                   [[maybe_unused]] const AuthoringContext& ctx)
 {
     if (sustainDragActive)   { handleCommitSustain(p);  return; }
+    if (paintDragActive)     { handleCommitPaint();     return; }
     if (eraseDragActive)     { handleEndErase();        return; }
 }
 
@@ -297,6 +300,112 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
     noteEditor.endBatch();
     clearSustainDrag();
     recomputeGhost();
+}
+
+//==============================================================================
+// Paint command handlers
+
+void WriteController::handleBeginPaint(const AuthoringPoint& p, int trackIdx,
+                                       [[maybe_unused]] int pitch, [[maybe_unused]] bool drums)
+{
+    double qn = snapQN(p.rawProjectQN);
+
+    paintDragActive   = true;
+    paintDragTrackIdx = trackIdx;
+    paintStartQN      = qn;
+    paintLastQN        = qn;
+    paintLastLane      = p.laneIndex;
+    paintedNotes.clear();
+    noteEditor.beginBatch("Chartchotic: Paint notes");
+
+    paintFillRange(qn, qn, p.laneIndex);
+}
+
+void WriteController::handleContinuePaint(const AuthoringPoint& p)
+{
+    if (!p.onHighway || p.laneIndex < 0) return;
+
+    double cursorQN = snapQN(p.rawProjectQN);
+    int lane = p.laneIndex;
+
+    double lo = std::min(paintStartQN, cursorQN);
+    double hi = std::max(paintStartQN, cursorQN);
+
+    paintShrinkTo(lo, hi);
+    paintFillRange(lo, hi, lane);
+
+    paintLastQN   = cursorQN;
+    paintLastLane = lane;
+}
+
+void WriteController::handleCommitPaint()
+{
+    noteEditor.endBatch();
+    paintDragActive   = false;
+    paintDragTrackIdx = -1;
+    paintedNotes.clear();
+    recomputeGhost();
+}
+
+void WriteController::paintFillRange(double fromQN, double toQN, int lane)
+{
+    bool drums = isDrumLike(currentActivePart);
+    int  pitch = resolvePitch(lane, drums);
+    if (pitch < 0) return;
+
+    double spacing = stepSpacingQN(currentStepDivision, currentTuplet);
+    if (spacing <= 0.0) return;
+
+    double lo = std::min(fromQN, toQN);
+    double hi = std::max(fromQN, toQN);
+
+    double firstStep = snapToStep(lo, currentStepDivision, currentTuplet);
+    if (firstStep < lo - 0.001) firstStep += spacing;
+
+    for (double qn = firstStep; qn <= hi + 0.001; qn += spacing)
+    {
+        double snapped = snapToStep(qn, currentStepDivision, currentTuplet);
+
+        PaintedNote* existing = nullptr;
+        for (auto& pn : paintedNotes)
+            if (std::abs(pn.qn - snapped) < 0.001) { existing = &pn; break; }
+
+        if (existing)
+        {
+            if (existing->lane != lane)
+            {
+                int oldPitch = resolvePitch(existing->lane, drums);
+                if (oldPitch >= 0)
+                    noteEditor.eraseNoteAt(paintDragTrackIdx, existing->qn, oldPitch, drums, existing->lane, currentActiveSkill);
+                noteEditor.createNote(paintDragTrackIdx, existing->qn, pitch);
+                existing->lane = lane;
+            }
+            continue;
+        }
+
+        if (noteEditor.findNote(paintDragTrackIdx, snapped, pitch).noteIndex >= 0)
+            continue;
+
+        noteEditor.createNote(paintDragTrackIdx, snapped, pitch);
+        paintedNotes.push_back({ snapped, lane });
+    }
+}
+
+void WriteController::paintShrinkTo(double lo, double hi)
+{
+    bool drums = isDrumLike(currentActivePart);
+    for (auto it = paintedNotes.begin(); it != paintedNotes.end(); )
+    {
+        if (it->qn < lo - 0.001 || it->qn > hi + 0.001)
+        {
+            int oldPitch = resolvePitch(it->lane, drums);
+            if (oldPitch >= 0)
+                noteEditor.eraseNoteAt(paintDragTrackIdx, it->qn, oldPitch, drums, it->lane, currentActiveSkill);
+            it = paintedNotes.erase(it);
+        }
+        else
+            ++it;
+    }
 }
 
 //==============================================================================
