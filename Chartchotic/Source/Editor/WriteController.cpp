@@ -1,6 +1,7 @@
 #include "WriteController.h"
 #include "../Midi/InstrumentSession.h"
 #include "../Midi/Utils/InstrumentMapper.h"
+#include "../Midi/Utils/MidiConstants.h"
 
 namespace
 {
@@ -277,9 +278,8 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
 void WriteController::handleUpdateSustain(const AuthoringPoint& p)
 {
     double dragQN  = snapQN(p.rawProjectQN);
-    double spacing = stepSpacingQN(currentStepDivision, currentTuplet);
 
-    if (dragQN - sustainDragStartQN < spacing)
+    if (dragQN - sustainDragStartQN < double(MIDI_MIN_SUSTAIN_LENGTH))
     {
         overlayState.drawPreviewVisible = false;
         overlayState.drawPreviewNotes.clear();
@@ -295,10 +295,9 @@ void WriteController::handleUpdateSustain(const AuthoringPoint& p)
 
 void WriteController::handleCommitSustain(const AuthoringPoint& p)
 {
-    double endQN   = snapQN(p.rawProjectQN);
-    double spacing = stepSpacingQN(currentStepDivision, currentTuplet);
+    double endQN = snapQN(p.rawProjectQN);
 
-    if (endQN - sustainDragStartQN >= spacing)
+    if (endQN - sustainDragStartQN >= double(MIDI_MIN_SUSTAIN_LENGTH))
     {
         if (sustainDragChainMode)
             noteEditor.chainExtendNotes(sustainDragTrackIdx, sustainDragStartQN, endQN, sustainDragPitch);
