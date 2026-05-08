@@ -88,6 +88,17 @@ private:
     int    sustainDragLane     = -1;
     int    sustainDragPitch    = -1;
 
+    // Paint drag state
+    bool   paintDragActive   = false;
+    int    paintDragTrackIdx = -1;
+    double paintStartQN      = 0.0;
+    double paintLastQN        = 0.0;
+    int    paintLastLane      = -1;
+    struct PaintedNote { double qn; int lane; };
+    std::vector<PaintedNote> paintedNotes;
+    void paintFillRange(double fromQN, double toQN, int lane);
+    void paintShrinkTo(double lo, double hi);
+
     // Helpers
     double snapQN(double rawQN) const;
     bool   canWrite(const AuthoringPoint& p) const;
@@ -101,6 +112,9 @@ private:
     void handleBeginSustain  (const AuthoringPoint& p, int trackIdx, int pitch, bool drums);
     void handleUpdateSustain (const AuthoringPoint& p);
     void handleCommitSustain (const AuthoringPoint& p);
+    void handleBeginPaint    (const AuthoringPoint& p, int trackIdx, int pitch, bool drums);
+    void handleContinuePaint (const AuthoringPoint& p);
+    void handleCommitPaint   ();
     void handleBeginErase    (const AuthoringPoint& p, int trackIdx, int pitch, bool drums);
     void handleContinueErase (const AuthoringPoint& p);
     void handleEndErase      ();

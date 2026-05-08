@@ -3,9 +3,15 @@
 CommandMapper::CommandMapper()
 {
     bindings = {
+        // Shift+Left: paint (must precede non-shift sustain bindings)
+        { SubMode::Draw, EventType::Down, MouseButton::Left,  ModifierFlags::Shift, WriteCommand::BeginPaint },
+        { SubMode::Draw, EventType::Drag, MouseButton::Left,  ModifierFlags::Shift, WriteCommand::ContinuePaint },
+        { SubMode::Draw, EventType::Up,   MouseButton::Left,  ModifierFlags::Shift, WriteCommand::CommitPaint },
+        // Left: sustain
         { SubMode::Draw, EventType::Down, MouseButton::Left,  ModifierFlags::None, WriteCommand::BeginSustain },
         { SubMode::Draw, EventType::Drag, MouseButton::Left,  ModifierFlags::None, WriteCommand::UpdateSustain },
         { SubMode::Draw, EventType::Up,   MouseButton::Left,  ModifierFlags::None, WriteCommand::CommitSustain },
+        // Right: erase
         { SubMode::Draw, EventType::Down, MouseButton::Right, ModifierFlags::None, WriteCommand::BeginErase },
         { SubMode::Draw, EventType::Drag, MouseButton::Right, ModifierFlags::None, WriteCommand::ContinueErase },
         { SubMode::Draw, EventType::Up,   MouseButton::Right, ModifierFlags::None, WriteCommand::EndErase },
@@ -48,6 +54,8 @@ WriteCommand CommandMapper::resolve(SubMode mode, EventType event,
         if (b.mode != mode || b.event != event || b.button != btn)
             continue;
         if (b.modifiers != ModifierFlags::None && !(mods & b.modifiers))
+            continue;
+        if (b.modifiers == ModifierFlags::None && mods != ModifierFlags::None)
             continue;
         return b.command;
     }
