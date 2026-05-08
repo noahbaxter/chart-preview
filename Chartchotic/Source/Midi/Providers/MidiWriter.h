@@ -40,15 +40,15 @@ public:
     virtual bool deleteNote(int trackIndex, int noteIndex) = 0;
     virtual bool deleteNoteAtQN(int trackIndex, int noteIndex, double hintQN) { return deleteNote(trackIndex, noteIndex); }
 
-    virtual int findNoteIndex(int trackIndex, double targetQN, int pitch,
-                              double toleranceQN = 0.25) { (void)trackIndex; (void)targetQN; (void)pitch; (void)toleranceQN; return -1; }
-
     struct NoteInfo {
-        int    noteIndex;
-        double startQN;
-        double endQN;
-        int    pitch;
+        int    noteIndex = -1;
+        double startQN = 0;
+        double endQN = 0;
+        int    pitch = -1;
     };
+
+    virtual NoteInfo findNote(int trackIndex, double positionQN, int pitch)
+    { (void)trackIndex; (void)positionQN; (void)pitch; return {}; }
 
     virtual std::vector<NoteInfo> findNotesInRange(int trackIndex, double startQN,
                                                     double endQN, int pitch)

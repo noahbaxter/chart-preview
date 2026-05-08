@@ -32,19 +32,19 @@ bool NoteEditor::eraseNoteAt(int trackIdx, double rawQN, int pitch,
 {
     if (!midiWriter || !instrumentSession) return false;
 
-    int noteIdx = midiWriter->findNoteIndex(trackIdx, rawQN, pitch);
+    auto note = midiWriter->findNote(trackIdx, rawQN, pitch);
 
-    if (noteIdx < 0 && drums && lane == 0)
+    if (note.noteIndex < 0 && drums && lane == 0)
     {
         int kick2xPitch = InstrumentMapper::columnToDrumPitch(skill, 0, true);
-        noteIdx = midiWriter->findNoteIndex(trackIdx, rawQN, kick2xPitch);
+        note = midiWriter->findNote(trackIdx, rawQN, kick2xPitch);
     }
 
-    if (noteIdx < 0) return false;
+    if (note.noteIndex < 0) return false;
 
     bool ok = batchActive
-        ? midiWriter->batchDeleteNote(trackIdx, noteIdx, rawQN)
-        : midiWriter->deleteNoteAtQN(trackIdx, noteIdx, rawQN);
+        ? midiWriter->batchDeleteNote(trackIdx, note.noteIndex, rawQN)
+        : midiWriter->deleteNoteAtQN(trackIdx, note.noteIndex, rawQN);
 
     if (ok) instrumentSession->invalidateTrack(trackIdx);
     return ok;
@@ -54,13 +54,13 @@ bool NoteEditor::truncateNote(int trackIdx, double noteStartQN, int pitch)
 {
     if (!midiWriter || !instrumentSession) return false;
 
-    int idx = midiWriter->findNoteIndex(trackIdx, noteStartQN, pitch);
-    if (idx < 0) return false;
+    auto note = midiWriter->findNote(trackIdx, noteStartQN, pitch);
+    if (note.noteIndex < 0) return false;
 
-    double shortEnd = noteStartQN + kShortNoteDurationQN;
+    double shortEnd = note.startQN + kShortNoteDurationQN;
     bool ok = batchActive
-        ? midiWriter->batchMoveNote(trackIdx, idx, noteStartQN, shortEnd, pitch)
-        : midiWriter->moveNote(trackIdx, idx, noteStartQN, shortEnd, pitch);
+        ? midiWriter->batchMoveNote(trackIdx, note.noteIndex, note.startQN, shortEnd, pitch)
+        : midiWriter->moveNote(trackIdx, note.noteIndex, note.startQN, shortEnd, pitch);
 
     if (ok) instrumentSession->invalidateTrack(trackIdx);
     return ok;
@@ -70,12 +70,12 @@ bool NoteEditor::extendNote(int trackIdx, double startQN, double endQN, int pitc
 {
     if (!midiWriter || !instrumentSession) return false;
 
-    int idx = midiWriter->findNoteIndex(trackIdx, startQN, pitch);
-    if (idx < 0) return false;
+    auto note = midiWriter->findNote(trackIdx, startQN, pitch);
+    if (note.noteIndex < 0) return false;
 
     bool ok = batchActive
-        ? midiWriter->batchMoveNote(trackIdx, idx, startQN, endQN, pitch)
-        : midiWriter->moveNote(trackIdx, idx, startQN, endQN, pitch);
+        ? midiWriter->batchMoveNote(trackIdx, note.noteIndex, note.startQN, endQN, pitch)
+        : midiWriter->moveNote(trackIdx, note.noteIndex, note.startQN, endQN, pitch);
 
     if (ok) instrumentSession->invalidateTrack(trackIdx);
     return ok;
@@ -88,20 +88,18 @@ bool NoteEditor::chainExtendNotes(int trackIdx, double startQN, double endQN, in
     auto notes = midiWriter->findNotesInRange(trackIdx, startQN, endQN, pitch);
     if (notes.empty()) return false;
 
-    // Process in reverse so extended bodies don't interfere with findNoteIndex
-    // lookups for earlier notes (body matching would find the wrong note).
     bool changed = false;
     for (int i = (int)notes.size() - 1; i >= 0; --i)
     {
         double noteEnd = (i + 1 < (int)notes.size()) ? notes[i + 1].startQN : endQN;
         if (noteEnd <= notes[i].startQN) continue;
 
-        int idx = midiWriter->findNoteIndex(trackIdx, notes[i].startQN, pitch);
-        if (idx < 0) continue;
+        auto note = midiWriter->findNote(trackIdx, notes[i].startQN, pitch);
+        if (note.noteIndex < 0) continue;
 
         bool ok = batchActive
-            ? midiWriter->batchMoveNote(trackIdx, idx, notes[i].startQN, noteEnd, pitch)
-            : midiWriter->moveNote(trackIdx, idx, notes[i].startQN, noteEnd, pitch);
+            ? midiWriter->batchMoveNote(trackIdx, note.noteIndex, note.startQN, noteEnd, pitch)
+            : midiWriter->moveNote(trackIdx, note.noteIndex, note.startQN, noteEnd, pitch);
 
         if (ok) changed = true;
     }
@@ -110,10 +108,10 @@ bool NoteEditor::chainExtendNotes(int trackIdx, double startQN, double endQN, in
     return changed;
 }
 
-int NoteEditor::findNote(int trackIdx, double qn, int pitch)
+MidiWriter::NoteInfo NoteEditor::findNote(int trackIdx, double qn, int pitch)
 {
-    if (!midiWriter) return -1;
-    return midiWriter->findNoteIndex(trackIdx, qn, pitch);
+    if (!midiWriter) return {};
+    return midiWriter->findNote(trackIdx, qn, pitch);
 }
 
 void NoteEditor::beginBatch(const char* description)
