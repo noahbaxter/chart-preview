@@ -116,19 +116,21 @@ void WriteController::recomputeGhost()
     overlayState.ghostQN      = qn;
 }
 
-void WriteController::enterSustainDrag(int trackIdx, double startQN, int lane, int pitch)
+void WriteController::enterSustainDrag(int trackIdx, double startQN, int lane, int pitch, bool chainMode)
 {
-    sustainDragActive   = true;
-    sustainDragTrackIdx = trackIdx;
-    sustainDragStartQN  = startQN;
-    sustainDragLane     = lane;
-    sustainDragPitch    = pitch;
+    sustainDragActive    = true;
+    sustainDragTrackIdx  = trackIdx;
+    sustainDragStartQN   = startQN;
+    sustainDragLane      = lane;
+    sustainDragPitch     = pitch;
+    sustainDragChainMode = chainMode;
 }
 
 void WriteController::clearSustainDrag()
 {
-    sustainDragActive   = false;
-    sustainDragTrackIdx = -1;
+    sustainDragActive    = false;
+    sustainDragTrackIdx  = -1;
+    sustainDragChainMode = false;
     overlayState.drawPreviewVisible = false;
     overlayState.drawPreviewNotes.clear();
 }
@@ -261,13 +263,13 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
     {
         noteEditor.createNote(trackIdx, clickQN, pitch);
         if (drums) return;
-        enterSustainDrag(trackIdx, clickQN, p.laneIndex, pitch);
+        enterSustainDrag(trackIdx, clickQN, p.laneIndex, pitch, false);
         return;
     }
 
     if (drums) return;
 
-    enterSustainDrag(trackIdx, p.hitNoteStartQN, p.laneIndex, pitch);
+    enterSustainDrag(trackIdx, p.hitNoteStartQN, p.laneIndex, pitch, true);
 }
 
 void WriteController::handleUpdateSustain(const AuthoringPoint& p)
@@ -295,7 +297,12 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
     double spacing = stepSpacingQN(currentStepDivision, currentTuplet);
 
     if (endQN - sustainDragStartQN >= spacing)
-        noteEditor.chainExtendNotes(sustainDragTrackIdx, sustainDragStartQN, endQN, sustainDragPitch);
+    {
+        if (sustainDragChainMode)
+            noteEditor.chainExtendNotes(sustainDragTrackIdx, sustainDragStartQN, endQN, sustainDragPitch);
+        else
+            noteEditor.extendNote(sustainDragTrackIdx, sustainDragStartQN, endQN, sustainDragPitch);
+    }
 
     noteEditor.endBatch();
     clearSustainDrag();

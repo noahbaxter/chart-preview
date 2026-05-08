@@ -86,7 +86,8 @@ private:
     int    sustainDragTrackIdx = -1;
     double sustainDragStartQN  = 0.0;
     int    sustainDragLane     = -1;
-    int    sustainDragPitch    = -1;
+    int    sustainDragPitch     = -1;
+    bool   sustainDragChainMode = false;
 
     // Paint drag state
     bool   paintDragActive   = false;
@@ -105,7 +106,7 @@ private:
     int    resolvePitch(int laneIndex, bool drums) const;
     int    resolveTrackIdx() const;
     void   recomputeGhost();
-    void   enterSustainDrag(int trackIdx, double startQN, int lane, int pitch);
+    void   enterSustainDrag(int trackIdx, double startQN, int lane, int pitch, bool chainMode);
     void   clearSustainDrag();
 
     // Command handlers — names match WriteCommand enum 1:1
