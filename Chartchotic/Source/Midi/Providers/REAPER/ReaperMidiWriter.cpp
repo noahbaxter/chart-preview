@@ -63,12 +63,11 @@ bool ReaperMidiWriter::insertNote(int trackIndex, double startQN, double endQN,
     return ok;
 }
 
-int ReaperMidiWriter::findNoteIndex(int trackIndex, double targetQN, int pitch,
-                                     double toleranceQN)
+MidiWriter::NoteInfo ReaperMidiWriter::findNote(int trackIndex, double positionQN, int pitch)
 {
     void* project = ReaperApiHelpers::getProject(getReaperApi);
-    if (!project) return -1;
-    return itemManager.findNoteIndex(project, trackIndex, targetQN, pitch, toleranceQN);
+    if (!project) return {};
+    return itemManager.findNote(project, trackIndex, positionQN, pitch);
 }
 
 std::vector<MidiWriter::NoteInfo>

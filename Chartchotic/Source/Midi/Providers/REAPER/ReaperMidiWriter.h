@@ -29,8 +29,7 @@ public:
                    int channel, int pitch, int velocity) override;
     bool deleteNote(int trackIndex, int noteIndex) override;
     bool deleteNoteAtQN(int trackIndex, int noteIndex, double hintQN) override;
-    int findNoteIndex(int trackIndex, double targetQN, int pitch,
-                      double toleranceQN = 0.25) override;
+    NoteInfo findNote(int trackIndex, double positionQN, int pitch) override;
     std::vector<NoteInfo> findNotesInRange(int trackIndex, double startQN,
                                             double endQN, int pitch) override;
     bool moveNote(int trackIndex, int noteIndex,

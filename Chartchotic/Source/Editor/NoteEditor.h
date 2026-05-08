@@ -1,8 +1,7 @@
 #pragma once
 
 #include "../UI/ControlConstants.h"
-
-class MidiWriter;
+#include "../Midi/Providers/MidiWriter.h"
 class InstrumentSession;
 
 class NoteEditor
@@ -18,7 +17,7 @@ public:
                       bool drums, int lane, SkillLevel skill);
     bool truncateNote(int trackIdx, double noteStartQN, int pitch);
     bool extendNote  (int trackIdx, double startQN, double endQN, int pitch);
-    int  findNote    (int trackIdx, double qn, int pitch);
+    MidiWriter::NoteInfo findNote(int trackIdx, double qn, int pitch);
 
     bool chainExtendNotes(int trackIdx, double startQN, double endQN, int pitch);
 
