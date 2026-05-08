@@ -76,6 +76,8 @@ private:
     OverlayState   overlayState;
     AuthoringPoint lastPoint;
     bool           lastPointValid = false;
+    static constexpr int kGhostHideDelayFrames = 2; // MIDI pipeline latency before rendered notes appear
+    int            ghostHideDelay = 0;
 
     // Erase drag state
     bool eraseDragActive   = false;
