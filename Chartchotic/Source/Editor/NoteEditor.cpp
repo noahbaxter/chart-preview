@@ -18,6 +18,15 @@ bool NoteEditor::createNote(int trackIdx, double startQN, int pitch)
 {
     if (!midiWriter || !instrumentSession) return false;
 
+    auto existing = midiWriter->findNote(trackIdx, startQN, pitch);
+    if (existing.noteIndex >= 0 && existing.startQN < startQN)
+    {
+        if (batchActive)
+            midiWriter->batchMoveNote(trackIdx, existing.noteIndex, existing.startQN, startQN, pitch);
+        else
+            midiWriter->moveNote(trackIdx, existing.noteIndex, existing.startQN, startQN, pitch);
+    }
+
     double endQN = startQN + kShortNoteDurationQN;
     bool ok = batchActive
         ? midiWriter->batchInsertNote(trackIdx, startQN, endQN, 0, pitch, 100)
