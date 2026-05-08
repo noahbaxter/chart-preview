@@ -392,7 +392,8 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
             continue;
         }
 
-        if (noteEditor.findNote(paintDragTrackIdx, snapped, pitch).noteIndex >= 0)
+        auto pre = noteEditor.findNote(paintDragTrackIdx, snapped, pitch);
+        if (pre.noteIndex >= 0 && std::abs(pre.startQN - snapped) < 0.001)
             continue;
 
         noteEditor.createNote(paintDragTrackIdx, snapped, pitch);
