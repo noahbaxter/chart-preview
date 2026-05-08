@@ -184,57 +184,27 @@ public:
     }
 
     /**
-     * Return the 0-indexed bar/measure number at a given PPQ, accumulated
-     * from PPQ(0) by walking the tempo/timesig map.
-     *
-     * Each segment contributes (segmentLengthQN / measureLenQN) measures.
-     * Measure length = timeSigNum * (4 / timeSigDenom) QN. Mid-bar time-sig
-     * changes are flattened to the next bar boundary (REAPER's default
-     * authoring convention) — accurate for the typical case, off by one
-     * for projects that author time-sig changes mid-measure.
-     *
-     * REAPER's TimeMap2_timeToBeats handles those mid-bar cases natively;
-     * if cross-host divergence shows up in practice, swap the renderer to
-     * use the host API directly via the provider.
-     *
-     * @param targetPpq  Position to compute measure number for
-     * @param map        Tempo/timesig event map
-     * @return           0-indexed bar number (0 == first bar of song)
+     * Return the 0-indexed bar/measure number at a given PPQ.
+     * Anchors on the host's measurePos/beatPos, then counts forward.
      */
     static int pPqToMeasureNumber(PPQ targetPpq, const TempoTimeSignatureMap& map)
     {
         double t = targetPpq.toDouble();
-        if (t <= 0.0) return 0;
+        if (t <= 0.0 || map.empty()) return 0;
 
-        int totalMeasures = 0;
-        double prevPpq = 0.0;
-        int prevNum = 4, prevDenom = 4;
+        auto it = map.upper_bound(targetPpq);
+        if (it != map.begin()) --it;
 
-        for (const auto& [eventPpq, event] : map)
-        {
-            double ePpq = eventPpq.toDouble();
-            if (ePpq >= t) break;
+        const auto& anchor = it->second;
+        int denom = anchor.timeSigDenominator > 0 ? anchor.timeSigDenominator : 4;
+        int num = anchor.timeSigNumerator > 0 ? anchor.timeSigNumerator : 4;
+        double measureLenQN = (double)num * (4.0 / (double)denom);
+        if (measureLenQN <= 0.0) return anchor.measurePos;
 
-            double measureLenQN = (double)prevNum * (4.0 / (double)prevDenom);
-            if (measureLenQN > 0.0)
-                totalMeasures += (int)std::floor((ePpq - prevPpq) / measureLenQN + 0.5);
+        double beatPosQN = anchor.beatPos * (4.0 / (double)denom);
+        double measureStartPpq = anchor.ppqPosition.toDouble() - beatPosQN;
 
-            prevPpq = ePpq;
-            if (event.timeSigNumerator > 0 && event.timeSigDenominator > 0)
-            {
-                prevNum = event.timeSigNumerator;
-                prevDenom = event.timeSigDenominator;
-            }
-        }
-
-        // Final segment: prevPpq → targetPpq with the time sig in effect.
-        // Floor (not round) here — we want the measure number CONTAINING
-        // targetPpq, i.e., the count of completed bars before it.
-        double measureLenQN = (double)prevNum * (4.0 / (double)prevDenom);
-        if (measureLenQN > 0.0)
-            totalMeasures += (int)std::floor((t - prevPpq) / measureLenQN + 1e-6);
-
-        return totalMeasures;
+        return anchor.measurePos + (int)std::floor((t - measureStartPpq) / measureLenQN + 1e-6);
     }
 
     /**

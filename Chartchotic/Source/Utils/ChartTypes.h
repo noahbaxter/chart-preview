@@ -88,16 +88,21 @@ enum class Gridline
 // Tempo and time signature change event (used for REAPER tempo map queries)
 struct TempoTimeSignatureEvent
 {
-    PPQ ppqPosition;           // Musical position (beats)
-    double bpm;                // Tempo in beats per minute
-    int timeSigNumerator;      // Time signature numerator (e.g., 4 in 4/4)
-    int timeSigDenominator;    // Time signature denominator (e.g., 4 in 4/4)
-    bool timeSigReset;         // True if this event explicitly changed the time signature (reset measure anchor). False if carried forward from previous.
+    PPQ ppqPosition;
+    double bpm;
+    int timeSigNumerator;
+    int timeSigDenominator;
+    bool timeSigReset;
+    int measurePos;            // 0-indexed measure number at this position (from host)
+    double beatPos;            // Beat position within the measure (from host, in denominator units)
 
     TempoTimeSignatureEvent()
-        : ppqPosition(0.0), bpm(120.0), timeSigNumerator(4), timeSigDenominator(4), timeSigReset(true) {}
-    TempoTimeSignatureEvent(PPQ ppq, double tempo, int sigNum, int sigDenom, bool sigReset = true)
-        : ppqPosition(ppq), bpm(tempo), timeSigNumerator(sigNum), timeSigDenominator(sigDenom), timeSigReset(sigReset) {}
+        : ppqPosition(0.0), bpm(120.0), timeSigNumerator(4), timeSigDenominator(4),
+          timeSigReset(true), measurePos(0), beatPos(0.0) {}
+    TempoTimeSignatureEvent(PPQ ppq, double tempo, int sigNum, int sigDenom,
+                            bool sigReset = true, int mPos = 0, double bPos = 0.0)
+        : ppqPosition(ppq), bpm(tempo), timeSigNumerator(sigNum), timeSigDenominator(sigDenom),
+          timeSigReset(sigReset), measurePos(mPos), beatPos(bPos) {}
 };
 
 enum class SustainType
