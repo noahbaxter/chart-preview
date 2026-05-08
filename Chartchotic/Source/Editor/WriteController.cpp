@@ -255,11 +255,13 @@ void WriteController::onFrameTick([[maybe_unused]] double currentProjectQN,
 void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, int pitch, bool drums)
 {
     double clickQN = snapQN(p.rawProjectQN);
+    bool onExistingNote = p.overExistingNote
+        && std::abs(snapQN(p.hitNoteStartQN) - clickQN) < 0.001;
 
     if (!drums)
         noteEditor.beginBatch("Chartchotic: Sustain note");
 
-    if (!p.overExistingNote)
+    if (!onExistingNote)
     {
         noteEditor.createNote(trackIdx, clickQN, pitch);
         if (drums) return;
