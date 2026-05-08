@@ -505,33 +505,33 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
         double hitTime = hit.timeFromCursor;
         uint hitLane = (uint)outPoint.laneIndex;
 
-        for (const auto& s : frameData.sustainWindow)
+        for (const auto& [noteTime, frame] : frameData.trackWindow)
         {
-            if (s.gemColumn != hitLane) continue;
-
-            bool nearHead = std::abs(hitTime - s.startTime) < timeTol;
-            bool inBody   = hitTime >= s.startTime && hitTime < s.endTime;
-
-            if (nearHead || inBody)
+            if (hitLane >= frame.size()) continue;
+            if (frame[hitLane].gem == Gem::NONE) continue;
+            if (std::abs(hitTime - noteTime) < timeTol)
             {
                 outPoint.overExistingNote = true;
-                outPoint.hitSustainBody   = inBody && !nearHead;
-                outPoint.hitNoteStartQN   = secondsToProjectQN(s.startTime);
+                outPoint.hitSustainBody   = false;
+                outPoint.hitNoteStartQN   = secondsToProjectQN(noteTime);
                 break;
             }
         }
 
         if (!outPoint.overExistingNote)
         {
-            for (const auto& [noteTime, frame] : frameData.trackWindow)
+            for (const auto& s : frameData.sustainWindow)
             {
-                if (hitLane >= frame.size()) continue;
-                if (frame[hitLane].gem == Gem::NONE) continue;
-                if (std::abs(hitTime - noteTime) < timeTol)
+                if (s.gemColumn != hitLane) continue;
+
+                bool nearHead = std::abs(hitTime - s.startTime) < timeTol;
+                bool inBody   = hitTime >= s.startTime && hitTime < s.endTime;
+
+                if (nearHead || inBody)
                 {
                     outPoint.overExistingNote = true;
-                    outPoint.hitSustainBody   = false;
-                    outPoint.hitNoteStartQN   = secondsToProjectQN(noteTime);
+                    outPoint.hitSustainBody   = inBody && !nearHead;
+                    outPoint.hitNoteStartQN   = secondsToProjectQN(s.startTime);
                     break;
                 }
             }
