@@ -108,6 +108,7 @@ void WriteController::recomputeGhost()
     if (playingStatePtr && *playingStatePtr)               return;
     if (currentSubMode != SubMode::Draw)                  return;
     if (!lastPoint.onHighway || lastPoint.laneIndex < 0)  return;
+    if ((sustainDragActive || paintDragActive || eraseDragActive) && ghostHideDelay <= 0) return;
 
     double qn = snapQN(lastPoint.rawProjectQN);
     if (qn < 0.0) qn = 0.0;
@@ -119,6 +120,7 @@ void WriteController::recomputeGhost()
 
 void WriteController::enterSustainDrag(int trackIdx, double startQN, int lane, int pitch, bool chainMode)
 {
+    ghostHideDelay       = kGhostHideDelayFrames;
     sustainDragActive    = true;
     sustainDragTrackIdx  = trackIdx;
     sustainDragStartQN   = startQN;
@@ -247,6 +249,7 @@ void WriteController::onPointerUp(const AuthoringPoint& p,
 void WriteController::onFrameTick([[maybe_unused]] double currentProjectQN,
                                   [[maybe_unused]] bool isPlaying)
 {
+    if (ghostHideDelay > 0) --ghostHideDelay;
     recomputeGhost();
 }
 
@@ -318,6 +321,7 @@ void WriteController::handleBeginPaint(const AuthoringPoint& p, int trackIdx,
 {
     double qn = snapQN(p.rawProjectQN);
 
+    ghostHideDelay    = 2;
     paintDragActive   = true;
     paintDragTrackIdx = trackIdx;
     paintStartQN      = qn;
