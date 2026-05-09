@@ -33,6 +33,10 @@ public:
     bool onKeyPress(const juce::KeyPress& key);
 
     void clearSelection();
+    void onFrameTick();
+
+    const std::vector<SelectedNote>& getHideNotes() const { return moveHideNotes; }
+    bool hasHideNotes() const { return moveHideDelay > 0 && !moveHideNotes.empty(); }
 
     const OverlayState& getOverlayState() const { return overlayState; }
 
@@ -91,6 +95,9 @@ private:
     bool   doubleClickConsumed = false;
     bool   pendingSelect = false;
     AuthoringPoint pendingSelectPoint;
+
+    int    moveHideDelay = 0;
+    std::vector<SelectedNote> moveHideNotes;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(EditController)
 };

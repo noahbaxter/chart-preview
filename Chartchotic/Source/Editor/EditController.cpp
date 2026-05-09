@@ -47,6 +47,23 @@ void EditController::clearSelection()
     if (onStateChanged) onStateChanged();
 }
 
+void EditController::onFrameTick()
+{
+    if (moveHideDelay > 0)
+    {
+        --moveHideDelay;
+        if (moveHideDelay == 0)
+        {
+            moveHideNotes.clear();
+            overlayState.hideNotes.clear();
+        }
+        else
+        {
+            overlayState.hideNotes = moveHideNotes;
+        }
+    }
+}
+
 void EditController::recomputeOverlay()
 {
     overlayState.selectedNotes.clear();
@@ -305,6 +322,9 @@ void EditController::handleCommitMove(const AuthoringPoint& p)
     bool drums = isDrumLike(currentActivePart);
     int maxLane = drums ? 4 : 5;
 
+    moveHideNotes = selection;
+    moveHideDelay = 3;
+
     noteEditor.beginBatch("Chartchotic: Move notes");
 
     std::vector<SelectedNote> updated;
@@ -328,7 +348,7 @@ void EditController::handleCommitMove(const AuthoringPoint& p)
     }
 
     noteEditor.endBatch();
-    selection = updated;
+    selection.clear();
     recomputeOverlay();
     if (onStateChanged) onStateChanged();
 }
@@ -343,6 +363,8 @@ void EditController::handleDoubleClick(const AuthoringPoint& p)
     if (p.overExistingNote)
     {
         int pitch = resolvePitch(p.laneIndex, drums);
+        moveHideNotes.push_back({ trackIdx, p.hitNoteStartQN, pitch, p.laneIndex });
+        moveHideDelay = 3;
         noteEditor.eraseNoteAt(trackIdx, p.hitNoteStartQN, pitch,
                                drums, p.laneIndex, currentActiveSkill);
         selection.erase(
@@ -359,7 +381,11 @@ void EditController::handleDoubleClick(const AuthoringPoint& p)
         int pitch = resolvePitch(p.laneIndex, drums);
         auto existing = noteEditor.findNote(trackIdx, qn, pitch);
         if (existing.noteIndex >= 0)
+        {
+            moveHideNotes.push_back({ trackIdx, qn, pitch, p.laneIndex });
+            moveHideDelay = 3;
             noteEditor.eraseNoteAt(trackIdx, qn, pitch, drums, p.laneIndex, currentActiveSkill);
+        }
         else
         {
             noteEditor.createNote(trackIdx, qn, pitch);

@@ -192,8 +192,33 @@ void HighwayComponent::paint(juce::Graphics& g)
         }
     }
 
+    // Hide notes during move drag and for a few frames after commit.
+    auto trackWindow = frameData.trackWindow;
+    if (overlayStateGetter && projectQNToSeconds)
+    {
+        const auto& ov = overlayStateGetter();
+        const auto& notesToHide = ov.moveDragVisible ? ov.selectedNotes : ov.hideNotes;
+        if (!notesToHide.empty())
+        {
+            constexpr double kMatchTol = 0.002;
+            for (const auto& sn : notesToHide)
+            {
+                double sec = projectQNToSeconds(sn.startQN);
+                int lane = sn.lane;
+                for (auto& [noteTime, frame] : trackWindow)
+                {
+                    if (std::abs(noteTime - sec) < kMatchTol
+                        && lane >= 0 && lane < (int)frame.size())
+                    {
+                        frame[lane].gem = Gem::NONE;
+                    }
+                }
+            }
+        }
+    }
+
     sceneRenderer.paint(g, w, h,
-                        frameData.trackWindow, sustainWindow, frameData.gridlines,
+                        trackWindow, sustainWindow, frameData.gridlines,
                         frameData.flipRegions, frameData.eventMarkers,
                         frameData.windowStartTime, frameData.windowEndTime, frameData.isPlaying);
 

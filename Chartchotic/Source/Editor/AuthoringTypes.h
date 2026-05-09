@@ -73,6 +73,9 @@ struct OverlayState
     bool                     moveDragVisible = false;
     std::vector<PreviewNote> movePreviewNotes;
 
+    // Notes to hide from normal rendering (during move drag + post-commit delay)
+    std::vector<SelectedNote> hideNotes;
+
     // Marquee selection (edit mode) — highway-space coordinates
     bool   marqueeVisible = false;
     int    marqueeLaneStart = 0;

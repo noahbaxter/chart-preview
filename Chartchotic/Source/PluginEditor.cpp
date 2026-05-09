@@ -355,6 +355,7 @@ void ChartchoticAudioProcessorEditor::onFrame()
     // Per-frame tick — controller uses this for hover refresh under stationary
     // cursor and to enforce playback-gated authoring (no-op in M1, real in M3).
     writeController.onFrameTick(lastKnownPosition.toDouble(), lastPlayingState);
+    editController.onFrameTick();
 
     updateTrackInfoDisplay();
 
