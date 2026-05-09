@@ -1,48 +1,41 @@
 #!/bin/bash
 
 # Quick build + REAPER restart for iterative testing.
-# Runs build.sh, then quits REAPER cleanly and reopens it with the test project.
+# Just run ./build-reapertest.sh — no arguments needed.
+# Auto-cleans when CMake config is stale, always launches REAPER attached.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REAPER_TEST_PROJECT="$SCRIPT_DIR/examples/reaper/reaper-test.RPP"
 REAPER_BIN="/Applications/REAPER.app/Contents/MacOS/REAPER"
-ATTACHED=false
+BUILD_DIR="$SCRIPT_DIR/build"
+CMAKE_CACHE="$BUILD_DIR/CMakeCache.txt"
 
-BUILD_ARGS=()
-for arg in "$@"; do
-    if [ "$arg" = "--attached" ]; then
-        ATTACHED=true
-    else
-        BUILD_ARGS+=("$arg")
+# Auto-clean: if any CMakeLists.txt is newer than the cache, nuke build dir
+if [ -f "$CMAKE_CACHE" ]; then
+    if find "$SCRIPT_DIR" -name "CMakeLists.txt" -newer "$CMAKE_CACHE" | grep -q .; then
+        echo "CMake config changed — cleaning build dir..."
+        rm -rf "$BUILD_DIR"
     fi
-done
+fi
 
-# Build (pass through any args like "release", "--vst3-only", etc.)
-"$SCRIPT_DIR/build.sh" "${BUILD_ARGS[@]}"
+# Build
+"$SCRIPT_DIR/build.sh" "$@"
 
-# Force-quit REAPER — skips save prompts that block the graceful path
+# Kill REAPER
 if pgrep -x REAPER > /dev/null; then
     echo "Killing REAPER..."
     pkill -9 -x REAPER
     sleep 0.5
 fi
 
-# Reopen
+# Launch attached
 if [ -f "$REAPER_TEST_PROJECT" ]; then
     echo "Opening REAPER with test project..."
-    if [ "$ATTACHED" = true ]; then
-        exec "$REAPER_BIN" "$REAPER_TEST_PROJECT"
-    else
-        open -a "REAPER" "$REAPER_TEST_PROJECT"
-    fi
+    exec "$REAPER_BIN" "$REAPER_TEST_PROJECT"
 else
     echo "Warning: test project not found at $REAPER_TEST_PROJECT"
     echo "Opening REAPER without project..."
-    if [ "$ATTACHED" = true ]; then
-        exec "$REAPER_BIN"
-    else
-        open -a "REAPER"
-    fi
+    exec "$REAPER_BIN"
 fi
