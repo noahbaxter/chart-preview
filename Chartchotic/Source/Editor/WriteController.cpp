@@ -88,7 +88,7 @@ void WriteController::recomputeGhost()
     if (qn < 0.0) qn = 0.0;
 
     overlayState.ghostVisible = true;
-    overlayState.ghostLane    = barModeFlag ? 0 : lastPoint.laneIndex;
+    overlayState.ghostLane    = lastPoint.laneIndex;
     overlayState.ghostQN      = qn;
 }
 
@@ -186,21 +186,17 @@ void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringCont
     int trackIdx = resolveTrackIdx();
     if (trackIdx < 0) return;
 
-    // Bar mode: override lane to 0, resolve bar pitch — otherwise identical path
-    auto bp = p;
-    if (barModeFlag) bp.laneIndex = 0;
-
     bool drums = isDrums();
-    int  pitch = barModeFlag ? resolveBarPitch() : resolvePitch(bp.laneIndex, drums);
+    int  pitch = resolveActivePitch(p.laneIndex);
     if (pitch < 0) return;
 
     auto cmd = commandMapper.resolve(currentSubMode, EventType::Down, ctx);
 
     switch (cmd)
     {
-        case WriteCommand::BeginSustain: handleBeginSustain(bp, trackIdx, pitch, drums); break;
-        case WriteCommand::BeginPaint:   handleBeginPaint(bp, trackIdx, pitch, drums);   break;
-        case WriteCommand::BeginErase:   handleBeginErase(bp, trackIdx, pitch, drums);   break;
+        case WriteCommand::BeginSustain: handleBeginSustain(p, trackIdx, pitch, drums); break;
+        case WriteCommand::BeginPaint:   handleBeginPaint(p, trackIdx, pitch, drums);   break;
+        case WriteCommand::BeginErase:   handleBeginErase(p, trackIdx, pitch, drums);   break;
         default: break;
     }
 }
@@ -210,21 +206,15 @@ void WriteController::onPointerDrag(const AuthoringPoint& p,
 {
     JUCE_ASSERT_MESSAGE_THREAD;
 
-    auto bp = p;
-    if (barModeFlag) bp.laneIndex = 0;
-
-    if (sustainDragActive)   { handleUpdateSustain(bp);  return; }
-    if (paintDragActive)     { handleContinuePaint(bp);  return; }
-    if (eraseDragActive)     { handleContinueErase(bp);  return; }
+    if (sustainDragActive)   { handleUpdateSustain(p);  return; }
+    if (paintDragActive)     { handleContinuePaint(p);  return; }
+    if (eraseDragActive)     { handleContinueErase(p);  return; }
 }
 
 void WriteController::onPointerUp(const AuthoringPoint& p,
                                   [[maybe_unused]] const AuthoringContext& ctx)
 {
-    auto bp = p;
-    if (barModeFlag) bp.laneIndex = 0;
-
-    if (sustainDragActive)   { handleCommitSustain(bp);  return; }
+    if (sustainDragActive)   { handleCommitSustain(p);  return; }
     if (paintDragActive)     { handleCommitPaint();     return; }
     if (eraseDragActive)     { handleEndErase();        return; }
 }
@@ -344,7 +334,7 @@ void WriteController::handleCommitPaint()
 void WriteController::paintFillRange(double fromQN, double toQN, int lane)
 {
     bool drums = isDrums();
-    int  pitch = barModeFlag ? resolveBarPitch() : resolvePitch(lane, drums);
+    int  pitch = resolveActivePitch(lane);
     if (pitch < 0) return;
 
     double spacing = stepSpacingQN(currentStepDivision, currentTuplet);
@@ -393,7 +383,7 @@ void WriteController::paintShrinkTo(double lo, double hi)
     {
         if (it->qn < lo - 0.001 || it->qn > hi + 0.001)
         {
-            int oldPitch = barModeFlag ? resolveBarPitch() : resolvePitch(it->lane, drums);
+            int oldPitch = resolveActivePitch(it->lane);
             if (oldPitch >= 0)
                 eraseNote(paintDragTrackIdx, it->qn, oldPitch, drums, it->lane, currentActiveSkill);
             it = paintedNotes.erase(it);
@@ -426,8 +416,7 @@ void WriteController::handleContinueErase(const AuthoringPoint& p)
     if (!p.onHighway || p.laneIndex < 0) return;
 
     bool drums = isDrums();
-    int  lane  = barModeFlag ? 0 : p.laneIndex;
-    int  pitch = barModeFlag ? resolveBarPitch() : resolvePitch(lane, drums);
+    int  pitch = resolveActivePitch(p.laneIndex);
     if (pitch < 0) return;
 
     double curQN = snapQN(p.rawProjectQN);
@@ -437,7 +426,7 @@ void WriteController::handleContinueErase(const AuthoringPoint& p)
 
     auto notes = findNotesInRange(eraseDragTrackIdx, lo, hi, pitch);
     for (const auto& note : notes)
-        eraseNote(eraseDragTrackIdx, note.startQN, pitch, drums, lane, currentActiveSkill);
+        eraseNote(eraseDragTrackIdx, note.startQN, pitch, drums, p.laneIndex, currentActiveSkill);
 }
 
 void WriteController::handleEndErase()

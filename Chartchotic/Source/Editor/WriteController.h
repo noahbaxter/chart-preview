@@ -24,6 +24,7 @@ public:
     void onPointerUp     (const AuthoringPoint& p, const AuthoringContext& ctx);
     void onPointerExit   ()    { lastPointValid = false; recomputeGhost(); }
     void onPointerCancel ()    {}
+    void stateDidChange();
     bool onKeyPress      (const juce::KeyPress& key);
     WriteCommand resolveKeyCommand(const juce::KeyPress& key) const
     {
@@ -33,7 +34,6 @@ public:
 
 private:
     void loadPersistedState();
-    void stateDidChange();
 
     juce::ValueTree& state;
 

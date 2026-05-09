@@ -703,6 +703,8 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
     }
 
     bool barMode = overlayStateGetter && overlayStateGetter().barMode;
+    if (barMode && outPoint.onHighway)
+        outPoint.laneIndex = 0;
 
     // In bar mode, correct for barZ offset so ghost/placement center on the
     // click point instead of the top of the bar sprite.

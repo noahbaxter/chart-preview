@@ -116,6 +116,7 @@ void InteractionController::setBarMode(bool v)
 {
     if (barModeFlag == v) return;
     barModeFlag = v;
+    writeController.stateDidChange();
     if (onStateChanged) onStateChanged();
 }
 

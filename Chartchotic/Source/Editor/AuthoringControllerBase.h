@@ -45,6 +45,11 @@ protected:
             : InstrumentMapper::columnToGuitarPitch(currentActiveSkill, laneIndex);
     }
 
+    int resolveActivePitch(int laneIndex) const
+    {
+        return barModeFlag ? resolveBarPitch() : resolvePitch(laneIndex, isDrums());
+    }
+
     int resolveTrackIdx() const
     {
         if (instrumentSession == nullptr) return -1;
