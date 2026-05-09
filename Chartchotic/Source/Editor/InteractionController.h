@@ -36,16 +36,18 @@ public:
     void setTuplet(int t)           { writeController.setTuplet(t); }
     void cycleTuplet()              { writeController.cycleTuplet(); }
     void setSnapEnabled(bool v)     { writeController.setSnapEnabled(v); }
-    void setActivePart(Part p)      { writeController.setActivePart(p); }
-    void setActiveSkill(SkillLevel s){ writeController.setActiveSkill(s); }
+    void setActivePart(Part p)       { writeController.setActivePart(p); editController.setActivePart(p); }
+    void setActiveSkill(SkillLevel s){ writeController.setActiveSkill(s); editController.setActiveSkill(s); }
 
     const OverlayState& getOverlayState() const;
+    const OptimisticPatchBuffer& getPatchBuffer() const { return patchBuffer; }
 
     std::function<void()> onStateChanged;
 
 private:
     bool isEditActive() const;
 
+    OptimisticPatchBuffer patchBuffer;
     WriteController writeController;
     EditController  editController;
 

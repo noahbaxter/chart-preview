@@ -83,6 +83,7 @@ target_sources(Chartchotic
         Chartchotic/Source/Editor/FrameDataBuilder.h
         Chartchotic/Source/Editor/SessionController.cpp
         Chartchotic/Source/Editor/SessionController.h
+        Chartchotic/Source/Editor/AuthoringControllerBase.h
         Chartchotic/Source/Editor/AuthoringTypes.h
         Chartchotic/Source/Editor/AuthoringUtils.h
         Chartchotic/Source/Editor/WriteController.cpp

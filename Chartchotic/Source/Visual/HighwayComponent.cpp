@@ -192,26 +192,56 @@ void HighwayComponent::paint(juce::Graphics& g)
         }
     }
 
-    // Hide notes during move drag and for a few frames after commit.
+    // Apply optimistic patches — instant visual feedback before MIDI pipeline catches up.
     auto trackWindow = frameData.trackWindow;
-    if (overlayStateGetter && projectQNToSeconds)
+    if (projectQNToSeconds)
     {
-        const auto& ov = overlayStateGetter();
-        const auto& notesToHide = ov.moveDragVisible ? ov.selectedNotes : ov.hideNotes;
-        if (!notesToHide.empty())
+        constexpr double kMatchTol = 0.002;
+        double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
+
+        // Hide originals during an active move drag
+        if (overlayStateGetter)
         {
-            constexpr double kMatchTol = 0.002;
-            for (const auto& sn : notesToHide)
+            const auto& ov = overlayStateGetter();
+            if (ov.moveDragVisible)
             {
-                double sec = projectQNToSeconds(sn.startQN);
-                int lane = sn.lane;
+                for (const auto& sn : ov.selectedNotes)
+                {
+                    double sec = projectQNToSeconds(sn.startQN);
+                    for (auto& [noteTime, frame] : trackWindow)
+                        if (std::abs(noteTime - sec) < kMatchTol
+                            && sn.lane >= 0 && sn.lane < (int)frame.size())
+                            frame[sn.lane].gem = Gem::NONE;
+                }
+            }
+        }
+
+        if (patchBuffer)
+        {
+            for (const auto& patch : patchBuffer->getRemoves())
+            {
+                double sec = projectQNToSeconds(patch.startQN);
                 for (auto& [noteTime, frame] : trackWindow)
+                    if (std::abs(noteTime - sec) < kMatchTol
+                        && patch.lane >= 0 && patch.lane < (int)frame.size())
+                        frame[patch.lane].gem = Gem::NONE;
+            }
+
+            for (const auto& patch : patchBuffer->getAdds())
+            {
+                double sec = projectQNToSeconds(patch.startQN);
+                bool alreadyExists = false;
+                for (const auto& [noteTime, frame] : trackWindow)
                 {
                     if (std::abs(noteTime - sec) < kMatchTol
-                        && lane >= 0 && lane < (int)frame.size())
-                    {
-                        frame[lane].gem = Gem::NONE;
-                    }
+                        && patch.lane >= 0 && patch.lane < (int)frame.size()
+                        && frame[patch.lane].gem != Gem::NONE)
+                    { alreadyExists = true; break; }
+                }
+                if (!alreadyExists && std::abs(windowSpan) > 1e-9)
+                {
+                    float pos = (float)((sec - frameData.windowStartTime) / windowSpan);
+                    sceneRenderer.movePreviewGhosts.push_back({ patch.lane, pos });
                 }
             }
         }

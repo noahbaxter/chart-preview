@@ -73,15 +73,46 @@ struct OverlayState
     bool                     moveDragVisible = false;
     std::vector<PreviewNote> movePreviewNotes;
 
-    // Notes to hide from normal rendering (during move drag + post-commit delay)
-    std::vector<SelectedNote> hideNotes;
-
     // Marquee selection (edit mode) — highway-space coordinates
     bool   marqueeVisible = false;
     int    marqueeLaneStart = 0;
     int    marqueeLaneEnd   = 0;
     double marqueeQNStart   = 0.0;
     double marqueeQNEnd     = 0.0;
+};
+
+//==============================================================================
+
+class OptimisticPatchBuffer
+{
+public:
+    struct Patch {
+        int    lane = -1;
+        double startQN = 0.0;
+        int    framesLeft = 0;
+    };
+
+    void addRemove(int lane, double qn) { removes.push_back({ lane, qn, kFrames }); }
+    void addAdd(int lane, double qn)    { adds.push_back({ lane, qn, kFrames }); }
+
+    void tick()
+    {
+        auto expire = [](auto& vec) {
+            for (auto& p : vec) --p.framesLeft;
+            vec.erase(std::remove_if(vec.begin(), vec.end(),
+                [](const auto& p) { return p.framesLeft <= 0; }), vec.end());
+        };
+        expire(adds);
+        expire(removes);
+    }
+
+    const std::vector<Patch>& getAdds()    const { return adds; }
+    const std::vector<Patch>& getRemoves() const { return removes; }
+
+private:
+    std::vector<Patch> adds;
+    std::vector<Patch> removes;
+    static constexpr int kFrames = 4;
 };
 
 enum class EventType { Down, Drag, Up, DoubleClick };

@@ -83,6 +83,7 @@ public:
     // Read-only access to the WriteController's overlay state for the ghost cursor.
     using OverlayStateGetter = std::function<const OverlayState&()>;
     void setOverlayStateGetter(OverlayStateGetter g) { overlayStateGetter = std::move(g); }
+    void setPatchBuffer(const OptimisticPatchBuffer* buf) { patchBuffer = buf; }
 
     // Format a project QN as "M.B" position label (e.g. "37.2.5"). Wired by PluginEditor.
     void setFormatPositionQN(std::function<juce::String(double)> fn) { formatPositionQN = std::move(fn); }
@@ -164,6 +165,7 @@ private:
     std::function<double(double)> secondsToProjectQN;
     std::function<double(double)> projectQNToSeconds;
     OverlayStateGetter            overlayStateGetter;
+    const OptimisticPatchBuffer*  patchBuffer = nullptr;
     std::function<juce::String(double)> formatPositionQN;
 
     // Last ghost state seen at end of mouseMove. Used to throttle repaint —

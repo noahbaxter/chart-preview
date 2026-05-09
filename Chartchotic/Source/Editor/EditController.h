@@ -1,28 +1,12 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "AuthoringTypes.h"
-#include "AuthoringUtils.h"
-#include "CommandMapper.h"
-#include "NoteEditor.h"
-#include "../UI/ControlConstants.h"
+#include "AuthoringControllerBase.h"
 
-class InstrumentSession;
-
-class EditController
+class EditController : public AuthoringControllerBase
 {
 public:
     EditController() = default;
-
-    void setMidiWriter(MidiWriter* writer)            { noteEditor.setMidiWriter(writer); }
-    void setInstrumentSession(InstrumentSession* sess) { instrumentSession = sess; noteEditor.setInstrumentSession(sess); }
-    void setPlayingStatePtr(const bool* ptr)           { playingStatePtr = ptr; }
-
-    void setStepDivision(int d)       { currentStepDivision = d; }
-    void setTuplet(int t)             { currentTuplet = t; }
-    void setSnapEnabled(bool s)       { snapEnabledFlag = s; }
-    void setActivePart(Part p)        { currentActivePart = p; }
-    void setActiveSkill(SkillLevel s) { currentActiveSkill = s; }
 
     void onPointerMove       (const AuthoringPoint& p, const AuthoringContext& ctx);
     void onPointerDown       (const AuthoringPoint& p, const AuthoringContext& ctx);
@@ -35,20 +19,10 @@ public:
     void clearSelection();
     void onFrameTick();
 
-    const std::vector<SelectedNote>& getHideNotes() const { return moveHideNotes; }
-    bool hasHideNotes() const { return moveHideDelay > 0 && !moveHideNotes.empty(); }
-
-    const OverlayState& getOverlayState() const { return overlayState; }
-
-    std::function<void()> onStateChanged;
-
 private:
     enum class DragMode { Idle, Marquee, Moving };
 
     bool   canEdit(const AuthoringPoint& p) const;
-    int    resolvePitch(int laneIndex, bool drums) const;
-    int    resolveTrackIdx() const;
-    double snap(double rawQN) const;
     bool   isNoteSelected(double startQN, int pitch) const;
     void   recomputeOverlay();
 
@@ -59,19 +33,6 @@ private:
     void handleCommitMove     (const AuthoringPoint& p);
     void handleDoubleClick    (const AuthoringPoint& p);
     void handleDeleteSelection();
-
-    InstrumentSession* instrumentSession = nullptr;
-    const bool*        playingStatePtr   = nullptr;
-
-    CommandMapper commandMapper;
-    NoteEditor    noteEditor;
-    OverlayState  overlayState;
-
-    Part       currentActivePart   = Part::GUITAR;
-    SkillLevel currentActiveSkill  = SkillLevel::EXPERT;
-    int        currentStepDivision = 8;
-    int        currentTuplet       = 0;
-    bool       snapEnabledFlag     = true;
 
     // Selection
     std::vector<SelectedNote> selection;
@@ -96,8 +57,7 @@ private:
     bool   pendingSelect = false;
     AuthoringPoint pendingSelectPoint;
 
-    int    moveHideDelay = 0;
-    std::vector<SelectedNote> moveHideNotes;
+    std::shared_ptr<bool> aliveFlag = std::make_shared<bool>(true);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(EditController)
 };

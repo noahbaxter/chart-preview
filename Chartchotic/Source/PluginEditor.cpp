@@ -39,6 +39,7 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     {
         slots[i].highway = std::make_unique<HighwayComponent>(state, assetManager);
         slots[i].highway->setTrackImageCache(&trackImageCache);
+        slots[i].highway->setPatchBuffer(&interactionController.getPatchBuffer());
         slots[i].highway->setVisible(false);
 
         // Wire mouse dispatch into the interaction controller.

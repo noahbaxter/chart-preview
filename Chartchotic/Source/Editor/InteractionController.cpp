@@ -29,6 +29,7 @@ void InteractionController::onFrame(MidiWriter* writer, InstrumentSession* sessi
     writeController.setPlayingStatePtr(playingState);
     writeController.setActivePart(activePart);
     writeController.setActiveSkill(activeSkill);
+    writeController.setPatchBuffer(&patchBuffer);
 
     editController.setMidiWriter(writer);
     editController.setInstrumentSession(session);
@@ -38,7 +39,9 @@ void InteractionController::onFrame(MidiWriter* writer, InstrumentSession* sessi
     editController.setStepDivision(writeController.stepDivision());
     editController.setTuplet(writeController.tuplet());
     editController.setSnapEnabled(writeController.snapEnabled());
+    editController.setPatchBuffer(&patchBuffer);
 
+    patchBuffer.tick();
     bool playing = playingState ? *playingState : false;
     writeController.onFrameTick(currentProjectQN, playing);
     editController.onFrameTick();
