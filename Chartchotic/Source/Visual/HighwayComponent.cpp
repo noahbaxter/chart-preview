@@ -146,6 +146,7 @@ void HighwayComponent::paint(juce::Graphics& g)
     // Selection tint is applied inline during gem rendering (via NoteRenderer::selectedGems).
     // Move preview ghosts are rendered separately at destination positions.
     sceneRenderer.getSelectedGems().clear();
+    sceneRenderer.getEraseTargets().clear();
     sceneRenderer.movePreviewGhosts.clear();
     if (overlayStateGetter && projectQNToSeconds)
     {
@@ -206,6 +207,24 @@ void HighwayComponent::paint(juce::Graphics& g)
                 {
                     double sec = projectQNToSeconds(sn.startQN);
                     sceneRenderer.getSelectedGems().push_back({ sn.lane, sec });
+                }
+            }
+
+            // Marquee preview tint: select = blue, erase = red
+            if (ov.marqueeVisible)
+            {
+                const auto& mr = ov.marqueeRect;
+                auto& targets = ov.marqueeErase
+                    ? sceneRenderer.getEraseTargets()
+                    : sceneRenderer.getSelectedGems();
+                for (const auto& [noteTime, frame] : frameData.trackWindow)
+                {
+                    double qn = secondsToProjectQN(noteTime);
+                    if (qn < mr.qnLo - 0.001 || qn > mr.qnHi + 0.001) continue;
+                    for (int lane = mr.laneLo; lane <= mr.laneHi; ++lane)
+                        if (lane >= 0 && lane < (int)frame.size()
+                            && frame[lane].gem != Gem::NONE)
+                            targets.push_back({ lane, noteTime });
                 }
             }
         }
@@ -347,18 +366,17 @@ void HighwayComponent::paint(juce::Graphics& g)
                 coords, 1.0f, PositionConstants::FRETBOARD_SCALE);
         };
 
-        // Marquee rectangle
+        // Marquee rectangle (blue = select, red = erase)
         if (ov.marqueeVisible)
         {
-            float posTop = qnToPos(ov.marqueeQNEnd);
-            float posBot = qnToPos(ov.marqueeQNStart);
-            int laneMin = ov.marqueeLaneStart;
-            int laneMax = ov.marqueeLaneEnd;
+            const auto& mr = ov.marqueeRect;
+            float posTop = qnToPos(mr.qnHi);
+            float posBot = qnToPos(mr.qnLo);
 
-            auto topLeft  = laneEdges(laneMin, posTop);
-            auto topRight = laneEdges(laneMax, posTop);
-            auto botLeft  = laneEdges(laneMin, posBot);
-            auto botRight = laneEdges(laneMax, posBot);
+            auto topLeft  = laneEdges(mr.laneLo, posTop);
+            auto topRight = laneEdges(mr.laneHi, posTop);
+            auto botLeft  = laneEdges(mr.laneLo, posBot);
+            auto botRight = laneEdges(mr.laneHi, posBot);
 
             juce::Path marquee;
             marquee.startNewSubPath(topLeft.leftX, topLeft.centerY);
@@ -367,9 +385,11 @@ void HighwayComponent::paint(juce::Graphics& g)
             marquee.lineTo(botLeft.leftX, botLeft.centerY);
             marquee.closeSubPath();
 
-            g.setColour(juce::Colour(100, 180, 255).withAlpha(0.15f));
+            auto col = ov.marqueeErase ? juce::Colour(255, 80, 80)
+                                       : juce::Colour(100, 180, 255);
+            g.setColour(col.withAlpha(0.15f));
             g.fillPath(marquee);
-            g.setColour(juce::Colour(100, 180, 255).withAlpha(0.5f));
+            g.setColour(col.withAlpha(0.5f));
             g.strokePath(marquee, juce::PathStrokeType(1.5f));
         }
 

@@ -79,6 +79,7 @@ class SceneRenderer
         std::vector<GhostPosition> movePreviewGhosts;
 
         std::vector<NoteRenderer::SelectedGem>& getSelectedGems() { return noteRenderer.selectedGems; }
+        std::vector<NoteRenderer::SelectedGem>& getEraseTargets() { return noteRenderer.eraseTargets; }
         void setBarModeDim(float dim) { noteRenderer.barModeDim = dim; }
         const std::vector<NoteRenderer::NoteHitBox>& getNoteHitBoxes() const { return noteRenderer.getHitBoxes(); }
 

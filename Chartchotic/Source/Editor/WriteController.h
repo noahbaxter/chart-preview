@@ -43,10 +43,11 @@ private:
     AuthoringPoint lastPoint;
     bool           lastPointValid = false;
 
-    // Erase drag state
-    bool   eraseDragActive   = false;
-    int    eraseDragTrackIdx = -1;
-    double eraseLastQN       = 0.0;
+    // Erase drag state (deferred — notes tinted red, erased on commit)
+    bool        eraseDragActive   = false;
+    int         eraseDragTrackIdx = -1;
+    MarqueeRect eraseRect;
+    double      eraseClickedNoteQN = -1.0;
 
     // Sustain drag state
     bool   sustainDragActive   = false;

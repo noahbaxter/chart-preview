@@ -102,8 +102,7 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
             recomputeOverlay();
             dragMode = DragMode::Marquee;
             marqueeScreenStart = p.screenPos;
-            marqueeLaneStart = 0;
-            marqueeQNStart = p.rawProjectQN;
+            marqueeRect.begin(p.rawProjectQN, p.laneIndex);
             if (onStateChanged) onStateChanged();
         }
         return;
@@ -145,8 +144,7 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
         handleSelectAt(p);
         dragMode = DragMode::Marquee;
         marqueeScreenStart = p.screenPos;
-        marqueeLaneStart = p.laneIndex;
-        marqueeQNStart = p.rawProjectQN;
+        marqueeRect.begin(p.rawProjectQN, p.laneIndex);
     }
 }
 
@@ -256,20 +254,10 @@ void EditController::handleSelectAt(const AuthoringPoint& p)
 
 void EditController::handleContinueMarquee(const AuthoringPoint& p)
 {
+    marqueeRect.update(p.rawProjectQN, p.laneIndex, barModeFlag, isDrums());
     overlayState.marqueeVisible = true;
-    if (barModeFlag)
-    {
-        int maxLane = isDrums() ? 4 : 5;
-        overlayState.marqueeLaneStart = 0;
-        overlayState.marqueeLaneEnd   = maxLane;
-    }
-    else
-    {
-        overlayState.marqueeLaneStart = std::min(marqueeLaneStart, p.laneIndex);
-        overlayState.marqueeLaneEnd   = std::max(marqueeLaneStart, p.laneIndex);
-    }
-    overlayState.marqueeQNStart   = std::min(marqueeQNStart, p.rawProjectQN);
-    overlayState.marqueeQNEnd     = std::max(marqueeQNStart, p.rawProjectQN);
+    overlayState.marqueeErase   = false;
+    overlayState.marqueeRect    = marqueeRect;
     if (onStateChanged) onStateChanged();
 }
 
@@ -278,29 +266,15 @@ void EditController::handleCommitMarquee(const AuthoringPoint& p)
     int trackIdx = resolveTrackIdx();
     if (trackIdx < 0) return;
 
-    double qnMin = std::min(marqueeQNStart, p.rawProjectQN);
-    double qnMax = std::max(marqueeQNStart, p.rawProjectQN);
+    marqueeRect.update(p.rawProjectQN, p.laneIndex, barModeFlag, isDrums());
 
     selection.clear();
-    if (barModeFlag)
+    for (int lane = marqueeRect.laneLo; lane <= marqueeRect.laneHi; ++lane)
     {
-        int barPitch = resolveBarPitch();
-        auto notes = findNotesInRange(trackIdx, qnMin, qnMax, barPitch);
+        int pitch = resolveActivePitch(lane);
+        auto notes = findNotesInRange(trackIdx, marqueeRect.qnLo, marqueeRect.qnHi, pitch);
         for (const auto& note : notes)
-            selection.push_back({ trackIdx, note.startQN, note.pitch, 0 });
-    }
-    else
-    {
-        bool drums = isDrums();
-        int laneMin = std::min(marqueeLaneStart, p.laneIndex);
-        int laneMax = std::max(marqueeLaneStart, p.laneIndex);
-        for (int lane = laneMin; lane <= laneMax; ++lane)
-        {
-            int pitch = resolvePitch(lane, drums);
-            auto notes = findNotesInRange(trackIdx, qnMin, qnMax, pitch);
-            for (const auto& note : notes)
-                selection.push_back({ trackIdx, note.startQN, note.pitch, lane });
-        }
+            selection.push_back({ trackIdx, note.startQN, note.pitch, lane });
     }
 
     recomputeOverlay();

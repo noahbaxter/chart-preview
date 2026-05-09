@@ -190,6 +190,20 @@ void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, 
                 for (int s = spriteStart; s < (int)composite.sprites.size(); ++s)
                     composite.sprites[s].tint = kSelTint;
             }
+
+            if (!selected)
+            {
+                bool erasing = false;
+                for (const auto& et : eraseTargets)
+                    if (et.lane == gemColumn && std::abs(et.time - frameTime) < 0.002)
+                    { erasing = true; break; }
+                if (erasing)
+                {
+                    static const juce::Colour kEraseTint = juce::Colour(255, 80, 80).withAlpha((uint8)160);
+                    for (int s = spriteStart; s < (int)composite.sprites.size(); ++s)
+                        composite.sprites[s].tint = kEraseTint;
+                }
+            }
         }
     }
 

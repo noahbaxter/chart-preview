@@ -73,6 +73,7 @@ public:
 
     struct SelectedGem { int lane; double time; };
     std::vector<SelectedGem> selectedGems;
+    std::vector<SelectedGem> eraseTargets;
 
     struct NoteHitBox
     {

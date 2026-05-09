@@ -396,44 +396,57 @@ void WriteController::paintShrinkTo(double lo, double hi)
 //==============================================================================
 // Erase command handlers
 
-void WriteController::handleBeginErase(const AuthoringPoint& p, int trackIdx, int pitch, bool drums)
+void WriteController::handleBeginErase(const AuthoringPoint& p, int trackIdx,
+                                       [[maybe_unused]] int pitch, [[maybe_unused]] bool drums)
 {
     eraseDragActive   = true;
     eraseDragTrackIdx = trackIdx;
-    eraseLastQN       = snapQN(p.rawProjectQN);
-    beginBatch("Chartchotic: Erase notes");
+    eraseRect.begin(p.rawProjectQN, p.laneIndex);
+    eraseClickedNoteQN = p.overExistingNote ? p.hitNoteStartQN : -1.0;
 
-    if (!p.overExistingNote) return;
-
-    if (p.hitSustainBody)
-        truncateNote(trackIdx, p.hitNoteStartQN, pitch);
-    else
-        eraseNote(trackIdx, p.hitNoteStartQN, pitch, drums, p.laneIndex, currentActiveSkill);
+    overlayState.marqueeVisible = true;
+    overlayState.marqueeErase   = true;
+    overlayState.marqueeRect    = eraseRect;
+    if (onStateChanged) onStateChanged();
 }
 
 void WriteController::handleContinueErase(const AuthoringPoint& p)
 {
     if (!p.onHighway || p.laneIndex < 0) return;
 
-    bool drums = isDrums();
-    int  pitch = resolveActivePitch(p.laneIndex);
-    if (pitch < 0) return;
+    eraseRect.update(p.rawProjectQN, p.laneIndex, barModeFlag, isDrums());
 
-    double curQN = snapQN(p.rawProjectQN);
-    double lo = std::min(eraseLastQN, curQN);
-    double hi = std::max(eraseLastQN, curQN);
-    eraseLastQN = curQN;
-
-    auto notes = findNotesInRange(eraseDragTrackIdx, lo, hi, pitch);
-    for (const auto& note : notes)
-        eraseNote(eraseDragTrackIdx, note.startQN, pitch, drums, p.laneIndex, currentActiveSkill);
+    overlayState.marqueeVisible = true;
+    overlayState.marqueeErase   = true;
+    overlayState.marqueeRect    = eraseRect;
+    if (onStateChanged) onStateChanged();
 }
 
 void WriteController::handleEndErase()
 {
+    bool drums = isDrums();
+    beginBatch("Chartchotic: Erase notes");
+    for (int lane = eraseRect.laneLo; lane <= eraseRect.laneHi; ++lane)
+    {
+        int pitch = resolveActivePitch(lane);
+        if (pitch < 0) continue;
+        auto notes = findNotesInRange(eraseDragTrackIdx, eraseRect.qnLo, eraseRect.qnHi, pitch);
+        for (const auto& note : notes)
+            eraseNote(eraseDragTrackIdx, note.startQN, pitch, drums, lane, currentActiveSkill);
+    }
+    if (eraseClickedNoteQN >= 0.0)
+    {
+        int pitch = resolveActivePitch(eraseRect.startLane);
+        if (pitch >= 0)
+            eraseNote(eraseDragTrackIdx, eraseClickedNoteQN, pitch, drums,
+                      eraseRect.startLane, currentActiveSkill);
+    }
     endBatch();
+
     eraseDragActive   = false;
     eraseDragTrackIdx = -1;
+    overlayState.marqueeVisible = false;
+    recomputeGhost();
 }
 
 //==============================================================================
