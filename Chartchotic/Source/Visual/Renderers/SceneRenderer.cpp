@@ -132,9 +132,9 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
             }
         }
 
-        for (const auto& sel : selectionHighlights)
-            noteRenderer.renderSelectionTint(drawCallMap, sel.lane, sel.position);
-        selectionHighlights.clear();
+        for (const auto& ghost : movePreviewGhosts)
+            noteRenderer.renderGhost(drawCallMap, ghost.lane, ghost.position, nullptr, 1.0f);
+        movePreviewGhosts.clear();
     }
 
     {

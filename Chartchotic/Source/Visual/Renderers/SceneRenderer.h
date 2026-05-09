@@ -70,12 +70,14 @@ class SceneRenderer
         GhostCursor ghostCursor;
         static constexpr bool useColoredGhostCursor = true;
 
-        struct SelectionHighlight
+        struct GhostPosition
         {
             int   lane = -1;
             float position = 0.0f;
         };
-        std::vector<SelectionHighlight> selectionHighlights;
+        std::vector<GhostPosition> movePreviewGhosts;
+
+        std::vector<NoteRenderer::SelectedGem>& getSelectedGems() { return noteRenderer.selectedGems; }
 
 #ifdef DEBUG
         bool collectPhaseTiming = true;
