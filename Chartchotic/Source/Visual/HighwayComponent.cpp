@@ -294,6 +294,33 @@ void HighwayComponent::paint(juce::Graphics& g)
                         frameData.flipRegions, frameData.eventMarkers,
                         frameData.windowStartTime, frameData.windowEndTime, frameData.isPlaying);
 
+#ifdef DEBUG
+    if (showClickZones)
+    {
+        bool dbgBarMode = overlayStateGetter && overlayStateGetter().barMode;
+        Part dbgPart = isDrumLike(activePart) ? Part::DRUMS : Part::GUITAR;
+        g.setColour(juce::Colours::lime.withAlpha(0.35f));
+        for (const auto& hb : sceneRenderer.getNoteHitBoxes())
+            if (isBarNote((uint)hb.lane, dbgPart) == dbgBarMode)
+                g.drawEllipse(hb.rect, 1.5f);
+
+        if (debugLastHitY >= 0.0f)
+        {
+            int ly = (int)debugLastHitY;
+            g.setColour(juce::Colours::red.withAlpha(0.8f));
+            g.drawHorizontalLine(ly, 0.0f, (float)w);
+            juce::String label = (formatPositionQN ? formatPositionQN(debugLastResolvedQN)
+                                                   : juce::String(debugLastResolvedQN, 2))
+                + "  lane=" + juce::String(debugLastLane);
+            g.setFont(20.0f);
+            g.setColour(juce::Colours::black.withAlpha(0.6f));
+            g.fillRect(2, ly - 26, 380, 24);
+            g.setColour(juce::Colours::red);
+            g.drawText(label, 6, ly - 26, 372, 24, juce::Justification::left);
+        }
+    }
+#endif
+
     // Edit-mode overlays (marquee, selection highlight)
     if (overlayStateGetter && projectQNToSeconds)
     {
@@ -650,6 +677,12 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
     auto renderPt = screenToRenderCoords(local);
     float hitY = renderPt.y - (float)topOverflow;
 
+#ifdef DEBUG
+    debugLastHitY = hitY;
+    debugLastLane = -1;
+    debugLastResolvedQN = 0.0;
+#endif
+
     bool isDrums = isDrumLike(activePart);
     auto hit = hitTestMapper.hitTest(renderPt.x, hitY,
                                      (uint)juce::jmax(0, renderWidth),
@@ -669,9 +702,30 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
         outPoint.laneIndex = -1;
     }
 
-    // Convert "seconds offset from cursor" → project QN if conversion is wired,
-    // otherwise leave as 0.0 (M1 controllers don't use it).
-    outPoint.rawProjectQN = secondsToProjectQN ? secondsToProjectQN(hit.timeFromCursor) : 0.0;
+    bool barMode = overlayStateGetter && overlayStateGetter().barMode;
+
+    // In bar mode, correct for barZ offset so ghost/placement center on the
+    // click point instead of the top of the bar sprite.
+    if (barMode && secondsToProjectQN)
+    {
+        float barZ = (isDrums ? PositionConstants::DRUM_OFFSETS : PositionConstants::GUITAR_OFFSETS).barZ;
+        float resScale = (float)juce::jmax(1, renderHeight) / PositionConstants::REFERENCE_HEIGHT;
+        auto barHit = hitTestMapper.hitTest(renderPt.x, hitY - barZ * resScale,
+                                            (uint)juce::jmax(0, renderWidth),
+                                            (uint)juce::jmax(0, renderHeight),
+                                            frameData.windowStartTime, frameData.windowEndTime,
+                                            isDrums, sceneRenderer.farFadeEnd);
+        outPoint.rawProjectQN = secondsToProjectQN(barHit.timeFromCursor);
+    }
+    else
+    {
+        outPoint.rawProjectQN = secondsToProjectQN ? secondsToProjectQN(hit.timeFromCursor) : 0.0;
+    }
+
+#ifdef DEBUG
+    debugLastResolvedQN = outPoint.rawProjectQN;
+    debugLastLane = hit.laneIndex;
+#endif
 
     outPoint.overExistingNote = false;
     outPoint.hitSustainBody   = false;
@@ -680,30 +734,33 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
 
     if (outPoint.onHighway && secondsToProjectQN)
     {
-        constexpr float kHeadHitPixels = 32.0f;
-        double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
-        double timeTol = (windowSpan > 0.0 && renderHeight > 0)
-            ? kHeadHitPixels * windowSpan / (double)renderHeight
-            : 0.05;
-
-        double hitTime = hit.timeFromCursor;
-        uint hitLane = (uint)outPoint.laneIndex;
-
-        for (const auto& [noteTime, frame] : frameData.trackWindow)
+        // Geometric hit test against rendered note rects.
+        // Bar mode only matches bars; normal mode only matches gems.
+        for (const auto& hb : sceneRenderer.getNoteHitBoxes())
         {
-            if (hitLane >= frame.size()) continue;
-            if (frame[hitLane].gem == Gem::NONE) continue;
-            if (std::abs(hitTime - noteTime) < timeTol)
+            if (isBarNote((uint)hb.lane, isDrums ? Part::DRUMS : Part::GUITAR) != barMode)
+                continue;
+            if (hb.rect.contains(renderPt.x, hitY))
             {
                 outPoint.overExistingNote = true;
                 outPoint.hitSustainBody   = false;
-                outPoint.hitNoteStartQN   = secondsToProjectQN(noteTime);
+                outPoint.hitNoteStartQN   = secondsToProjectQN(hb.timeSec);
+                outPoint.laneIndex        = hb.lane;
                 break;
             }
         }
 
+        // Sustain body check (no rendered rect — use time tolerance)
         if (!outPoint.overExistingNote)
         {
+            constexpr float kHeadHitPixels = 32.0f;
+            double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
+            double timeTol = (windowSpan > 0.0 && renderHeight > 0)
+                ? kHeadHitPixels * windowSpan / (double)renderHeight
+                : 0.05;
+            double hitTime = hit.timeFromCursor;
+            uint hitLane = (uint)outPoint.laneIndex;
+
             for (const auto& s : frameData.sustainWindow)
             {
                 if (s.gemColumn != hitLane) continue;

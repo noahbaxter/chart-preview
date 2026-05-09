@@ -74,30 +74,36 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
         int trackIdx = resolveTrackIdx();
         if (trackIdx < 0) return;
 
-        double qn = snapQN(p.rawProjectQN);
         int barPitch = resolveBarPitch();
-        auto found = findNote(trackIdx, qn, barPitch);
 
-        if (found.noteIndex >= 0)
+        if (p.overExistingNote)
         {
-            bool alreadySelected = isNoteSelected(found.startQN, barPitch);
-            if (!alreadySelected)
+            auto found = findNote(trackIdx, p.hitNoteStartQN, barPitch);
+            if (found.noteIndex >= 0)
             {
-                selection.clear();
-                selection.push_back({ trackIdx, found.startQN, barPitch, 0 });
-                recomputeOverlay();
+                bool alreadySelected = isNoteSelected(found.startQN, barPitch);
+                if (!alreadySelected)
+                {
+                    selection.clear();
+                    selection.push_back({ trackIdx, found.startQN, barPitch, 0 });
+                    recomputeOverlay();
+                }
+                dragMode = DragMode::Moving;
+                moveScreenStart = p.screenPos;
+                moveOriginQN = p.rawProjectQN;
+                moveOriginLane = 0;
+                moveAxisLock = false;
+                moveDragStarted = false;
             }
-            dragMode = DragMode::Moving;
-            moveScreenStart = p.screenPos;
-            moveOriginQN = p.rawProjectQN;
-            moveOriginLane = 0;
-            moveAxisLock = false;
-            moveDragStarted = false;
         }
         else
         {
             selection.clear();
             recomputeOverlay();
+            dragMode = DragMode::Marquee;
+            marqueeScreenStart = p.screenPos;
+            marqueeLaneStart = 0;
+            marqueeQNStart = p.rawProjectQN;
             if (onStateChanged) onStateChanged();
         }
         return;
@@ -251,8 +257,17 @@ void EditController::handleSelectAt(const AuthoringPoint& p)
 void EditController::handleContinueMarquee(const AuthoringPoint& p)
 {
     overlayState.marqueeVisible = true;
-    overlayState.marqueeLaneStart = std::min(marqueeLaneStart, p.laneIndex);
-    overlayState.marqueeLaneEnd   = std::max(marqueeLaneStart, p.laneIndex);
+    if (barModeFlag)
+    {
+        int maxLane = isDrums() ? 4 : 5;
+        overlayState.marqueeLaneStart = 0;
+        overlayState.marqueeLaneEnd   = maxLane;
+    }
+    else
+    {
+        overlayState.marqueeLaneStart = std::min(marqueeLaneStart, p.laneIndex);
+        overlayState.marqueeLaneEnd   = std::max(marqueeLaneStart, p.laneIndex);
+    }
     overlayState.marqueeQNStart   = std::min(marqueeQNStart, p.rawProjectQN);
     overlayState.marqueeQNEnd     = std::max(marqueeQNStart, p.rawProjectQN);
     if (onStateChanged) onStateChanged();
@@ -263,20 +278,29 @@ void EditController::handleCommitMarquee(const AuthoringPoint& p)
     int trackIdx = resolveTrackIdx();
     if (trackIdx < 0) return;
 
-    bool drums = isDrums();
-
-    int laneMin = std::min(marqueeLaneStart, p.laneIndex);
-    int laneMax = std::max(marqueeLaneStart, p.laneIndex);
     double qnMin = std::min(marqueeQNStart, p.rawProjectQN);
     double qnMax = std::max(marqueeQNStart, p.rawProjectQN);
 
     selection.clear();
-    for (int lane = laneMin; lane <= laneMax; ++lane)
+    if (barModeFlag)
     {
-        int pitch = resolvePitch(lane, drums);
-        auto notes = findNotesInRange(trackIdx, qnMin, qnMax, pitch);
+        int barPitch = resolveBarPitch();
+        auto notes = findNotesInRange(trackIdx, qnMin, qnMax, barPitch);
         for (const auto& note : notes)
-            selection.push_back({ trackIdx, note.startQN, note.pitch, lane });
+            selection.push_back({ trackIdx, note.startQN, note.pitch, 0 });
+    }
+    else
+    {
+        bool drums = isDrums();
+        int laneMin = std::min(marqueeLaneStart, p.laneIndex);
+        int laneMax = std::max(marqueeLaneStart, p.laneIndex);
+        for (int lane = laneMin; lane <= laneMax; ++lane)
+        {
+            int pitch = resolvePitch(lane, drums);
+            auto notes = findNotesInRange(trackIdx, qnMin, qnMax, pitch);
+            for (const auto& note : notes)
+                selection.push_back({ trackIdx, note.startQN, note.pitch, lane });
+        }
     }
 
     recomputeOverlay();
@@ -369,13 +393,15 @@ void EditController::handleDoubleClick(const AuthoringPoint& p)
 
     if (barModeFlag)
     {
-        double qn = snapQN(p.rawProjectQN);
         int barPitch = resolveBarPitch();
-        auto existing = findNote(trackIdx, qn, barPitch);
-        if (existing.noteIndex >= 0)
-            eraseBarNote(trackIdx, existing.startQN);
+        if (p.overExistingNote)
+        {
+            auto existing = findNote(trackIdx, p.hitNoteStartQN, barPitch);
+            if (existing.noteIndex >= 0)
+                eraseBarNote(trackIdx, existing.startQN);
+        }
         else
-            createBarNote(trackIdx, qn);
+            createBarNote(trackIdx, snapQN(p.rawProjectQN));
     }
     else if (p.overExistingNote)
     {

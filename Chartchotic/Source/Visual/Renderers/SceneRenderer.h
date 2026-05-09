@@ -80,6 +80,7 @@ class SceneRenderer
 
         std::vector<NoteRenderer::SelectedGem>& getSelectedGems() { return noteRenderer.selectedGems; }
         void setBarModeDim(float dim) { noteRenderer.barModeDim = dim; }
+        const std::vector<NoteRenderer::NoteHitBox>& getNoteHitBoxes() const { return noteRenderer.getHitBoxes(); }
 
 #ifdef DEBUG
         bool collectPhaseTiming = true;

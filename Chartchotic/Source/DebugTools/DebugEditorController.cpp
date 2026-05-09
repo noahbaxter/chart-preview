@@ -123,6 +123,10 @@ void DebugEditorController::wireCallbacks(ToolbarComponent& toolbar,
         highway.showDebugColour = on;
     };
 
+    tune.onClickZonesChanged = [&highway](bool on) {
+        highway.showClickZones = on;
+    };
+
     tune.onStretchChanged = [&highway](bool on) {
         highway.stretchToFill = on;
         if (auto* parent = highway.getParentComponent())

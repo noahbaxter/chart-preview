@@ -209,6 +209,11 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         if (onDebugColourChanged) onDebugColourChanged(debugColourToggle.getToggleState());
     };
 
+    clickZonesToggle.setButtonText("Click Zones");
+    clickZonesToggle.onClick = [this]() {
+        if (onClickZonesChanged) onClickZonesChanged(clickZonesToggle.getToggleState());
+    };
+
     stretchToggle.setButtonText("Stretch");
     stretchToggle.onClick = [this]() {
         if (onStretchChanged) onStretchChanged(stretchToggle.getToggleState());
@@ -854,6 +859,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     addTunableChildren(trackSliderLabels, TRACK_SLIDER_COUNT);
     tuningButton.addPanelChild(&polyShadeToggle);
     tuningButton.addPanelChild(&debugColourToggle);
+    tuningButton.addPanelChild(&clickZonesToggle);
     tuningButton.addPanelChild(&stretchToggle);
     tuningButton.addPanelChild(&bemaniToggle);
 
@@ -1388,6 +1394,10 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
             for (int c = 0; c < numCols; c++) params[r * stride + c].setVisible(false);
         }
     };
+
+    clickZonesToggle.setVisible(true);
+    clickZonesToggle.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
 
     // --- Z Offsets table (most-used — surface at the top) ---
     zOffsetsHeader.setBounds(margin, y, w, rowHeight);

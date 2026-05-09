@@ -93,6 +93,7 @@ void NoteRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow
                             float posEnd,
                             float farFadeEnd, float farFadeLen, float farFadeCurve)
 {
+    hitBoxes.clear();
     currentDrawCallMap = &drawCallMap;
     currentConfig = getRenderTypeConfig(getRenderType(activePart));
     currentVpDepth = currentConfig->getPerspectiveParams().vanishingPointDepth;
@@ -241,7 +242,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
 
     if (PositionMath::bemaniMode)
     {
-        drawGemBemani(gemColumn, gemWrapper, position, glyphImage, barNote, opacity);
+        drawGemBemani(gemColumn, gemWrapper, position, frameTime, glyphImage, barNote, opacity);
         return;
     }
 
@@ -380,10 +381,22 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         };
         applyCurvedImageSwap(outFrame, gemIdx, ovlIdx, args);
     }
+
+    // Capture hit box from final gem sprite (uses same transform as drawFrame)
+    if (imageOverride == nullptr)
+    {
+        const auto& gs = outFrame.sprites[gemIdx];
+        float cx = ctx.anchor.x + gs.offsetX * ctx.frameScale.x;
+        float cy = ctx.anchor.y + gs.offsetY * ctx.frameScale.y;
+        float sw = gs.width  * ctx.frameScale.x;
+        float sh = gs.height * ctx.frameScale.y;
+        hitBoxes.push_back({ (int)gemColumn, frameTime,
+            juce::Rectangle<float>(cx - sw * 0.5f, cy - sh * 0.5f, sw, sh) });
+    }
 }
 
 void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, float position,
-                                  juce::Image* glyphImage, bool barNote, float opacity)
+                                  double frameTime, juce::Image* glyphImage, bool barNote, float opacity)
 {
     const auto* config = currentConfig;
     bool isDrums = isDrumLike(activePart);
@@ -519,6 +532,13 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
     juce::Point<float> bemaniAnchor(glyphRect.getCentreX(), glyphRect.getCentreY());
     juce::Point<float> bemaniScale(1.0f, 1.0f);
     Render::drawFrame(frame, bemaniAnchor, bemaniScale, *currentDrawCallMap);
+
+    const auto& gs = frame.sprites[gemIdx];
+    float sw = gs.width;
+    float sh = gs.height;
+    hitBoxes.push_back({ (int)gemColumn, frameTime,
+        juce::Rectangle<float>(bemaniAnchor.x - sw * 0.5f,
+                               bemaniAnchor.y - sh * 0.5f, sw, sh) });
 }
 
 float NoteRenderer::getColumnDistFromCenter(int column, bool isDrums)
