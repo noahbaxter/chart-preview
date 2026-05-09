@@ -242,7 +242,8 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
 {
     double clickQN = snapQN(p.rawProjectQN);
     bool onExistingNote = p.overExistingNote
-        && std::abs(snapQN(p.hitNoteStartQN) - clickQN) < 0.001;
+        && std::abs(snapQN(p.hitNoteStartQN) - clickQN) < 0.001
+        && findNote(trackIdx, snapQN(p.hitNoteStartQN), pitch).noteIndex >= 0;
 
     if (!drums)
         beginBatch("Chartchotic: Sustain note");
@@ -409,6 +410,7 @@ void WriteController::handleBeginErase(const AuthoringPoint& p, int trackIdx, in
 {
     eraseDragActive   = true;
     eraseDragTrackIdx = trackIdx;
+    eraseLastQN       = snapQN(p.rawProjectQN);
     beginBatch("Chartchotic: Erase notes");
 
     if (!p.overExistingNote) return;
@@ -422,16 +424,20 @@ void WriteController::handleBeginErase(const AuthoringPoint& p, int trackIdx, in
 void WriteController::handleContinueErase(const AuthoringPoint& p)
 {
     if (!p.onHighway || p.laneIndex < 0) return;
-    if (!p.overExistingNote) return;
 
     bool drums = isDrums();
-    int  pitch = barModeFlag ? resolveBarPitch() : resolvePitch(p.laneIndex, drums);
+    int  lane  = barModeFlag ? 0 : p.laneIndex;
+    int  pitch = barModeFlag ? resolveBarPitch() : resolvePitch(lane, drums);
     if (pitch < 0) return;
 
-    if (p.hitSustainBody)
-        truncateNote(eraseDragTrackIdx, p.hitNoteStartQN, pitch);
-    else
-        eraseNote(eraseDragTrackIdx, p.hitNoteStartQN, pitch, drums, p.laneIndex, currentActiveSkill);
+    double curQN = snapQN(p.rawProjectQN);
+    double lo = std::min(eraseLastQN, curQN);
+    double hi = std::max(eraseLastQN, curQN);
+    eraseLastQN = curQN;
+
+    auto notes = findNotesInRange(eraseDragTrackIdx, lo, hi, pitch);
+    for (const auto& note : notes)
+        eraseNote(eraseDragTrackIdx, note.startQN, pitch, drums, lane, currentActiveSkill);
 }
 
 void WriteController::handleEndErase()

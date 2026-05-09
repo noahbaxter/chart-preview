@@ -44,8 +44,9 @@ private:
     bool           lastPointValid = false;
 
     // Erase drag state
-    bool eraseDragActive   = false;
-    int  eraseDragTrackIdx = -1;
+    bool   eraseDragActive   = false;
+    int    eraseDragTrackIdx = -1;
+    double eraseLastQN       = 0.0;
 
     // Sustain drag state
     bool   sustainDragActive   = false;
