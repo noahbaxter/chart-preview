@@ -30,6 +30,7 @@
 #include "Editor/SessionController.h"
 #include "Editor/FrameDataBuilder.h"
 #include "Editor/WriteController.h"
+#include "Editor/EditController.h"
 #ifdef DEBUG
 #include "DebugTools/DebugEditorController.h"
 #endif
@@ -57,7 +58,12 @@ public:
 
     bool keyPressed(const juce::KeyPress& key) override
     {
-        // Write-mode shortcuts win — they must run before debug/global routing.
+        if (writeController.writeModeActive()
+            && writeController.subMode() == SubMode::Edit)
+        {
+            if (editController.onKeyPress(key))
+                return true;
+        }
         if (writeController.onKeyPress(key))
             return true;
 
@@ -152,6 +158,7 @@ private:
 
     // Write-mode controller (must be declared before toolbar — toolbar holds a reference)
     WriteController writeController;
+    EditController editController;
 
     // UI Components
     ToolbarComponent toolbar;

@@ -44,12 +44,39 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         // Wire mouse dispatch into the write controller (M1.3). Callbacks are
         // no-ops in M1; this just verifies events reach the controller.
         auto& hw = *slots[i].highway;
-        hw.setOnPointerMove  ([this](const AuthoringPoint& p, const AuthoringContext& c) { writeController.onPointerMove (p, c); });
-        hw.setOnPointerDown  ([this](const AuthoringPoint& p, const AuthoringContext& c) { writeController.onPointerDown (p, c); });
-        hw.setOnPointerDrag  ([this](const AuthoringPoint& p, const AuthoringContext& c) { writeController.onPointerDrag (p, c); });
-        hw.setOnPointerUp    ([this](const AuthoringPoint& p, const AuthoringContext& c) { writeController.onPointerUp   (p, c); });
-        hw.setOnPointerExit  ([this]() { writeController.onPointerExit  (); });
+        hw.setOnPointerMove  ([this](const AuthoringPoint& p, const AuthoringContext& c) {
+            if (writeController.writeModeActive() && writeController.subMode() == SubMode::Edit)
+                editController.onPointerMove(p, c);
+            else
+                writeController.onPointerMove(p, c);
+        });
+        hw.setOnPointerDown  ([this](const AuthoringPoint& p, const AuthoringContext& c) {
+            if (writeController.writeModeActive() && writeController.subMode() == SubMode::Edit)
+                editController.onPointerDown(p, c);
+            else
+                writeController.onPointerDown(p, c);
+        });
+        hw.setOnPointerDrag  ([this](const AuthoringPoint& p, const AuthoringContext& c) {
+            if (writeController.writeModeActive() && writeController.subMode() == SubMode::Edit)
+                editController.onPointerDrag(p, c);
+            else
+                writeController.onPointerDrag(p, c);
+        });
+        hw.setOnPointerUp    ([this](const AuthoringPoint& p, const AuthoringContext& c) {
+            if (writeController.writeModeActive() && writeController.subMode() == SubMode::Edit)
+                editController.onPointerUp(p, c);
+            else
+                writeController.onPointerUp(p, c);
+        });
+        hw.setOnPointerExit  ([this]() {
+            writeController.onPointerExit();
+            editController.onPointerExit();
+        });
         hw.setOnPointerCancel([this]() { writeController.onPointerCancel(); });
+        hw.setOnPointerDoubleClick([this](const AuthoringPoint& p, const AuthoringContext& c) {
+            if (writeController.writeModeActive() && writeController.subMode() == SubMode::Edit)
+                editController.onPointerDoubleClick(p, c);
+        });
 
         // Coordinate-domain conversion: HitTestMapper returns "seconds offset
         // from cursor"; the controller wants project QN. Convert at the
@@ -97,6 +124,8 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
 
         // Read access to the WriteController's overlay state (hover ghost lives there).
         hw.setOverlayStateGetter([this]() -> const OverlayState& {
+            if (writeController.writeModeActive() && writeController.subMode() == SubMode::Edit)
+                return editController.getOverlayState();
             return writeController.getOverlayState();
         });
 
@@ -314,6 +343,14 @@ void ChartchoticAudioProcessorEditor::onFrame()
     writeController.setMidiWriter(audioProcessor.getReaperMidiProvider().getWriter());
     writeController.setInstrumentSession(audioProcessor.getInstrumentSession());
     writeController.setPlayingStatePtr(&lastPlayingState);
+    editController.setMidiWriter(audioProcessor.getReaperMidiProvider().getWriter());
+    editController.setInstrumentSession(audioProcessor.getInstrumentSession());
+    editController.setPlayingStatePtr(&lastPlayingState);
+    editController.setActivePart(writeController.activePart());
+    editController.setActiveSkill(writeController.activeSkill());
+    editController.setStepDivision(writeController.stepDivision());
+    editController.setTuplet(writeController.tuplet());
+    editController.setSnapEnabled(writeController.snapEnabled());
 
     // Per-frame tick — controller uses this for hover refresh under stationary
     // cursor and to enforce playback-gated authoring (no-op in M1, real in M3).
@@ -710,8 +747,16 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         writeModeIcon.setState(writeController.writeModeActive(), writeController.subMode());
         bool wm = writeController.writeModeActive();
         forAllHighways([wm](auto& hw) { hw.setWriteMode(wm); });
+
+        if (writeController.subMode() == SubMode::Draw)
+            editController.clearSelection();
+
         if (toolbar.refreshFromWriteController())
             resized();
+    };
+
+    editController.onStateChanged = [this]() {
+        forEachHighway([](auto& hw) { hw.repaint(); });
     };
 
 #ifdef DEBUG
