@@ -28,8 +28,8 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
       state(state),
       audioProcessor(p),
       assetManager(),
-      writeController(state),
-      toolbar(state, writeController)
+      interactionController(state),
+      toolbar(state, interactionController)
 {
     // Create scratch renderer for shared track image cache
     cacheRenderer = std::make_unique<TrackRenderer>(state);
@@ -41,42 +41,15 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         slots[i].highway->setTrackImageCache(&trackImageCache);
         slots[i].highway->setVisible(false);
 
-        // Wire mouse dispatch into the write controller (M1.3). Callbacks are
-        // no-ops in M1; this just verifies events reach the controller.
+        // Wire mouse dispatch into the interaction controller.
         auto& hw = *slots[i].highway;
-        hw.setOnPointerMove  ([this](const AuthoringPoint& p, const AuthoringContext& c) {
-            if (writeController.writeModeActive() && writeController.subMode() == SubMode::Edit)
-                editController.onPointerMove(p, c);
-            else
-                writeController.onPointerMove(p, c);
-        });
-        hw.setOnPointerDown  ([this](const AuthoringPoint& p, const AuthoringContext& c) {
-            if (writeController.writeModeActive() && writeController.subMode() == SubMode::Edit)
-                editController.onPointerDown(p, c);
-            else
-                writeController.onPointerDown(p, c);
-        });
-        hw.setOnPointerDrag  ([this](const AuthoringPoint& p, const AuthoringContext& c) {
-            if (writeController.writeModeActive() && writeController.subMode() == SubMode::Edit)
-                editController.onPointerDrag(p, c);
-            else
-                writeController.onPointerDrag(p, c);
-        });
-        hw.setOnPointerUp    ([this](const AuthoringPoint& p, const AuthoringContext& c) {
-            if (writeController.writeModeActive() && writeController.subMode() == SubMode::Edit)
-                editController.onPointerUp(p, c);
-            else
-                writeController.onPointerUp(p, c);
-        });
-        hw.setOnPointerExit  ([this]() {
-            writeController.onPointerExit();
-            editController.onPointerExit();
-        });
-        hw.setOnPointerCancel([this]() { writeController.onPointerCancel(); });
-        hw.setOnPointerDoubleClick([this](const AuthoringPoint& p, const AuthoringContext& c) {
-            if (writeController.writeModeActive() && writeController.subMode() == SubMode::Edit)
-                editController.onPointerDoubleClick(p, c);
-        });
+        hw.setOnPointerMove       ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerMove(p, c); });
+        hw.setOnPointerDown       ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerDown(p, c); });
+        hw.setOnPointerDrag       ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerDrag(p, c); });
+        hw.setOnPointerUp         ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerUp(p, c); });
+        hw.setOnPointerExit       ([this]() { interactionController.onPointerExit(); });
+        hw.setOnPointerCancel     ([this]() { interactionController.onPointerCancel(); });
+        hw.setOnPointerDoubleClick([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerDoubleClick(p, c); });
 
         // Coordinate-domain conversion: HitTestMapper returns "seconds offset
         // from cursor"; the controller wants project QN. Convert at the
@@ -122,11 +95,8 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
             return (projectQN - cursorQN) * (60.0 / bpm);
         });
 
-        // Read access to the WriteController's overlay state (hover ghost lives there).
         hw.setOverlayStateGetter([this]() -> const OverlayState& {
-            if (writeController.writeModeActive() && writeController.subMode() == SubMode::Edit)
-                return editController.getOverlayState();
-            return writeController.getOverlayState();
+            return interactionController.getOverlayState();
         });
 
         // Format a project QN as "M.B" for the ghost cursor position label.
@@ -174,7 +144,7 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         slot.highway->setActivePart(slot.part);
         slot.highway->setVisible(true);
         activeSlotCount = 1;
-        writeController.setActivePart(slot.part);
+        interactionController.setActivePart(slot.part);
     }
     setLookAndFeel(&chartPreviewLnF);
 
@@ -235,9 +205,9 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     // Floating write-mode chip — sits over the highway (top-left). Click
     // toggles write mode (same effect as W); state is pushed via the
     // WriteController::onStateChanged callback wired below.
-    writeModeIcon.setState(writeController.writeModeActive(), writeController.subMode());
+    writeModeIcon.setState(interactionController.writeModeActive(), interactionController.subMode());
     writeModeIcon.onClick = [this]() {
-        writeController.setWriteModeActive(!writeController.writeModeActive());
+        interactionController.setWriteModeActive(!interactionController.writeModeActive());
     };
     addAndMakeVisible(writeModeIcon);
     writeModeIcon.toFront(false);
@@ -324,38 +294,21 @@ void ChartchoticAudioProcessorEditor::onFrame()
         toolbar.updateVisibility();
     }
 
-    // Keep write controller in sync with the primary slot's part/skill. Cheap
-    // (just stores enums) and idempotent — covers SessionController paths that
-    // don't have a direct hook into the editor. Skill comes from state because
-    // single-slot mode doesn't keep slot.skillLevel up to date with the toolbar.
+    // Per-frame sync — wires MidiWriter, InstrumentSession, playingState,
+    // part, skill into both sub-controllers, then ticks frame timers.
     if (activeSlotCount > 0)
     {
-        writeController.setActivePart(slots[0].part);
         const int skillId = state.hasProperty("skillLevel")
             ? (int)state.getProperty("skillLevel")
             : (int)SkillLevel::EXPERT;
-        writeController.setActiveSkill((SkillLevel)skillId);
+        interactionController.onFrame(
+            audioProcessor.getReaperMidiProvider().getWriter(),
+            audioProcessor.getInstrumentSession(),
+            &lastPlayingState,
+            slots[0].part,
+            (SkillLevel)skillId,
+            lastKnownPosition.toDouble());
     }
-
-    // MidiWriter and InstrumentSession only become non-null once REAPER has
-    // connected. Re-wire each frame so M3.1 onPointerDown picks them up the
-    // moment they appear (and clears them on tear-down).
-    writeController.setMidiWriter(audioProcessor.getReaperMidiProvider().getWriter());
-    writeController.setInstrumentSession(audioProcessor.getInstrumentSession());
-    writeController.setPlayingStatePtr(&lastPlayingState);
-    editController.setMidiWriter(audioProcessor.getReaperMidiProvider().getWriter());
-    editController.setInstrumentSession(audioProcessor.getInstrumentSession());
-    editController.setPlayingStatePtr(&lastPlayingState);
-    editController.setActivePart(writeController.activePart());
-    editController.setActiveSkill(writeController.activeSkill());
-    editController.setStepDivision(writeController.stepDivision());
-    editController.setTuplet(writeController.tuplet());
-    editController.setSnapEnabled(writeController.snapEnabled());
-
-    // Per-frame tick — controller uses this for hover refresh under stationary
-    // cursor and to enforce playback-gated authoring (no-op in M1, real in M3).
-    writeController.onFrameTick(lastKnownPosition.toDouble(), lastPlayingState);
-    editController.onFrameTick();
 
     updateTrackInfoDisplay();
 
@@ -563,7 +516,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         Part newPart = getPartFromState(state);
         primaryInterpreter().instrumentPart = newPart;
         slots[0].part = newPart;
-        writeController.setActivePart(newPart);
+        interactionController.setActivePart(newPart);
 
         if (!PositionMath::bemaniMode)
         {
@@ -677,7 +630,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
             slot.highway->showDifficultyLabel = false;
             slot.highway->setVisible(true);
             activeSlotCount = 1;
-            writeController.setActivePart(slot.part);
+            interactionController.setActivePart(slot.part);
 
             toolbar.setMultiInstrumentMode(false);
             toolbar.resetToManualMode();
@@ -744,19 +697,14 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     // changes (W/Q toggles, [/]/S/T grid changes). When the sub-toolbar's
     // visibility flips, the toolbar reports a new height — trigger our own
     // resized() so the highway reclaims/yields the row's space.
-    writeController.onStateChanged = [this]() {
-        writeModeIcon.setState(writeController.writeModeActive(), writeController.subMode());
-        bool wm = writeController.writeModeActive();
+    interactionController.onStateChanged = [this]() {
+        writeModeIcon.setState(interactionController.writeModeActive(), interactionController.subMode());
+        bool wm = interactionController.writeModeActive();
         forAllHighways([wm](auto& hw) { hw.setWriteMode(wm); });
-
-        if (writeController.subMode() == SubMode::Draw)
-            editController.clearSelection();
 
         if (toolbar.refreshFromWriteController())
             resized();
-    };
 
-    editController.onStateChanged = [this]() {
         forEachHighway([](auto& hw) { hw.repaint(); });
     };
 
@@ -1272,7 +1220,7 @@ void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::Lo
         slot.highway->setActivePart(slot.part);
         slot.highway->setVisible(true);
         activeSlotCount = 1;
-        writeController.setActivePart(slot.part);
+        interactionController.setActivePart(slot.part);
 
         resized();
         loadState();
@@ -1317,7 +1265,7 @@ void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::Lo
 
     // Sync write controller to the primary slot's part.
     if (activeSlotCount > 0)
-        writeController.setActivePart(slots[0].part);
+        interactionController.setActivePart(slots[0].part);
 
     // Multi-highway mode: show part labels and all toolbar options
     bool multiSlot = activeSlotCount > 1;
@@ -1387,9 +1335,9 @@ float ChartchoticAudioProcessorEditor::computeScrollOffset()
 FrameContext ChartchoticAudioProcessorEditor::buildFrameContext()
 {
     WriteGridConfig wgc;
-    wgc.active        = writeController.writeModeActive() && writeController.snapEnabled();
-    wgc.stepDivision  = writeController.stepDivision();
-    wgc.tuplet        = writeController.tuplet();
+    wgc.active        = interactionController.writeModeActive() && interactionController.snapEnabled();
+    wgc.stepDivision  = interactionController.stepDivision();
+    wgc.tuplet        = interactionController.tuplet();
 
     return FrameContext {
         audioProcessor,

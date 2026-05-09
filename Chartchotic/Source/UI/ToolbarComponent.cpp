@@ -1,13 +1,13 @@
 #include "ToolbarComponent.h"
 #include "TooltipStrings.h"
-#include "../Editor/WriteController.h"
+#include "../Editor/InteractionController.h"
 
 static const juce::StringArray framerateLabels = { "15 FPS", "30 FPS", "60 FPS", "Native" };
 static const juce::StringArray latencyLabels = { "0ms", "250ms", "500ms", "750ms", "1000ms", "1500ms" };
 static const juce::StringArray hopoThresholdLabels = { "Tight", "Default", "Loose" };
 
-ToolbarComponent::ToolbarComponent(juce::ValueTree& state, WriteController& writeController)
-    : state(state), writeController(writeController)
+ToolbarComponent::ToolbarComponent(juce::ValueTree& state, InteractionController& interactionController)
+    : state(state), interactionController(interactionController)
 {
     initTopBar();
     initChartPanel();
@@ -93,7 +93,7 @@ void ToolbarComponent::initTopBar()
     // Sub-toolbar — only shown while write mode is active. PluginEditor's
     // resized() reads getReportedHeight() to give the row its space and
     // reflow the highway accordingly.
-    writeSubToolbar.setVisible(writeController.writeModeActive());
+    writeSubToolbar.setVisible(interactionController.writeModeActive());
     addChildComponent(writeSubToolbar);
 }
 
@@ -479,7 +479,7 @@ void ToolbarComponent::resized()
 
     // Sub-toolbar at the bottom (only when write mode is active). Lay it out
     // first so the strip code below uses stripH (top-row only) cleanly.
-    if (writeController.writeModeActive())
+    if (interactionController.writeModeActive())
     {
         int subH = getHeight() - stripH;
         writeSubToolbar.setVisible(true);
@@ -740,7 +740,7 @@ void ToolbarComponent::setReaperMode(bool isReaper)
 int ToolbarComponent::getStripHeight() const
 {
     // When the sub-toolbar is visible, the strip is the top portion only.
-    if (writeController.writeModeActive())
+    if (interactionController.writeModeActive())
     {
         int subH = juce::roundToInt((float)getHeight()
             * (subToolbarHeightRatio / (1.0f + subToolbarHeightRatio)));
@@ -751,7 +751,7 @@ int ToolbarComponent::getStripHeight() const
 
 int ToolbarComponent::getReportedHeight(int baseStripHeight) const
 {
-    if (!writeController.writeModeActive())
+    if (!interactionController.writeModeActive())
         return baseStripHeight;
 
     int subH = juce::roundToInt((float)baseStripHeight * subToolbarHeightRatio);
@@ -762,7 +762,7 @@ bool ToolbarComponent::refreshFromWriteController()
 {
     writeSubToolbar.refreshFromController();
 
-    bool nowVisible = writeController.writeModeActive();
+    bool nowVisible = interactionController.writeModeActive();
     if (writeSubToolbar.isVisible() != nowVisible)
     {
         // Visibility flipped — relayout the toolbar internally and signal

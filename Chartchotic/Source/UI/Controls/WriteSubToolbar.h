@@ -2,32 +2,32 @@
 
 #include <JuceHeader.h>
 #include "../Theme.h"
-#include "../../Editor/WriteController.h"
+#include "../../Editor/InteractionController.h"
 
 // Read-only display strip that appears below the main toolbar while write
 // mode is active. Shows snap / division / tuplet readouts grouped as a single
-// cluster, all sourced live from WriteController. The strip washes the active
+// cluster, all sourced live from InteractionController. The strip washes the active
 // mode colour (green / coral) so the mode is visible without a separate pill.
 // Pure display: keys (W/Q/[/]/S/T) are still the only way to change these.
 // Clickable controls land in a later milestone.
 class WriteSubToolbar : public juce::Component
 {
 public:
-    explicit WriteSubToolbar(WriteController& wc) : writeController(wc)
+    explicit WriteSubToolbar(InteractionController& wc) : interactionController(wc)
     {
         setInterceptsMouseClicks(false, false);
     }
 
-    // Re-read state and repaint. Called from WriteController::onStateChanged.
+    // Re-read state and repaint. Called from InteractionController::onStateChanged.
     void refreshFromController() { repaint(); }
 
     void paint(juce::Graphics& g) override
     {
-        const bool drawMode = writeController.subMode() == SubMode::Draw;
+        const bool drawMode = interactionController.subMode() == SubMode::Draw;
         const juce::Colour modeColour = drawMode
             ? juce::Colour(Theme::green)
             : juce::Colour(Theme::coral);
-        const bool snapOn = writeController.snapEnabled();
+        const bool snapOn = interactionController.snapEnabled();
 
         // Whole strip washes the active mode color so you can't miss which
         // mode you're in. Low alpha so the slot text stays legible.
@@ -51,8 +51,8 @@ public:
         // Snap is the master gate (leftmost). When snap is OFF, division and
         // tuplet fade to textDim — they're meaningless without it.
 
-        const juce::String divText  = juce::String("1/") + juce::String(writeController.stepDivision());
-        const int          tuplet   = writeController.tuplet();
+        const juce::String divText  = juce::String("1/") + juce::String(interactionController.stepDivision());
+        const int          tuplet   = interactionController.tuplet();
         const juce::String tuplText = (tuplet == 0)
             ? juce::String("Tuplet: off")
             : (juce::String("Tuplet: ") + juce::String(tuplet));
@@ -133,7 +133,7 @@ public:
     }
 
 private:
-    WriteController& writeController;
+    InteractionController& interactionController;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WriteSubToolbar)
 };

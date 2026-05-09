@@ -2,7 +2,7 @@
 
 #include <JuceHeader.h>
 #include "../Theme.h"
-#include "../../Editor/WriteController.h"  // for SubMode
+#include "../../Editor/AuthoringTypes.h"  // for SubMode
 
 // Floating mode-status chip rendered over the highway (top-left). Reflects
 // WriteController state at a glance:

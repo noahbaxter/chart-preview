@@ -18,7 +18,7 @@
 #include "../Visual/Utils/DrawingConstants.h"
 #include "ControlConstants.h"
 
-class WriteController;
+class InteractionController;
 #ifdef DEBUG
 #include "../DebugTools/DebugToolbarPanel.h"
 #include "../DebugTools/DebugTuningPanel.h"
@@ -47,7 +47,7 @@ public:
     // less than getHeight(); when off, it equals getHeight().
     int getStripHeight() const;
 
-    ToolbarComponent(juce::ValueTree& state, WriteController& writeController);
+    ToolbarComponent(juce::ValueTree& state, InteractionController& interactionController);
     ~ToolbarComponent() override;
 
     void paint(juce::Graphics& g) override;
@@ -162,7 +162,7 @@ public:
 
 private:
     juce::ValueTree& state;
-    WriteController& writeController;
+    InteractionController& interactionController;
     bool reaperMode = false;
     bool multiInstrumentMode = false;
 
@@ -175,7 +175,7 @@ private:
     ValueStepper noteSpeedStepper{"Speed"};
 
     // Second toolbar row — only visible while write mode is active.
-    WriteSubToolbar writeSubToolbar { writeController };
+    WriteSubToolbar writeSubToolbar { interactionController };
 
     // Multi-select instrument state (Global mode with 2+ parts)
     std::vector<Part> discoveredParts;

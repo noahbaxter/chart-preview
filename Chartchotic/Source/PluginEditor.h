@@ -29,8 +29,7 @@
 #include "Editor/AssetController.h"
 #include "Editor/SessionController.h"
 #include "Editor/FrameDataBuilder.h"
-#include "Editor/WriteController.h"
-#include "Editor/EditController.h"
+#include "Editor/InteractionController.h"
 #ifdef DEBUG
 #include "DebugTools/DebugEditorController.h"
 #endif
@@ -58,13 +57,7 @@ public:
 
     bool keyPressed(const juce::KeyPress& key) override
     {
-        if (writeController.writeModeActive()
-            && writeController.subMode() == SubMode::Edit)
-        {
-            if (editController.onKeyPress(key))
-                return true;
-        }
-        if (writeController.onKeyPress(key))
+        if (interactionController.onKeyPress(key))
             return true;
 
 #ifdef DEBUG
@@ -156,9 +149,8 @@ private:
     // Custom look and feel
     ChartchoticLookAndFeel chartPreviewLnF;
 
-    // Write-mode controller (must be declared before toolbar — toolbar holds a reference)
-    WriteController writeController;
-    EditController editController;
+    // Interaction controller (must be declared before toolbar — toolbar holds a reference)
+    InteractionController interactionController;
 
     // UI Components
     ToolbarComponent toolbar;

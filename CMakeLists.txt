@@ -91,6 +91,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Editor/CommandMapper.h
         Chartchotic/Source/Editor/EditController.cpp
         Chartchotic/Source/Editor/EditController.h
+        Chartchotic/Source/Editor/InteractionController.cpp
+        Chartchotic/Source/Editor/InteractionController.h
         Chartchotic/Source/Editor/NoteEditor.cpp
         Chartchotic/Source/Editor/NoteEditor.h
         Chartchotic/Source/Host/ReaperVST3.h
