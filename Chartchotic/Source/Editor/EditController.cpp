@@ -69,6 +69,40 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
     auto cmd = commandMapper.resolve(SubMode::Edit, EventType::Down, ctx);
     if (cmd != WriteCommand::SelectAt) return;
 
+    if (barModeFlag)
+    {
+        int trackIdx = resolveTrackIdx();
+        if (trackIdx < 0) return;
+
+        double qn = snapQN(p.rawProjectQN);
+        int barPitch = resolveBarPitch();
+        auto found = findNote(trackIdx, qn, barPitch);
+
+        if (found.noteIndex >= 0)
+        {
+            bool alreadySelected = isNoteSelected(found.startQN, barPitch);
+            if (!alreadySelected)
+            {
+                selection.clear();
+                selection.push_back({ trackIdx, found.startQN, barPitch, 0 });
+                recomputeOverlay();
+            }
+            dragMode = DragMode::Moving;
+            moveScreenStart = p.screenPos;
+            moveOriginQN = p.rawProjectQN;
+            moveOriginLane = 0;
+            moveAxisLock = false;
+            moveDragStarted = false;
+        }
+        else
+        {
+            selection.clear();
+            recomputeOverlay();
+            if (onStateChanged) onStateChanged();
+        }
+        return;
+    }
+
     if (p.overExistingNote)
     {
         bool drums = isDrums();
@@ -254,7 +288,7 @@ void EditController::handleContinueMove(const AuthoringPoint& p)
     moveDragStarted = true;
 
     double deltaQN = p.rawProjectQN - moveOriginQN;
-    int deltaLane = p.laneIndex - moveOriginLane;
+    int deltaLane = barModeFlag ? 0 : (p.laneIndex - moveOriginLane);
 
     if (moveAxisLock)
     {
@@ -286,9 +320,9 @@ void EditController::handleCommitMove(const AuthoringPoint& p)
     if (selection.empty()) return;
 
     double deltaQN = p.rawProjectQN - moveOriginQN;
-    int deltaLane = p.laneIndex - moveOriginLane;
+    int deltaLane = barModeFlag ? 0 : (p.laneIndex - moveOriginLane);
 
-    if (moveAxisLock)
+    if (!barModeFlag && moveAxisLock)
     {
         if (std::abs(deltaQN) > std::abs(deltaLane * 0.5))
             deltaLane = 0;
