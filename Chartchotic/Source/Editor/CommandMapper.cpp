@@ -15,6 +15,16 @@ CommandMapper::CommandMapper()
         { SubMode::Draw, EventType::Down, MouseButton::Right, ModifierFlags::None, WriteCommand::BeginErase },
         { SubMode::Draw, EventType::Drag, MouseButton::Right, ModifierFlags::None, WriteCommand::ContinueErase },
         { SubMode::Draw, EventType::Up,   MouseButton::Right, ModifierFlags::None, WriteCommand::EndErase },
+        // Edit mode — left click/drag: select, marquee, or move
+        { SubMode::Edit, EventType::Down, MouseButton::Left,  ModifierFlags::None, WriteCommand::SelectAt },
+        { SubMode::Edit, EventType::Drag, MouseButton::Left,  ModifierFlags::None, WriteCommand::ContinueMarquee },
+        { SubMode::Edit, EventType::Up,   MouseButton::Left,  ModifierFlags::None, WriteCommand::CommitMarquee },
+        // Alt+Left: axis-locked move
+        { SubMode::Edit, EventType::Down, MouseButton::Left,  ModifierFlags::Alt,  WriteCommand::SelectAt },
+        { SubMode::Edit, EventType::Drag, MouseButton::Left,  ModifierFlags::Alt,  WriteCommand::ContinueMove },
+        { SubMode::Edit, EventType::Up,   MouseButton::Left,  ModifierFlags::Alt,  WriteCommand::CommitMove },
+        // Double-click
+        { SubMode::Edit, EventType::DoubleClick, MouseButton::Left, ModifierFlags::None, WriteCommand::DoubleClick },
     };
 
     keyBindings = {
@@ -24,6 +34,9 @@ CommandMapper::CommandMapper()
         { 'T', true,  WriteCommand::CycleTuplet },
         { '[', true,  WriteCommand::StepDown },
         { ']', true,  WriteCommand::StepUp },
+        { juce::KeyPress::deleteKey,    true, WriteCommand::DeleteSelection },
+        { juce::KeyPress::backspaceKey, true, WriteCommand::DeleteSelection },
+        { juce::KeyPress::escapeKey,    true, WriteCommand::DeselectAll },
     };
 }
 

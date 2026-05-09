@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <cmath>
 #include <vector>
 #include <JuceHeader.h>
@@ -28,6 +27,14 @@ struct AuthoringContext
     bool rightButton = false;
 };
 
+struct SelectedNote
+{
+    int    trackIdx = -1;
+    double startQN  = 0.0;
+    int    pitch    = -1;
+    int    lane     = -1;
+};
+
 struct OverlayState
 {
     struct PreviewNote
@@ -52,19 +59,29 @@ struct OverlayState
     bool                     eraseSweepVisible = false;
     std::vector<PreviewNote> eraseSweepTargets;
 
-    // Selection
-    std::vector<PreviewNote> selectedNotes;
+    // Selection (edit mode)
+    std::vector<SelectedNote> selectedNotes;
+    bool selectionBoundsVisible = false;
+    struct SelectionBounds {
+        int    minLane = 0;
+        int    maxLane = 0;
+        double minQN  = 0.0;
+        double maxQN  = 0.0;
+    } selectionBounds;
 
     // Move drag preview
     bool                     moveDragVisible = false;
     std::vector<PreviewNote> movePreviewNotes;
 
-    // Marquee selection
-    bool                              marqueeVisible = false;
-    std::array<juce::Point<float>, 4> marqueeQuad{};
+    // Marquee selection (edit mode) — highway-space coordinates
+    bool   marqueeVisible = false;
+    int    marqueeLaneStart = 0;
+    int    marqueeLaneEnd   = 0;
+    double marqueeQNStart   = 0.0;
+    double marqueeQNEnd     = 0.0;
 };
 
-enum class EventType { Down, Drag, Up };
+enum class EventType { Down, Drag, Up, DoubleClick };
 
 enum class MouseButton { None, Left, Right, Middle };
 
@@ -83,7 +100,7 @@ inline bool operator&(ModifierFlags a, ModifierFlags b) {
 
 enum class WriteCommand {
     None,
-    // Mouse commands
+    // Draw-mode mouse commands
     BeginSustain,
     UpdateSustain,
     CommitSustain,
@@ -93,6 +110,15 @@ enum class WriteCommand {
     BeginErase,
     ContinueErase,
     EndErase,
+    // Edit-mode mouse commands
+    SelectAt,
+    BeginMarquee,
+    ContinueMarquee,
+    CommitMarquee,
+    BeginMove,
+    ContinueMove,
+    CommitMove,
+    DoubleClick,
     // Key commands
     ToggleWriteMode,
     ToggleSubMode,
@@ -100,6 +126,8 @@ enum class WriteCommand {
     CycleTuplet,
     StepDown,
     StepUp,
+    DeleteSelection,
+    DeselectAll,
 };
 
 enum class SubMode { Draw, Edit };

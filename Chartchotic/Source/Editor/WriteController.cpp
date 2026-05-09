@@ -1,4 +1,5 @@
 #include "WriteController.h"
+#include "AuthoringUtils.h"
 #include "../Midi/InstrumentSession.h"
 #include "../Midi/Utils/InstrumentMapper.h"
 #include "../Midi/Utils/MidiConstants.h"
@@ -58,9 +59,7 @@ void WriteController::loadPersistedState()
 
 double WriteController::snapQN(double rawQN) const
 {
-    return snapEnabled()
-        ? snapToStep(rawQN, currentStepDivision, currentTuplet)
-        : rawQN;
+    return ::snapQN(rawQN, currentStepDivision, currentTuplet, snapEnabledFlag);
 }
 
 bool WriteController::canWrite(const AuthoringPoint& p) const

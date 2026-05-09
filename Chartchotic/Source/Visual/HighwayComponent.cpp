@@ -613,6 +613,14 @@ void HighwayComponent::mouseUp(const juce::MouseEvent& e)
     onPointerUp(p, ctx);
 }
 
+void HighwayComponent::mouseDoubleClick(const juce::MouseEvent& e)
+{
+    if (!onPointerDoubleClick) return;
+    AuthoringPoint p; AuthoringContext ctx;
+    buildAuthoringPayload(e, p, ctx);
+    onPointerDoubleClick(p, ctx);
+}
+
 void HighwayComponent::onInstrumentChanged()
 {
     setActivePart(getPartFromState(state));
