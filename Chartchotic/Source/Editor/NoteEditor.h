@@ -18,6 +18,10 @@ public:
     bool truncateNote(int trackIdx, double noteStartQN, int pitch);
     bool extendNote  (int trackIdx, double startQN, double endQN, int pitch);
     MidiWriter::NoteInfo findNote(int trackIdx, double qn, int pitch);
+    bool moveNote(int trackIdx, double oldStartQN, int oldPitch,
+                  double newStartQN, double newEndQN, int newPitch);
+    std::vector<MidiWriter::NoteInfo> findNotesInRange(int trackIdx, double startQN,
+                                                        double endQN, int pitch);
 
     bool chainExtendNotes(int trackIdx, double startQN, double endQN, int pitch);
 

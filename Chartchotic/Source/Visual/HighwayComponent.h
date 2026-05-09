@@ -58,7 +58,8 @@ public:
     void mouseMove (const juce::MouseEvent& e) override;
     void mouseDown (const juce::MouseEvent& e) override;
     void mouseDrag (const juce::MouseEvent& e) override;
-    void mouseUp   (const juce::MouseEvent& e) override;
+    void mouseUp          (const juce::MouseEvent& e) override;
+    void mouseDoubleClick (const juce::MouseEvent& e) override;
 
     // Authoring dispatch hooks. Wired by PluginEditor; null when unset.
     using PointerCallback = std::function<void(const AuthoringPoint&, const AuthoringContext&)>;
@@ -68,6 +69,7 @@ public:
     void setOnPointerUp    (PointerCallback cb) { onPointerUp     = std::move(cb); }
     void setOnPointerExit  (std::function<void()> cb) { onPointerExit   = std::move(cb); }
     void setOnPointerCancel(std::function<void()> cb) { onPointerCancel = std::move(cb); }
+    void setOnPointerDoubleClick(PointerCallback cb) { onPointerDoubleClick = std::move(cb); }
 
     // Coordinate-domain conversion at the dispatch boundary (M0-G design rule).
     // Takes a "seconds offset from cursor" (the timeFromCursor returned by HitTestMapper)
@@ -158,6 +160,7 @@ private:
     PointerCallback onPointerUp;
     std::function<void()> onPointerExit;
     std::function<void()> onPointerCancel;
+    PointerCallback onPointerDoubleClick;
     std::function<double(double)> secondsToProjectQN;
     std::function<double(double)> projectQNToSeconds;
     OverlayStateGetter            overlayStateGetter;
