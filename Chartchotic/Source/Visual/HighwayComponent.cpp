@@ -123,7 +123,7 @@ void HighwayComponent::paint(juce::Graphics& g)
     if (overlayStateGetter)
     {
         const auto& ov = overlayStateGetter();
-        if (ov.ghostVisible && ov.ghostLane >= 1 && projectQNToSeconds)
+        if (ov.ghostVisible && ov.ghostLane >= 0 && projectQNToSeconds)
         {
             double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
             if (std::abs(windowSpan) > 1e-9)
