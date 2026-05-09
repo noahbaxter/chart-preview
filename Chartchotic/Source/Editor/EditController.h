@@ -88,5 +88,9 @@ private:
     bool   moveAxisLock    = false;
     bool   moveDragStarted = false;
 
+    bool   doubleClickConsumed = false;
+    bool   pendingSelect = false;
+    AuthoringPoint pendingSelectPoint;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(EditController)
 };

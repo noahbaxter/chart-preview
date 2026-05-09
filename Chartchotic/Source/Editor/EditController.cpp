@@ -83,38 +83,44 @@ void EditController::onPointerMove(const AuthoringPoint&, const AuthoringContext
 void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
     if (!canEdit(p)) return;
+    doubleClickConsumed = false;
 
     auto cmd = commandMapper.resolve(SubMode::Edit, EventType::Down, ctx);
     if (cmd != WriteCommand::SelectAt) return;
 
-    handleSelectAt(p);
+    if (p.overExistingNote)
+    {
+        bool drums = isDrumLike(currentActivePart);
+        int clickPitch = resolvePitch(p.laneIndex, drums);
 
-    bool drums = isDrumLike(currentActivePart);
-    int clickPitch = resolvePitch(p.laneIndex, drums);
-    if (p.overExistingNote && isNoteSelected(p.hitNoteStartQN, clickPitch))
-    {
-        dragMode = DragMode::Moving;
-        moveScreenStart = p.screenPos;
-        moveOriginQN = p.rawProjectQN;
-        moveOriginLane = p.laneIndex;
-        moveAxisLock = ctx.mods.isAltDown();
-        moveDragStarted = false;
+        if (isNoteSelected(p.hitNoteStartQN, clickPitch))
+        {
+            dragMode = DragMode::Moving;
+            moveScreenStart = p.screenPos;
+            moveOriginQN = p.rawProjectQN;
+            moveOriginLane = p.laneIndex;
+            moveAxisLock = ctx.mods.isAltDown();
+            moveDragStarted = false;
+        }
+        else
+        {
+            pendingSelect = true;
+            pendingSelectPoint = p;
+            dragMode = DragMode::Moving;
+            moveScreenStart = p.screenPos;
+            moveOriginQN = p.rawProjectQN;
+            moveOriginLane = p.laneIndex;
+            moveAxisLock = ctx.mods.isAltDown();
+            moveDragStarted = false;
+        }
     }
-    else if (!p.overExistingNote)
+    else
     {
+        handleSelectAt(p);
         dragMode = DragMode::Marquee;
         marqueeScreenStart = p.screenPos;
         marqueeLaneStart = p.laneIndex;
         marqueeQNStart = p.rawProjectQN;
-    }
-    else
-    {
-        dragMode = DragMode::Moving;
-        moveScreenStart = p.screenPos;
-        moveOriginQN = p.rawProjectQN;
-        moveOriginLane = p.laneIndex;
-        moveAxisLock = ctx.mods.isAltDown();
-        moveDragStarted = false;
     }
 }
 
@@ -143,6 +149,19 @@ void EditController::onPointerUp(const AuthoringPoint& p, const AuthoringContext
     else if (dragMode == DragMode::Moving && moveDragStarted)
         handleCommitMove(p);
 
+    if (pendingSelect && !doubleClickConsumed)
+    {
+        auto pt = pendingSelectPoint;
+        pendingSelect = false;
+        juce::Timer::callAfterDelay(
+            juce::MouseEvent::getDoubleClickTimeout(),
+            [this, pt]() {
+                if (doubleClickConsumed) return;
+                handleSelectAt(pt);
+                if (onStateChanged) onStateChanged();
+            });
+    }
+
     dragMode = DragMode::Idle;
     overlayState.marqueeVisible = false;
     overlayState.moveDragVisible = false;
@@ -153,6 +172,8 @@ void EditController::onPointerUp(const AuthoringPoint& p, const AuthoringContext
 void EditController::onPointerDoubleClick(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
     if (!canEdit(p)) return;
+    doubleClickConsumed = true;
+    pendingSelect = false;
     auto cmd = commandMapper.resolve(SubMode::Edit, EventType::DoubleClick, ctx);
     if (cmd == WriteCommand::DoubleClick)
         handleDoubleClick(p);
@@ -336,7 +357,13 @@ void EditController::handleDoubleClick(const AuthoringPoint& p)
     {
         double qn = snap(p.rawProjectQN);
         int pitch = resolvePitch(p.laneIndex, drums);
-        noteEditor.createNote(trackIdx, qn, pitch);
+        auto existing = noteEditor.findNote(trackIdx, qn, pitch);
+        if (existing.noteIndex >= 0)
+            noteEditor.eraseNoteAt(trackIdx, qn, pitch, drums, p.laneIndex, currentActiveSkill);
+        else
+        {
+            noteEditor.createNote(trackIdx, qn, pitch);
+        }
     }
 
     recomputeOverlay();

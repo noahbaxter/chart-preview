@@ -583,7 +583,7 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
 
     if (outPoint.onHighway && secondsToProjectQN)
     {
-        constexpr float kHeadHitPixels = 20.0f;
+        constexpr float kHeadHitPixels = 32.0f;
         double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
         double timeTol = (windowSpan > 0.0 && renderHeight > 0)
             ? kHeadHitPixels * windowSpan / (double)renderHeight
