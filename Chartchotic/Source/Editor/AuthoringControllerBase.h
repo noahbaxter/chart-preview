@@ -63,7 +63,16 @@ protected:
     // never touch OptimisticPatchBuffer directly.
     bool createNote(int trackIdx, double qn, int pitch, int lane)
     {
-        if (!noteEditor.createNote(trackIdx, qn, pitch)) return false;
+        if (findNote(trackIdx, qn, pitch).noteIndex >= 0)
+        {
+            DBG("createNote: duplicate at QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
+            return false;
+        }
+        if (!noteEditor.createNote(trackIdx, qn, pitch))
+        {
+            DBG("createNote: noteEditor rejected QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
+            return false;
+        }
         patchAdd(lane, qn);
         return true;
     }
@@ -120,7 +129,16 @@ protected:
     {
         int pitch = resolveBarPitch();
         if (pitch < 0) return false;
-        if (!noteEditor.createNote(trackIdx, qn, pitch)) return false;
+        if (findNote(trackIdx, qn, pitch).noteIndex >= 0)
+        {
+            DBG("createBarNote: duplicate at QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
+            return false;
+        }
+        if (!noteEditor.createNote(trackIdx, qn, pitch))
+        {
+            DBG("createBarNote: noteEditor rejected QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
+            return false;
+        }
         patchAdd(0, qn);
         return true;
     }
