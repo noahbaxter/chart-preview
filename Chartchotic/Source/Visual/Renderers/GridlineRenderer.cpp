@@ -18,6 +18,24 @@
 using namespace PositionConstants;
 using namespace Render;
 
+static int gridlineSubdivLevel(Gridline type, double beatInMeasure)
+{
+    if (type == Gridline::BEAT) return 0;
+    if (type == Gridline::HALF_BEAT) return 1;
+
+    double frac = beatInMeasure - std::floor(beatInMeasure + 1e-9);
+    if (frac < 1e-9) frac = 0.0;
+
+    for (int level = 1; level <= 5; level++)
+    {
+        double divisor = 1.0 / (1 << level);
+        double mod = std::fmod(frac + 1e-9, divisor);
+        if (mod < 2e-9 || std::abs(mod - divisor) < 2e-9)
+            return level;
+    }
+    return 6;
+}
+
 GridlineRenderer::GridlineRenderer(juce::ValueTree& state, AssetManager& assetManager)
     : state(state), assetManager(assetManager)
 {
@@ -47,6 +65,46 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
                        : strikeWidth;
 
     double windowTimeSpan = windowEndTime - windowStartTime;
+
+    // ------------------------------------------------------------------
+    // LOD budget: classify visible gridlines by subdivision level, then
+    // fill a fixed budget from coarsest (BEAT) to finest (1/64, tuplet),
+    // front-to-back within each level. MEASURE is exempt (always renders).
+    // ------------------------------------------------------------------
+    static constexpr int NUM_SUBDIV_LEVELS = 7;
+
+    struct BudgetEntry { size_t idx; float normPos; };
+    std::array<std::vector<BudgetEntry>, NUM_SUBDIV_LEVELS> buckets;
+
+    for (size_t i = 0; i < gridlines.size(); i++)
+    {
+        const auto& gl = gridlines[i];
+        if (gl.type == Gridline::MEASURE) continue;
+
+        float normPos = (float)((gl.time - windowStartTime) / windowTimeSpan) + gridlinePosOffset;
+        if (normPos < HIGHWAY_POS_START || normPos > farFadeEnd) continue;
+
+        int level = gridlineSubdivLevel(gl.type, gl.beatInMeasure);
+        level = juce::jlimit(0, NUM_SUBDIV_LEVELS - 1, level);
+        buckets[level].push_back({i, normPos});
+    }
+
+    for (auto& bucket : buckets)
+        std::sort(bucket.begin(), bucket.end(),
+                  [](const BudgetEntry& a, const BudgetEntry& b) { return a.normPos < b.normPos; });
+
+    std::vector<bool> shouldRender(gridlines.size(), false);
+    int budget = MAX_HIGHWAY_GRIDLINES;
+    for (int level = 0; level < NUM_SUBDIV_LEVELS && budget > 0; level++)
+    {
+        int levelCount = (int)buckets[level].size();
+        if (levelCount > budget) break;
+        for (const auto& entry : buckets[level])
+        {
+            shouldRender[entry.idx] = true;
+            budget--;
+        }
+    }
 
     // ------------------------------------------------------------------
     // Pre-pass: build the label set with priority-based density filtering.
@@ -91,6 +149,7 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
         for (size_t i = 0; i < gridlines.size(); ++i)
         {
             const auto& gl = gridlines[i];
+            if (gl.type != Gridline::MEASURE && !shouldRender[i]) continue;
             if (gl.measureNumber < 0) continue;
 
             int prio;
@@ -173,20 +232,18 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
         }
     }
 
-    for (const auto& gridline : gridlines)
+    for (size_t i = 0; i < gridlines.size(); i++)
     {
-        double gridlineTime = gridline.time;
+        const auto& gridline = gridlines[i];
         Gridline gridlineType = gridline.type;
 
-        float normalizedPosition = (float)((gridlineTime - windowStartTime) / windowTimeSpan) + gridlinePosOffset;
+        if (gridlineType != Gridline::MEASURE && !shouldRender[i])
+            continue;
+
+        float normalizedPosition = (float)((gridline.time - windowStartTime) / windowTimeSpan) + gridlinePosOffset;
 
         if (normalizedPosition < HIGHWAY_POS_START || normalizedPosition > farFadeEnd)
             continue;
-
-        // No renderer-side type filter in write mode — the generator already
-        // decides which MEASURE/BEAT/HALF_BEAT lines emit (HALF_BEAT and BEAT
-        // are filtered to step-grid alignment in the generator). All four
-        // types render here at their per-type write-mode opacity.
 
         juce::Image* markerImage = assetManager.getGridlineImage(gridlineType);
         if (markerImage == nullptr)
@@ -208,17 +265,13 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
                 case Gridline::MEASURE:    baseOpacity = MEASURE_OPACITY;   break;
                 case Gridline::BEAT:       baseOpacity = BEAT_OPACITY;      break;
                 case Gridline::HALF_BEAT:  baseOpacity = HALF_BEAT_OPACITY; break;
-                case Gridline::STEP:       baseOpacity = HALF_BEAT_OPACITY; break; // unreachable: not emitted when writeMode off
+                case Gridline::STEP:       baseOpacity = HALF_BEAT_OPACITY; break;
             }
         }
         float fadeOpacity = PositionMath::bemaniMode
                           ? 1.0f
                           : calculateFarFade(normalizedPosition, farFadeEnd, farFadeLen, farFadeCurve);
 
-        // In write mode, MEASURE / BEAT are structural anchors — fading them
-        // with distance lets dense STEP grids visually drown them at typical
-        // viewing positions. Keep anchors at full per-type opacity; only the
-        // STEP subgrid fades with depth.
         if (writeMode && (gridlineType == Gridline::MEASURE || gridlineType == Gridline::BEAT))
             fadeOpacity = 1.0f;
 
