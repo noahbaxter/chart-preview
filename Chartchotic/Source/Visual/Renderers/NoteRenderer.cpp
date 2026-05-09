@@ -163,6 +163,40 @@ void NoteRenderer::renderGhost(DrawCallMap& drawCallMap, int lane, float positio
         Render::drawFrame(frame, ctx.anchor, ctx.frameScale, drawCallMap);
 }
 
+void NoteRenderer::renderSelectionTint(DrawCallMap& drawCallMap, int lane, float position)
+{
+    auto ctx = buildFrameContext(position);
+    GemWrapper dummy;
+    dummy.gem = Gem::NOTE;
+
+    Render::Frame frame;
+    appendGemSprites(lane, dummy, position, 0.0, ctx, frame, nullptr, 1.0f);
+
+    for (const auto& s : frame.sprites)
+    {
+        if (s.image == nullptr) continue;
+
+        float cx = ctx.anchor.x + s.offsetX * ctx.frameScale.x;
+        float cy = ctx.anchor.y + s.offsetY * ctx.frameScale.y;
+        float w  = s.width  * ctx.frameScale.x;
+        float h  = s.height * ctx.frameScale.y;
+        juce::Rectangle<float> rect(cx - w * 0.5f, cy - h * 0.5f, w, h);
+
+        int col = juce::jlimit(0, MAX_DRAW_COLUMNS - 1, s.drawColumn);
+        const juce::Image* img = s.image;
+        drawCallMap[(int)DrawOrder::OVERLAY][col].push_back([img, rect](juce::Graphics& g) {
+            auto transform = juce::AffineTransform::scale(
+                rect.getWidth()  / (float)img->getWidth(),
+                rect.getHeight() / (float)img->getHeight())
+                .translated(rect.getX(), rect.getY());
+            juce::Graphics::ScopedSaveState save(g);
+            g.reduceClipRegion(*img, transform);
+            g.setColour(juce::Colour(180, 220, 255).withAlpha(0.55f));
+            g.fillAll();
+        });
+    }
+}
+
 void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, double frameTime)
 {
     auto ctx = buildFrameContext(position);
