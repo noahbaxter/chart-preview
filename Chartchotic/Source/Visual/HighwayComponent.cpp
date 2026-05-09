@@ -141,6 +141,23 @@ void HighwayComponent::paint(juce::Graphics& g)
         }
     }
 
+    // Populate selection highlights for edit mode.
+    sceneRenderer.selectionHighlights.clear();
+    if (overlayStateGetter && projectQNToSeconds)
+    {
+        const auto& ov = overlayStateGetter();
+        double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
+        if (!ov.selectedNotes.empty() && std::abs(windowSpan) > 1e-9)
+        {
+            for (const auto& sn : ov.selectedNotes)
+            {
+                double sec = projectQNToSeconds(sn.startQN);
+                float pos = (float)((sec - frameData.windowStartTime) / windowSpan);
+                sceneRenderer.selectionHighlights.push_back({ sn.lane, pos });
+            }
+        }
+    }
+
     // Inject sustain drag preview into a local copy of the sustain window.
     auto sustainWindow = frameData.sustainWindow;
     if (overlayStateGetter && projectQNToSeconds)
@@ -165,6 +182,60 @@ void HighwayComponent::paint(juce::Graphics& g)
                         frameData.trackWindow, sustainWindow, frameData.gridlines,
                         frameData.flipRegions, frameData.eventMarkers,
                         frameData.windowStartTime, frameData.windowEndTime, frameData.isPlaying);
+
+    // Edit-mode overlays (marquee, selection highlight)
+    if (overlayStateGetter && projectQNToSeconds)
+    {
+        const auto& ov = overlayStateGetter();
+        double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
+        bool isDrums = isDrumLike(activePart);
+        float posEnd = sceneRenderer.farFadeEnd;
+
+        auto qnToPos = [&](double qn) -> float {
+            double sec = projectQNToSeconds(qn);
+            return (windowSpan > 1e-9)
+                ? (float)((sec - frameData.windowStartTime) / windowSpan)
+                : 0.0f;
+        };
+
+        auto laneEdges = [&](int lane, float pos) -> PositionConstants::LaneCorners {
+            int laneCount = isDrums ? 5 : 6;
+            int clampedLane = juce::jlimit(0, laneCount - 1, lane);
+            const auto& coords = isDrums
+                ? PositionConstants::drumBezierLaneCoords[clampedLane]
+                : PositionConstants::guitarBezierLaneCoords[clampedLane];
+            return PositionMath::getColumnPosition(isDrums, pos, (uint)w, (uint)h,
+                PositionConstants::HIGHWAY_POS_START, posEnd,
+                coords, 1.0f, PositionConstants::FRETBOARD_SCALE);
+        };
+
+        // Marquee rectangle
+        if (ov.marqueeVisible)
+        {
+            float posTop = qnToPos(ov.marqueeQNEnd);
+            float posBot = qnToPos(ov.marqueeQNStart);
+            int laneMin = ov.marqueeLaneStart;
+            int laneMax = ov.marqueeLaneEnd;
+
+            auto topLeft  = laneEdges(laneMin, posTop);
+            auto topRight = laneEdges(laneMax, posTop);
+            auto botLeft  = laneEdges(laneMin, posBot);
+            auto botRight = laneEdges(laneMax, posBot);
+
+            juce::Path marquee;
+            marquee.startNewSubPath(topLeft.leftX, topLeft.centerY);
+            marquee.lineTo(topRight.rightX, topRight.centerY);
+            marquee.lineTo(botRight.rightX, botRight.centerY);
+            marquee.lineTo(botLeft.leftX, botLeft.centerY);
+            marquee.closeSubPath();
+
+            g.setColour(juce::Colour(100, 180, 255).withAlpha(0.15f));
+            g.fillPath(marquee);
+            g.setColour(juce::Colour(100, 180, 255).withAlpha(0.5f));
+            g.strokePath(marquee, juce::PathStrokeType(1.5f));
+        }
+
+    }
 
     // Bemani sidebar masks — drawn after notes/sustains to clip overflow.
     // Must cover the full component height. In Bemani mode overflow=0 so h=totalH.

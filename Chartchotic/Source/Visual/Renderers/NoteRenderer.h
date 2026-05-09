@@ -70,6 +70,8 @@ public:
     void renderGhost(DrawCallMap& drawCallMap, int lane, float position,
                      juce::Image* image, float opacity);
 
+    void renderSelectionTint(DrawCallMap& drawCallMap, int lane, float position);
+
 private:
     juce::ValueTree& state;
     AssetManager& assetManager;
