@@ -49,6 +49,13 @@ constexpr float WRITE_BEAT_OPACITY      = 0.9f;   // baked-in 0.50 -> ~0.45 effe
 constexpr float WRITE_HALF_BEAT_OPACITY = 0.35f;  // hidden in write mode (kept for completeness)
 constexpr float WRITE_STEP_OPACITY      = 0.25f;  // baked-in 0.50 -> ~0.13 effective (faded with depth)
 
+// Maximum non-MEASURE gridlines rendered per frame. Budget is filled
+// by subdivision priority (coarsest first) front-to-back, so zooming
+// out naturally drops finer divisions. This is a ceiling — fewer render
+// when fewer exist.
+constexpr int MAX_HIGHWAY_GRIDLINES = 150;
+
+
 // Side-of-highway protrusions: flat white tabs at write-mode MEASURE/BEAT
 // gridlines, sticking horizontally outward from each highway edge. STEP
 // gets no protrusion. The protrusion is THE structural anchor indicator —
