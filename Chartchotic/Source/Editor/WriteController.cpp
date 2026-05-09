@@ -402,11 +402,17 @@ void WriteController::handleBeginErase(const AuthoringPoint& p, int trackIdx,
     eraseDragActive   = true;
     eraseDragTrackIdx = trackIdx;
     eraseRect.begin(p.rawProjectQN, p.laneIndex);
-    eraseClickedNoteQN = p.overExistingNote ? p.hitNoteStartQN : -1.0;
+    eraseClickedNoteQN = (p.overExistingNote && !p.hitSustainBody) ? p.hitNoteStartQN : -1.0;
+    eraseClickedSustainQN   = (p.overExistingNote && p.hitSustainBody) ? p.hitNoteStartQN : -1.0;
+    eraseClickedSustainLane = (p.overExistingNote && p.hitSustainBody) ? p.laneIndex : -1;
 
     overlayState.marqueeVisible = true;
     overlayState.marqueeErase   = true;
     overlayState.marqueeRect    = eraseRect;
+    overlayState.eraseClickedNoteQN     = eraseClickedNoteQN;
+    overlayState.eraseClickedLane       = eraseClickedNoteQN >= 0.0 ? p.laneIndex : -1;
+    overlayState.eraseClickedSustainQN  = eraseClickedSustainQN;
+    overlayState.eraseClickedSustainLane = eraseClickedSustainLane;
     if (onStateChanged) onStateChanged();
 }
 
@@ -426,13 +432,13 @@ void WriteController::handleEndErase()
 {
     bool drums = isDrums();
     beginBatch("Chartchotic: Erase notes");
-    for (int lane = eraseRect.laneLo; lane <= eraseRect.laneHi; ++lane)
+    for (const auto& cn : classifyNotesInRect(eraseDragTrackIdx, eraseRect))
     {
-        int pitch = resolveActivePitch(lane);
-        if (pitch < 0) continue;
-        auto notes = findNotesInRange(eraseDragTrackIdx, eraseRect.qnLo, eraseRect.qnHi, pitch);
-        for (const auto& note : notes)
-            eraseNote(eraseDragTrackIdx, note.startQN, pitch, drums, lane, currentActiveSkill);
+        if (cn.sustainOnly)
+            truncateNote(eraseDragTrackIdx, cn.note.startQN, cn.note.pitch);
+        else
+            eraseNote(eraseDragTrackIdx, cn.note.startQN, cn.note.pitch,
+                      drums, cn.lane, currentActiveSkill);
     }
     if (eraseClickedNoteQN >= 0.0)
     {
@@ -440,6 +446,12 @@ void WriteController::handleEndErase()
         if (pitch >= 0)
             eraseNote(eraseDragTrackIdx, eraseClickedNoteQN, pitch, drums,
                       eraseRect.startLane, currentActiveSkill);
+    }
+    if (eraseClickedSustainQN >= 0.0)
+    {
+        int pitch = resolveActivePitch(eraseClickedSustainLane);
+        if (pitch >= 0)
+            truncateNote(eraseDragTrackIdx, eraseClickedSustainQN, pitch);
     }
     endBatch();
 

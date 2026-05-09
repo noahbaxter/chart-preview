@@ -8,6 +8,7 @@
 #include "../UI/ControlConstants.h"
 #include "../Midi/InstrumentSession.h"
 #include "../Midi/Utils/InstrumentMapper.h"
+#include "../Midi/Utils/MidiConstants.h"
 
 class AuthoringControllerBase
 {
@@ -121,6 +122,40 @@ protected:
     std::vector<MidiWriter::NoteInfo> findNotesInRange(int trackIdx, double startQN, double endQN, int pitch)
     {
         return noteEditor.findNotesInRange(trackIdx, startQN, endQN, pitch);
+    }
+
+    struct ClassifiedNote
+    {
+        MidiWriter::NoteInfo note;
+        int  lane = -1;
+        bool sustainOnly = false;
+    };
+
+    std::vector<ClassifiedNote> classifyNotesInRect(int trackIdx, const MarqueeRect& rect)
+    {
+        std::vector<ClassifiedNote> result;
+        for (int lane = rect.laneLo; lane <= rect.laneHi; ++lane)
+        {
+            int pitch = resolveActivePitch(lane);
+            if (pitch < 0) continue;
+            auto notes = findNotesInRange(trackIdx,
+                                          std::max(0.0, rect.qnLo - 32.0),
+                                          rect.qnHi, pitch);
+            for (const auto& n : notes)
+            {
+                bool headIn = n.startQN >= rect.qnLo - 0.001
+                           && n.startQN <= rect.qnHi + 0.001;
+                bool hasSustain = (n.endQN - n.startQN) >= double(MIDI_MIN_SUSTAIN_LENGTH);
+                bool bodyOverlaps = hasSustain
+                                 && n.endQN > rect.qnLo + 0.001
+                                 && n.startQN < rect.qnLo - 0.001;
+                if (headIn)
+                    result.push_back({ n, lane, false });
+                else if (bodyOverlaps)
+                    result.push_back({ n, lane, true });
+            }
+        }
+        return result;
     }
 
     int resolveBarPitch() const

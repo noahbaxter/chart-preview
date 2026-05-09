@@ -11,6 +11,7 @@
 
 #include "NoteRenderer.h"
 #include "../Utils/RenderTypeConfig.h"
+#include "../../Editor/AuthoringTypes.h"
 
 using namespace PositionConstants;
 using namespace Render;
@@ -186,23 +187,18 @@ void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, 
 
             if (selected)
             {
-                static const juce::Colour kSelTint = juce::Colour(180, 220, 255).withAlpha((uint8)140);
                 for (int s = spriteStart; s < (int)composite.sprites.size(); ++s)
-                    composite.sprites[s].tint = kSelTint;
+                    composite.sprites[s].tint = AuthoringColours::selectTint;
             }
-
-            if (!selected)
+            else
             {
                 bool erasing = false;
                 for (const auto& et : eraseTargets)
                     if (et.lane == gemColumn && std::abs(et.time - frameTime) < 0.002)
                     { erasing = true; break; }
                 if (erasing)
-                {
-                    static const juce::Colour kEraseTint = juce::Colour(255, 80, 80).withAlpha((uint8)160);
                     for (int s = spriteStart; s < (int)composite.sprites.size(); ++s)
-                        composite.sprites[s].tint = kEraseTint;
-                }
+                        composite.sprites[s].tint = AuthoringColours::eraseTint;
             }
         }
     }

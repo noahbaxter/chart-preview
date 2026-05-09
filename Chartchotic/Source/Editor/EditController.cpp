@@ -125,8 +125,15 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
         else
         {
             int trackIdx = resolveTrackIdx();
+            bool sustainOnly = p.hitSustainBody;
+            if (sustainOnly)
+            {
+                auto info = findNote(trackIdx, p.hitNoteStartQN, clickPitch);
+                if (info.noteIndex < 0 || (info.endQN - info.startQN) < double(MIDI_MIN_SUSTAIN_LENGTH))
+                    sustainOnly = false;
+            }
             selection.clear();
-            selection.push_back({ trackIdx, p.hitNoteStartQN, clickPitch, p.laneIndex });
+            selection.push_back({ trackIdx, p.hitNoteStartQN, clickPitch, p.laneIndex, sustainOnly });
             recomputeOverlay();
 
             pendingSelect = true;
@@ -241,8 +248,15 @@ void EditController::handleSelectAt(const AuthoringPoint& p)
         if (isNoteSelected(p.hitNoteStartQN, pitch))
             return;
 
+        bool sustainOnly = p.hitSustainBody;
+        if (sustainOnly)
+        {
+            auto info = findNote(trackIdx, p.hitNoteStartQN, pitch);
+            if (info.noteIndex < 0 || (info.endQN - info.startQN) < double(MIDI_MIN_SUSTAIN_LENGTH))
+                sustainOnly = false;
+        }
         selection.clear();
-        selection.push_back({ trackIdx, p.hitNoteStartQN, pitch, lane });
+        selection.push_back({ trackIdx, p.hitNoteStartQN, pitch, lane, sustainOnly });
     }
     else
     {
@@ -269,13 +283,8 @@ void EditController::handleCommitMarquee(const AuthoringPoint& p)
     marqueeRect.update(p.rawProjectQN, p.laneIndex, barModeFlag, isDrums());
 
     selection.clear();
-    for (int lane = marqueeRect.laneLo; lane <= marqueeRect.laneHi; ++lane)
-    {
-        int pitch = resolveActivePitch(lane);
-        auto notes = findNotesInRange(trackIdx, marqueeRect.qnLo, marqueeRect.qnHi, pitch);
-        for (const auto& note : notes)
-            selection.push_back({ trackIdx, note.startQN, note.pitch, lane });
-    }
+    for (const auto& cn : classifyNotesInRect(trackIdx, marqueeRect))
+        selection.push_back({ trackIdx, cn.note.startQN, cn.note.pitch, cn.lane, cn.sustainOnly });
 
     recomputeOverlay();
     if (onStateChanged) onStateChanged();
@@ -410,7 +419,12 @@ void EditController::handleDeleteSelection()
 
     beginBatch("Chartchotic: Delete notes");
     for (const auto& n : selection)
-        eraseNote(n.trackIdx, n.startQN, n.pitch, isDrums(), n.lane, currentActiveSkill);
+    {
+        if (n.sustainOnly)
+            truncateNote(n.trackIdx, n.startQN, n.pitch);
+        else
+            eraseNote(n.trackIdx, n.startQN, n.pitch, isDrums(), n.lane, currentActiveSkill);
+    }
     endBatch();
 
     selection.clear();

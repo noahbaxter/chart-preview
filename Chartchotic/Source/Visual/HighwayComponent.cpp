@@ -147,6 +147,7 @@ void HighwayComponent::paint(juce::Graphics& g)
     // Move preview ghosts are rendered separately at destination positions.
     sceneRenderer.getSelectedGems().clear();
     sceneRenderer.getEraseTargets().clear();
+    sceneRenderer.getTintedSustains().clear();
     sceneRenderer.movePreviewGhosts.clear();
     if (overlayStateGetter && projectQNToSeconds)
     {
@@ -206,7 +207,10 @@ void HighwayComponent::paint(juce::Graphics& g)
                 for (const auto& sn : ov.selectedNotes)
                 {
                     double sec = projectQNToSeconds(sn.startQN);
-                    sceneRenderer.getSelectedGems().push_back({ sn.lane, sec });
+                    if (!sn.sustainOnly)
+                        sceneRenderer.getSelectedGems().push_back({ sn.lane, sec });
+                    sceneRenderer.getTintedSustains().push_back(
+                        { sn.lane, sec, sec + 9999.0, AuthoringColours::selectTint });
                 }
             }
 
@@ -217,6 +221,8 @@ void HighwayComponent::paint(juce::Graphics& g)
                 auto& targets = ov.marqueeErase
                     ? sceneRenderer.getEraseTargets()
                     : sceneRenderer.getSelectedGems();
+                double secLo = projectQNToSeconds(mr.qnLo);
+                double secHi = projectQNToSeconds(mr.qnHi);
                 for (const auto& [noteTime, frame] : frameData.trackWindow)
                 {
                     double qn = secondsToProjectQN(noteTime);
@@ -226,6 +232,31 @@ void HighwayComponent::paint(juce::Graphics& g)
                             && frame[lane].gem != Gem::NONE)
                             targets.push_back({ lane, noteTime });
                 }
+                auto sustainCol = ov.marqueeErase
+                    ? AuthoringColours::eraseTint : AuthoringColours::selectTint;
+                for (const auto& s : frameData.sustainWindow)
+                {
+                    int lane = (int)s.gemColumn;
+                    if (lane < mr.laneLo || lane > mr.laneHi) continue;
+                    if (s.startTime > secHi + 0.002 || s.endTime < secLo - 0.002) continue;
+                    sceneRenderer.getTintedSustains().push_back(
+                        { lane, secLo, secHi, sustainCol });
+                }
+            }
+
+            // Tint the specific clicked note/sustain (may be outside the rect bounds)
+            if (ov.marqueeErase && ov.eraseClickedNoteQN >= 0.0 && ov.eraseClickedLane >= 0)
+            {
+                double sec = projectQNToSeconds(ov.eraseClickedNoteQN);
+                sceneRenderer.getEraseTargets().push_back({ ov.eraseClickedLane, sec });
+                sceneRenderer.getTintedSustains().push_back(
+                    { ov.eraseClickedLane, sec, sec + 9999.0, AuthoringColours::eraseTint });
+            }
+            if (ov.marqueeErase && ov.eraseClickedSustainQN >= 0.0 && ov.eraseClickedSustainLane >= 0)
+            {
+                double sec = projectQNToSeconds(ov.eraseClickedSustainQN);
+                sceneRenderer.getTintedSustains().push_back(
+                    { ov.eraseClickedSustainLane, sec, sec + 9999.0, AuthoringColours::eraseTint });
             }
         }
     }

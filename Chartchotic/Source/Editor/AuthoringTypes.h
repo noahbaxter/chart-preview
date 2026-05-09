@@ -8,6 +8,12 @@
 // Authoring types shared between HighwayComponent (event dispatcher),
 // WriteController (state owner), and GridlineGenerator (step grid).
 
+namespace AuthoringColours
+{
+    static const juce::Colour selectTint = juce::Colour(180, 220, 255).withAlpha((uint8)140);
+    static const juce::Colour eraseTint  = juce::Colour(255, 80, 80).withAlpha((uint8)160);
+}
+
 struct AuthoringPoint
 {
     juce::Point<float> screenPos;
@@ -29,10 +35,11 @@ struct AuthoringContext
 
 struct SelectedNote
 {
-    int    trackIdx = -1;
-    double startQN  = 0.0;
-    int    pitch    = -1;
-    int    lane     = -1;
+    int    trackIdx    = -1;
+    double startQN     = 0.0;
+    int    pitch       = -1;
+    int    lane        = -1;
+    bool   sustainOnly = false;
 };
 
 struct MarqueeRect
@@ -114,6 +121,10 @@ struct OverlayState
     bool        marqueeVisible = false;
     bool        marqueeErase   = false;
     MarqueeRect marqueeRect;
+    double      eraseClickedNoteQN    = -1.0;
+    int         eraseClickedLane     = -1;
+    double      eraseClickedSustainQN = -1.0;
+    int         eraseClickedSustainLane = -1;
 
     bool   barMode = false;
 };
