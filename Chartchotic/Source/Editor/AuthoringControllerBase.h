@@ -21,6 +21,8 @@ public:
     void setStepDivision(int d)                    { currentStepDivision = d; }
     void setTuplet(int t)                          { currentTuplet = t; }
     void setSnapEnabled(bool s)                    { snapEnabledFlag = s; }
+    void setBarMode(bool b)                        { barModeFlag = b; overlayState.barMode = b; }
+    void setKick2x(bool k)                         { kick2xEnabled = k; }
 
     Part       activePart()    const { return currentActivePart; }
     SkillLevel activeSkill()   const { return currentActiveSkill; }
@@ -107,6 +109,31 @@ protected:
         return noteEditor.findNotesInRange(trackIdx, startQN, endQN, pitch);
     }
 
+    int resolveBarPitch() const
+    {
+        return isDrums()
+            ? InstrumentMapper::columnToDrumPitch(currentActiveSkill, 0, kick2xEnabled)
+            : InstrumentMapper::columnToGuitarPitch(currentActiveSkill, 0);
+    }
+
+    bool createBarNote(int trackIdx, double qn)
+    {
+        int pitch = resolveBarPitch();
+        if (pitch < 0) return false;
+        if (!noteEditor.createNote(trackIdx, qn, pitch)) return false;
+        patchAdd(0, qn);
+        return true;
+    }
+
+    bool eraseBarNote(int trackIdx, double qn)
+    {
+        int pitch = resolveBarPitch();
+        if (pitch < 0) return false;
+        if (!noteEditor.eraseNoteAt(trackIdx, qn, pitch, isDrums(), 0, currentActiveSkill)) return false;
+        patchRemove(0, qn);
+        return true;
+    }
+
     bool noteEditorAvailable() const { return noteEditor.isAvailable(); }
     void beginBatch(const char* desc) { noteEditor.beginBatch(desc); }
     void endBatch() { noteEditor.endBatch(); }
@@ -118,6 +145,8 @@ protected:
     int                     currentStepDivision  = 8;
     int                     currentTuplet        = 0;
     bool                    snapEnabledFlag      = true;
+    bool                    barModeFlag          = false;
+    bool                    kick2xEnabled        = false;
     CommandMapper           commandMapper;
     OverlayState            overlayState;
 

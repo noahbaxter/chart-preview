@@ -35,6 +35,7 @@ public:
 
     bool showGems = true;
     bool showBars = true;
+    float barModeDim = 1.0f;
     float noteCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
     float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE;
     PositionConstants::ElementScale gemScale = PositionConstants::GEM_SCALE;

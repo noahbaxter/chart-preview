@@ -37,6 +37,7 @@ CommandMapper::CommandMapper()
         { juce::KeyPress::deleteKey,    true, WriteCommand::DeleteSelection },
         { juce::KeyPress::backspaceKey, true, WriteCommand::DeleteSelection },
         { juce::KeyPress::escapeKey,    true, WriteCommand::DeselectAll },
+        { 'B', true,  WriteCommand::ToggleBarMode },
     };
 }
 

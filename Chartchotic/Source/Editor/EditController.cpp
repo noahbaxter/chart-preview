@@ -4,7 +4,7 @@ bool EditController::canEdit(const AuthoringPoint& p) const
 {
     return !isPlaying()
         && p.onHighway
-        && p.laneIndex >= 0
+        && (barModeFlag || p.laneIndex >= 0)
         && noteEditorAvailable()
         && instrumentSession != nullptr;
 }
@@ -333,7 +333,17 @@ void EditController::handleDoubleClick(const AuthoringPoint& p)
 
     bool drums = isDrums();
 
-    if (p.overExistingNote)
+    if (barModeFlag)
+    {
+        double qn = snapQN(p.rawProjectQN);
+        int barPitch = resolveBarPitch();
+        auto existing = findNote(trackIdx, qn, barPitch);
+        if (existing.noteIndex >= 0)
+            eraseBarNote(trackIdx, existing.startQN);
+        else
+            createBarNote(trackIdx, qn);
+    }
+    else if (p.overExistingNote)
     {
         int pitch = resolvePitch(p.laneIndex, drums);
         eraseNote(trackIdx, p.hitNoteStartQN, pitch, drums, p.laneIndex, currentActiveSkill);

@@ -79,6 +79,8 @@ struct OverlayState
     int    marqueeLaneEnd   = 0;
     double marqueeQNStart   = 0.0;
     double marqueeQNEnd     = 0.0;
+
+    bool   barMode = false;
 };
 
 //==============================================================================
@@ -162,9 +164,12 @@ enum class WriteCommand {
     StepUp,
     DeleteSelection,
     DeselectAll,
+    ToggleBarMode,
 };
 
 enum class SubMode { Draw, Edit };
+enum class DrumDynamic { Normal, Ghost, Accent };
+enum class GuitarForce { None, Hopo, Strum, Tap };
 
 //==============================================================================
 // Step grid math — shared between WriteController (click snap) and

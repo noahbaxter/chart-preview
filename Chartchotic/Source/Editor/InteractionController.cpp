@@ -1,7 +1,7 @@
 #include "InteractionController.h"
 
-InteractionController::InteractionController(juce::ValueTree& state)
-    : writeController(state)
+InteractionController::InteractionController(juce::ValueTree& st)
+    : state(st), writeController(st)
 {
     writeController.onStateChanged = [this]() {
         if (writeController.subMode() == SubMode::Draw)
@@ -40,6 +40,13 @@ void InteractionController::onFrame(MidiWriter* writer, InstrumentSession* sessi
     editController.setTuplet(writeController.tuplet());
     editController.setSnapEnabled(writeController.snapEnabled());
     editController.setPatchBuffer(&patchBuffer);
+
+    writeController.setBarMode(barModeFlag);
+    editController.setBarMode(barModeFlag);
+
+    bool kick2x = (bool)state.getProperty("kick2x", false);
+    writeController.setKick2x(kick2x);
+    editController.setKick2x(kick2x);
 
     patchBuffer.tick();
     bool playing = playingState ? *playingState : false;
@@ -90,12 +97,26 @@ void InteractionController::onPointerCancel()
 
 bool InteractionController::onKeyPress(const juce::KeyPress& key)
 {
+    auto cmd = writeController.resolveKeyCommand(key);
+    if (cmd == WriteCommand::ToggleBarMode)
+    {
+        setBarMode(!barModeFlag);
+        return true;
+    }
+
     if (isEditActive())
     {
         if (editController.onKeyPress(key))
             return true;
     }
     return writeController.onKeyPress(key);
+}
+
+void InteractionController::setBarMode(bool v)
+{
+    if (barModeFlag == v) return;
+    barModeFlag = v;
+    if (onStateChanged) onStateChanged();
 }
 
 const OverlayState& InteractionController::getOverlayState() const

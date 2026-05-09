@@ -237,6 +237,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
 
     float imageAspect = (float)glyphImage->getWidth() / (float)glyphImage->getHeight();
     float opacity = (opacityOverride >= 0.0f) ? opacityOverride : calculateOpacity(position);
+    if (!barNote && barModeDim < 1.0f) opacity *= barModeDim;
 
     if (PositionMath::bemaniMode)
     {

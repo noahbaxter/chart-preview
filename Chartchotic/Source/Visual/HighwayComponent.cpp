@@ -286,6 +286,9 @@ void HighwayComponent::paint(juce::Graphics& g)
         }
     }
 
+    bool barModeActive = overlayStateGetter && overlayStateGetter().barMode;
+    sceneRenderer.setBarModeDim(barModeActive ? 0.3f : 1.0f);
+
     sceneRenderer.paint(g, w, h,
                         trackWindow, sustainWindow, frameData.gridlines,
                         frameData.flipRegions, frameData.eventMarkers,

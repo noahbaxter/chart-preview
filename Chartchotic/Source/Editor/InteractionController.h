@@ -27,6 +27,7 @@ public:
     int        stepDivision()    const { return writeController.stepDivision(); }
     int        tuplet()          const { return writeController.tuplet(); }
     bool       snapEnabled()     const { return writeController.snapEnabled(); }
+    bool       barMode()         const { return barModeFlag; }
     Part       activePart()      const { return writeController.activePart(); }
     SkillLevel activeSkill()     const { return writeController.activeSkill(); }
 
@@ -36,6 +37,7 @@ public:
     void setTuplet(int t)           { writeController.setTuplet(t); }
     void cycleTuplet()              { writeController.cycleTuplet(); }
     void setSnapEnabled(bool v)     { writeController.setSnapEnabled(v); }
+    void setBarMode(bool v);
     void setActivePart(Part p)       { writeController.setActivePart(p); editController.setActivePart(p); }
     void setActiveSkill(SkillLevel s){ writeController.setActiveSkill(s); editController.setActiveSkill(s); }
 
@@ -47,6 +49,8 @@ public:
 private:
     bool isEditActive() const;
 
+    juce::ValueTree& state;
+    bool barModeFlag = false;
     OptimisticPatchBuffer patchBuffer;
     WriteController writeController;
     EditController  editController;

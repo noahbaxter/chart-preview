@@ -79,6 +79,7 @@ class SceneRenderer
         std::vector<GhostPosition> movePreviewGhosts;
 
         std::vector<NoteRenderer::SelectedGem>& getSelectedGems() { return noteRenderer.selectedGems; }
+        void setBarModeDim(float dim) { noteRenderer.barModeDim = dim; }
 
 #ifdef DEBUG
         bool collectPhaseTiming = true;

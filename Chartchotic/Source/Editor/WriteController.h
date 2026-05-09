@@ -25,6 +25,10 @@ public:
     void onPointerExit   ()    { lastPointValid = false; recomputeGhost(); }
     void onPointerCancel ()    {}
     bool onKeyPress      (const juce::KeyPress& key);
+    WriteCommand resolveKeyCommand(const juce::KeyPress& key) const
+    {
+        return commandMapper.resolveKey(writeModeActive(), key);
+    }
     void onFrameTick     (double currentProjectQN, bool isPlaying);
 
 private:

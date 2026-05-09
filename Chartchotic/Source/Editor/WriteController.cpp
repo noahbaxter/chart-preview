@@ -59,7 +59,7 @@ bool WriteController::canWrite(const AuthoringPoint& p) const
         && !isPlaying()
         && currentSubMode == SubMode::Draw
         && p.onHighway
-        && p.laneIndex >= 0
+        && (barModeFlag || p.laneIndex >= 0)
         && noteEditorAvailable()
         && instrumentSession != nullptr;
 }
@@ -185,6 +185,27 @@ void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringCont
 
     int trackIdx = resolveTrackIdx();
     if (trackIdx < 0) return;
+
+    if (barModeFlag)
+    {
+        auto cmd = commandMapper.resolve(currentSubMode, EventType::Down, ctx);
+        double qn = snapQN(p.rawProjectQN);
+        if (cmd == WriteCommand::BeginSustain)
+        {
+            int barPitch = resolveBarPitch();
+            auto existing = findNote(trackIdx, qn, barPitch);
+            if (existing.noteIndex >= 0)
+                eraseBarNote(trackIdx, existing.startQN);
+            else
+                createBarNote(trackIdx, qn);
+        }
+        else if (cmd == WriteCommand::BeginErase)
+        {
+            if (p.overExistingNote)
+                eraseBarNote(trackIdx, snapQN(p.hitNoteStartQN));
+        }
+        return;
+    }
 
     bool drums = isDrums();
     int  pitch = resolvePitch(p.laneIndex, drums);
