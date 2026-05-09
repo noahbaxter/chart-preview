@@ -32,6 +32,7 @@ namespace Render
         int   drawOrder = 0;      // DrawOrder enum value (cast to int)
         int   drawColumn = 0;     // DrawCallMap column bucket (0..MAX_DRAW_COLUMNS-1)
         float opacity   = 1.0f;
+        juce::Colour tint {};     // if alpha > 0, clip to image shape and fill
     };
 
     /** A rhythm-game object: a list of sprites sharing one anchor + scale.

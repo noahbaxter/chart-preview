@@ -141,19 +141,33 @@ void HighwayComponent::paint(juce::Graphics& g)
         }
     }
 
-    // Populate selection highlights for edit mode.
-    sceneRenderer.selectionHighlights.clear();
+    // Populate selection state for edit mode.
+    // Selection tint is applied inline during gem rendering (via NoteRenderer::selectedGems).
+    // Move preview ghosts are rendered separately at destination positions.
+    sceneRenderer.getSelectedGems().clear();
+    sceneRenderer.movePreviewGhosts.clear();
     if (overlayStateGetter && projectQNToSeconds)
     {
         const auto& ov = overlayStateGetter();
         double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
-        if (!ov.selectedNotes.empty() && std::abs(windowSpan) > 1e-9)
+        if (std::abs(windowSpan) > 1e-9)
         {
-            for (const auto& sn : ov.selectedNotes)
+            if (ov.moveDragVisible)
             {
-                double sec = projectQNToSeconds(sn.startQN);
-                float pos = (float)((sec - frameData.windowStartTime) / windowSpan);
-                sceneRenderer.selectionHighlights.push_back({ sn.lane, pos });
+                for (const auto& pn : ov.movePreviewNotes)
+                {
+                    double sec = projectQNToSeconds(pn.startQN);
+                    float pos = (float)((sec - frameData.windowStartTime) / windowSpan);
+                    sceneRenderer.movePreviewGhosts.push_back({ pn.lane, pos });
+                }
+            }
+            else if (!ov.selectedNotes.empty())
+            {
+                for (const auto& sn : ov.selectedNotes)
+                {
+                    double sec = projectQNToSeconds(sn.startQN);
+                    sceneRenderer.getSelectedGems().push_back({ sn.lane, sec });
+                }
             }
         }
     }

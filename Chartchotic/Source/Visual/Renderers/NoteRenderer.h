@@ -70,7 +70,8 @@ public:
     void renderGhost(DrawCallMap& drawCallMap, int lane, float position,
                      juce::Image* image, float opacity);
 
-    void renderSelectionTint(DrawCallMap& drawCallMap, int lane, float position);
+    struct SelectedGem { int lane; double time; };
+    std::vector<SelectedGem> selectedGems;
 
 private:
     juce::ValueTree& state;
