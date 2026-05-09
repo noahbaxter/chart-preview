@@ -119,6 +119,12 @@ void EditController::onPointerDrag(const AuthoringPoint& p, const AuthoringConte
 
     if (dist < kDragThresholdPx) return;
 
+    if (pendingSelect)
+    {
+        pendingSelect = false;
+        doubleClickConsumed = true;
+    }
+
     if (dragMode == DragMode::Marquee)
         handleContinueMarquee(p);
     else if (dragMode == DragMode::Moving)
