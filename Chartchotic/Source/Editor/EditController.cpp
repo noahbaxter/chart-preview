@@ -85,6 +85,11 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
         }
         else
         {
+            int trackIdx = resolveTrackIdx();
+            selection.clear();
+            selection.push_back({ trackIdx, p.hitNoteStartQN, clickPitch, p.laneIndex });
+            recomputeOverlay();
+
             pendingSelect = true;
             pendingSelectPoint = p;
             dragMode = DragMode::Moving;
@@ -290,6 +295,7 @@ void EditController::handleCommitMove(const AuthoringPoint& p)
 
     beginBatch("Chartchotic: Move notes");
 
+    std::vector<SelectedNote> moved;
     for (const auto& n : selection)
     {
         int newLane = juce::jlimit(0, maxLane, n.lane + deltaLane);
@@ -305,10 +311,11 @@ void EditController::handleCommitMove(const AuthoringPoint& p)
 
         moveNote(n.trackIdx, n.startQN, n.pitch, n.lane,
                  newStartQN, newEndQN, newPitch, newLane);
+        moved.push_back({ n.trackIdx, newStartQN, newPitch, newLane });
     }
 
     endBatch();
-    selection.clear();
+    selection = std::move(moved);
     recomputeOverlay();
     if (onStateChanged) onStateChanged();
 }
