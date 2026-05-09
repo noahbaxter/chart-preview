@@ -77,7 +77,17 @@ public:
             return;
 #endif
 
-        // Get the current playhead position
+        if (event.mods.isCommandDown())
+        {
+            double wheelDelta = wheel.deltaY != 0.0 ? wheel.deltaY : wheel.deltaX;
+            int noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT;
+            noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, noteSpeed + (wheelDelta > 0 ? 1 : -1));
+            state.setProperty("noteSpeed", noteSpeed, nullptr);
+            toolbar.getNoteSpeedStepper().setDisplayValue(noteSpeed);
+            if (toolbar.onNoteSpeedChanged) toolbar.onNoteSpeedChanged(noteSpeed);
+            return;
+        }
+
         if (auto* playHead = audioProcessor.getPlayHead())
         {
             auto positionInfo = playHead->getPosition();
@@ -86,7 +96,6 @@ public:
                 double currentPPQ = positionInfo->getPpqPosition().orFallback(0.0);
                 double jumpBeats = event.mods.isShiftDown() ? SCROLL_SHIFT_BEATS : SCROLL_NORMAL_BEATS;
 
-                // Note: when shift is held, deltaY might be in deltaX instead
                 double wheelDelta = wheel.deltaY != 0.0 ? wheel.deltaY : wheel.deltaX;
                 double jumpAmount = wheelDelta * jumpBeats;
 
