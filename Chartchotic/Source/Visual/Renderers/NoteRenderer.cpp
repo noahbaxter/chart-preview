@@ -146,11 +146,11 @@ NoteRenderer::SharedFrameContext NoteRenderer::buildFrameContext(float position)
 }
 
 void NoteRenderer::renderGhost(DrawCallMap& drawCallMap, int lane, float position,
-                                juce::Image* image, float opacity)
+                                juce::Image* image, float opacity, Gem gem)
 {
     auto ctx = buildFrameContext(position);
     GemWrapper dummy;
-    dummy.gem = Gem::NOTE;
+    dummy.gem = gem;
 
     Render::Frame frame;
     // image=nullptr → appendGemSprites falls through to the real colored asset

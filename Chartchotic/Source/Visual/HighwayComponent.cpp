@@ -11,6 +11,7 @@
 #include "TrackImageCache.h"
 #include "../UI/ControlConstants.h"
 #include "../UI/Theme.h"
+#include "../Midi/Utils/MidiConstants.h"
 
 HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetManager)
     : state(state),
@@ -154,11 +155,49 @@ void HighwayComponent::paint(juce::Graphics& g)
         {
             if (ov.moveDragVisible)
             {
+                bool autoHopo = !isDrumLike(activePart)
+                    && state.hasProperty("autoHopo") && (bool)state["autoHopo"];
+                PPQ hopoThreshold = PPQ(0.0);
+                if (autoHopo)
+                {
+                    int ti = (int)state.getProperty("hopoThresh", HOPO_THRESHOLD_DEFAULT);
+                    switch (ti)
+                    {
+                        case 0:  hopoThreshold = MIDI_HOPO_SIXTEENTH;  break;
+                        case 2:  hopoThreshold = MIDI_HOPO_EIGHTH;     break;
+                        default: hopoThreshold = MIDI_HOPO_CLASSIC_170; break;
+                    }
+                    hopoThreshold += MIDI_HOPO_THRESHOLD_BUFFER;
+                }
+
                 for (const auto& pn : ov.movePreviewNotes)
                 {
                     double sec = projectQNToSeconds(pn.startQN);
                     float pos = (float)((sec - frameData.windowStartTime) / windowSpan);
-                    sceneRenderer.movePreviewGhosts.push_back({ pn.lane, pos });
+
+                    Gem gem = Gem::NOTE;
+                    if (autoHopo && secondsToProjectQN)
+                    {
+                        double qn = secondsToProjectQN(sec);
+                        auto it = frameData.trackWindow.lower_bound(sec);
+                        if (it != frameData.trackWindow.begin())
+                        {
+                            --it;
+                            double prevQN = secondsToProjectQN(it->first);
+                            PPQ dist = PPQ(qn - prevQN);
+
+                            int prevLaneCount = 0, prevLane = -1;
+                            for (int l = 0; l < (int)it->second.size(); ++l)
+                                if (it->second[l].gem != Gem::NONE) { ++prevLaneCount; prevLane = l; }
+
+                            bool prevChord = (prevLaneCount >= 2);
+                            if (dist > PPQ(0.0) && dist <= hopoThreshold
+                                && !prevChord && pn.lane != prevLane)
+                                gem = Gem::HOPO_GHOST;
+                        }
+                    }
+
+                    sceneRenderer.movePreviewGhosts.push_back({ pn.lane, pos, gem });
                 }
             }
             else if (!ov.selectedNotes.empty())

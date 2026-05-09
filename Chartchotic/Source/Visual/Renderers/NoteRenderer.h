@@ -68,7 +68,7 @@ public:
     // Render a single ghost sprite through the same pipeline as real notes.
     // Call AFTER populate() so internal state (curvature, scales, etc.) is configured.
     void renderGhost(DrawCallMap& drawCallMap, int lane, float position,
-                     juce::Image* image, float opacity);
+                     juce::Image* image, float opacity, Gem gem = Gem::NOTE);
 
     struct SelectedGem { int lane; double time; };
     std::vector<SelectedGem> selectedGems;

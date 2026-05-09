@@ -74,6 +74,7 @@ class SceneRenderer
         {
             int   lane = -1;
             float position = 0.0f;
+            Gem   gem = Gem::NOTE;
         };
         std::vector<GhostPosition> movePreviewGhosts;
 

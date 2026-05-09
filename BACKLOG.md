@@ -99,6 +99,7 @@ Do between features or when touching related code.
 - **Tooltips for all controls** — Extend InfoTooltip to every control that isn't immediately obvious. Centralize tooltip strings (header with static constexpr or similar) so they're easy to maintain and translate.
 - **Auto-detect stale CMake build dirs** — `build.sh`, `build-reapertest.sh`, and `scripts/test.sh` should compare `CMAKE_HOME_DIRECTORY` from any existing `CMakeCache.txt` against the current script dir and auto-`rm -rf` the build tree on mismatch before configuring. Bit us twice in one session after moving the repo from `plugins/` to `charting/`.
 - **`build-reapertest.sh` should force-quit REAPER** — The "Quitting REAPER..." step hangs when REAPER has unsaved-changes or end-of-session prompts open, forcing a manual Ctrl-C. Replace graceful quit with `kill -9` / `killall -9 REAPER` so the relaunch step always makes progress.
+- **Move-drag HOPO cascade** — Move preview resolves auto-HOPO for the dragged note, but doesn't recalculate HOPO state of surrounding notes affected by the move. Full fix would require running TrackResolver on the preview state. Low priority — real pipeline recalculates on commit (~1 frame delay).
 
 ### Rendering — perspective limits (do not iterate further without a true-3D plan)
 
