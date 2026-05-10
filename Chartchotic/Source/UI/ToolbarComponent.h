@@ -148,6 +148,7 @@ public:
     // Expose for scroll-wheel handling in editor
     ValueStepper& getNoteSpeedStepper() { return noteSpeedStepper; }
     ChartchoticLogo& getLogo() { return logo; }
+    WriteSubToolbar& getWriteSubToolbar() { return writeSubToolbar; }
 
     // Re-read write-mode state from WriteController and refresh the
     // sub-toolbar. Wired to WriteController::onStateChanged in PluginEditor.

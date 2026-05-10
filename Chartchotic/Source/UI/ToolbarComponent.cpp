@@ -95,6 +95,51 @@ void ToolbarComponent::initTopBar()
     // reflow the highway accordingly.
     writeSubToolbar.setVisible(interactionController.writeModeActive());
     addChildComponent(writeSubToolbar);
+
+    writeSubToolbar.wireCallbacks();
+
+    writeSubToolbar.onSubModeChanged = [this](SubMode mode) {
+        interactionController.setSubMode(mode);
+        if (interactionController.onStateChanged) interactionController.onStateChanged();
+    };
+
+    writeSubToolbar.onSnapChanged = [this](bool on) {
+        interactionController.setSnapEnabled(on);
+        if (interactionController.onStateChanged) interactionController.onStateChanged();
+    };
+
+    writeSubToolbar.onStepDivisionStep = [this](int delta) {
+        int current = interactionController.stepDivision();
+        static const int steps[] = {1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64};
+        int idx = 0;
+        for (int i = 0; i < 12; ++i)
+            if (steps[i] == current) { idx = i; break; }
+        idx = juce::jlimit(0, 11, idx + delta);
+        interactionController.setStepDivision(steps[idx]);
+        if (interactionController.onStateChanged) interactionController.onStateChanged();
+    };
+
+    writeSubToolbar.onTupletChanged = [this](int idx) {
+        static const int tuplets[] = {0, 3, 5, 7};
+        interactionController.setTuplet(tuplets[idx]);
+        if (interactionController.onStateChanged) interactionController.onStateChanged();
+    };
+
+    writeSubToolbar.onBarModeChanged = [this](bool on) {
+        interactionController.setBarMode(on);
+    };
+
+    writeSubToolbar.onGuitarForceChanged = [this](GuitarForce f) {
+        interactionController.setGuitarForce(f);
+    };
+
+    writeSubToolbar.onDrumDynamicChanged = [this](DrumDynamic d) {
+        interactionController.setDrumDynamic(d);
+    };
+
+    writeSubToolbar.onCymbalModeChanged = [this](bool on) {
+        interactionController.setCymbalMode(on);
+    };
 }
 
 //==============================================================================
