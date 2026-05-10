@@ -69,7 +69,8 @@ protected:
     // never touch OptimisticPatchBuffer directly.
     bool createNote(int trackIdx, double qn, int pitch, int lane)
     {
-        if (findNote(trackIdx, qn, pitch).noteIndex >= 0)
+        auto existing = findNote(trackIdx, qn, pitch);
+        if (existing.noteIndex >= 0 && std::abs(existing.startQN - qn) < 0.001)
         {
             DBG("createNote: duplicate at QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
             return false;
@@ -102,11 +103,6 @@ protected:
     bool truncateNote(int trackIdx, double qn, int pitch)
     {
         return noteEditor.truncateNote(trackIdx, qn, pitch);
-    }
-
-    bool extendNote(int trackIdx, double startQN, double endQN, int pitch)
-    {
-        return noteEditor.extendNote(trackIdx, startQN, endQN, pitch);
     }
 
     bool chainExtendNotes(int trackIdx, double startQN, double endQN, int pitch)

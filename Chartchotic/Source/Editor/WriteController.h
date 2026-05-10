@@ -57,7 +57,8 @@ private:
     double sustainDragStartQN  = 0.0;
     int    sustainDragLane     = -1;
     int    sustainDragPitch     = -1;
-    bool   sustainDragChainMode = false;
+    bool   sustainPendingClick    = false;
+    double sustainPendingClickQN  = 0.0;
 
     // Paint drag state
     bool   paintDragActive   = false;
@@ -72,7 +73,7 @@ private:
 
     bool   canWrite(const AuthoringPoint& p) const;
     void   recomputeGhost();
-    void   enterSustainDrag(int trackIdx, double startQN, int lane, int pitch, bool chainMode);
+    void   enterSustainDrag(int trackIdx, double startQN, int lane, int pitch);
     void   clearSustainDrag();
 
     void handleBeginSustain  (const AuthoringPoint& p, int trackIdx, int pitch, bool drums);

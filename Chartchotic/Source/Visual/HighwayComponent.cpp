@@ -250,13 +250,13 @@ void HighwayComponent::paint(juce::Graphics& g)
                 double sec = projectQNToSeconds(ov.eraseClickedNoteQN);
                 sceneRenderer.getEraseTargets().push_back({ ov.eraseClickedLane, sec });
                 sceneRenderer.getTintedSustains().push_back(
-                    { ov.eraseClickedLane, sec, sec + 9999.0, AuthoringColours::eraseTint });
+                    { ov.eraseClickedLane, sec, sec, AuthoringColours::eraseTint });
             }
             if (ov.marqueeErase && ov.eraseClickedSustainQN >= 0.0 && ov.eraseClickedSustainLane >= 0)
             {
                 double sec = projectQNToSeconds(ov.eraseClickedSustainQN);
                 sceneRenderer.getTintedSustains().push_back(
-                    { ov.eraseClickedSustainLane, sec, sec + 9999.0, AuthoringColours::eraseTint });
+                    { ov.eraseClickedSustainLane, sec, sec, AuthoringColours::eraseTint });
             }
         }
     }

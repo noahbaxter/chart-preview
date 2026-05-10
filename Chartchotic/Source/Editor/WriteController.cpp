@@ -92,21 +92,19 @@ void WriteController::recomputeGhost()
     overlayState.ghostQN      = qn;
 }
 
-void WriteController::enterSustainDrag(int trackIdx, double startQN, int lane, int pitch, bool chainMode)
+void WriteController::enterSustainDrag(int trackIdx, double startQN, int lane, int pitch)
 {
     sustainDragActive    = true;
     sustainDragTrackIdx  = trackIdx;
     sustainDragStartQN   = startQN;
     sustainDragLane      = lane;
     sustainDragPitch     = pitch;
-    sustainDragChainMode = chainMode;
 }
 
 void WriteController::clearSustainDrag()
 {
     sustainDragActive    = false;
     sustainDragTrackIdx  = -1;
-    sustainDragChainMode = false;
     overlayState.drawPreviewVisible = false;
     overlayState.drawPreviewNotes.clear();
 }
@@ -206,6 +204,7 @@ void WriteController::onPointerDrag(const AuthoringPoint& p,
 {
     JUCE_ASSERT_MESSAGE_THREAD;
 
+    sustainPendingClick = false;
     if (sustainDragActive)   { handleUpdateSustain(p);  return; }
     if (paintDragActive)     { handleContinuePaint(p);  return; }
     if (eraseDragActive)     { handleContinueErase(p);  return; }
@@ -214,6 +213,16 @@ void WriteController::onPointerDrag(const AuthoringPoint& p,
 void WriteController::onPointerUp(const AuthoringPoint& p,
                                   [[maybe_unused]] const AuthoringContext& ctx)
 {
+    if (sustainPendingClick)
+    {
+        sustainPendingClick = false;
+        createNote(sustainDragTrackIdx, sustainPendingClickQN,
+                   sustainDragPitch, sustainDragLane);
+        endBatch();
+        clearSustainDrag();
+        recomputeGhost();
+        return;
+    }
     if (sustainDragActive)   { handleCommitSustain(p);  return; }
     if (paintDragActive)     { handleCommitPaint();     return; }
     if (eraseDragActive)     { handleEndErase();        return; }
@@ -232,23 +241,27 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
 {
     double clickQN = snapQN(p.rawProjectQN);
     bool onExistingNote = p.overExistingNote
-        && std::abs(snapQN(p.hitNoteStartQN) - clickQN) < 0.001
-        && findNote(trackIdx, snapQN(p.hitNoteStartQN), pitch).noteIndex >= 0;
+        && findNote(trackIdx, p.hitNoteStartQN, pitch).noteIndex >= 0;
 
-    if (!drums)
-        beginBatch("Chartchotic: Sustain note");
+    if (drums)
+    {
+        if (!onExistingNote)
+            createNote(trackIdx, clickQN, pitch, p.laneIndex);
+        return;
+    }
+
+    beginBatch("Chartchotic: Sustain note");
 
     if (!onExistingNote)
     {
         createNote(trackIdx, clickQN, pitch, p.laneIndex);
-        if (drums) return;
-        enterSustainDrag(trackIdx, clickQN, p.laneIndex, pitch, false);
+        enterSustainDrag(trackIdx, clickQN, p.laneIndex, pitch);
         return;
     }
 
-    if (drums) return;
-
-    enterSustainDrag(trackIdx, p.hitNoteStartQN, p.laneIndex, pitch, true);
+    enterSustainDrag(trackIdx, p.hitNoteStartQN, p.laneIndex, pitch);
+    sustainPendingClick = true;
+    sustainPendingClickQN = clickQN;
 }
 
 void WriteController::handleUpdateSustain(const AuthoringPoint& p)
@@ -274,12 +287,7 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
     double endQN = snapQN(p.rawProjectQN);
 
     if (endQN - sustainDragStartQN >= double(MIDI_MIN_SUSTAIN_LENGTH))
-    {
-        if (sustainDragChainMode)
-            chainExtendNotes(sustainDragTrackIdx, sustainDragStartQN, endQN, sustainDragPitch);
-        else
-            extendNote(sustainDragTrackIdx, sustainDragStartQN, endQN, sustainDragPitch);
-    }
+        chainExtendNotes(sustainDragTrackIdx, sustainDragStartQN, endQN, sustainDragPitch);
 
     endBatch();
     clearSustainDrag();
@@ -457,7 +465,15 @@ void WriteController::handleEndErase()
 
     eraseDragActive   = false;
     eraseDragTrackIdx = -1;
-    overlayState.marqueeVisible = false;
+    eraseClickedNoteQN      = -1.0;
+    eraseClickedSustainQN   = -1.0;
+    eraseClickedSustainLane = -1;
+    overlayState.marqueeVisible         = false;
+    overlayState.marqueeErase           = false;
+    overlayState.eraseClickedNoteQN     = -1.0;
+    overlayState.eraseClickedLane       = -1;
+    overlayState.eraseClickedSustainQN  = -1.0;
+    overlayState.eraseClickedSustainLane = -1;
     recomputeGhost();
 }
 

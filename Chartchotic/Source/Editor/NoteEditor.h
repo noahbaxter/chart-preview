@@ -16,7 +16,6 @@ public:
     bool eraseNoteAt (int trackIdx, double rawQN, int pitch,
                       bool drums, int lane, SkillLevel skill);
     bool truncateNote(int trackIdx, double noteStartQN, int pitch);
-    bool extendNote  (int trackIdx, double startQN, double endQN, int pitch);
     MidiWriter::NoteInfo findNote(int trackIdx, double qn, int pitch);
     bool moveNote(int trackIdx, double oldStartQN, int oldPitch,
                   double newStartQN, double newEndQN, int newPitch);
@@ -24,6 +23,8 @@ public:
                                                         double endQN, int pitch);
 
     bool chainExtendNotes(int trackIdx, double startQN, double endQN, int pitch);
+
+    double resolveOverlaps(int trackIdx, double startQN, double endQN, int pitch);
 
     void beginBatch(const char* description);
     void endBatch();
