@@ -2,24 +2,140 @@
 
 #include <JuceHeader.h>
 #include "../Theme.h"
+#include "PillToggle.h"
+#include "SegmentedButtons.h"
+#include "ValueStepper.h"
 #include "../../Editor/InteractionController.h"
 
-// Read-only display strip that appears below the main toolbar while write
-// mode is active. Shows snap / division / tuplet readouts grouped as a single
-// cluster, all sourced live from InteractionController. The strip washes the active
-// mode colour (green / coral) so the mode is visible without a separate pill.
-// Pure display: keys (W/Q/[/]/S/T) are still the only way to change these.
-// Clickable controls land in a later milestone.
 class WriteSubToolbar : public juce::Component
 {
 public:
-    explicit WriteSubToolbar(InteractionController& wc) : interactionController(wc)
+    explicit WriteSubToolbar(InteractionController& ic) : interactionController(ic)
     {
-        setInterceptsMouseClicks(false, false);
+        modeButtons.setItems({"Draw", "Edit"});
+        addAndMakeVisible(modeButtons);
+
+        snapToggle.setToggleState(ic.snapEnabled(), juce::dontSendNotification);
+        addAndMakeVisible(snapToggle);
+
+        divisionStepper.setLabelRatio(0.0f);
+        addAndMakeVisible(divisionStepper);
+
+        tupletButtons.setItems({"Off", "3", "5", "7"});
+        addAndMakeVisible(tupletButtons);
+
+        barToggle.setToggleState(false, juce::dontSendNotification);
+        addAndMakeVisible(barToggle);
+
+        guitarForceButtons.setItems({"None", "HOPO", "Strum", "Tap"});
+        addChildComponent(guitarForceButtons);
+
+        drumDynamicButtons.setItems({"Normal", "Ghost", "Accent"});
+        addChildComponent(drumDynamicButtons);
+
+        cymbalToggle.setToggleState(false, juce::dontSendNotification);
+        addChildComponent(cymbalToggle);
     }
 
-    // Re-read state and repaint. Called from InteractionController::onStateChanged.
-    void refreshFromController() { repaint(); }
+    std::function<void(SubMode)> onSubModeChanged;
+    std::function<void(bool)> onSnapChanged;
+    std::function<void(int delta)> onStepDivisionStep;
+    std::function<void(int index)> onTupletChanged;
+    std::function<void(bool)> onBarModeChanged;
+    std::function<void(GuitarForce)> onGuitarForceChanged;
+    std::function<void(DrumDynamic)> onDrumDynamicChanged;
+    std::function<void(bool)> onCymbalModeChanged;
+
+    std::function<void(const juce::String&)> onHoverHelp;
+    std::function<void()> onHoverHelpClear;
+
+    void wireCallbacks()
+    {
+        modeButtons.onSelectionChanged = [this](int idx) {
+            if (onSubModeChanged)
+                onSubModeChanged(idx == 0 ? SubMode::Draw : SubMode::Edit);
+        };
+
+        snapToggle.onClick = [this]() {
+            if (onSnapChanged) onSnapChanged(snapToggle.getToggleState());
+        };
+
+        divisionStepper.onStep = [this](int delta) {
+            if (onStepDivisionStep) onStepDivisionStep(delta);
+        };
+
+        tupletButtons.onSelectionChanged = [this](int idx) {
+            if (onTupletChanged) onTupletChanged(idx);
+        };
+
+        barToggle.onClick = [this]() {
+            if (onBarModeChanged) onBarModeChanged(barToggle.getToggleState());
+        };
+
+        guitarForceButtons.onSelectionChanged = [this](int idx) {
+            static const GuitarForce forces[] = { GuitarForce::None, GuitarForce::Hopo,
+                                                   GuitarForce::Strum, GuitarForce::Tap };
+            if (onGuitarForceChanged) onGuitarForceChanged(forces[idx]);
+        };
+
+        drumDynamicButtons.onSelectionChanged = [this](int idx) {
+            static const DrumDynamic dynamics[] = { DrumDynamic::Normal, DrumDynamic::Ghost,
+                                                     DrumDynamic::Accent };
+            if (onDrumDynamicChanged) onDrumDynamicChanged(dynamics[idx]);
+        };
+
+        cymbalToggle.onClick = [this]() {
+            if (onCymbalModeChanged) onCymbalModeChanged(cymbalToggle.getToggleState());
+        };
+    }
+
+    void refreshFromController()
+    {
+        bool drums = isDrumLike(interactionController.activePart());
+
+        int modeIdx = interactionController.subMode() == SubMode::Draw ? 0 : 1;
+        modeButtons.setSelectedIndex(modeIdx);
+
+        snapToggle.setToggleState(interactionController.snapEnabled());
+
+        int div = interactionController.stepDivision();
+        divisionStepper.setDisplayValue("1/" + juce::String(div));
+
+        int tuplet = interactionController.tuplet();
+        int tupIdx = 0;
+        if (tuplet == 3) tupIdx = 1;
+        else if (tuplet == 5) tupIdx = 2;
+        else if (tuplet == 7) tupIdx = 3;
+        tupletButtons.setSelectedIndex(tupIdx);
+
+        barToggle.setToggleState(interactionController.barMode());
+
+        guitarForceButtons.setVisible(!drums);
+        drumDynamicButtons.setVisible(drums);
+        cymbalToggle.setVisible(drums);
+
+        if (drums)
+        {
+            auto dyn = interactionController.drumDynamic();
+            int dynIdx = 0;
+            if (dyn == DrumDynamic::Ghost) dynIdx = 1;
+            else if (dyn == DrumDynamic::Accent) dynIdx = 2;
+            drumDynamicButtons.setSelectedIndex(dynIdx);
+            cymbalToggle.setToggleState(interactionController.cymbalMode());
+        }
+        else
+        {
+            auto force = interactionController.guitarForce();
+            int forceIdx = 0;
+            if (force == GuitarForce::Hopo) forceIdx = 1;
+            else if (force == GuitarForce::Strum) forceIdx = 2;
+            else if (force == GuitarForce::Tap) forceIdx = 3;
+            guitarForceButtons.setSelectedIndex(forceIdx);
+        }
+
+        resized();
+        repaint();
+    }
 
     void paint(juce::Graphics& g) override
     {
@@ -27,129 +143,86 @@ public:
         const juce::Colour modeColour = drawMode
             ? juce::Colour(Theme::green)
             : juce::Colour(Theme::coral);
-        const bool snapOn = interactionController.snapEnabled();
 
-        // Whole strip washes the active mode color so you can't miss which
-        // mode you're in. Low alpha so the slot text stays legible.
         g.setColour(juce::Colour(Theme::darkBgLighter).withAlpha(0.85f));
         g.fillRect(getLocalBounds());
         g.setColour(modeColour.withAlpha(0.18f));
         g.fillRect(getLocalBounds());
 
-        // Top divider in the mode color so the seam against the main toolbar
-        // also reads the active mode at a glance.
         g.setColour(modeColour.withAlpha(0.55f));
         g.drawHorizontalLine(0, 0.0f, (float)getWidth());
+    }
 
-        const int h = getHeight();
+    void resized() override
+    {
+        int h = getHeight();
         if (h <= 0) return;
 
-        const int margin = juce::jmax(8, h / 2);
-        const int gap    = juce::jmax(6, h / 4);
+        int margin = juce::jmax(8, h / 2);
+        int gap = juce::jmax(4, h / 6);
+        int controlH = juce::jmax(1, h - juce::jmax(4, h / 5));
+        int controlY = (h - controlH) / 2;
 
-        // ---- Cluster: snap pill | division | tuplet ----
-        // Snap is the master gate (leftmost). When snap is OFF, division and
-        // tuplet fade to textDim — they're meaningless without it.
+        bool drums = isDrumLike(interactionController.activePart());
 
-        const juce::String divText  = juce::String("1/") + juce::String(interactionController.stepDivision());
-        const int          tuplet   = interactionController.tuplet();
-        const juce::String tuplText = (tuplet == 0)
-            ? juce::String("Tuplet: off")
-            : (juce::String("Tuplet: ") + juce::String(tuplet));
+        int modeW = juce::jmax(80, h * 3);
+        int snapW = juce::jmax(40, h * 2);
+        int divW = juce::jmax(55, h * 2);
+        int tupW = juce::jmax(100, h * 4);
+        int barW = juce::jmax(40, h * 2);
 
-        // Snap pill geometry — match PillToggle aesthetic (small, rounded).
-        const juce::String snapLabel = "Snap";
-        g.setFont(Theme::smallFont);
-        const int snapTextW = g.getCurrentFont().getStringWidth(snapLabel);
-        const int snapPadX  = juce::jmax(8, h / 3);
-        const int snapW     = snapTextW + snapPadX * 2;
-        const int snapH     = juce::jmax(1, h - juce::jmax(6, h / 3));
+        int modW = 0;
+        if (drums)
+            modW = juce::jmax(130, h * 5) + gap + juce::jmax(40, h * 2);
+        else
+            modW = juce::jmax(160, h * 6);
 
-        // Measure division + tuplet text at the same font.
-        const int divW  = juce::jmax(28, g.getCurrentFont().getStringWidth(divText)  + margin / 2);
-        const int tuplW = juce::jmax(60, g.getCurrentFont().getStringWidth(tuplText) + margin / 2);
+        int totalW = modeW + gap + snapW + gap + divW + gap + tupW + gap + barW + gap * 3 + modW;
+        int startX = juce::jmax(margin, (getWidth() - totalW) / 2);
+        int x = startX;
 
-        // Cluster width = snap pill + gap + division + gap + tuplet, plus
-        // a little internal padding inside the cluster background.
-        const int clusterPadX = juce::jmax(6, h / 4);
-        const int innerW      = snapW + gap + divW + gap + tuplW;
-        const int clusterW    = innerW + clusterPadX * 2;
-        const int clusterH    = juce::jmax(1, h - juce::jmax(2, h / 6));
-        const int clusterY    = (h - clusterH) / 2;
+        modeButtons.setBounds(x, controlY, modeW, controlH);
+        x += modeW + gap;
 
-        // Centre the cluster horizontally with a margin guard on each edge.
-        const int availW = juce::jmax(0, getWidth() - margin * 2);
-        const int clusterX = juce::jmax(margin, margin + (availW - clusterW) / 2);
+        snapToggle.setBounds(x, controlY, snapW, controlH);
+        x += snapW + gap;
 
-        // Cluster background — subtle so the wash isn't fighting the cluster
-        // border. Low-alpha rounded rect spanning the trio.
-        const auto clusterBounds = juce::Rectangle<float>(
-            (float)clusterX, (float)clusterY, (float)clusterW, (float)clusterH);
-        const float clusterCorner = juce::jmax(3.0f, (float)clusterH * 0.3f);
-        g.setColour(juce::Colour(Theme::darkBgLighter).withAlpha(0.3f));
-        g.fillRoundedRectangle(clusterBounds, clusterCorner);
+        divisionStepper.setBounds(x, controlY, divW, controlH);
+        x += divW + gap;
 
-        // ---- Snap pill (display-only; mirrors PillToggle aesthetic) ----
-        const int snapX = clusterX + clusterPadX;
-        const int snapY = (h - snapH) / 2;
-        auto snapBounds = juce::Rectangle<float>(
-            (float)snapX, (float)snapY, (float)snapW, (float)snapH).reduced(1.0f);
-        const float snapCorner = Theme::pillCorner;
+        tupletButtons.setBounds(x, controlY, tupW, controlH);
+        x += tupW + gap;
 
-        if (snapOn)
+        barToggle.setBounds(x, controlY, barW, controlH);
+        x += barW + gap * 3;
+
+        if (drums)
         {
-            // Filled in the active mode colour so the pill reinforces the wash.
-            g.setColour(modeColour);
-            g.fillRoundedRectangle(snapBounds, snapCorner);
-            g.setColour(juce::Colour(Theme::textWhite));
+            int dynW = juce::jmax(130, h * 5);
+            int cymW = juce::jmax(40, h * 2);
+            drumDynamicButtons.setBounds(x, controlY, dynW, controlH);
+            x += dynW + gap;
+            cymbalToggle.setBounds(x, controlY, cymW, controlH);
         }
         else
         {
-            // Outlined / dim when off — same as PillToggle's off state.
-            g.setColour(juce::Colour(Theme::textDim).withAlpha(0.5f));
-            g.drawRoundedRectangle(snapBounds, snapCorner, 1.0f);
-            g.setColour(juce::Colour(Theme::textDim));
-        }
-        g.setFont(Theme::smallFont);
-        g.drawText(snapLabel, juce::Rectangle<int>(snapX, snapY, snapW, snapH),
-                   juce::Justification::centred);
-
-        // ---- Division + tuplet readouts ----
-        // Both fade to textDim when snap is OFF (they don't apply without snap).
-        const juce::Colour divColour = snapOn
-            ? juce::Colour(Theme::textWhite)
-            : juce::Colour(Theme::textDim);
-        const juce::Colour tuplColour = snapOn
-            ? ((tuplet == 0) ? juce::Colour(Theme::textDim) : juce::Colour(Theme::yellow))
-            : juce::Colour(Theme::textDim);
-
-        int x = snapX + snapW + gap;
-        g.setColour(divColour);
-        g.drawText(divText, x, 0, divW, h, juce::Justification::centred);
-        x += divW + gap;
-
-        g.setColour(tuplColour);
-        g.drawText(tuplText, x, 0, tuplW, h, juce::Justification::centred);
-        x += tuplW + gap;
-
-        if (interactionController.barMode())
-        {
-            const juce::String barLabel = "BAR";
-            int barW = juce::jmax(32, g.getCurrentFont().getStringWidth(barLabel) + snapPadX * 2);
-            int barH = snapH;
-            int barY = (h - barH) / 2;
-            auto barBounds = juce::Rectangle<float>(
-                (float)x, (float)barY, (float)barW, (float)barH).reduced(1.0f);
-            g.setColour(juce::Colour(Theme::yellow));
-            g.fillRoundedRectangle(barBounds, Theme::pillCorner);
-            g.setColour(juce::Colour(Theme::darkBg));
-            g.setFont(Theme::smallFont);
-            g.drawText(barLabel, x, barY, barW, barH, juce::Justification::centred);
+            guitarForceButtons.setBounds(x, controlY, modW, controlH);
         }
     }
 
 private:
     InteractionController& interactionController;
+
+    SegmentedButtons modeButtons;
+    PillToggle       snapToggle     {"Snap"};
+    ValueStepper     divisionStepper{"", ""};
+    SegmentedButtons tupletButtons;
+    PillToggle       barToggle      {"BAR"};
+
+    SegmentedButtons guitarForceButtons;
+
+    SegmentedButtons drumDynamicButtons;
+    PillToggle       cymbalToggle   {"Cym"};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WriteSubToolbar)
 };
