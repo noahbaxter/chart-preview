@@ -225,6 +225,16 @@ void EditController::onPointerExit()
 
 bool EditController::onKeyPress(const juce::KeyPress& key)
 {
+    int code = key.getKeyCode();
+    if (!selection.empty())
+    {
+        double step = stepSpacingQN(currentStepDivision, currentTuplet);
+        if (code == juce::KeyPress::upKey)    { handleArrowMove(0,  step); return true; }
+        if (code == juce::KeyPress::downKey)  { handleArrowMove(0, -step); return true; }
+        if (code == juce::KeyPress::leftKey)  { handleArrowMove(-1, 0.0);  return true; }
+        if (code == juce::KeyPress::rightKey) { handleArrowMove(1,  0.0);  return true; }
+    }
+
     auto cmd = commandMapper.resolveKey(true, key);
     switch (cmd)
     {
@@ -431,6 +441,44 @@ void EditController::handleDeleteSelection()
     endBatch();
 
     selection.clear();
+    recomputeOverlay();
+    if (onStateChanged) onStateChanged();
+}
+
+void EditController::handleArrowMove(int deltaLane, double deltaQN)
+{
+    if (selection.empty()) return;
+
+    bool drums = isDrums();
+    int maxLane = drums ? 4 : 5;
+
+    for (const auto& n : selection)
+    {
+        int newLane = n.lane + deltaLane;
+        if (newLane < 0 || newLane > maxLane) return;
+        if (n.startQN + deltaQN < 0.0) return;
+    }
+
+    beginBatch("Chartchotic: Move notes");
+
+    std::vector<SelectedNote> moved;
+    for (const auto& n : selection)
+    {
+        auto found = findNote(n.trackIdx, n.startQN, n.pitch);
+        if (found.noteIndex < 0) continue;
+
+        int newLane = n.lane + deltaLane;
+        double newStartQN = n.startQN + deltaQN;
+        double duration = found.endQN - found.startQN;
+        int newPitch = resolvePitch(newLane, drums);
+
+        moveNote(n.trackIdx, n.startQN, n.pitch, n.lane,
+                 newStartQN, newStartQN + duration, newPitch, newLane);
+        moved.push_back({ n.trackIdx, newStartQN, newPitch, newLane });
+    }
+
+    endBatch();
+    selection = std::move(moved);
     recomputeOverlay();
     if (onStateChanged) onStateChanged();
 }

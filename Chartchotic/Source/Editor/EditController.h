@@ -33,6 +33,7 @@ private:
     void handleCommitMove     (const AuthoringPoint& p);
     void handleDoubleClick    (const AuthoringPoint& p);
     void handleDeleteSelection();
+    void handleArrowMove(int deltaLane, double deltaQN);
     void updateCursorLabel(const AuthoringPoint& p);
 
     // Selection
