@@ -37,6 +37,7 @@ public:
     void setTuplet(int t)           { writeController.setTuplet(t); }
     void cycleTuplet()              { writeController.cycleTuplet(); }
     void setSnapEnabled(bool v)     { writeController.setSnapEnabled(v); }
+    void clearEditSelection()  { editController.clearSelection(); }
     void setBarMode(bool v);
     void setActivePart(Part p)       { writeController.setActivePart(p); editController.setActivePart(p); }
     void setActiveSkill(SkillLevel s){ writeController.setActiveSkill(s); editController.setActiveSkill(s); }

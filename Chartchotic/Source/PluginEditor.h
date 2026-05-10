@@ -65,6 +65,9 @@ public:
             return true;
 #endif
 
+        if (forwardToReaper(key))
+            return true;
+
         return false;
     }
 
@@ -105,6 +108,34 @@ public:
                 audioProcessor.requestTimelinePositionChange(PPQ(newPPQ));
             }
         }
+    }
+
+    bool forwardToReaper(const juce::KeyPress& key)
+    {
+        auto& apis = audioProcessor.getReaperMidiProvider().getAPIs();
+        if (!apis.Main_OnCommand) return false;
+
+        int code = key.getKeyCode();
+        bool cmd = key.getModifiers().isCommandDown();
+        bool shift = key.getModifiers().isShiftDown();
+
+        // Transport
+        if (code == juce::KeyPress::spaceKey)
+            { apis.Main_OnCommand(40044, 0); return true; }
+
+        if (!cmd) return false;
+
+        // Undo / redo
+        if (code == 'Z' && !shift)
+            { apis.Main_OnCommand(40029, 0); interactionController.clearEditSelection(); return true; }
+        if (code == 'Z' && shift)
+            { apis.Main_OnCommand(40030, 0); interactionController.clearEditSelection(); return true; }
+
+        // Save
+        if (code == 'S')
+            { apis.Main_OnCommand(40026, 0); return true; }
+
+        return false;
     }
 
 private:
