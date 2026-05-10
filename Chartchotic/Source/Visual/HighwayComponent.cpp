@@ -279,6 +279,34 @@ void HighwayComponent::paint(juce::Graphics& g)
                 });
             }
         }
+
+        // Move drag: hide original sustains, show preview sustains at destination
+        if (ov.moveDragVisible)
+        {
+            constexpr double kTol = 0.002;
+            for (const auto& sn : ov.selectedNotes)
+            {
+                double sec = projectQNToSeconds(sn.startQN);
+                sustainWindow.erase(
+                    std::remove_if(sustainWindow.begin(), sustainWindow.end(),
+                        [&](const auto& s) {
+                            return s.gemColumn == (uint)sn.lane
+                                && std::abs(s.startTime - sec) < kTol;
+                        }),
+                    sustainWindow.end());
+            }
+            for (const auto& pn : ov.movePreviewNotes)
+            {
+                if (pn.endQN - pn.startQN < double(MIDI_MIN_SUSTAIN_LENGTH)) continue;
+                sustainWindow.push_back({
+                    projectQNToSeconds(pn.startQN),
+                    projectQNToSeconds(pn.endQN),
+                    static_cast<uint>(pn.lane),
+                    SustainType::SUSTAIN,
+                    GemWrapper()
+                });
+            }
+        }
     }
 
     // Apply optimistic patches — instant visual feedback before MIDI pipeline catches up.
@@ -314,6 +342,14 @@ void HighwayComponent::paint(juce::Graphics& g)
                     if (std::abs(noteTime - sec) < kMatchTol
                         && patch.lane >= 0 && patch.lane < (int)frame.size())
                         frame[patch.lane].gem = Gem::NONE;
+
+                sustainWindow.erase(
+                    std::remove_if(sustainWindow.begin(), sustainWindow.end(),
+                        [&](const auto& s) {
+                            return (int)s.gemColumn == patch.lane
+                                && std::abs(s.startTime - sec) < kMatchTol;
+                        }),
+                    sustainWindow.end());
             }
 
             for (const auto& patch : patchBuffer->getAdds())

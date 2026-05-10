@@ -316,7 +316,9 @@ void EditController::handleContinueMove(const AuthoringPoint& p)
         double newQN = snapQN(n.startQN + deltaQN);
         if (newQN < 0.0) newQN = 0.0;
         int newPitch = resolvePitch(newLane, drums);
-        overlayState.movePreviewNotes.push_back({ newLane, newQN, newQN + 0.1, newPitch });
+        auto info = findNote(n.trackIdx, n.startQN, n.pitch);
+        double duration = (info.noteIndex >= 0) ? (info.endQN - info.startQN) : 0.1;
+        overlayState.movePreviewNotes.push_back({ newLane, newQN, newQN + duration, newPitch });
     }
 
     if (onStateChanged) onStateChanged();
