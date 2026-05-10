@@ -131,14 +131,20 @@ void ToolbarComponent::initTopBar()
 
     writeSubToolbar.onGuitarForceChanged = [this](GuitarForce f) {
         interactionController.setGuitarForce(f);
+        if (interactionController.subMode() == SubMode::Edit)
+            interactionController.applyGuitarForceToSelection(f);
     };
 
     writeSubToolbar.onDrumDynamicChanged = [this](DrumDynamic d) {
         interactionController.setDrumDynamic(d);
+        if (interactionController.subMode() == SubMode::Edit)
+            interactionController.applyDrumDynamicToSelection(d);
     };
 
     writeSubToolbar.onCymbalModeChanged = [this](bool on) {
         interactionController.setCymbalMode(on);
+        if (interactionController.subMode() == SubMode::Edit)
+            interactionController.applyCymbalModeToSelection(on);
     };
 }
 

@@ -483,6 +483,81 @@ void EditController::handleArrowMove(int deltaLane, double deltaQN)
     if (onStateChanged) onStateChanged();
 }
 
+void EditController::applyDrumDynamicToSelection(DrumDynamic dynamic)
+{
+    if (selection.empty() || !noteEditorAvailable()) return;
+    int trackIdx = resolveTrackIdx();
+    if (trackIdx < 0) return;
+
+    int velocity = 100;
+    if (dynamic == DrumDynamic::Ghost) velocity = 1;
+    else if (dynamic == DrumDynamic::Accent) velocity = 127;
+
+    beginBatch("Set drum dynamic");
+    for (const auto& sel : selection)
+    {
+        if (sel.sustainOnly) continue;
+        setNoteVelocity(trackIdx, sel.startQN, sel.pitch, velocity);
+    }
+    endBatch();
+}
+
+void EditController::applyGuitarForceToSelection(GuitarForce force)
+{
+    if (selection.empty() || !noteEditorAvailable()) return;
+    int trackIdx = resolveTrackIdx();
+    if (trackIdx < 0) return;
+
+    beginBatch("Set guitar force");
+    for (const auto& sel : selection)
+    {
+        if (sel.sustainOnly) continue;
+
+        int hopoPitch = resolveGuitarForcePitchFor(GuitarForce::Hopo);
+        int strumPitch = resolveGuitarForcePitchFor(GuitarForce::Strum);
+        int tapPitch = (int)MidiPitchDefinitions::Guitar::TAP;
+
+        for (int fp : {hopoPitch, strumPitch, tapPitch})
+        {
+            if (fp < 0) continue;
+            auto existing = findNote(trackIdx, sel.startQN, fp);
+            if (existing.noteIndex >= 0)
+                eraseNote(trackIdx, sel.startQN, fp, false, sel.lane, currentActiveSkill);
+        }
+
+        if (force != GuitarForce::None)
+        {
+            GuitarForce saved = currentGuitarForce;
+            currentGuitarForce = force;
+            writeGuitarForceMarker(trackIdx, sel.startQN);
+            currentGuitarForce = saved;
+        }
+    }
+    endBatch();
+}
+
+void EditController::applyCymbalModeToSelection(bool cymbal)
+{
+    if (selection.empty() || !noteEditorAvailable()) return;
+    int trackIdx = resolveTrackIdx();
+    if (trackIdx < 0) return;
+
+    beginBatch("Set cymbal/tom");
+    for (const auto& sel : selection)
+    {
+        if (sel.sustainOnly) continue;
+        int markerPitch = resolveTomMarkerPitch(sel.lane);
+        if (markerPitch < 0) continue;
+
+        auto existing = findNote(trackIdx, sel.startQN, markerPitch);
+        if (cymbal && existing.noteIndex >= 0)
+            eraseNote(trackIdx, sel.startQN, markerPitch, true, sel.lane, currentActiveSkill);
+        else if (!cymbal && existing.noteIndex < 0)
+            createMarkerNote(trackIdx, sel.startQN, markerPitch);
+    }
+    endBatch();
+}
+
 void EditController::updateCursorLabel(const AuthoringPoint& p)
 {
     overlayState.ghostVisible = false;

@@ -214,6 +214,11 @@ protected:
         return noteEditor.createNote(trackIdx, qn, pitch);
     }
 
+    bool setNoteVelocity(int trackIdx, double qn, int pitch, int velocity)
+    {
+        return noteEditor.setNoteVelocity(trackIdx, qn, pitch, velocity);
+    }
+
     int resolveTomMarkerPitch(int lane) const
     {
         if (!isDrums()) return -1;
@@ -245,11 +250,11 @@ protected:
         }
     }
 
-    int resolveGuitarForcePitch() const
+    int resolveGuitarForcePitchFor(GuitarForce force) const
     {
         if (isDrums()) return -1;
         using Guitar = MidiPitchDefinitions::Guitar;
-        switch (currentGuitarForce)
+        switch (force)
         {
             case GuitarForce::Hopo:
                 switch (currentActiveSkill) {
@@ -273,6 +278,11 @@ protected:
                 return -1;
         }
         return -1;
+    }
+
+    int resolveGuitarForcePitch() const
+    {
+        return resolveGuitarForcePitchFor(currentGuitarForce);
     }
 
     void writeGuitarForceMarker(int trackIdx, double qn)

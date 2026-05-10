@@ -22,6 +22,8 @@ public:
     std::vector<MidiWriter::NoteInfo> findNotesInRange(int trackIdx, double startQN,
                                                         double endQN, int pitch);
 
+    bool setNoteVelocity(int trackIdx, double qn, int pitch, int velocity);
+
     bool chainExtendNotes(int trackIdx, double startQN, double endQN, int pitch);
 
     double resolveOverlaps(int trackIdx, double startQN, double endQN, int pitch);

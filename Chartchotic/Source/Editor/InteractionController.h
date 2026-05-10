@@ -49,6 +49,10 @@ public:
     void setGuitarForce(GuitarForce f){ writeController.setGuitarForce(f); editController.setGuitarForce(f); }
     void setCymbalMode(bool c)        { writeController.setCymbalMode(c);  editController.setCymbalMode(c); }
 
+    void applyDrumDynamicToSelection(DrumDynamic d) { editController.applyDrumDynamicToSelection(d); }
+    void applyGuitarForceToSelection(GuitarForce f) { editController.applyGuitarForceToSelection(f); }
+    void applyCymbalModeToSelection(bool c)         { editController.applyCymbalModeToSelection(c); }
+
     const OverlayState& getOverlayState() const;
     const OptimisticPatchBuffer& getPatchBuffer() const { return patchBuffer; }
 
