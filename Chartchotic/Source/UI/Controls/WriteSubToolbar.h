@@ -35,6 +35,15 @@ public:
 
         cymbalToggle.setToggleState(false, juce::dontSendNotification);
         addChildComponent(cymbalToggle);
+
+        hoverZones.push_back(std::make_unique<HoverHelpZone>(modeButtons,         "Switch between Draw and Edit modes \xc2\xb7 Q"));
+        hoverZones.push_back(std::make_unique<HoverHelpZone>(snapToggle,          "Toggle grid snapping \xc2\xb7 S"));
+        hoverZones.push_back(std::make_unique<HoverHelpZone>(divisionStepper,     "Step grid division \xc2\xb7 [ and ]"));
+        hoverZones.push_back(std::make_unique<HoverHelpZone>(tupletButtons,       "Set tuplet grouping \xc2\xb7 T to cycle"));
+        hoverZones.push_back(std::make_unique<HoverHelpZone>(barToggle,           "Toggle bar mode (kick/open only) \xc2\xb7 B"));
+        hoverZones.push_back(std::make_unique<HoverHelpZone>(guitarForceButtons,  "Set note force type for placed notes"));
+        hoverZones.push_back(std::make_unique<HoverHelpZone>(drumDynamicButtons,  "Set drum hit dynamic for placed notes"));
+        hoverZones.push_back(std::make_unique<HoverHelpZone>(cymbalToggle,        "Toggle cymbal/tom for yellow, blue, green lanes"));
     }
 
     std::function<void(SubMode)> onSubModeChanged;
@@ -87,6 +96,12 @@ public:
         cymbalToggle.onClick = [this]() {
             if (onCymbalModeChanged) onCymbalModeChanged(cymbalToggle.getToggleState());
         };
+
+        for (auto& hz : hoverZones)
+        {
+            hz->onHelp = &onHoverHelp;
+            hz->onClear = &onHoverHelpClear;
+        }
     }
 
     void refreshFromController()
@@ -211,6 +226,31 @@ public:
     }
 
 private:
+    struct HoverHelpZone : public juce::MouseListener
+    {
+        juce::Component& target;
+        juce::String helpText;
+        std::function<void(const juce::String&)>* onHelp = nullptr;
+        std::function<void()>* onClear = nullptr;
+
+        HoverHelpZone(juce::Component& t, const juce::String& text) : target(t), helpText(text)
+        {
+            target.addMouseListener(this, false);
+        }
+
+        ~HoverHelpZone() override { target.removeMouseListener(this); }
+
+        void mouseEnter(const juce::MouseEvent&) override
+        {
+            if (onHelp && *onHelp) (*onHelp)(helpText);
+        }
+
+        void mouseExit(const juce::MouseEvent&) override
+        {
+            if (onClear && *onClear) (*onClear)();
+        }
+    };
+
     InteractionController& interactionController;
 
     SegmentedButtons modeButtons;
@@ -223,6 +263,8 @@ private:
 
     SegmentedButtons drumDynamicButtons;
     PillToggle       cymbalToggle   {"Cym"};
+
+    std::vector<std::unique_ptr<HoverHelpZone>> hoverZones;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WriteSubToolbar)
 };

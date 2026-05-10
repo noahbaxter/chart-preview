@@ -710,6 +710,13 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         forEachHighway([](auto& hw) { hw.repaint(); });
     };
 
+    toolbar.getWriteSubToolbar().onHoverHelp = [this](const juce::String& text) {
+        footer.setHelpText(text);
+    };
+    toolbar.getWriteSubToolbar().onHoverHelpClear = [this]() {
+        footer.clearHelpText();
+    };
+
 #ifdef DEBUG
     debug.wireCallbacks(toolbar, primaryHighway(), [this]() { repaint(); });
 #endif
