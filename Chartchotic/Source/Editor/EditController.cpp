@@ -108,13 +108,17 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
         return;
     }
 
-    if (p.overExistingNote)
+    if (p.overExistingNote && !p.hitSustainBody)
     {
         bool drums = isDrums();
         int clickPitch = resolvePitch(p.laneIndex, drums);
 
         if (isNoteSelected(p.hitNoteStartQN, clickPitch))
         {
+            for (auto& n : selection)
+                if (std::abs(n.startQN - p.hitNoteStartQN) < 1e-6 && n.pitch == clickPitch)
+                    n.sustainOnly = false;
+            recomputeOverlay();
             dragMode = DragMode::Moving;
             moveScreenStart = p.screenPos;
             moveOriginQN = p.rawProjectQN;
@@ -125,15 +129,8 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
         else
         {
             int trackIdx = resolveTrackIdx();
-            bool sustainOnly = p.hitSustainBody;
-            if (sustainOnly)
-            {
-                auto info = findNote(trackIdx, p.hitNoteStartQN, clickPitch);
-                if (info.noteIndex < 0 || (info.endQN - info.startQN) < double(MIDI_MIN_SUSTAIN_LENGTH))
-                    sustainOnly = false;
-            }
             selection.clear();
-            selection.push_back({ trackIdx, p.hitNoteStartQN, clickPitch, p.laneIndex, sustainOnly });
+            selection.push_back({ trackIdx, p.hitNoteStartQN, clickPitch, p.laneIndex });
             recomputeOverlay();
 
             pendingSelect = true;
