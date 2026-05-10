@@ -209,6 +209,82 @@ protected:
     void beginBatch(const char* desc) { noteEditor.beginBatch(desc); }
     void endBatch() { noteEditor.endBatch(); }
 
+    bool createMarkerNote(int trackIdx, double qn, int pitch)
+    {
+        return noteEditor.createNote(trackIdx, qn, pitch);
+    }
+
+    int resolveTomMarkerPitch(int lane) const
+    {
+        if (!isDrums()) return -1;
+        using Drums = MidiPitchDefinitions::Drums;
+        switch (lane)
+        {
+            case 2: return (int)Drums::TOM_YELLOW;
+            case 3: return (int)Drums::TOM_BLUE;
+            case 4: return (int)Drums::TOM_GREEN;
+            default: return -1;
+        }
+    }
+
+    void writeTomMarker(int trackIdx, double qn, int lane)
+    {
+        int markerPitch = resolveTomMarkerPitch(lane);
+        if (markerPitch < 0) return;
+
+        auto existing = findNote(trackIdx, qn, markerPitch);
+        if (cymbalModeFlag)
+        {
+            if (existing.noteIndex >= 0)
+                eraseNote(trackIdx, qn, markerPitch, true, lane, currentActiveSkill);
+        }
+        else
+        {
+            if (existing.noteIndex < 0)
+                createMarkerNote(trackIdx, qn, markerPitch);
+        }
+    }
+
+    int resolveGuitarForcePitch() const
+    {
+        if (isDrums()) return -1;
+        using Guitar = MidiPitchDefinitions::Guitar;
+        switch (currentGuitarForce)
+        {
+            case GuitarForce::Hopo:
+                switch (currentActiveSkill) {
+                    case SkillLevel::EXPERT: return (int)Guitar::EXPERT_HOPO;
+                    case SkillLevel::HARD:   return (int)Guitar::HARD_HOPO;
+                    case SkillLevel::MEDIUM: return (int)Guitar::MEDIUM_HOPO;
+                    case SkillLevel::EASY:   return (int)Guitar::EASY_HOPO;
+                }
+                break;
+            case GuitarForce::Strum:
+                switch (currentActiveSkill) {
+                    case SkillLevel::EXPERT: return (int)Guitar::EXPERT_STRUM;
+                    case SkillLevel::HARD:   return (int)Guitar::HARD_STRUM;
+                    case SkillLevel::MEDIUM: return (int)Guitar::MEDIUM_STRUM;
+                    case SkillLevel::EASY:   return (int)Guitar::EASY_STRUM;
+                }
+                break;
+            case GuitarForce::Tap:
+                return (int)Guitar::TAP;
+            default:
+                return -1;
+        }
+        return -1;
+    }
+
+    void writeGuitarForceMarker(int trackIdx, double qn)
+    {
+        int forcePitch = resolveGuitarForcePitch();
+        if (forcePitch < 0) return;
+
+        auto existing = findNote(trackIdx, qn, forcePitch);
+        if (existing.noteIndex < 0)
+            createMarkerNote(trackIdx, qn, forcePitch);
+    }
+
     InstrumentSession*      instrumentSession    = nullptr;
     const bool*             playingStatePtr      = nullptr;
     Part                    currentActivePart    = Part::GUITAR;

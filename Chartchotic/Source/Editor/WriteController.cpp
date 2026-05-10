@@ -282,7 +282,11 @@ void WriteController::onPointerUp(const AuthoringPoint& p,
     {
         sustainPendingClick = false;
         createNote(sustainDragTrackIdx, sustainPendingClickQN,
-                   sustainDragPitch, sustainDragLane);
+                   sustainDragPitch, sustainDragLane, resolveVelocity());
+        if (isDrums())
+            writeTomMarker(sustainDragTrackIdx, sustainPendingClickQN, sustainDragLane);
+        else
+            writeGuitarForceMarker(sustainDragTrackIdx, sustainPendingClickQN);
         endBatch();
         clearSustainDrag();
         recomputeGhost();
@@ -335,7 +339,14 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
         for (const auto& sn : stamp)
         {
             int sp = resolvePitch(sn.lane, drums);
-            if (sp >= 0) createNote(trackIdx, clickQN + sn.qnOffset, sp, sn.lane);
+            if (sp >= 0)
+            {
+                createNote(trackIdx, clickQN + sn.qnOffset, sp, sn.lane, resolveVelocity());
+                if (drums)
+                    writeTomMarker(trackIdx, clickQN + sn.qnOffset, sn.lane);
+                else
+                    writeGuitarForceMarker(trackIdx, clickQN + sn.qnOffset);
+            }
         }
         if (drums) { endBatch(); return; }
         enterSustainDrag(trackIdx, clickQN, p.laneIndex, pitch);
@@ -348,7 +359,10 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
     if (drums)
     {
         if (!onExistingNote)
-            createNote(trackIdx, clickQN, pitch, p.laneIndex);
+        {
+            createNote(trackIdx, clickQN, pitch, p.laneIndex, resolveVelocity());
+            writeTomMarker(trackIdx, clickQN, p.laneIndex);
+        }
         return;
     }
 
@@ -356,7 +370,8 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
 
     if (!onExistingNote)
     {
-        createNote(trackIdx, clickQN, pitch, p.laneIndex);
+        createNote(trackIdx, clickQN, pitch, p.laneIndex, resolveVelocity());
+        writeGuitarForceMarker(trackIdx, clickQN);
         enterSustainDrag(trackIdx, clickQN, p.laneIndex, pitch);
         return;
     }
@@ -496,7 +511,14 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
             for (const auto& sn : stamp)
             {
                 int sp = resolvePitch(sn.lane, drums);
-                if (sp >= 0) createNote(paintDragTrackIdx, snapped + sn.qnOffset, sp, sn.lane);
+                if (sp >= 0)
+                {
+                    createNote(paintDragTrackIdx, snapped + sn.qnOffset, sp, sn.lane, resolveVelocity());
+                    if (drums)
+                        writeTomMarker(paintDragTrackIdx, snapped + sn.qnOffset, sn.lane);
+                    else
+                        writeGuitarForceMarker(paintDragTrackIdx, snapped + sn.qnOffset);
+                }
             }
         }
         else
@@ -506,7 +528,11 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
             auto pre = findNote(paintDragTrackIdx, snapped, pitch);
             if (pre.noteIndex >= 0 && std::abs(pre.startQN - snapped) < 0.001)
                 continue;
-            createNote(paintDragTrackIdx, snapped, pitch, lane);
+            createNote(paintDragTrackIdx, snapped, pitch, lane, resolveVelocity());
+            if (drums)
+                writeTomMarker(paintDragTrackIdx, snapped, lane);
+            else
+                writeGuitarForceMarker(paintDragTrackIdx, snapped);
         }
         paintedNotes.push_back({ snapped, lane });
     }
