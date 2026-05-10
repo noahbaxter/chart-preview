@@ -56,8 +56,8 @@ void InteractionController::onFrame(MidiWriter* writer, InstrumentSession* sessi
 
 void InteractionController::onPointerMove(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
-    if (isEditActive()) editController.onPointerMove(p, ctx);
-    else                writeController.onPointerMove(p, ctx);
+    writeController.onPointerMove(p, ctx);
+    editController.onPointerMove(p, ctx);
 }
 
 void InteractionController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)

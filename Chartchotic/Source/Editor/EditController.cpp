@@ -57,8 +57,9 @@ void EditController::recomputeOverlay()
 //==============================================================================
 // Input handlers
 
-void EditController::onPointerMove(const AuthoringPoint&, const AuthoringContext&)
+void EditController::onPointerMove(const AuthoringPoint& p, const AuthoringContext&)
 {
+    updateCursorLabel(p);
 }
 
 void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
@@ -217,6 +218,9 @@ void EditController::onPointerDoubleClick(const AuthoringPoint& p, const Authori
 
 void EditController::onPointerExit()
 {
+    overlayState.ghostVisible = false;
+    overlayState.ghostLane = -1;
+    overlayState.ghostQN = 0.0;
 }
 
 bool EditController::onKeyPress(const juce::KeyPress& key)
@@ -429,4 +433,20 @@ void EditController::handleDeleteSelection()
     selection.clear();
     recomputeOverlay();
     if (onStateChanged) onStateChanged();
+}
+
+void EditController::updateCursorLabel(const AuthoringPoint& p)
+{
+    overlayState.ghostVisible = false;
+    overlayState.ghostLane    = -1;
+    overlayState.ghostQN      = 0.0;
+
+    if (isPlaying()) return;
+    if (!p.onHighway || p.laneIndex < 0) return;
+
+    double qn = snapQN(p.rawProjectQN);
+    if (qn < 0.0) qn = 0.0;
+
+    overlayState.ghostVisible = true;
+    overlayState.ghostQN      = qn;
 }

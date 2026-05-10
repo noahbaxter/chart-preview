@@ -120,24 +120,29 @@ void HighwayComponent::paint(juce::Graphics& g)
 
     // Ghost cursor: set before paint so it renders through the note pipeline.
     sceneRenderer.ghostCursor.visible = false;
+    sceneRenderer.ghostCursor.positionLabel = {};
     if (overlayStateGetter)
     {
         const auto& ov = overlayStateGetter();
-        if (ov.ghostVisible && ov.ghostLane >= 0 && projectQNToSeconds)
+        if (ov.ghostVisible && projectQNToSeconds)
         {
             double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
             if (std::abs(windowSpan) > 1e-9)
             {
                 double sec = projectQNToSeconds(ov.ghostQN);
                 float pos = (float)((sec - frameData.windowStartTime) / windowSpan);
-                sceneRenderer.ghostCursor.visible = true;
-                sceneRenderer.ghostCursor.lane = ov.ghostLane;
                 sceneRenderer.ghostCursor.position = pos;
-                sceneRenderer.ghostCursor.image = sceneRenderer.useColoredGhostCursor
-                    ? nullptr
-                    : assetManager.getGhostCursorImage(isDrumLike(activePart), ov.ghostLane);
                 sceneRenderer.ghostCursor.positionLabel = formatPositionQN
                     ? formatPositionQN(ov.ghostQN) : juce::String();
+
+                if (ov.ghostLane >= 0)
+                {
+                    sceneRenderer.ghostCursor.visible = true;
+                    sceneRenderer.ghostCursor.lane = ov.ghostLane;
+                    sceneRenderer.ghostCursor.image = sceneRenderer.useColoredGhostCursor
+                        ? nullptr
+                        : assetManager.getGhostCursorImage(isDrumLike(activePart), ov.ghostLane);
+                }
             }
         }
     }

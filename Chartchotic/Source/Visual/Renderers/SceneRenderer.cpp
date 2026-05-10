@@ -96,40 +96,38 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
                                   farFadeEnd, farFadeLen, farFadeCurve);
 
         if (ghostCursor.visible)
-        {
             noteRenderer.renderGhost(drawCallMap, ghostCursor.lane, ghostCursor.position,
                                      ghostCursor.image, ghostCursor.opacity);
 
-            if (ghostCursor.positionLabel.isNotEmpty())
-            {
-                bool drums = isDrumLike(activePart);
-                float pos = ghostCursor.position;
-                float pe = highwayPosEnd;
-                uint w = width, h = height;
-                juce::String label = ghostCursor.positionLabel;
-                auto strikeEdge = PositionMath::getFretboardEdge(drums, 0.0f, w, h, HIGHWAY_POS_START, pe);
-                float sw = strikeEdge.rightX - strikeEdge.leftX;
+        if (ghostCursor.positionLabel.isNotEmpty())
+        {
+            bool drums = isDrumLike(activePart);
+            float pos = ghostCursor.position;
+            float pe = highwayPosEnd;
+            uint w = width, h = height;
+            juce::String label = ghostCursor.positionLabel;
+            auto strikeEdge = PositionMath::getFretboardEdge(drums, 0.0f, w, h, HIGHWAY_POS_START, pe);
+            float sw = strikeEdge.rightX - strikeEdge.leftX;
 
-                drawCallMap[(int)DrawOrder::OVERLAY][0].push_back([drums, pos, w, h, pe, sw, label](juce::Graphics& g) {
-                    auto fbEdge = PositionMath::getFretboardEdge(drums, pos, w, h,
-                                      PositionConstants::HIGHWAY_POS_START, pe);
-                    float wr = (sw > 0.0f) ? ((fbEdge.rightX - fbEdge.leftX) / sw) : 1.0f;
-                    float fontPx = sw * WRITE_MEASURE_LABEL_FONT_FRAC * wr;
-                    if (fontPx < WRITE_MEASURE_LABEL_MIN_FONT_PX) return;
+            drawCallMap[(int)DrawOrder::OVERLAY][0].push_back([drums, pos, w, h, pe, sw, label](juce::Graphics& g) {
+                auto fbEdge = PositionMath::getFretboardEdge(drums, pos, w, h,
+                                  PositionConstants::HIGHWAY_POS_START, pe);
+                float wr = (sw > 0.0f) ? ((fbEdge.rightX - fbEdge.leftX) / sw) : 1.0f;
+                float fontPx = sw * WRITE_MEASURE_LABEL_FONT_FRAC * wr;
+                if (fontPx < WRITE_MEASURE_LABEL_MIN_FONT_PX) return;
 
-                    float protLen = sw * WRITE_PROTRUSION_MEASURE_LENGTH_FRAC * wr;
-                    float gap     = sw * WRITE_MEASURE_LABEL_GAP_FRAC * wr;
-                    float textX = fbEdge.leftX - protLen - gap;
-                    float textY = fbEdge.centerY;
-                    float textBoxW = fontPx * 6.0f;
-                    float textBoxH = fontPx * 1.2f;
-                    g.setColour(juce::Colours::white.withAlpha(0.9f));
-                    g.setFont(Theme::getUIFont(fontPx));
-                    g.drawText(label,
-                               juce::Rectangle<float>(textX - textBoxW, textY - textBoxH * 0.5f, textBoxW, textBoxH),
-                               juce::Justification::centredRight, false);
-                });
-            }
+                float protLen = sw * WRITE_PROTRUSION_MEASURE_LENGTH_FRAC * wr;
+                float gap     = sw * WRITE_MEASURE_LABEL_GAP_FRAC * wr;
+                float textX = fbEdge.leftX - protLen - gap;
+                float textY = fbEdge.centerY;
+                float textBoxW = fontPx * 6.0f;
+                float textBoxH = fontPx * 1.2f;
+                g.setColour(juce::Colours::white.withAlpha(0.9f));
+                g.setFont(Theme::getUIFont(fontPx));
+                g.drawText(label,
+                           juce::Rectangle<float>(textX - textBoxW, textY - textBoxH * 0.5f, textBoxW, textBoxH),
+                           juce::Justification::centredRight, false);
+            });
         }
 
         for (const auto& ghost : movePreviewGhosts)

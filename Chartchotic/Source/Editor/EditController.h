@@ -33,6 +33,7 @@ private:
     void handleCommitMove     (const AuthoringPoint& p);
     void handleDoubleClick    (const AuthoringPoint& p);
     void handleDeleteSelection();
+    void updateCursorLabel(const AuthoringPoint& p);
 
     // Selection
     std::vector<SelectedNote> selection;

@@ -80,16 +80,17 @@ void WriteController::recomputeGhost()
     if (!lastPointValid)                                  return;
     if (!writeModeActive())                               return;
     if (isPlaying())                                      return;
-    if (currentSubMode != SubMode::Draw)                  return;
     if (!lastPoint.onHighway || lastPoint.laneIndex < 0)  return;
-    if (sustainDragActive || paintDragActive || eraseDragActive) return;
 
     double qn = snapQN(lastPoint.rawProjectQN);
     if (qn < 0.0) qn = 0.0;
 
     overlayState.ghostVisible = true;
-    overlayState.ghostLane    = lastPoint.laneIndex;
     overlayState.ghostQN      = qn;
+
+    if (currentSubMode == SubMode::Draw
+        && !sustainDragActive && !paintDragActive && !eraseDragActive)
+        overlayState.ghostLane = lastPoint.laneIndex;
 }
 
 void WriteController::enterSustainDrag(int trackIdx, double startQN, int lane, int pitch)
