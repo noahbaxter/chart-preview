@@ -14,15 +14,15 @@ bool NoteEditor::isAvailable() const
     return midiWriter != nullptr && midiWriter->isAvailable();
 }
 
-bool NoteEditor::createNote(int trackIdx, double startQN, int pitch)
+bool NoteEditor::createNote(int trackIdx, double startQN, int pitch, int velocity)
 {
     if (!midiWriter || !instrumentSession) return false;
 
     double endQN = resolveOverlaps(trackIdx, startQN, startQN + kShortNoteDurationQN, pitch);
 
     bool ok = batchActive
-        ? midiWriter->batchInsertNote(trackIdx, startQN, endQN, 0, pitch, 100)
-        : midiWriter->insertNote(trackIdx, startQN, endQN, 0, pitch, 100);
+        ? midiWriter->batchInsertNote(trackIdx, startQN, endQN, 0, pitch, velocity)
+        : midiWriter->insertNote(trackIdx, startQN, endQN, 0, pitch, velocity);
 
     if (ok) instrumentSession->invalidateTrack(trackIdx);
     return ok;
