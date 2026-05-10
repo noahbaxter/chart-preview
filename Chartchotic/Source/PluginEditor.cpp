@@ -706,6 +706,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         if (toolbar.refreshFromWriteController())
             resized();
 
+        updateFooterHelpText();
         forEachHighway([](auto& hw) { hw.repaint(); });
     };
 
@@ -717,6 +718,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 void ChartchoticAudioProcessorEditor::initBottomBar()
 {
     footer.init(juce::String("v") + CHARTCHOTIC_VERSION);
+    updateFooterHelpText();
     addAndMakeVisible(footer);
 
     updateBanner.onPromptDismissed = [this]() { audioProcessor.updatePromptDismissed = true; };

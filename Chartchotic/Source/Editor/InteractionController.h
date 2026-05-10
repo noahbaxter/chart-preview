@@ -33,6 +33,7 @@ public:
     DrumDynamic drumDynamic()     const { return writeController.drumDynamic(); }
     GuitarForce guitarForce()     const { return writeController.guitarForce(); }
     bool        cymbalMode()      const { return writeController.cymbalMode(); }
+    bool        hasStamp()        const { return writeController.hasStamp(); }
 
     void setWriteModeActive(bool v) { writeController.setWriteModeActive(v); }
     void setSubMode(SubMode m)      { writeController.setSubMode(m); }

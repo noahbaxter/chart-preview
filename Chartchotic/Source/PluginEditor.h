@@ -230,6 +230,36 @@ private:
     void initBottomBar();
     void loadState();
     void updateTrackInfoDisplay();
+    void updateFooterHelpText()
+    {
+        if (!interactionController.writeModeActive())
+        {
+            footer.setDefaultHelpText("W to enter authoring mode \xc2\xb7 Scroll to navigate \xc2\xb7 Cmd+Scroll to adjust speed");
+            return;
+        }
+
+        bool stamp = interactionController.subMode() == SubMode::Draw
+                  && interactionController.hasStamp();
+        bool bar = interactionController.barMode();
+        juce::String text;
+
+        if (interactionController.subMode() == SubMode::Draw)
+        {
+            if (stamp)
+                text = "Click to place stamp \xc2\xb7 Shift+drag to paint \xc2\xb7 \xe2\x86\x90\xe2\x86\x92 shift lanes \xc2\xb7 Esc to clear";
+            else
+                text = "Click to place \xc2\xb7 Shift+drag to paint \xc2\xb7 Right-click to erase";
+        }
+        else
+        {
+            text = "Click to select \xc2\xb7 Drag to marquee \xc2\xb7 Double-click to create/delete \xc2\xb7 Arrows to move";
+        }
+
+        if (bar)
+            text += " \xc2\xb7 B to exit bar mode";
+
+        footer.setDefaultHelpText(text);
+    }
 #ifdef DEBUG
     void rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart);
 #endif

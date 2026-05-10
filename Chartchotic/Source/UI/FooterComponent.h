@@ -21,6 +21,10 @@ public:
         versionGroup.addAndMakeVisible(label);
         label.setInterceptsMouseClicks(false, false);
         addAndMakeVisible(statusBar);
+        helpLabel.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.45f));
+        helpLabel.setJustificationType(juce::Justification::centred);
+        helpLabel.setInterceptsMouseClicks(false, false);
+        addAndMakeVisible(helpLabel);
     }
 
     void init(const juce::String& versionText)
@@ -58,9 +62,15 @@ public:
 
         // Status bar: right-aligned, leaving room for DAW icon
         int iconRoom = dawIcon ? h + pad : 0;
-        int statusW = area.getWidth() - groupW - pad * 2 - iconRoom;
+        int statusW = juce::jmax(0, area.getWidth() / 4);
+        int helpX = groupW + pad;
+        int helpW = area.getWidth() - helpX - statusW - iconRoom - pad;
+        if (helpW > 0)
+            helpLabel.setBounds(helpX, 0, helpW, h);
+        helpLabel.setFont(Theme::getUIFont(Theme::fontSize));
+
         if (statusW > 0)
-            statusBar.setBounds(groupW + pad, 0, statusW, h);
+            statusBar.setBounds(area.getWidth() - statusW - iconRoom - pad, 0, statusW, h);
     }
 
     void paint(juce::Graphics& g) override
@@ -77,12 +87,34 @@ public:
     }
 
     juce::Label label;
+    juce::Label helpLabel;
     juce::Colour normalColour, hoverColour;
+
+    void setHelpText(const juce::String& text)
+    {
+        helpOverride = text;
+        helpLabel.setText(text, juce::dontSendNotification);
+    }
+
+    void clearHelpText()
+    {
+        helpOverride = {};
+        helpLabel.setText(helpDefault, juce::dontSendNotification);
+    }
+
+    void setDefaultHelpText(const juce::String& text)
+    {
+        helpDefault = text;
+        if (helpOverride.isEmpty())
+            helpLabel.setText(helpDefault, juce::dontSendNotification);
+    }
 
 private:
     UpdateBannerComponent& banner;
     StatusBarComponent statusBar;
     juce::Drawable* dawIcon = nullptr;
+    juce::String helpDefault;
+    juce::String helpOverride;
 
     // Groups badge + label with unified hover/click for update prompt
     struct VersionGroup : public juce::Component
