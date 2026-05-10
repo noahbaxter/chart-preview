@@ -94,6 +94,8 @@ struct OverlayState
     int    ghostLane = -1;
     double ghostQN = 0.0;
     bool   ghostShowsErase = false;
+    struct StampGhost { int lane; double qnOffset; };
+    std::vector<StampGhost> stampGhosts;
 
     // Draw stroke preview
     bool                     drawPreviewVisible = false;

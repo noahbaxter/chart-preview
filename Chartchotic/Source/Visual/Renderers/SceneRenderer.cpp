@@ -95,9 +95,17 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
                                   width, height, highwayPosEnd,
                                   farFadeEnd, farFadeLen, farFadeCurve);
 
-        if (ghostCursor.visible)
+        if (!ghostCursor.stampGhosts.empty())
+        {
+            for (const auto& sg : ghostCursor.stampGhosts)
+                noteRenderer.renderGhost(drawCallMap, sg.lane, sg.position,
+                                         nullptr, ghostCursor.opacity);
+        }
+        else if (ghostCursor.visible)
+        {
             noteRenderer.renderGhost(drawCallMap, ghostCursor.lane, ghostCursor.position,
                                      ghostCursor.image, ghostCursor.opacity);
+        }
 
         if (ghostCursor.positionLabel.isNotEmpty())
         {

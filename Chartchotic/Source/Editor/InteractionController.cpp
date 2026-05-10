@@ -1,4 +1,5 @@
 #include "InteractionController.h"
+#include <limits>
 
 InteractionController::InteractionController(juce::ValueTree& st)
     : state(st), writeController(st)
@@ -101,6 +102,52 @@ bool InteractionController::onKeyPress(const juce::KeyPress& key)
     if (cmd == WriteCommand::ToggleBarMode)
     {
         setBarMode(!barModeFlag);
+        return true;
+    }
+
+    int code = key.getKeyCode();
+
+    if (code == 'C' && !key.getModifiers().isCommandDown()
+        && writeController.writeModeActive())
+    {
+        if (!isEditActive())
+        {
+            writeController.beginStampCapture();
+            return true;
+        }
+        if (isEditActive())
+        {
+            const auto& sel = editController.getSelection();
+            std::vector<WriteController::StampNote> notes;
+            double minQN = std::numeric_limits<double>::max();
+            for (const auto& n : sel)
+                if (!n.sustainOnly && n.startQN < minQN) minQN = n.startQN;
+
+            for (const auto& n : sel)
+            {
+                if (n.sustainOnly) continue;
+                auto info = editController.lookupNote(n.trackIdx, n.startQN, n.pitch);
+                double dur = (info.noteIndex >= 0) ? (info.endQN - info.startQN) : 0.1;
+                notes.push_back({ n.lane, n.startQN - minQN, dur });
+            }
+            if (notes.size() >= 2)
+            {
+                writeController.setStamp(std::move(notes));
+                writeController.setSubMode(SubMode::Draw);
+            }
+            return true;
+        }
+    }
+
+    if (writeController.hasStamp())
+    {
+        if (code == juce::KeyPress::leftKey)  { writeController.shiftStampLanes(-1); return true; }
+        if (code == juce::KeyPress::rightKey) { writeController.shiftStampLanes(1);  return true; }
+    }
+
+    if (cmd == WriteCommand::DeselectAll && writeController.hasStamp())
+    {
+        writeController.clearStamp();
         return true;
     }
 

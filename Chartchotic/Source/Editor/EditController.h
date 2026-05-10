@@ -18,6 +18,8 @@ public:
 
     void clearSelection();
     void onFrameTick();
+    const std::vector<SelectedNote>& getSelection() const { return selection; }
+    MidiWriter::NoteInfo lookupNote(int trackIdx, double qn, int pitch) { return findNote(trackIdx, qn, pitch); }
 
 private:
     enum class DragMode { Idle, Marquee, Moving };

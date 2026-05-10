@@ -135,7 +135,17 @@ void HighwayComponent::paint(juce::Graphics& g)
                 sceneRenderer.ghostCursor.positionLabel = formatPositionQN
                     ? formatPositionQN(ov.ghostQN) : juce::String();
 
-                if (ov.ghostLane >= 0)
+                sceneRenderer.ghostCursor.stampGhosts.clear();
+                if (!ov.stampGhosts.empty())
+                {
+                    for (const auto& sg : ov.stampGhosts)
+                    {
+                        double sgSec = projectQNToSeconds(ov.ghostQN + sg.qnOffset);
+                        float sgPos = (float)((sgSec - frameData.windowStartTime) / windowSpan);
+                        sceneRenderer.ghostCursor.stampGhosts.push_back({ sg.lane, sgPos });
+                    }
+                }
+                else if (ov.ghostLane >= 0)
                 {
                     sceneRenderer.ghostCursor.visible = true;
                     sceneRenderer.ghostCursor.lane = ov.ghostLane;

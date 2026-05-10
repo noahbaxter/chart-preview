@@ -1,5 +1,6 @@
 #include "WriteController.h"
 #include "../Midi/Utils/MidiConstants.h"
+#include <limits>
 
 namespace
 {
@@ -76,6 +77,7 @@ void WriteController::recomputeGhost()
     overlayState.ghostLane       = -1;
     overlayState.ghostQN         = 0.0;
     overlayState.ghostShowsErase = false;
+    overlayState.stampGhosts.clear();
 
     if (!lastPointValid)                                  return;
     if (!writeModeActive())                               return;
@@ -89,8 +91,62 @@ void WriteController::recomputeGhost()
     overlayState.ghostQN      = qn;
 
     if (currentSubMode == SubMode::Draw
-        && !sustainDragActive && !paintDragActive && !eraseDragActive)
-        overlayState.ghostLane = lastPoint.laneIndex;
+        && !sustainDragActive && !paintDragActive && !eraseDragActive
+        && !stampCaptureActive)
+    {
+        if (!stamp.empty())
+        {
+            for (const auto& sn : stamp)
+                overlayState.stampGhosts.push_back({ sn.lane, sn.qnOffset });
+        }
+        else
+        {
+            overlayState.ghostLane = lastPoint.laneIndex;
+        }
+    }
+}
+
+void WriteController::setStamp(std::vector<StampNote> s)
+{
+    stamp = std::move(s);
+    stateDidChange();
+}
+
+void WriteController::clearStamp()
+{
+    stamp.clear();
+    stateDidChange();
+}
+
+void WriteController::shiftStampLanes(int delta)
+{
+    if (stamp.empty()) return;
+    int maxLane = isDrums() ? 4 : 5;
+
+    for (const auto& sn : stamp)
+        if (sn.lane + delta < 0 || sn.lane + delta > maxLane) return;
+
+    for (auto& sn : stamp)
+        sn.lane += delta;
+
+    stateDidChange();
+}
+
+void WriteController::beginStampCapture()
+{
+    if (stampCaptureActive) return;
+    if (!lastPointValid || !lastPoint.onHighway || lastPoint.laneIndex < 0) return;
+
+    int trackIdx = resolveTrackIdx();
+    if (trackIdx < 0) return;
+
+    stampCaptureActive   = true;
+    stampCaptureTrackIdx = trackIdx;
+    stampCaptureRect.begin(lastPoint.rawProjectQN, lastPoint.laneIndex);
+    overlayState.marqueeVisible = true;
+    overlayState.marqueeErase   = false;
+    overlayState.marqueeRect    = stampCaptureRect;
+    if (onStateChanged) onStateChanged();
 }
 
 void WriteController::enterSustainDrag(int trackIdx, double startQN, int lane, int pitch)
@@ -174,6 +230,14 @@ void WriteController::onPointerMove(const AuthoringPoint& p,
     JUCE_ASSERT_MESSAGE_THREAD;
     lastPoint = p;
     lastPointValid = true;
+
+    if (stampCaptureActive && p.onHighway && p.laneIndex >= 0)
+    {
+        stampCaptureRect.update(p.rawProjectQN, p.laneIndex, barModeFlag, isDrums());
+        overlayState.marqueeRect = stampCaptureRect;
+        if (onStateChanged) onStateChanged();
+    }
+
     recomputeGhost();
 }
 
@@ -232,6 +296,29 @@ void WriteController::onPointerUp(const AuthoringPoint& p,
 void WriteController::onFrameTick([[maybe_unused]] double currentProjectQN,
                                   [[maybe_unused]] bool isPlaying)
 {
+    if (stampCaptureActive && !juce::KeyPress::isKeyCurrentlyDown('C'))
+    {
+        stampCaptureActive = false;
+        overlayState.marqueeVisible = false;
+
+        auto classified = classifyNotesInRect(stampCaptureTrackIdx, stampCaptureRect);
+        double minQN = std::numeric_limits<double>::max();
+        for (const auto& cn : classified)
+            if (!cn.sustainOnly && cn.note.startQN < minQN) minQN = cn.note.startQN;
+
+        std::vector<StampNote> notes;
+        for (const auto& cn : classified)
+        {
+            if (cn.sustainOnly) continue;
+            notes.push_back({ cn.lane, cn.note.startQN - minQN,
+                              cn.note.endQN - cn.note.startQN });
+        }
+        if (notes.size() >= 2)
+            setStamp(std::move(notes));
+
+        if (onStateChanged) onStateChanged();
+    }
+
     recomputeGhost();
 }
 
@@ -241,6 +328,20 @@ void WriteController::onFrameTick([[maybe_unused]] double currentProjectQN,
 void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, int pitch, bool drums)
 {
     double clickQN = snapQN(p.rawProjectQN);
+
+    if (!stamp.empty())
+    {
+        beginBatch("Chartchotic: Stamp notes");
+        for (const auto& sn : stamp)
+        {
+            int sp = resolvePitch(sn.lane, drums);
+            if (sp >= 0) createNote(trackIdx, clickQN + sn.qnOffset, sp, sn.lane);
+        }
+        if (drums) { endBatch(); return; }
+        enterSustainDrag(trackIdx, clickQN, p.laneIndex, pitch);
+        return;
+    }
+
     bool onExistingNote = p.overExistingNote
         && findNote(trackIdx, p.hitNoteStartQN, pitch).noteIndex >= 0;
 
@@ -278,9 +379,20 @@ void WriteController::handleUpdateSustain(const AuthoringPoint& p)
 
     overlayState.drawPreviewVisible = true;
     overlayState.drawPreviewNotes.clear();
-    overlayState.drawPreviewNotes.push_back({
-        sustainDragLane, sustainDragStartQN, dragQN, sustainDragPitch
-    });
+    if (!stamp.empty())
+    {
+        bool drums = isDrums();
+        for (const auto& sn : stamp)
+            overlayState.drawPreviewNotes.push_back({
+                sn.lane, sustainDragStartQN + sn.qnOffset, dragQN, resolvePitch(sn.lane, drums)
+            });
+    }
+    else
+    {
+        overlayState.drawPreviewNotes.push_back({
+            sustainDragLane, sustainDragStartQN, dragQN, sustainDragPitch
+        });
+    }
 }
 
 void WriteController::handleCommitSustain(const AuthoringPoint& p)
@@ -288,7 +400,24 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
     double endQN = snapQN(p.rawProjectQN);
 
     if (endQN - sustainDragStartQN >= double(MIDI_MIN_SUSTAIN_LENGTH))
-        chainExtendNotes(sustainDragTrackIdx, sustainDragStartQN, endQN, sustainDragPitch);
+    {
+        if (!stamp.empty())
+        {
+            bool drums = isDrums();
+            for (const auto& sn : stamp)
+            {
+                int sp = resolvePitch(sn.lane, drums);
+                if (sp >= 0)
+                    chainExtendNotes(sustainDragTrackIdx,
+                                     sustainDragStartQN + sn.qnOffset,
+                                     endQN, sp);
+            }
+        }
+        else
+        {
+            chainExtendNotes(sustainDragTrackIdx, sustainDragStartQN, endQN, sustainDragPitch);
+        }
+    }
 
     endBatch();
     clearSustainDrag();
@@ -343,8 +472,6 @@ void WriteController::handleCommitPaint()
 void WriteController::paintFillRange(double fromQN, double toQN, int lane)
 {
     bool drums = isDrums();
-    int  pitch = resolveActivePitch(lane);
-    if (pitch < 0) return;
 
     double spacing = stepSpacingQN(currentStepDivision, currentTuplet);
     if (spacing <= 0.0) return;
@@ -359,28 +486,28 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
     {
         double snapped = snapToStep(qn, currentStepDivision, currentTuplet);
 
-        PaintedNote* existing = nullptr;
-        for (auto& pn : paintedNotes)
-            if (std::abs(pn.qn - snapped) < 0.001) { existing = &pn; break; }
+        bool alreadyPainted = false;
+        for (const auto& pn : paintedNotes)
+            if (std::abs(pn.qn - snapped) < 0.001) { alreadyPainted = true; break; }
+        if (alreadyPainted) continue;
 
-        if (existing)
+        if (!stamp.empty())
         {
-            if (existing->lane != lane)
+            for (const auto& sn : stamp)
             {
-                int oldPitch = resolvePitch(existing->lane, drums);
-                if (oldPitch >= 0)
-                    eraseNote(paintDragTrackIdx, existing->qn, oldPitch, drums, existing->lane, currentActiveSkill);
-                createNote(paintDragTrackIdx, existing->qn, pitch, lane);
-                existing->lane = lane;
+                int sp = resolvePitch(sn.lane, drums);
+                if (sp >= 0) createNote(paintDragTrackIdx, snapped + sn.qnOffset, sp, sn.lane);
             }
-            continue;
         }
-
-        auto pre = findNote(paintDragTrackIdx, snapped, pitch);
-        if (pre.noteIndex >= 0 && std::abs(pre.startQN - snapped) < 0.001)
-            continue;
-
-        createNote(paintDragTrackIdx, snapped, pitch, lane);
+        else
+        {
+            int pitch = resolveActivePitch(lane);
+            if (pitch < 0) continue;
+            auto pre = findNote(paintDragTrackIdx, snapped, pitch);
+            if (pre.noteIndex >= 0 && std::abs(pre.startQN - snapped) < 0.001)
+                continue;
+            createNote(paintDragTrackIdx, snapped, pitch, lane);
+        }
         paintedNotes.push_back({ snapped, lane });
     }
 }
@@ -392,9 +519,21 @@ void WriteController::paintShrinkTo(double lo, double hi)
     {
         if (it->qn < lo - 0.001 || it->qn > hi + 0.001)
         {
-            int oldPitch = resolveActivePitch(it->lane);
-            if (oldPitch >= 0)
-                eraseNote(paintDragTrackIdx, it->qn, oldPitch, drums, it->lane, currentActiveSkill);
+            if (!stamp.empty())
+            {
+                for (const auto& sn : stamp)
+                {
+                    int sp = resolvePitch(sn.lane, drums);
+                    if (sp >= 0)
+                        eraseNote(paintDragTrackIdx, it->qn + sn.qnOffset, sp, drums, sn.lane, currentActiveSkill);
+                }
+            }
+            else
+            {
+                int oldPitch = resolveActivePitch(it->lane);
+                if (oldPitch >= 0)
+                    eraseNote(paintDragTrackIdx, it->qn, oldPitch, drums, it->lane, currentActiveSkill);
+            }
             it = paintedNotes.erase(it);
         }
         else
@@ -408,6 +547,7 @@ void WriteController::paintShrinkTo(double lo, double hi)
 void WriteController::handleBeginErase(const AuthoringPoint& p, int trackIdx,
                                        [[maybe_unused]] int pitch, [[maybe_unused]] bool drums)
 {
+    if (!stamp.empty()) clearStamp();
     eraseDragActive   = true;
     eraseDragTrackIdx = trackIdx;
     eraseRect.begin(p.rawProjectQN, p.laneIndex);
