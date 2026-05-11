@@ -77,6 +77,47 @@ constexpr bool DEFAULT_SHOW_STRIKELINE  = true;
 constexpr bool DEFAULT_SHOW_LANE_SEPARATORS = true;
 constexpr bool DEFAULT_SHOW_HIGHWAY     = true;
 constexpr bool DEFAULT_SHOW_FPS         = false;
+
+//==============================================================================
+// Layout sizing
+//
+//  ┌─────────────────── toolbar (toolbarRatio * editorW) ────────────────────┐
+//  │ Logo  [Instrument] [Diff]   ◂ Speed ▸   ◂ Length ▸   [View] [⚙]       │
+//  ├──── sub-toolbar (write mode only, single row + optional labels) ───────┤
+//  │  MODE               GRID                     MODIFIER                  │
+//  │  [Draw|Edit][BAR]   [Snap][◂1/8▸][◂Off▸]     [None|HOPO|Strum|Tap]    │
+//  ├────────────────────────────────────────────────────────────────────────-┤
+//  │                         highway                                        │
+//  ├──── footer (footerRatio * editorW) ───────────────────────────────────-┤
+//  │  Click place | Shift+drag paint           1: song    v1.2.3-dev        │
+//  └───────────────────────────────────────────────────────────────────────-─┘
+
+// Main toolbar strip
+constexpr float TOOLBAR_RATIO          = 0.06f;  // fraction of editor width
+constexpr int   TOOLBAR_MAX_HEIGHT     = 100;    // cap (px)
+
+// Sub-toolbar (write mode row below main strip)
+constexpr bool  SUBTOOLBAR_SHOW_LABELS = true;   // tiny group headers above controls
+constexpr float SUBTOOLBAR_HEIGHT_RATIO = SUBTOOLBAR_SHOW_LABELS ? 1.1f : 0.85f;
+
+// Sub-toolbar control scaling
+constexpr float SUBTOOLBAR_WIDTH_SCALE  = 0.85f; // shrink/grow all control widths
+constexpr float SUBTOOLBAR_HEIGHT_SCALE = 0.80f; // shrink/grow control height (rest becomes padding)
+constexpr float SUBTOOLBAR_PAD_TOP      = 0.0f;  // extra space above controls (fraction of control area)
+constexpr float SUBTOOLBAR_PAD_BOTTOM   = 0.1f; // extra space below controls (fraction of control area)
+constexpr float SUBTOOLBAR_MODE_W    = 5.0f;
+constexpr float SUBTOOLBAR_BAR_W     = 2.5f;
+constexpr float SUBTOOLBAR_SNAP_W    = 1.5f;
+constexpr float SUBTOOLBAR_STEP_W    = 3.0f;
+constexpr float SUBTOOLBAR_MOD_W     = 10.0f;
+constexpr float SUBTOOLBAR_CYM_W     = 3.0f;
+constexpr float SUBTOOLBAR_COL_GAP   = 2.0f;
+
+// Footer
+constexpr float FOOTER_RATIO       = 0.055f;
+constexpr int   FOOTER_MAX_HEIGHT  = 48;
+constexpr float HELP_KEY_PAD_X     = 1.2f;  // horizontal padding around key badges (× space width)
+constexpr float HELP_KEY_PAD_Y     = 1.0f; // vertical padding inside key badges (× line height)
 constexpr bool DEFAULT_AUTO_HOPO        = true;
 constexpr bool DEFAULT_KICK_2X          = true;
 constexpr bool DEFAULT_DYNAMICS         = true;

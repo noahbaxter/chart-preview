@@ -51,6 +51,7 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         hw.setOnPointerExit       ([this]() { interactionController.onPointerExit(); });
         hw.setOnPointerCancel     ([this]() { interactionController.onPointerCancel(); });
         hw.setOnPointerDoubleClick([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerDoubleClick(p, c); });
+        hw.onMouseWheel = [this](const juce::MouseEvent& e, const juce::MouseWheelDetails& w) { handleHighwayScroll(e, w); };
 
         // Coordinate-domain conversion: HitTestMapper returns "seconds offset
         // from cursor"; the controller wants project QN. Convert at the
@@ -146,6 +147,7 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         slot.highway->setVisible(true);
         activeSlotCount = 1;
         interactionController.setActivePart(slot.part);
+        toolbar.refreshFromWriteController();
     }
     setLookAndFeel(&chartPreviewLnF);
 
@@ -209,6 +211,12 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     writeModeIcon.setState(interactionController.writeModeActive(), interactionController.subMode());
     writeModeIcon.onClick = [this]() {
         interactionController.setWriteModeActive(!interactionController.writeModeActive());
+    };
+    writeModeIcon.onHoverHelp = [this](const HelpText& h) {
+        footer.setHelpText(h);
+    };
+    writeModeIcon.onHoverHelpClear = [this]() {
+        footer.clearHelpText();
     };
     addAndMakeVisible(writeModeIcon);
     writeModeIcon.toFront(false);
@@ -496,6 +504,11 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
         toolbar.setEnabledParts(parts);
         session.rebuildVisibleSlots();
+        if (activeSlotCount > 0)
+        {
+            interactionController.setActivePart(slots[0].part);
+            toolbar.refreshFromWriteController();
+        }
     };
 
     toolbar.onAllInstrumentsClicked = [this]() {
@@ -509,6 +522,11 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
         toolbar.setEnabledParts(parts);
         session.rebuildVisibleSlots();
+        if (activeSlotCount > 0)
+        {
+            interactionController.setActivePart(slots[0].part);
+            toolbar.refreshFromWriteController();
+        }
     };
 
     toolbar.onPartChanged = [this](int id) {
@@ -518,6 +536,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         primaryInterpreter().instrumentPart = newPart;
         slots[0].part = newPart;
         interactionController.setActivePart(newPart);
+        toolbar.refreshFromWriteController();
 
         if (!PositionMath::bemaniMode)
         {
@@ -632,6 +651,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
             slot.highway->setVisible(true);
             activeSlotCount = 1;
             interactionController.setActivePart(slot.part);
+            toolbar.refreshFromWriteController();
 
             toolbar.setMultiInstrumentMode(false);
             toolbar.resetToManualMode();
@@ -710,8 +730,8 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         forEachHighway([](auto& hw) { hw.repaint(); });
     };
 
-    toolbar.getWriteSubToolbar().onHoverHelp = [this](const juce::String& text) {
-        footer.setHelpText(text);
+    toolbar.getWriteSubToolbar().onHoverHelp = [this](const HelpText& h) {
+        footer.setHelpText(h);
     };
     toolbar.getWriteSubToolbar().onHoverHelpClear = [this]() {
         footer.clearHelpText();
@@ -909,9 +929,9 @@ void ChartchoticAudioProcessorEditor::resized()
         writeModeIcon.toFront(false);
     }
 
-    // Footer bar height — same min(width, height) logic as toolbar
+    // Footer bar height
     int footerFromWidth = juce::roundToInt(getWidth() * FooterComponent::footerRatio);
-    int footerFromHeight = juce::roundToInt(getHeight() * 0.06f);
+    int footerFromHeight = juce::roundToInt(getHeight() * 0.08f);
     int footerH = std::min({ footerFromWidth, footerFromHeight, FooterComponent::maxFooterHeight });
 
     // Tell popup panels where the footer starts so they don't overlap it
@@ -999,7 +1019,6 @@ void ChartchoticAudioProcessorEditor::resized()
         }
     }
 
-    footer.label.setFont(Theme::getUIFont(Theme::fontSize));
     footer.setBounds(0, getHeight() - footerH, getWidth(), footerH);
 
     // Rebake shared track cache when scene dimensions change or cache was externally invalidated
@@ -1231,6 +1250,7 @@ void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::Lo
         slot.highway->setVisible(true);
         activeSlotCount = 1;
         interactionController.setActivePart(slot.part);
+        toolbar.refreshFromWriteController();
 
         resized();
         loadState();
@@ -1275,7 +1295,10 @@ void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::Lo
 
     // Sync write controller to the primary slot's part.
     if (activeSlotCount > 0)
+    {
         interactionController.setActivePart(slots[0].part);
+        toolbar.refreshFromWriteController();
+    }
 
     // Multi-highway mode: show part labels and all toolbar options
     bool multiSlot = activeSlotCount > 1;
