@@ -70,11 +70,13 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
     auto cmd = commandMapper.resolve(SubMode::Edit, EventType::Down, ctx);
     if (cmd != WriteCommand::SelectAt) return;
 
-    if (p.overExistingNote && !p.hitSustainBody)
-    {
-        int clickPitch = resolveActivePitch(p.laneIndex);
-        int clickLane = barModeFlag ? 0 : p.laneIndex;
+    int clickPitch = resolveActivePitch(p.laneIndex);
+    int clickLane = barModeFlag ? 0 : p.laneIndex;
+    bool hitInteractableNote = p.overExistingNote && !p.hitSustainBody
+        && findNote(resolveTrackIdx(), p.hitNoteStartQN, clickPitch).noteIndex >= 0;
 
+    if (hitInteractableNote)
+    {
         if (isNoteSelected(p.hitNoteStartQN, clickPitch))
         {
             for (auto& n : selection)
@@ -92,10 +94,9 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
         {
             int trackIdx = resolveTrackIdx();
             auto found = findNote(trackIdx, p.hitNoteStartQN, clickPitch);
-            if (found.noteIndex < 0) return;
 
             selection.clear();
-            selection.push_back({ trackIdx, found.startQN, clickPitch, clickLane });
+            selection.push_back({ trackIdx, found.startQN, found.endQN, clickPitch, clickLane });
             recomputeOverlay();
 
             pendingSelect = true;
@@ -113,7 +114,7 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
         handleSelectAt(p);
         dragMode = DragMode::Marquee;
         marqueeScreenStart = p.screenPos;
-        marqueeRect.begin(p.rawProjectQN, barModeFlag ? 0 : p.laneIndex);
+        marqueeRect.begin(p.rawProjectQN, clickLane);
     }
 }
 
@@ -240,7 +241,7 @@ void EditController::handleSelectAt(const AuthoringPoint& p)
         }
 
         selection.clear();
-        selection.push_back({ trackIdx, found.startQN, pitch, lane, sustainOnly });
+        selection.push_back({ trackIdx, found.startQN, found.endQN, pitch, lane, sustainOnly });
     }
     else
     {
@@ -268,7 +269,7 @@ void EditController::handleCommitMarquee(const AuthoringPoint& p)
 
     selection.clear();
     for (const auto& cn : classifyNotesInRect(trackIdx, marqueeRect))
-        selection.push_back({ trackIdx, cn.note.startQN, cn.note.pitch, cn.lane, cn.sustainOnly });
+        selection.push_back({ trackIdx, cn.note.startQN, cn.note.endQN, cn.note.pitch, cn.lane, cn.sustainOnly });
 
     recomputeOverlay();
     if (onStateChanged) onStateChanged();
@@ -344,7 +345,7 @@ void EditController::handleCommitMove(const AuthoringPoint& p)
 
         moveNote(n.trackIdx, n.startQN, n.pitch, n.lane,
                  newStartQN, newEndQN, newPitch, newLane);
-        moved.push_back({ n.trackIdx, newStartQN, newPitch, newLane });
+        moved.push_back({ n.trackIdx, newStartQN, newEndQN, newPitch, newLane });
     }
 
     endBatch();
@@ -452,9 +453,10 @@ void EditController::handleArrowMove(int deltaLane, double deltaQN)
         double duration = found.endQN - found.startQN;
         int newPitch = resolvePitch(newLane, drums);
 
+        double newEndQN = newStartQN + duration;
         moveNote(n.trackIdx, n.startQN, n.pitch, n.lane,
-                 newStartQN, newStartQN + duration, newPitch, newLane);
-        moved.push_back({ n.trackIdx, newStartQN, newPitch, newLane });
+                 newStartQN, newEndQN, newPitch, newLane);
+        moved.push_back({ n.trackIdx, newStartQN, newEndQN, newPitch, newLane });
     }
 
     endBatch();

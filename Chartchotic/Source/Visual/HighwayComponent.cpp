@@ -225,8 +225,9 @@ void HighwayComponent::paint(juce::Graphics& g)
                     double sec = projectQNToSeconds(sn.startQN);
                     if (!sn.sustainOnly)
                         sceneRenderer.getSelectedGems().push_back({ sn.lane, sec });
+                    double endSec = projectQNToSeconds(sn.endQN);
                     sceneRenderer.getTintedSustains().push_back(
-                        { sn.lane, sec, sec + 9999.0, AuthoringColours::selectTint });
+                        { sn.lane, sec, endSec, AuthoringColours::selectTint });
                 }
             }
 

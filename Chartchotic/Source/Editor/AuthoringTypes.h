@@ -38,6 +38,7 @@ struct SelectedNote
 {
     int    trackIdx    = -1;
     double startQN     = 0.0;
+    double endQN       = 0.0;
     int    pitch       = -1;
     int    lane        = -1;
     bool   sustainOnly = false;
