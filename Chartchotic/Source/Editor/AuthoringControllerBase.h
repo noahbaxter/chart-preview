@@ -108,7 +108,7 @@ protected:
     bool createNote(int trackIdx, double qn, int pitch, int lane, int velocity = 100)
     {
         auto existing = findNote(trackIdx, qn, pitch);
-        if (existing.noteIndex >= 0 && std::abs(existing.startQN - qn) < 0.001)
+        if (existing.noteIndex >= 0 && std::abs(existing.startQN - qn) < kQNEpsilon)
         {
             DBG("createNote: duplicate at QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
             return false;
@@ -178,12 +178,12 @@ protected:
                                           rect.qnHi, barPitch);
             for (const auto& n : notes)
             {
-                bool headIn = n.startQN >= rect.qnLo - 0.001
-                           && n.startQN <= rect.qnHi + 0.001;
+                bool headIn = n.startQN >= rect.qnLo - kQNEpsilon
+                           && n.startQN <= rect.qnHi + kQNEpsilon;
                 bool hasSustain = (n.endQN - n.startQN) >= double(MIDI_MIN_SUSTAIN_LENGTH);
                 bool bodyOverlaps = hasSustain
-                                 && n.endQN > rect.qnLo + 0.001
-                                 && n.startQN < rect.qnLo - 0.001;
+                                 && n.endQN > rect.qnLo + kQNEpsilon
+                                 && n.startQN < rect.qnLo - kQNEpsilon;
                 if (headIn)
                     result.push_back({ n, 0, false });
                 else if (bodyOverlaps)
@@ -201,12 +201,12 @@ protected:
                                           rect.qnHi, pitch);
             for (const auto& n : notes)
             {
-                bool headIn = n.startQN >= rect.qnLo - 0.001
-                           && n.startQN <= rect.qnHi + 0.001;
+                bool headIn = n.startQN >= rect.qnLo - kQNEpsilon
+                           && n.startQN <= rect.qnHi + kQNEpsilon;
                 bool hasSustain = (n.endQN - n.startQN) >= double(MIDI_MIN_SUSTAIN_LENGTH);
                 bool bodyOverlaps = hasSustain
-                                 && n.endQN > rect.qnLo + 0.001
-                                 && n.startQN < rect.qnLo - 0.001;
+                                 && n.endQN > rect.qnLo + kQNEpsilon
+                                 && n.startQN < rect.qnLo - kQNEpsilon;
                 if (headIn)
                     result.push_back({ n, lane, false });
                 else if (bodyOverlaps)

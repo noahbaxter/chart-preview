@@ -9,6 +9,9 @@
 // Authoring types shared between HighwayComponent (event dispatcher),
 // WriteController (state owner), and GridlineGenerator (step grid).
 
+constexpr double kQNEpsilon   = 0.001;
+constexpr double kTimeEpsilon = 0.002;
+
 namespace AuthoringColours
 {
     static const juce::Colour selectTint = juce::Colour(180, 220, 255).withAlpha((uint8)140);

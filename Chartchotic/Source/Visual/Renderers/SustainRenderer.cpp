@@ -11,6 +11,7 @@
 
 #include "SustainRenderer.h"
 #include "../Utils/RenderTypeConfig.h"
+#include "../../Editor/AuthoringTypes.h"
 
 using namespace PositionConstants;
 
@@ -130,8 +131,8 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     {
         if (ts.lane != (int)sustain.gemColumn) continue;
         bool match = ts.matchStart
-            ? std::abs(sustain.startTime - ts.startTime) < 0.002
-            : (sustain.endTime > ts.startTime - 0.002 && sustain.startTime < ts.endTime + 0.002);
+            ? std::abs(sustain.startTime - ts.startTime) < kTimeEpsilon
+            : (sustain.endTime > ts.startTime - kTimeEpsilon && sustain.startTime < ts.endTime + kTimeEpsilon);
         if (match) { colour = ts.colour; break; }
     }
 

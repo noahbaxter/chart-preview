@@ -243,7 +243,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                 for (const auto& [noteTime, frame] : frameData.trackWindow)
                 {
                     double qn = secondsToProjectQN(noteTime);
-                    if (qn < mr.qnLo - 0.001 || qn > mr.qnHi + 0.001) continue;
+                    if (qn < mr.qnLo - kQNEpsilon || qn > mr.qnHi + kQNEpsilon) continue;
                     for (int lane = mr.laneLo; lane <= mr.laneHi; ++lane)
                     {
                         if (ov.barMode && lane != 0) continue;
@@ -259,7 +259,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                     int lane = (int)s.gemColumn;
                     if (ov.barMode && lane != 0) continue;
                     if (lane < mr.laneLo || lane > mr.laneHi) continue;
-                    if (s.startTime > secHi + 0.002 || s.endTime < secLo - 0.002) continue;
+                    if (s.startTime > secHi + kTimeEpsilon || s.endTime < secLo - kTimeEpsilon) continue;
                     sceneRenderer.getTintedSustains().push_back(
                         { lane, secLo, secHi, sustainCol });
                 }
@@ -304,7 +304,6 @@ void HighwayComponent::paint(juce::Graphics& g)
         // Move drag: hide original sustains, show preview sustains at destination
         if (ov.moveDragVisible)
         {
-            constexpr double kTol = 0.002;
             for (const auto& sn : ov.selectedNotes)
             {
                 double sec = projectQNToSeconds(sn.startQN);
@@ -312,7 +311,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                     std::remove_if(sustainWindow.begin(), sustainWindow.end(),
                         [&](const auto& s) {
                             return s.gemColumn == (uint)sn.lane
-                                && std::abs(s.startTime - sec) < kTol;
+                                && std::abs(s.startTime - sec) < kTimeEpsilon;
                         }),
                     sustainWindow.end());
             }
@@ -334,7 +333,6 @@ void HighwayComponent::paint(juce::Graphics& g)
     auto trackWindow = frameData.trackWindow;
     if (projectQNToSeconds)
     {
-        constexpr double kMatchTol = 0.002;
         double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
 
         // Hide originals during an active move drag
@@ -347,7 +345,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                 {
                     double sec = projectQNToSeconds(sn.startQN);
                     for (auto& [noteTime, frame] : trackWindow)
-                        if (std::abs(noteTime - sec) < kMatchTol
+                        if (std::abs(noteTime - sec) < kTimeEpsilon
                             && sn.lane >= 0 && sn.lane < (int)frame.size())
                             frame[sn.lane].gem = Gem::NONE;
                 }
@@ -360,7 +358,7 @@ void HighwayComponent::paint(juce::Graphics& g)
             {
                 double sec = projectQNToSeconds(patch.startQN);
                 for (auto& [noteTime, frame] : trackWindow)
-                    if (std::abs(noteTime - sec) < kMatchTol
+                    if (std::abs(noteTime - sec) < kTimeEpsilon
                         && patch.lane >= 0 && patch.lane < (int)frame.size())
                         frame[patch.lane].gem = Gem::NONE;
 
@@ -368,7 +366,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                     std::remove_if(sustainWindow.begin(), sustainWindow.end(),
                         [&](const auto& s) {
                             return (int)s.gemColumn == patch.lane
-                                && std::abs(s.startTime - sec) < kMatchTol;
+                                && std::abs(s.startTime - sec) < kTimeEpsilon;
                         }),
                     sustainWindow.end());
             }
@@ -379,7 +377,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                 bool alreadyExists = false;
                 for (const auto& [noteTime, frame] : trackWindow)
                 {
-                    if (std::abs(noteTime - sec) < kMatchTol
+                    if (std::abs(noteTime - sec) < kTimeEpsilon
                         && patch.lane >= 0 && patch.lane < (int)frame.size()
                         && frame[patch.lane].gem != Gem::NONE)
                     { alreadyExists = true; break; }
