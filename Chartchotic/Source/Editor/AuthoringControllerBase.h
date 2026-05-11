@@ -44,6 +44,7 @@ public:
 protected:
     bool isPlaying() const { return playingStatePtr && *playingStatePtr; }
     bool isDrums()   const { return isDrumLike(currentActivePart); }
+    int  maxLane()   const { return isDrums() ? 4 : 5; }
 
     Gem resolveGhostGem(int lane) const
     {
@@ -253,6 +254,8 @@ protected:
     bool noteEditorAvailable() const { return noteEditor.isAvailable(); }
     void beginBatch(const char* desc) { noteEditor.beginBatch(desc); }
     void endBatch() { noteEditor.endBatch(); }
+    void resolveOverlapsAt(int trackIdx, double startQN, int pitch)
+    { noteEditor.resolveOverlapsAt(trackIdx, startQN, pitch); }
 
     bool createMarkerNote(int trackIdx, double qn, int pitch)
     {

@@ -27,6 +27,7 @@ public:
     bool chainExtendNotes(int trackIdx, double startQN, double endQN, int pitch);
 
     double resolveOverlaps(int trackIdx, double startQN, double endQN, int pitch);
+    void resolveOverlapsAt(int trackIdx, double startQN, int pitch);
 
     void beginBatch(const char* description);
     void endBatch();

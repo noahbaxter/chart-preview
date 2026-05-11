@@ -147,10 +147,12 @@ bool NoteEditor::moveNote(int trackIdx, double oldStartQN, int oldPitch,
     auto note = midiWriter->findNote(trackIdx, oldStartQN, oldPitch);
     if (note.noteIndex < 0) return false;
 
-    newEndQN = resolveOverlaps(trackIdx, newStartQN, newEndQN, newPitch);
-
-    note = midiWriter->findNote(trackIdx, oldStartQN, oldPitch);
-    if (note.noteIndex < 0) return false;
+    if (!batchActive)
+    {
+        newEndQN = resolveOverlaps(trackIdx, newStartQN, newEndQN, newPitch);
+        note = midiWriter->findNote(trackIdx, oldStartQN, oldPitch);
+        if (note.noteIndex < 0) return false;
+    }
 
     bool ok = batchActive
         ? midiWriter->batchMoveNote(trackIdx, note.noteIndex, newStartQN, newEndQN, newPitch)
@@ -191,6 +193,50 @@ double NoteEditor::resolveOverlaps(int trackIdx, double startQN, double endQN, i
     }
 
     return endQN;
+}
+
+void NoteEditor::resolveOverlapsAt(int trackIdx, double startQN, int pitch)
+{
+    if (!midiWriter || !batchActive) return;
+
+    // Delete head-on-head duplicates (keep one note per position+pitch)
+    for (;;)
+    {
+        auto atPos = midiWriter->findNotesInRange(trackIdx,
+            startQN - kQNEpsilon, startQN + kQNEpsilon, pitch);
+        int count = 0;
+        for (const auto& n : atPos)
+            if (std::abs(n.startQN - startQN) <= kQNEpsilon) count++;
+        if (count <= 1) break;
+
+        auto dup = midiWriter->findNote(trackIdx, startQN, pitch);
+        if (dup.noteIndex < 0) break;
+        if (!midiWriter->batchDeleteNote(trackIdx, dup.noteIndex, startQN)) break;
+    }
+
+    // Truncate predecessor sustains that cover this position
+    auto before = midiWriter->findNotesInRange(trackIdx,
+        std::max(0.0, startQN - 32.0), startQN, pitch);
+    for (const auto& n : before)
+    {
+        if (n.startQN < startQN - kQNEpsilon && n.endQN > startQN + kQNEpsilon)
+        {
+            auto pred = midiWriter->findNote(trackIdx, n.startQN, pitch);
+            if (pred.noteIndex >= 0 && pred.startQN < startQN - kQNEpsilon)
+                midiWriter->batchMoveNote(trackIdx, pred.noteIndex, pred.startQN, startQN, pitch);
+        }
+    }
+
+    // Clip sustain if it extends into the next note on this pitch
+    auto self = midiWriter->findNote(trackIdx, startQN, pitch);
+    if (self.noteIndex >= 0)
+    {
+        auto ahead = midiWriter->findNotesInRange(trackIdx,
+            startQN + kQNEpsilon, self.endQN + kQNEpsilon, pitch);
+        if (!ahead.empty() && ahead[0].startQN > startQN + kQNEpsilon)
+            midiWriter->batchMoveNote(trackIdx, self.noteIndex,
+                self.startQN, ahead[0].startQN, pitch);
+    }
 }
 
 void NoteEditor::beginBatch(const char* description)

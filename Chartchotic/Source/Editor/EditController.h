@@ -31,6 +31,7 @@ private:
     bool   canEdit(const AuthoringPoint& p) const;
     bool   isNoteSelected(double startQN, int pitch) const;
     void   recomputeOverlay();
+    void   notifyChanged();
 
     void handleSelectAt       (const AuthoringPoint& p);
     void handleContinueMarquee(const AuthoringPoint& p);
@@ -40,6 +41,7 @@ private:
     void handleDoubleClick    (const AuthoringPoint& p);
     void handleDeleteSelection();
     void handleArrowMove(int deltaLane, double deltaQN);
+    void finishBatchMove(std::vector<SelectedNote>& moved);
     void updateCursorLabel(const AuthoringPoint& p);
 
     // Selection
