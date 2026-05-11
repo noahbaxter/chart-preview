@@ -168,6 +168,30 @@ protected:
     std::vector<ClassifiedNote> classifyNotesInRect(int trackIdx, const MarqueeRect& rect)
     {
         std::vector<ClassifiedNote> result;
+
+        if (barModeFlag)
+        {
+            int barPitch = resolveBarPitch();
+            if (barPitch < 0) return result;
+            auto notes = findNotesInRange(trackIdx,
+                                          std::max(0.0, rect.qnLo - 32.0),
+                                          rect.qnHi, barPitch);
+            for (const auto& n : notes)
+            {
+                bool headIn = n.startQN >= rect.qnLo - 0.001
+                           && n.startQN <= rect.qnHi + 0.001;
+                bool hasSustain = (n.endQN - n.startQN) >= double(MIDI_MIN_SUSTAIN_LENGTH);
+                bool bodyOverlaps = hasSustain
+                                 && n.endQN > rect.qnLo + 0.001
+                                 && n.startQN < rect.qnLo - 0.001;
+                if (headIn)
+                    result.push_back({ n, 0, false });
+                else if (bodyOverlaps)
+                    result.push_back({ n, 0, true });
+            }
+            return result;
+        }
+
         for (int lane = rect.laneLo; lane <= rect.laneHi; ++lane)
         {
             int pitch = resolveActivePitch(lane);
