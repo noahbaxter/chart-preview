@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "../Theme.h"
+#include "../HelpTypes.h"
 #include "PillToggle.h"
 #include "SegmentedButtons.h"
 #include "ValueStepper.h"
@@ -15,19 +16,21 @@ public:
         modeButtons.setItems({"Draw", "Edit"});
         addAndMakeVisible(modeButtons);
 
+        barToggle.setToggleState(false, juce::dontSendNotification);
+        addAndMakeVisible(barToggle);
+
         snapToggle.setToggleState(ic.snapEnabled(), juce::dontSendNotification);
+        snapToggle.setIcon(juce::Drawable::createFromImageData(
+            BinaryData::icon_snap_magnet_svg, BinaryData::icon_snap_magnet_svgSize));
         addAndMakeVisible(snapToggle);
 
         divisionStepper.setLabelRatio(0.0f);
         addAndMakeVisible(divisionStepper);
 
-        tupletButtons.setItems({"Off", "3", "5", "7"});
-        addAndMakeVisible(tupletButtons);
+        tupletStepper.setLabelRatio(0.0f);
+        addAndMakeVisible(tupletStepper);
 
-        barToggle.setToggleState(false, juce::dontSendNotification);
-        addAndMakeVisible(barToggle);
-
-        guitarForceButtons.setItems({"None", "HOPO", "Strum", "Tap"});
+        guitarForceButtons.setItems({"Auto", "HOPO", "Strum", "Tap"});
         addChildComponent(guitarForceButtons);
 
         drumDynamicButtons.setItems({"Normal", "Ghost", "Accent"});
@@ -36,26 +39,33 @@ public:
         cymbalToggle.setToggleState(false, juce::dontSendNotification);
         addChildComponent(cymbalToggle);
 
-        hoverZones.push_back(std::make_unique<HoverHelpZone>(modeButtons,         "Switch between Draw and Edit modes \xc2\xb7 Q"));
-        hoverZones.push_back(std::make_unique<HoverHelpZone>(snapToggle,          "Toggle grid snapping \xc2\xb7 S"));
-        hoverZones.push_back(std::make_unique<HoverHelpZone>(divisionStepper,     "Step grid division \xc2\xb7 [ and ]"));
-        hoverZones.push_back(std::make_unique<HoverHelpZone>(tupletButtons,       "Set tuplet grouping \xc2\xb7 T to cycle"));
-        hoverZones.push_back(std::make_unique<HoverHelpZone>(barToggle,           "Toggle bar mode (kick/open only) \xc2\xb7 B"));
-        hoverZones.push_back(std::make_unique<HoverHelpZone>(guitarForceButtons,  "Set note force type for placed notes"));
-        hoverZones.push_back(std::make_unique<HoverHelpZone>(drumDynamicButtons,  "Set drum hit dynamic for placed notes"));
-        hoverZones.push_back(std::make_unique<HoverHelpZone>(cymbalToggle,        "Toggle cymbal/tom for yellow, blue, green lanes"));
+        for (auto* seg : { &modeButtons, &guitarForceButtons, &drumDynamicButtons })
+            seg->setCornerRadius(3.0f);
+        for (auto* pill : { &snapToggle, &barToggle, &cymbalToggle })
+            pill->setCornerRadius(3.0f);
+        divisionStepper.setCornerRadius(3.0f);
+        tupletStepper.setCornerRadius(3.0f);
+
+        addHoverZone(modeButtons,        {"Q"},      "draw places notes, edit selects & modifies");
+        barHelpZone = addHoverZone(barToggle, {"B"}, "only interact with open notes");
+        addHoverZone(snapToggle,         {"S"},      "lock note placement to grid");
+        addHoverZone(divisionStepper,    {"[", "]"}, "grid spacing (1/4, 1/8, 1/16...)");
+        addHoverZone(tupletStepper,      {"T"},      "tuplet subdivision (3, 5, 7)");
+        addHoverZone(guitarForceButtons, {},         "force HOPO, strum, or tap (overrides auto)");
+        addHoverZone(drumDynamicButtons, {},         "ghost (soft) or accent (loud) hit");
+        addHoverZone(cymbalToggle,       {},         "cymbal placement (PRO drums)");
     }
 
     std::function<void(SubMode)> onSubModeChanged;
     std::function<void(bool)> onSnapChanged;
     std::function<void(int delta)> onStepDivisionStep;
-    std::function<void(int index)> onTupletChanged;
+    std::function<void(int delta)> onTupletStep;
     std::function<void(bool)> onBarModeChanged;
     std::function<void(GuitarForce)> onGuitarForceChanged;
     std::function<void(DrumDynamic)> onDrumDynamicChanged;
     std::function<void(bool)> onCymbalModeChanged;
 
-    std::function<void(const juce::String&)> onHoverHelp;
+    std::function<void(const HelpText&)> onHoverHelp;
     std::function<void()> onHoverHelpClear;
 
     void wireCallbacks()
@@ -73,8 +83,8 @@ public:
             if (onStepDivisionStep) onStepDivisionStep(delta);
         };
 
-        tupletButtons.onSelectionChanged = [this](int idx) {
-            if (onTupletChanged) onTupletChanged(idx);
+        tupletStepper.onStep = [this](int delta) {
+            if (onTupletStep) onTupletStep(delta);
         };
 
         barToggle.onClick = [this]() {
@@ -107,21 +117,43 @@ public:
     void refreshFromController()
     {
         bool drums = isDrumLike(interactionController.activePart());
+        bool drawMode = interactionController.subMode() == SubMode::Draw;
+        bool editMode = !drawMode;
+        bool hasSel = editMode && interactionController.hasEditSelection();
+        juce::Colour modeAccent = drawMode ? juce::Colour(Theme::purple) : juce::Colour(Theme::blue);
 
-        int modeIdx = interactionController.subMode() == SubMode::Draw ? 0 : 1;
+        if (barHelpZone)
+            barHelpZone->setDescription({"B"}, drums ? "only interact with kick notes"
+                                                     : "only interact with open notes");
+
+        modeButtons.setAccentColour(modeAccent);
+        snapToggle.setAccentColour(modeAccent);
+        divisionStepper.setAccentColour(modeAccent);
+        tupletStepper.setAccentColour(modeAccent);
+        barToggle.setAccentColour(modeAccent);
+        guitarForceButtons.setAccentColour(modeAccent);
+        drumDynamicButtons.setAccentColour(modeAccent);
+        cymbalToggle.setAccentColour(modeAccent);
+
+        int modeIdx = drawMode ? 0 : 1;
         modeButtons.setSelectedIndex(modeIdx);
 
-        snapToggle.setToggleState(interactionController.snapEnabled());
+        bool snapOn = interactionController.snapEnabled();
+        snapToggle.setToggleState(snapOn);
 
         int div = interactionController.stepDivision();
         divisionStepper.setDisplayValue("1/" + juce::String(div));
+        divisionStepper.setAtMin(div <= 1);
+        divisionStepper.setAtMax(div >= 64);
+        divisionStepper.setAlpha(snapOn ? 1.0f : 0.35f);
+        divisionStepper.setInterceptsMouseClicks(snapOn, snapOn);
 
         int tuplet = interactionController.tuplet();
-        int tupIdx = 0;
-        if (tuplet == 3) tupIdx = 1;
-        else if (tuplet == 5) tupIdx = 2;
-        else if (tuplet == 7) tupIdx = 3;
-        tupletButtons.setSelectedIndex(tupIdx);
+        tupletStepper.setDisplayValue(tuplet == 0 ? "Off" : juce::String(tuplet));
+        tupletStepper.setAtMin(tuplet == 0);
+        tupletStepper.setAtMax(tuplet == 7);
+        tupletStepper.setAlpha(snapOn ? 1.0f : 0.35f);
+        tupletStepper.setInterceptsMouseClicks(snapOn, snapOn);
 
         barToggle.setToggleState(interactionController.barMode());
 
@@ -129,23 +161,38 @@ public:
         drumDynamicButtons.setVisible(drums);
         cymbalToggle.setVisible(drums);
 
+        bool modifiersEnabled = drawMode || hasSel;
+
         if (drums)
         {
-            auto dyn = interactionController.drumDynamic();
-            int dynIdx = 0;
-            if (dyn == DrumDynamic::Ghost) dynIdx = 1;
-            else if (dyn == DrumDynamic::Accent) dynIdx = 2;
-            drumDynamicButtons.setSelectedIndex(dynIdx);
-            cymbalToggle.setToggleState(interactionController.cymbalMode());
+            drumDynamicButtons.setAlpha(modifiersEnabled ? 1.0f : 0.35f);
+            drumDynamicButtons.setInterceptsMouseClicks(modifiersEnabled, modifiersEnabled);
+            cymbalToggle.setDisabled(!modifiersEnabled);
+
+            if (modifiersEnabled)
+            {
+                auto dyn = interactionController.drumDynamic();
+                int dynIdx = 0;
+                if (dyn == DrumDynamic::Ghost) dynIdx = 1;
+                else if (dyn == DrumDynamic::Accent) dynIdx = 2;
+                drumDynamicButtons.setSelectedIndex(dynIdx);
+                cymbalToggle.setToggleState(interactionController.cymbalMode());
+            }
         }
         else
         {
-            auto force = interactionController.guitarForce();
-            int forceIdx = 0;
-            if (force == GuitarForce::Hopo) forceIdx = 1;
-            else if (force == GuitarForce::Strum) forceIdx = 2;
-            else if (force == GuitarForce::Tap) forceIdx = 3;
-            guitarForceButtons.setSelectedIndex(forceIdx);
+            guitarForceButtons.setAlpha(modifiersEnabled ? 1.0f : 0.35f);
+            guitarForceButtons.setInterceptsMouseClicks(modifiersEnabled, modifiersEnabled);
+
+            if (modifiersEnabled)
+            {
+                auto force = interactionController.guitarForce();
+                int forceIdx = 0;
+                if (force == GuitarForce::Hopo) forceIdx = 1;
+                else if (force == GuitarForce::Strum) forceIdx = 2;
+                else if (force == GuitarForce::Tap) forceIdx = 3;
+                guitarForceButtons.setSelectedIndex(forceIdx);
+            }
         }
 
         resized();
@@ -156,16 +203,35 @@ public:
     {
         const bool drawMode = interactionController.subMode() == SubMode::Draw;
         const juce::Colour modeColour = drawMode
-            ? juce::Colour(Theme::green)
-            : juce::Colour(Theme::coral);
+            ? juce::Colour(Theme::purple)
+            : juce::Colour(Theme::blue);
 
         g.setColour(juce::Colour(Theme::darkBgLighter).withAlpha(0.85f));
         g.fillRect(getLocalBounds());
-        g.setColour(modeColour.withAlpha(0.18f));
+        g.setColour(modeColour.withAlpha(0.12f));
         g.fillRect(getLocalBounds());
 
         g.setColour(modeColour.withAlpha(0.55f));
         g.drawHorizontalLine(0, 0.0f, (float)getWidth());
+
+        if (SUBTOOLBAR_SHOW_LABELS && labelH > 0)
+        {
+            float fs = juce::jmax(7.0f, (float)labelH * 0.55f);
+            juce::Font labelFont = Theme::getUIFont(fs)
+                .withHorizontalScale(1.25f)
+                .withExtraKerningFactor(0.12f);
+            g.setFont(labelFont);
+            g.setColour(juce::Colours::white.withAlpha(0.25f));
+
+            bool drums = isDrumLike(interactionController.activePart());
+            auto draw = [&](const char* text, juce::Rectangle<int> r) {
+                g.drawText(text, r.getX(), 0, r.getWidth(), labelH,
+                           juce::Justification::centred, false);
+            };
+            draw("MODE",     labelGroupLeft);
+            draw("GRID",     labelGroupCenter);
+            draw("NOTE TYPE", labelGroupRight);
+        }
     }
 
     void resized() override
@@ -173,72 +239,87 @@ public:
         int h = getHeight();
         if (h <= 0) return;
 
-        int margin = juce::jmax(8, h / 2);
-        int gap = juce::jmax(4, h / 6);
-        int controlH = juce::jmax(1, h - juce::jmax(4, h / 5));
-        int controlY = (h - controlH) / 2;
-
         bool drums = isDrumLike(interactionController.activePart());
 
-        int modeW = juce::jmax(80, h * 3);
-        int snapW = juce::jmax(40, h * 2);
-        int divW = juce::jmax(55, h * 2);
-        int tupW = juce::jmax(100, h * 4);
-        int barW = juce::jmax(40, h * 2);
+        labelH = SUBTOOLBAR_SHOW_LABELS ? juce::jmax(10, juce::roundToInt(h * 0.3f)) : 0;
+        int controlArea = h - labelH;
+        int padTop = juce::roundToInt(controlArea * SUBTOOLBAR_PAD_TOP);
+        int padBot = juce::roundToInt(controlArea * SUBTOOLBAR_PAD_BOTTOM);
+        int available = controlArea - padTop - padBot;
+        int rowH = juce::jmax(8, juce::roundToInt(available * SUBTOOLBAR_HEIGHT_SCALE));
+        int controlY = labelH + padTop + (available - rowH) / 2;
 
-        int modW = 0;
-        if (drums)
-            modW = juce::jmax(130, h * 5) + gap + juce::jmax(40, h * 2);
-        else
-            modW = juce::jmax(160, h * 6);
+        float u = (float)juce::jmax(8, juce::roundToInt(controlArea * SUBTOOLBAR_HEIGHT_SCALE)) * SUBTOOLBAR_WIDTH_SCALE;
+        int gap = juce::jmax(2, (int)(u * 0.15f));
+        int colGap = (int)(u * SUBTOOLBAR_COL_GAP);
 
-        int totalW = modeW + gap + snapW + gap + divW + gap + tupW + gap + barW + gap * 3 + modW;
-        int startX = juce::jmax(margin, (getWidth() - totalW) / 2);
-        int x = startX;
+        int modeW = (int)(u * SUBTOOLBAR_MODE_W);
+        int barW  = (int)(u * SUBTOOLBAR_BAR_W);
+        int snapW = (int)(u * SUBTOOLBAR_SNAP_W);
+        int stepW = (int)(u * SUBTOOLBAR_STEP_W);
+        int modW  = (int)(u * SUBTOOLBAR_MOD_W);
 
-        modeButtons.setBounds(x, controlY, modeW, controlH);
-        x += modeW + gap;
+        int intraGap = juce::jmax(3, (int)(u * 0.25f));
+        int leftGrpW   = modeW + intraGap + barW;
+        int centerGrpW = snapW + gap + stepW + gap + stepW;
+        int rightGrpW  = modW;
+        int totalW = leftGrpW + colGap + centerGrpW + colGap + rightGrpW;
+        int startX = (getWidth() - totalW) / 2;
 
-        snapToggle.setBounds(x, controlY, snapW, controlH);
-        x += snapW + gap;
+        int leftX   = startX;
+        int centerX = leftX + leftGrpW + colGap;
+        int rightX  = centerX + centerGrpW + colGap;
 
-        divisionStepper.setBounds(x, controlY, divW, controlH);
-        x += divW + gap;
+        modeButtons.setBounds(leftX, controlY, modeW, rowH);
+        barToggle.setBounds(leftX + modeW + intraGap, controlY, barW, rowH);
 
-        tupletButtons.setBounds(x, controlY, tupW, controlH);
-        x += tupW + gap;
-
-        barToggle.setBounds(x, controlY, barW, controlH);
-        x += barW + gap * 3;
+        snapToggle.setBounds(centerX, controlY, snapW, rowH);
+        divisionStepper.setBounds(centerX + snapW + gap, controlY, stepW, rowH);
+        tupletStepper.setBounds(centerX + snapW + gap + stepW + gap, controlY, stepW, rowH);
 
         if (drums)
         {
-            int dynW = juce::jmax(130, h * 5);
-            int cymW = juce::jmax(40, h * 2);
-            drumDynamicButtons.setBounds(x, controlY, dynW, controlH);
-            x += dynW + gap;
-            cymbalToggle.setBounds(x, controlY, cymW, controlH);
+            int cymW = (int)(u * SUBTOOLBAR_CYM_W);
+            int dynW = modW - cymW - intraGap;
+            drumDynamicButtons.setBounds(rightX, controlY, dynW, rowH);
+            cymbalToggle.setBounds(rightX + dynW + intraGap, controlY, cymW, rowH);
         }
         else
         {
-            guitarForceButtons.setBounds(x, controlY, modW, controlH);
+            guitarForceButtons.setBounds(rightX, controlY, modW, rowH);
         }
+
+        labelGroupLeft   = { leftX,   0, leftGrpW,   labelH };
+        labelGroupCenter = { centerX, 0, centerGrpW, labelH };
+        labelGroupRight  = { rightX,  0, rightGrpW,  labelH };
     }
 
 private:
     struct HoverHelpZone : public juce::MouseListener
     {
         juce::Component& target;
-        juce::String helpText;
-        std::function<void(const juce::String&)>* onHelp = nullptr;
+        HelpText helpText;
+        std::function<void(const HelpText&)>* onHelp = nullptr;
         std::function<void()>* onClear = nullptr;
 
-        HoverHelpZone(juce::Component& t, const juce::String& text) : target(t), helpText(text)
+        HoverHelpZone(juce::Component& t, std::initializer_list<juce::String> keys, const juce::String& desc)
+            : target(t)
         {
+            for (const auto& k : keys)
+                helpText.push_back(key(k));
+            helpText.push_back(dim(desc));
             target.addMouseListener(this, false);
         }
 
         ~HoverHelpZone() override { target.removeMouseListener(this); }
+
+        void setDescription(std::initializer_list<juce::String> newKeys, const juce::String& desc)
+        {
+            helpText.clear();
+            for (const auto& k : newKeys)
+                helpText.push_back(key(k));
+            helpText.push_back(dim(desc));
+        }
 
         void mouseEnter(const juce::MouseEvent&) override
         {
@@ -251,20 +332,32 @@ private:
         }
     };
 
+    HoverHelpZone* addHoverZone(juce::Component& target, std::initializer_list<juce::String> keys, const juce::String& desc)
+    {
+        auto zone = std::make_unique<HoverHelpZone>(target, keys, desc);
+        auto* ptr = zone.get();
+        hoverZones.push_back(std::move(zone));
+        return ptr;
+    }
+
     InteractionController& interactionController;
 
     SegmentedButtons modeButtons;
-    PillToggle       snapToggle     {"Snap"};
-    ValueStepper     divisionStepper{"", ""};
-    SegmentedButtons tupletButtons;
     PillToggle       barToggle      {"BAR"};
 
-    SegmentedButtons guitarForceButtons;
+    PillToggle       snapToggle     {"Snap"};
+    ValueStepper     divisionStepper{"", ""};
+    ValueStepper     tupletStepper  {"", ""};
 
+    SegmentedButtons guitarForceButtons;
     SegmentedButtons drumDynamicButtons;
     PillToggle       cymbalToggle   {"Cym"};
 
     std::vector<std::unique_ptr<HoverHelpZone>> hoverZones;
+    HoverHelpZone* barHelpZone = nullptr;
+
+    int labelH = 0;
+    juce::Rectangle<int> labelGroupLeft, labelGroupCenter, labelGroupRight;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WriteSubToolbar)
 };

@@ -27,15 +27,13 @@ class InteractionController;
 class ToolbarComponent : public juce::Component
 {
 public:
-    static constexpr float toolbarRatio = 0.06f;    // fraction of editor width (single strip)
-    static constexpr int maxToolbarHeight = 100;    // cap toolbar height (pixels)
-    static constexpr int referenceHeight = 36;     // design reference for the strip portion
-    static constexpr float stripFraction = 1.0f;   // strip is the full toolbar height
-    static constexpr float logoFontRatio = 0.90f;  // logo font size as fraction of strip height
+    static constexpr float toolbarRatio = TOOLBAR_RATIO;
+    static constexpr int maxToolbarHeight = TOOLBAR_MAX_HEIGHT;
+    static constexpr int referenceHeight = 36;
+    static constexpr float stripFraction = 1.0f;
+    static constexpr float logoFontRatio = 0.90f;
 
-    // Sub-toolbar reference height — laid out below the main strip when write
-    // mode is active. Scales with the strip the same way other elements do.
-    static constexpr float subToolbarHeightRatio = 0.62f; // fraction of the strip height
+    static constexpr float subToolbarHeightRatio = SUBTOOLBAR_HEIGHT_RATIO;
 
     // Total height the toolbar reports to its parent. Equals baseStripHeight
     // when write mode is off; baseStripHeight + sub-row when on. PluginEditor

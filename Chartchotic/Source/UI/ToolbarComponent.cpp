@@ -76,11 +76,15 @@ void ToolbarComponent::initTopBar()
     noteSpeedStepper.onStep = [this](int delta) {
         noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, noteSpeed + delta);
         noteSpeedStepper.setDisplayValue(noteSpeed);
+        noteSpeedStepper.setAtMin(noteSpeed <= NOTE_SPEED_MIN);
+        noteSpeedStepper.setAtMax(noteSpeed >= NOTE_SPEED_MAX);
         if (onNoteSpeedChanged) onNoteSpeedChanged(noteSpeed);
     };
     noteSpeedStepper.onValueEdited = [this](const juce::String& text) {
         noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, text.getIntValue());
         noteSpeedStepper.setDisplayValue(noteSpeed);
+        noteSpeedStepper.setAtMin(noteSpeed <= NOTE_SPEED_MIN);
+        noteSpeedStepper.setAtMax(noteSpeed >= NOTE_SPEED_MAX);
         if (onNoteSpeedChanged) onNoteSpeedChanged(noteSpeed);
     };
     addAndMakeVisible(noteSpeedStepper);
@@ -119,8 +123,13 @@ void ToolbarComponent::initTopBar()
         if (interactionController.onStateChanged) interactionController.onStateChanged();
     };
 
-    writeSubToolbar.onTupletChanged = [this](int idx) {
+    writeSubToolbar.onTupletStep = [this](int delta) {
         static const int tuplets[] = {0, 3, 5, 7};
+        int current = interactionController.tuplet();
+        int idx = 0;
+        for (int i = 0; i < 4; ++i)
+            if (tuplets[i] == current) { idx = i; break; }
+        idx = juce::jlimit(0, 3, idx + delta);
         interactionController.setTuplet(tuplets[idx]);
         if (interactionController.onStateChanged) interactionController.onStateChanged();
     };
@@ -388,17 +397,20 @@ void ToolbarComponent::initSettingsPanel()
 
     highwayLengthStepper.setDisplayValue(highwayLengthPct);
     highwayLengthStepper.onStep = [this](int delta) {
-        // Adaptive step: fine at low values, coarser at high
         int step = highwayLengthPct < 100 ? 5 : (highwayLengthPct < 200 ? 10 : 25);
         int snapped = (int)std::round(highwayLengthPct / (double)step) * step;
         highwayLengthPct = juce::jlimit(HWY_LENGTH_MIN_PCT, HWY_LENGTH_MAX_PCT,
             snapped + delta * step);
         highwayLengthStepper.setDisplayValue(highwayLengthPct);
+        highwayLengthStepper.setAtMin(highwayLengthPct <= HWY_LENGTH_MIN_PCT);
+        highwayLengthStepper.setAtMax(highwayLengthPct >= HWY_LENGTH_MAX_PCT);
         if (onHighwayLengthChanged) onHighwayLengthChanged(highwayLengthPct / 100.0f);
     };
     highwayLengthStepper.onValueEdited = [this](const juce::String& text) {
         highwayLengthPct = juce::jlimit(HWY_LENGTH_MIN_PCT, HWY_LENGTH_MAX_PCT, text.getIntValue());
         highwayLengthStepper.setDisplayValue(highwayLengthPct);
+        highwayLengthStepper.setAtMin(highwayLengthPct <= HWY_LENGTH_MIN_PCT);
+        highwayLengthStepper.setAtMax(highwayLengthPct >= HWY_LENGTH_MAX_PCT);
         if (onHighwayLengthChanged) onHighwayLengthChanged(highwayLengthPct / 100.0f);
     };
 
@@ -650,6 +662,8 @@ void ToolbarComponent::loadState()
     // Note speed
     noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT;
     noteSpeedStepper.setDisplayValue(noteSpeed);
+    noteSpeedStepper.setAtMin(noteSpeed <= NOTE_SPEED_MIN);
+    noteSpeedStepper.setAtMax(noteSpeed >= NOTE_SPEED_MAX);
 
     // Drum type → cymbals toggle (Pro = 2 = on)
     int drumType = (int)state["drumType"];
@@ -743,6 +757,8 @@ void ToolbarComponent::loadState()
         int savedPct = juce::roundToInt((float)state["highwayLength"] * 100.0f);
         highwayLengthPct = juce::jlimit(HWY_LENGTH_MIN_PCT, HWY_LENGTH_MAX_PCT, savedPct);
         highwayLengthStepper.setDisplayValue(highwayLengthPct);
+        highwayLengthStepper.setAtMin(highwayLengthPct <= HWY_LENGTH_MIN_PCT);
+        highwayLengthStepper.setAtMax(highwayLengthPct >= HWY_LENGTH_MAX_PCT);
     }
 
     // Texture scale
