@@ -127,10 +127,13 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     auto colour = assetManager.getLaneColour(sustain.gemColumn, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS, shouldBeWhite);
 
     for (const auto& ts : tintedSustains)
-        if (ts.lane == (int)sustain.gemColumn
-            && sustain.endTime > ts.startTime - 0.002
-            && sustain.startTime < ts.endTime + 0.002)
-        { colour = ts.colour; break; }
+    {
+        if (ts.lane != (int)sustain.gemColumn) continue;
+        bool match = ts.matchStart
+            ? std::abs(sustain.startTime - ts.startTime) < 0.002
+            : (sustain.endTime > ts.startTime - 0.002 && sustain.startTime < ts.endTime + 0.002);
+        if (match) { colour = ts.colour; break; }
+    }
 
     float opacity, sustainWidth;
     DrawOrder sustainDrawOrder;
