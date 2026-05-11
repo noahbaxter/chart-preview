@@ -70,49 +70,10 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
     auto cmd = commandMapper.resolve(SubMode::Edit, EventType::Down, ctx);
     if (cmd != WriteCommand::SelectAt) return;
 
-    if (barModeFlag)
-    {
-        int trackIdx = resolveTrackIdx();
-        if (trackIdx < 0) return;
-
-        int barPitch = resolveBarPitch();
-
-        if (p.overExistingNote)
-        {
-            auto found = findNote(trackIdx, p.hitNoteStartQN, barPitch);
-            if (found.noteIndex >= 0)
-            {
-                bool alreadySelected = isNoteSelected(found.startQN, barPitch);
-                if (!alreadySelected)
-                {
-                    selection.clear();
-                    selection.push_back({ trackIdx, found.startQN, barPitch, 0 });
-                    recomputeOverlay();
-                }
-                dragMode = DragMode::Moving;
-                moveScreenStart = p.screenPos;
-                moveOriginQN = p.rawProjectQN;
-                moveOriginLane = 0;
-                moveAxisLock = false;
-                moveDragStarted = false;
-            }
-        }
-        else
-        {
-            selection.clear();
-            recomputeOverlay();
-            dragMode = DragMode::Marquee;
-            marqueeScreenStart = p.screenPos;
-            marqueeRect.begin(p.rawProjectQN, p.laneIndex);
-            if (onStateChanged) onStateChanged();
-        }
-        return;
-    }
-
     if (p.overExistingNote && !p.hitSustainBody)
     {
-        bool drums = isDrums();
-        int clickPitch = resolvePitch(p.laneIndex, drums);
+        int clickPitch = resolveActivePitch(p.laneIndex);
+        int clickLane = barModeFlag ? 0 : p.laneIndex;
 
         if (isNoteSelected(p.hitNoteStartQN, clickPitch))
         {
@@ -123,15 +84,18 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
             dragMode = DragMode::Moving;
             moveScreenStart = p.screenPos;
             moveOriginQN = p.rawProjectQN;
-            moveOriginLane = p.laneIndex;
+            moveOriginLane = clickLane;
             moveAxisLock = ctx.mods.isAltDown();
             moveDragStarted = false;
         }
         else
         {
             int trackIdx = resolveTrackIdx();
+            auto found = findNote(trackIdx, p.hitNoteStartQN, clickPitch);
+            if (found.noteIndex < 0) return;
+
             selection.clear();
-            selection.push_back({ trackIdx, p.hitNoteStartQN, clickPitch, p.laneIndex });
+            selection.push_back({ trackIdx, found.startQN, clickPitch, clickLane });
             recomputeOverlay();
 
             pendingSelect = true;
@@ -139,7 +103,7 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
             dragMode = DragMode::Moving;
             moveScreenStart = p.screenPos;
             moveOriginQN = p.rawProjectQN;
-            moveOriginLane = p.laneIndex;
+            moveOriginLane = clickLane;
             moveAxisLock = ctx.mods.isAltDown();
             moveDragStarted = false;
         }
@@ -149,7 +113,7 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
         handleSelectAt(p);
         dragMode = DragMode::Marquee;
         marqueeScreenStart = p.screenPos;
-        marqueeRect.begin(p.rawProjectQN, p.laneIndex);
+        marqueeRect.begin(p.rawProjectQN, barModeFlag ? 0 : p.laneIndex);
     }
 }
 
@@ -252,9 +216,8 @@ void EditController::handleSelectAt(const AuthoringPoint& p)
     if (p.overExistingNote)
     {
         int trackIdx = resolveTrackIdx();
-        bool drums = isDrums();
-        int lane = p.laneIndex;
-        int pitch = resolvePitch(lane, drums);
+        int lane = barModeFlag ? 0 : p.laneIndex;
+        int pitch = resolveActivePitch(p.laneIndex);
 
         if (isNoteSelected(p.hitNoteStartQN, pitch))
             return;
@@ -266,8 +229,18 @@ void EditController::handleSelectAt(const AuthoringPoint& p)
             if (info.noteIndex < 0 || (info.endQN - info.startQN) < double(MIDI_MIN_SUSTAIN_LENGTH))
                 sustainOnly = false;
         }
+
+        auto found = findNote(trackIdx, p.hitNoteStartQN, pitch);
+        if (found.noteIndex < 0)
+        {
+            selection.clear();
+            recomputeOverlay();
+            if (onStateChanged) onStateChanged();
+            return;
+        }
+
         selection.clear();
-        selection.push_back({ trackIdx, p.hitNoteStartQN, pitch, lane, sustainOnly });
+        selection.push_back({ trackIdx, found.startQN, pitch, lane, sustainOnly });
     }
     else
     {
@@ -454,6 +427,7 @@ void EditController::handleDeleteSelection()
 void EditController::handleArrowMove(int deltaLane, double deltaQN)
 {
     if (selection.empty()) return;
+    if (barModeFlag) deltaLane = 0;
 
     bool drums = isDrums();
     int maxLane = drums ? 4 : 5;
