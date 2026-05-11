@@ -244,15 +244,19 @@ void HighwayComponent::paint(juce::Graphics& g)
                     double qn = secondsToProjectQN(noteTime);
                     if (qn < mr.qnLo - 0.001 || qn > mr.qnHi + 0.001) continue;
                     for (int lane = mr.laneLo; lane <= mr.laneHi; ++lane)
+                    {
+                        if (ov.barMode && lane != 0) continue;
                         if (lane >= 0 && lane < (int)frame.size()
                             && frame[lane].gem != Gem::NONE)
                             targets.push_back({ lane, noteTime });
+                    }
                 }
                 auto sustainCol = ov.marqueeErase
                     ? AuthoringColours::eraseTint : AuthoringColours::selectTint;
                 for (const auto& s : frameData.sustainWindow)
                 {
                     int lane = (int)s.gemColumn;
+                    if (ov.barMode && lane != 0) continue;
                     if (lane < mr.laneLo || lane > mr.laneHi) continue;
                     if (s.startTime > secHi + 0.002 || s.endTime < secLo - 0.002) continue;
                     sceneRenderer.getTintedSustains().push_back(
