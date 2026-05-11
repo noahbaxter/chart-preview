@@ -104,7 +104,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
         else if (ghostCursor.visible)
         {
             noteRenderer.renderGhost(drawCallMap, ghostCursor.lane, ghostCursor.position,
-                                     ghostCursor.image, ghostCursor.opacity);
+                                     ghostCursor.image, ghostCursor.opacity, ghostCursor.gem);
         }
 
         if (ghostCursor.positionLabel.isNotEmpty())

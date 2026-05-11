@@ -27,6 +27,10 @@ public:
 
     void setFolderIconVisible(bool show) { folderIconVisible = show; repaint(); }
     void setValueClickable(bool clickable) { valueClickOpensFolder = clickable; repaint(); }
+    void setAccentColour(juce::Colour c) { accent = c; repaint(); }
+    void setCornerRadius(float r) { cornerRadius = r; repaint(); }
+    void setAtMin(bool v) { atMin = v; repaint(); }
+    void setAtMax(bool v) { atMax = v; repaint(); }
 
     void paint(juce::Graphics& g) override
     {
@@ -52,7 +56,7 @@ public:
             bool folderHover = isMouseOver() && folderHoverZone;
             int iconX = labelOnRight ? (bounds.getWidth() - nameW - folderW) : (nameW - folderW);
             auto iconArea = juce::Rectangle<float>((float)iconX, 0.0f, (float)folderW, h).reduced(h * 0.2f);
-            g.setColour(juce::Colour(Theme::coral).withAlpha(folderHover ? 1.0f : 0.45f));
+            g.setColour(accent.withAlpha(folderHover ? 1.0f : 0.45f));
 
             float ix = iconArea.getX(), iy = iconArea.getY();
             float iw = iconArea.getWidth(), ih = iconArea.getHeight();
@@ -73,30 +77,33 @@ public:
         auto valueRect = (labelOnRight ? bounds.withRight(bounds.getWidth() - nameW)
                                        : bounds.withLeft(nameW)).toFloat().reduced(1.0f);
 
-        g.setColour(juce::Colour(Theme::darkBg));
-        g.fillRoundedRectangle(valueRect, Theme::pillCorner);
+        float cr = (cornerRadius >= 0.0f) ? cornerRadius : Theme::pillCorner;
 
-        g.setColour(hovering ? juce::Colour(Theme::coral).withAlpha(0.5f)
+        g.setColour(juce::Colour(Theme::darkBg));
+        g.fillRoundedRectangle(valueRect, cr);
+
+        g.setColour(hovering ? accent.withAlpha(0.5f)
                              : juce::Colour(Theme::textDim).withAlpha(0.3f));
-        g.drawRoundedRectangle(valueRect, Theme::pillCorner, 1.0f);
+        g.drawRoundedRectangle(valueRect, cr, 1.0f);
 
         // Don't draw arrows/value text while editing
         if (editor != nullptr)
             return;
 
         // Arrows
-        g.setColour(juce::Colour(Theme::coral).withAlpha(hovering ? 1.0f : 0.7f));
         g.setFont(juce::Font(Theme::arrowFontSize));
 
         auto leftArrow = valueRect.withWidth(Theme::arrowZone);
         auto rightArrow = valueRect.withLeft(valueRect.getRight() - Theme::arrowZone);
+        g.setColour(atMin ? juce::Colour(Theme::textDim).withAlpha(0.2f) : accent.withAlpha(hovering ? 1.0f : 0.7f));
         g.drawText(juce::CharPointer_UTF8("\xe2\x97\x80"), leftArrow, juce::Justification::centred);
+        g.setColour(atMax ? juce::Colour(Theme::textDim).withAlpha(0.2f) : accent.withAlpha(hovering ? 1.0f : 0.7f));
         g.drawText(juce::CharPointer_UTF8("\xe2\x96\xb6"), rightArrow, juce::Justification::centred);
 
         // Value text
         auto textRect = valueRect.withLeft(valueRect.getX() + Theme::arrowZone)
                                   .withRight(valueRect.getRight() - Theme::arrowZone);
-        g.setColour(valueClickOpensFolder ? juce::Colour(Theme::coral).withAlpha(0.7f)
+        g.setColour(valueClickOpensFolder ? accent.withAlpha(0.7f)
                                           : juce::Colour(Theme::textWhite));
         g.setFont(Theme::controlFont);
         g.drawText(displayValue, textRect, juce::Justification::centred);
@@ -203,6 +210,10 @@ private:
     bool folderIconVisible = false;
     bool folderHoverZone = false;
     bool valueClickOpensFolder = false;
+    juce::Colour accent { Theme::coral };
+    float cornerRadius = -1.0f;
+    bool atMin = false;
+    bool atMax = false;
 
     // TextEditor subclass that uses Desktop global mouse listener to detect
     // clicks outside and give away focus. This is the JUCE-recommended pattern —

@@ -21,13 +21,15 @@ public:
     static constexpr juce::uint32 textWhite     = 0xFFEEEEEE;
     static constexpr juce::uint32 textDim       = 0xFFAAAAAA;
     static constexpr juce::uint32 toolbarBg     = 0xCC111111;
+    static constexpr juce::uint32 sceneBg      = 0xFF000000;
 
     // Accent palette (matches logo dot cluster)
     static constexpr juce::uint32 green  = 0xFF5CB85C;
     static constexpr juce::uint32 red    = coral;
     static constexpr juce::uint32 yellow = 0xFFF0C030;
-    static constexpr juce::uint32 blue   = 0xFF5BC0DE;
+    static constexpr juce::uint32 blue   = 0xFF3A7BD5;
     static constexpr juce::uint32 orange = 0xFFE8853A;
+    static constexpr juce::uint32 purple = 0xFF9B59B6;
 
     //==========================================================================
     // Overlay parent — returns the AudioProcessorEditor so overlays inherit

@@ -45,6 +45,27 @@ protected:
     bool isPlaying() const { return playingStatePtr && *playingStatePtr; }
     bool isDrums()   const { return isDrumLike(currentActivePart); }
 
+    Gem resolveGhostGem(int lane) const
+    {
+        if (isDrums())
+        {
+            bool canBeCymbal = (lane >= 2 && lane <= 4);
+            bool cymbal = canBeCymbal && cymbalModeFlag;
+            switch (currentDrumDynamic)
+            {
+                case DrumDynamic::Ghost:  return cymbal ? Gem::CYM_GHOST  : Gem::HOPO_GHOST;
+                case DrumDynamic::Accent: return cymbal ? Gem::CYM_ACCENT : Gem::TAP_ACCENT;
+                default:                  return cymbal ? Gem::CYM        : Gem::NOTE;
+            }
+        }
+        switch (currentGuitarForce)
+        {
+            case GuitarForce::Hopo: return Gem::HOPO_GHOST;
+            case GuitarForce::Tap:  return Gem::TAP_ACCENT;
+            default:                return Gem::NOTE;
+        }
+    }
+
     int resolveVelocity() const
     {
         if (!isDrums()) return 100;

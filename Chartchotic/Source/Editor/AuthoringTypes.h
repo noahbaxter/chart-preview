@@ -3,6 +3,7 @@
 #include <cmath>
 #include <vector>
 #include <JuceHeader.h>
+#include "../Utils/ChartTypes.h"
 
 //==============================================================================
 // Authoring types shared between HighwayComponent (event dispatcher),
@@ -94,6 +95,7 @@ struct OverlayState
     int    ghostLane = -1;
     double ghostQN = 0.0;
     bool   ghostShowsErase = false;
+    Gem    ghostGem = Gem::NOTE;
     struct StampGhost { int lane; double qnOffset; };
     std::vector<StampGhost> stampGhosts;
 

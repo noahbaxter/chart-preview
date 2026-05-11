@@ -77,6 +77,7 @@ void WriteController::recomputeGhost()
     overlayState.ghostLane       = -1;
     overlayState.ghostQN         = 0.0;
     overlayState.ghostShowsErase = false;
+    overlayState.ghostGem        = Gem::NOTE;
     overlayState.stampGhosts.clear();
 
     if (!lastPointValid)                                  return;
@@ -102,6 +103,7 @@ void WriteController::recomputeGhost()
         else
         {
             overlayState.ghostLane = lastPoint.laneIndex;
+            overlayState.ghostGem = resolveGhostGem(lastPoint.laneIndex);
         }
     }
 }

@@ -149,6 +149,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                 {
                     sceneRenderer.ghostCursor.visible = true;
                     sceneRenderer.ghostCursor.lane = ov.ghostLane;
+                    sceneRenderer.ghostCursor.gem = ov.ghostGem;
                     sceneRenderer.ghostCursor.image = sceneRenderer.useColoredGhostCursor
                         ? nullptr
                         : assetManager.getGhostCursorImage(isDrumLike(activePart), ov.ghostLane);

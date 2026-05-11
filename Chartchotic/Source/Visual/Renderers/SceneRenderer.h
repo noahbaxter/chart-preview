@@ -65,6 +65,7 @@ class SceneRenderer
             float  position = 0.0f;
             juce::Image* image = nullptr;  // null = use real colored note asset
             float  opacity = 0.5f;
+            Gem    gem     = Gem::NOTE;
             juce::String positionLabel;    // "37.2" style label shown in write mode
             struct StampGhostEntry { int lane; float position; };
             std::vector<StampGhostEntry> stampGhosts;
