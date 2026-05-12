@@ -110,10 +110,7 @@ protected:
     {
         auto existing = findNote(trackIdx, qn, pitch);
         if (existing.noteIndex >= 0 && std::abs(existing.startQN - qn) < kQNEpsilon)
-        {
-            DBG("createNote: duplicate at QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
-            return false;
-        }
+            eraseNote(trackIdx, qn, pitch, isDrums(), lane, currentActiveSkill);
         if (!noteEditor.createNote(trackIdx, qn, pitch, velocity, duration))
         {
             DBG("createNote: noteEditor rejected QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
