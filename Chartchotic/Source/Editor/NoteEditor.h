@@ -12,7 +12,7 @@ public:
 
     bool isAvailable() const;
 
-    bool createNote  (int trackIdx, double startQN, int pitch, int velocity = 100);
+    bool createNote  (int trackIdx, double startQN, int pitch, int velocity = 100, double duration = 0.0);
     bool eraseNoteAt (int trackIdx, double rawQN, int pitch,
                       bool drums, int lane, SkillLevel skill);
     bool truncateNote(int trackIdx, double noteStartQN, int pitch);

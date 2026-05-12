@@ -307,6 +307,21 @@ void HighwayComponent::paint(juce::Graphics& g)
                 });
             }
         }
+        if (ov.ghostVisible && !ov.stampGhosts.empty())
+        {
+            for (const auto& sg : ov.stampGhosts)
+            {
+                if (sg.duration < double(MIDI_MIN_SUSTAIN_LENGTH)) continue;
+                double startSec = projectQNToSeconds(ov.ghostQN + sg.qnOffset);
+                double endSec = projectQNToSeconds(ov.ghostQN + sg.qnOffset + sg.duration);
+                sustainWindow.push_back({
+                    startSec, endSec,
+                    static_cast<uint>(sg.lane),
+                    SustainType::SUSTAIN,
+                    GemWrapper()
+                });
+            }
+        }
 
         // Move drag: hide original sustains, show preview sustains at destination
         if (ov.moveDragVisible)

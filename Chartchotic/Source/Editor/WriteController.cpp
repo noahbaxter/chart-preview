@@ -98,7 +98,7 @@ void WriteController::recomputeGhost()
         if (!stamp.empty())
         {
             for (const auto& sn : stamp)
-                overlayState.stampGhosts.push_back({ sn.lane, sn.qnOffset });
+                overlayState.stampGhosts.push_back({ sn.lane, sn.qnOffset, sn.duration });
         }
         else
         {
@@ -343,7 +343,7 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
             int sp = resolvePitch(sn.lane, drums);
             if (sp >= 0)
             {
-                createNote(trackIdx, clickQN + sn.qnOffset, sp, sn.lane, resolveVelocity());
+                createNote(trackIdx, clickQN + sn.qnOffset, sp, sn.lane, resolveVelocity(), sn.duration);
                 if (drums)
                     writeTomMarker(trackIdx, clickQN + sn.qnOffset, sn.lane);
                 else

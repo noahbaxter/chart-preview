@@ -106,7 +106,7 @@ protected:
 
     // Patch-aware note operations — patching is automatic, sub-controllers
     // never touch OptimisticPatchBuffer directly.
-    bool createNote(int trackIdx, double qn, int pitch, int lane, int velocity = 100)
+    bool createNote(int trackIdx, double qn, int pitch, int lane, int velocity = 100, double duration = 0.0)
     {
         auto existing = findNote(trackIdx, qn, pitch);
         if (existing.noteIndex >= 0 && std::abs(existing.startQN - qn) < kQNEpsilon)
@@ -114,7 +114,7 @@ protected:
             DBG("createNote: duplicate at QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
             return false;
         }
-        if (!noteEditor.createNote(trackIdx, qn, pitch, velocity))
+        if (!noteEditor.createNote(trackIdx, qn, pitch, velocity, duration))
         {
             DBG("createNote: noteEditor rejected QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
             return false;

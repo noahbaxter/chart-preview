@@ -100,7 +100,7 @@ struct OverlayState
     double ghostQN = 0.0;
     bool   ghostShowsErase = false;
     Gem    ghostGem = Gem::NOTE;
-    struct StampGhost { int lane; double qnOffset; };
+    struct StampGhost { int lane; double qnOffset; double duration; };
     std::vector<StampGhost> stampGhosts;
 
     // Draw stroke preview

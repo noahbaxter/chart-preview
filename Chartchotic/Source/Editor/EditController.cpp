@@ -72,6 +72,7 @@ void EditController::onPointerMove(const AuthoringPoint& p, const AuthoringConte
 
 void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
+    bool hadArrowDelta = hasArrowDelta();
     commitArrowMoves();
     if (!canEdit(p)) return;
     doubleClickConsumed = false;
@@ -81,8 +82,16 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
 
     int clickPitch = resolveActivePitch(p.laneIndex);
     int clickLane = barModeFlag ? 0 : p.laneIndex;
+
     bool hitInteractableNote = p.overExistingNote && !p.hitSustainBody
         && findNote(resolveTrackIdx(), p.hitNoteStartQN, clickPitch).noteIndex >= 0;
+
+    if (!hitInteractableNote && hadArrowDelta)
+    {
+        auto hit = findNote(resolveTrackIdx(), p.rawProjectQN, clickPitch);
+        if (hit.noteIndex >= 0 && isNoteSelected(hit.startQN, hit.pitch))
+            hitInteractableNote = true;
+    }
 
     if (hitInteractableNote)
     {
@@ -207,6 +216,13 @@ bool EditController::onKeyPress(const juce::KeyPress& key)
         if (code == juce::KeyPress::downKey)  { handleArrowMove(0, -step); return true; }
         if (code == juce::KeyPress::leftKey)  { handleArrowMove(-1, 0.0);  return true; }
         if (code == juce::KeyPress::rightKey) { handleArrowMove(1,  0.0);  return true; }
+        if (code == juce::KeyPress::returnKey && hasArrowDelta())
+        {
+            commitArrowMoves();
+            overlayState.moveDragVisible = false;
+            overlayState.movePreviewNotes.clear();
+            return true;
+        }
     }
 
     auto cmd = commandMapper.resolveKey(true, key);
