@@ -139,7 +139,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
         }
 
         for (const auto& ghost : movePreviewGhosts)
-            noteRenderer.renderGhost(drawCallMap, ghost.lane, ghost.position, nullptr, 1.0f, ghost.gem);
+            noteRenderer.renderGhost(drawCallMap, ghost.lane, ghost.position, nullptr, 1.0f, ghost.gem, ghost.selected);
         movePreviewGhosts.clear();
     }
 

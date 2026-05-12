@@ -215,7 +215,14 @@ void HighwayComponent::paint(juce::Graphics& g)
                         }
                     }
 
-                    sceneRenderer.movePreviewGhosts.push_back({ pn.lane, pos, gem });
+                    sceneRenderer.movePreviewGhosts.push_back({ pn.lane, pos, gem, true });
+                }
+                for (const auto& pn : ov.movePreviewNotes)
+                {
+                    double sec = projectQNToSeconds(pn.startQN);
+                    double endSec = projectQNToSeconds(pn.endQN);
+                    sceneRenderer.getTintedSustains().push_back(
+                        { pn.lane, sec, endSec, AuthoringColours::selectTint, true });
                 }
             }
             else if (!ov.selectedNotes.empty())
