@@ -478,7 +478,15 @@ void WriteController::handleContinuePaint(const AuthoringPoint& p)
     if (!p.onHighway || p.laneIndex < 0) return;
 
     double cursorQN = snapQN(p.rawProjectQN);
-    int lane = p.laneIndex;
+    int lane = paintLastLane;
+
+    if (p.laneIndex != paintLastLane)
+    {
+        paintShrinkTo(-1.0, -1.0);
+        paintLastQN   = cursorQN;
+        paintLastLane = p.laneIndex;
+        return;
+    }
 
     double lo = std::min(paintStartQN, cursorQN);
     double hi = std::max(paintStartQN, cursorQN);
