@@ -42,6 +42,9 @@ private:
     void handleDeleteSelection();
     void handleArrowMove(int deltaLane, double deltaQN);
     void finishBatchMove(std::vector<SelectedNote>& moved);
+    void commitArrowMoves();
+    bool hasArrowDelta() const { return arrowDeltaQN != 0.0 || arrowDeltaLane != 0; }
+    void updateArrowPreview();
     void updateCursorLabel(const AuthoringPoint& p);
 
     // Selection
@@ -61,6 +64,11 @@ private:
     int    moveOriginLane  = 0;
     bool   moveAxisLock    = false;
     bool   moveDragStarted = false;
+
+    // Arrow key preview state (visual-only until commit)
+    double arrowDeltaQN   = 0.0;
+    int    arrowDeltaLane  = 0;
+    std::vector<SelectedNote> arrowOriginalPositions;
 
     bool   doubleClickConsumed = false;
     bool   pendingSelect = false;

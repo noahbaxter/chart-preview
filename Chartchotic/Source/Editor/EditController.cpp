@@ -19,6 +19,9 @@ bool EditController::isNoteSelected(double startQN, int pitch) const
 
 void EditController::clearSelection()
 {
+    commitArrowMoves();
+    overlayState.moveDragVisible = false;
+    overlayState.movePreviewNotes.clear();
     selection.clear();
     notifyChanged();
 }
@@ -69,6 +72,7 @@ void EditController::onPointerMove(const AuthoringPoint& p, const AuthoringConte
 
 void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
+    commitArrowMoves();
     if (!canEdit(p)) return;
     doubleClickConsumed = false;
 
@@ -396,6 +400,12 @@ void EditController::handleDoubleClick(const AuthoringPoint& p)
 void EditController::handleDeleteSelection()
 {
     if (selection.empty()) return;
+    if (hasArrowDelta())
+    {
+        commitArrowMoves();
+        overlayState.moveDragVisible = false;
+        overlayState.movePreviewNotes.clear();
+    }
 
     beginBatch("Chartchotic: Delete notes");
     for (const auto& n : selection)
@@ -416,33 +426,69 @@ void EditController::handleArrowMove(int deltaLane, double deltaQN)
     if (selection.empty()) return;
     if (barModeFlag) deltaLane = 0;
 
-    for (const auto& n : selection)
+    if (arrowOriginalPositions.empty())
+        arrowOriginalPositions = selection;
+
+    double nextDeltaQN = arrowDeltaQN + deltaQN;
+    int nextDeltaLane = arrowDeltaLane + deltaLane;
+
+    for (const auto& n : arrowOriginalPositions)
     {
-        int newLane = n.lane + deltaLane;
+        int newLane = n.lane + nextDeltaLane;
         if (newLane < 0 || newLane > maxLane()) return;
-        if (n.startQN + deltaQN < 0.0) return;
+        if (n.startQN + nextDeltaQN < 0.0) return;
     }
+
+    arrowDeltaQN = nextDeltaQN;
+    arrowDeltaLane = nextDeltaLane;
+    updateArrowPreview();
+}
+
+void EditController::updateArrowPreview()
+{
+    overlayState.moveDragVisible = true;
+    overlayState.movePreviewNotes.clear();
+    for (const auto& n : arrowOriginalPositions)
+    {
+        int newLane = juce::jlimit(0, maxLane(), n.lane + arrowDeltaLane);
+        double newQN = n.startQN + arrowDeltaQN;
+        if (newQN < 0.0) newQN = 0.0;
+        int newPitch = resolvePitch(newLane, isDrums());
+        double duration = n.endQN - n.startQN;
+        overlayState.movePreviewNotes.push_back({ newLane, newQN, newQN + duration, newPitch });
+    }
+    notifyChanged();
+}
+
+void EditController::commitArrowMoves()
+{
+    if (!hasArrowDelta()) return;
 
     beginBatch("Chartchotic: Move notes");
 
     std::vector<SelectedNote> moved;
-    for (const auto& n : selection)
+    for (const auto& n : arrowOriginalPositions)
     {
         auto found = findNote(n.trackIdx, n.startQN, n.pitch);
         if (found.noteIndex < 0) continue;
 
-        int newLane = n.lane + deltaLane;
-        double newStartQN = n.startQN + deltaQN;
+        int newLane = juce::jlimit(0, maxLane(), n.lane + arrowDeltaLane);
+        double newStartQN = n.startQN + arrowDeltaQN;
+        if (newStartQN < 0.0) newStartQN = 0.0;
         double duration = found.endQN - found.startQN;
+        double newEndQN = newStartQN + duration;
         int newPitch = resolvePitch(newLane, isDrums());
 
-        double newEndQN = newStartQN + duration;
         moveNote(n.trackIdx, n.startQN, n.pitch, n.lane,
                  newStartQN, newEndQN, newPitch, newLane);
         moved.push_back({ n.trackIdx, newStartQN, newEndQN, newPitch, newLane });
     }
 
     finishBatchMove(moved);
+
+    arrowDeltaQN = 0.0;
+    arrowDeltaLane = 0;
+    arrowOriginalPositions.clear();
 }
 
 void EditController::finishBatchMove(std::vector<SelectedNote>& moved)

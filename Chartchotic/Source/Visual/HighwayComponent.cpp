@@ -318,14 +318,41 @@ void HighwayComponent::paint(juce::Graphics& g)
             for (const auto& pn : ov.movePreviewNotes)
             {
                 if (pn.endQN - pn.startQN < double(MIDI_MIN_SUSTAIN_LENGTH)) continue;
+                double pnStartSec = projectQNToSeconds(pn.startQN);
+                double pnEndSec = projectQNToSeconds(pn.endQN);
+                for (const auto& s : sustainWindow)
+                {
+                    if ((int)s.gemColumn != pn.lane) continue;
+                    if (s.startTime > pnStartSec + kTimeEpsilon
+                        && s.startTime < pnEndSec - kTimeEpsilon)
+                    { pnEndSec = s.startTime; break; }
+                }
                 sustainWindow.push_back({
-                    projectQNToSeconds(pn.startQN),
-                    projectQNToSeconds(pn.endQN),
+                    pnStartSec, pnEndSec,
                     static_cast<uint>(pn.lane),
                     SustainType::SUSTAIN,
                     GemWrapper()
                 });
             }
+            for (const auto& pn : ov.movePreviewNotes)
+            {
+                double pnStartSec = projectQNToSeconds(pn.startQN);
+                for (auto& s : sustainWindow)
+                {
+                    if ((int)s.gemColumn != pn.lane) continue;
+                    if (pnStartSec > s.startTime + kTimeEpsilon
+                        && pnStartSec < s.endTime - kTimeEpsilon)
+                        s.endTime = pnStartSec;
+                }
+            }
+            double minSustainSec = projectQNToSeconds(double(MIDI_MIN_SUSTAIN_LENGTH))
+                                 - projectQNToSeconds(0.0);
+            sustainWindow.erase(
+                std::remove_if(sustainWindow.begin(), sustainWindow.end(),
+                    [&](const auto& s) {
+                        return (s.endTime - s.startTime) < minSustainSec;
+                    }),
+                sustainWindow.end());
         }
     }
 
@@ -348,6 +375,14 @@ void HighwayComponent::paint(juce::Graphics& g)
                         if (std::abs(noteTime - sec) < kTimeEpsilon
                             && sn.lane >= 0 && sn.lane < (int)frame.size())
                             frame[sn.lane].gem = Gem::NONE;
+                }
+                for (const auto& pn : ov.movePreviewNotes)
+                {
+                    double pnStartSec = projectQNToSeconds(pn.startQN);
+                    for (auto& [noteTime, frame] : trackWindow)
+                        if (std::abs(noteTime - pnStartSec) < kTimeEpsilon
+                            && pn.lane >= 0 && pn.lane < (int)frame.size())
+                            frame[pn.lane].gem = Gem::NONE;
                 }
             }
         }
