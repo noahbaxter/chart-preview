@@ -97,8 +97,16 @@ void WriteController::recomputeGhost()
     {
         if (!stamp.empty())
         {
+            int minLane = stamp[0].lane, maxStampLane = stamp[0].lane;
             for (const auto& sn : stamp)
-                overlayState.stampGhosts.push_back({ sn.lane, sn.qnOffset, sn.duration });
+            {
+                minLane = std::min(minLane, sn.lane);
+                maxStampLane = std::max(maxStampLane, sn.lane);
+            }
+            stampMouseLaneOffset = juce::jlimit(-minLane, maxLane() - maxStampLane,
+                                                lastPoint.laneIndex - minLane);
+            for (const auto& sn : stamp)
+                overlayState.stampGhosts.push_back({ sn.lane + stampMouseLaneOffset, sn.qnOffset, sn.duration });
         }
         else
         {
@@ -340,12 +348,13 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
         beginBatch("Chartchotic: Stamp notes");
         for (const auto& sn : stamp)
         {
-            int sp = resolvePitch(sn.lane, drums);
+            int lane = sn.lane + stampMouseLaneOffset;
+            int sp = resolvePitch(lane, drums);
             if (sp >= 0)
             {
-                createNote(trackIdx, clickQN + sn.qnOffset, sp, sn.lane, resolveVelocity(), sn.duration);
+                createNote(trackIdx, clickQN + sn.qnOffset, sp, lane, resolveVelocity(), sn.duration);
                 if (drums)
-                    writeTomMarker(trackIdx, clickQN + sn.qnOffset, sn.lane);
+                    writeTomMarker(trackIdx, clickQN + sn.qnOffset, lane);
                 else
                     writeGuitarForceMarker(trackIdx, clickQN + sn.qnOffset);
             }
@@ -400,9 +409,12 @@ void WriteController::handleUpdateSustain(const AuthoringPoint& p)
     {
         bool drums = isDrums();
         for (const auto& sn : stamp)
+        {
+            int lane = sn.lane + stampMouseLaneOffset;
             overlayState.drawPreviewNotes.push_back({
-                sn.lane, sustainDragStartQN + sn.qnOffset, dragQN, resolvePitch(sn.lane, drums)
+                lane, sustainDragStartQN + sn.qnOffset, dragQN, resolvePitch(lane, drums)
             });
+        }
     }
     else
     {
@@ -423,7 +435,8 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
             bool drums = isDrums();
             for (const auto& sn : stamp)
             {
-                int sp = resolvePitch(sn.lane, drums);
+                int lane = sn.lane + stampMouseLaneOffset;
+                int sp = resolvePitch(lane, drums);
                 if (sp >= 0)
                     chainExtendNotes(sustainDragTrackIdx,
                                      sustainDragStartQN + sn.qnOffset,
@@ -512,12 +525,13 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
         {
             for (const auto& sn : stamp)
             {
-                int sp = resolvePitch(sn.lane, drums);
+                int lane = sn.lane + stampMouseLaneOffset;
+                int sp = resolvePitch(lane, drums);
                 if (sp >= 0)
                 {
-                    createNote(paintDragTrackIdx, snapped + sn.qnOffset, sp, sn.lane, resolveVelocity());
+                    createNote(paintDragTrackIdx, snapped + sn.qnOffset, sp, lane, resolveVelocity());
                     if (drums)
-                        writeTomMarker(paintDragTrackIdx, snapped + sn.qnOffset, sn.lane);
+                        writeTomMarker(paintDragTrackIdx, snapped + sn.qnOffset, lane);
                     else
                         writeGuitarForceMarker(paintDragTrackIdx, snapped + sn.qnOffset);
                 }
@@ -551,9 +565,10 @@ void WriteController::paintShrinkTo(double lo, double hi)
             {
                 for (const auto& sn : stamp)
                 {
-                    int sp = resolvePitch(sn.lane, drums);
+                    int lane = sn.lane + stampMouseLaneOffset;
+                    int sp = resolvePitch(lane, drums);
                     if (sp >= 0)
-                        eraseNote(paintDragTrackIdx, it->qn + sn.qnOffset, sp, drums, sn.lane, currentActiveSkill);
+                        eraseNote(paintDragTrackIdx, it->qn + sn.qnOffset, sp, drums, lane, currentActiveSkill);
                 }
             }
             else
