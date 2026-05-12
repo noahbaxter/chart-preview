@@ -233,9 +233,15 @@ void NoteEditor::resolveOverlapsAt(int trackIdx, double startQN, int pitch)
     {
         auto ahead = midiWriter->findNotesInRange(trackIdx,
             startQN + kQNEpsilon, self.endQN + kQNEpsilon, pitch);
-        if (!ahead.empty() && ahead[0].startQN > startQN + kQNEpsilon)
-            midiWriter->batchMoveNote(trackIdx, self.noteIndex,
-                self.startQN, ahead[0].startQN, pitch);
+        for (const auto& a : ahead)
+        {
+            if (a.startQN > startQN + kQNEpsilon)
+            {
+                midiWriter->batchMoveNote(trackIdx, self.noteIndex,
+                    self.startQN, a.startQN, pitch);
+                break;
+            }
+        }
     }
 }
 
