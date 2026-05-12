@@ -1,15 +1,16 @@
 cmake_minimum_required(VERSION 3.22)
 
-# Read version from VERSION file
-file(READ "${CMAKE_SOURCE_DIR}/VERSION" CHARTCHOTIC_VERSION)
-string(STRIP "${CHARTCHOTIC_VERSION}" CHARTCHOTIC_VERSION)
+# Read version from VERSION file (may contain prerelease suffix like 1.3.0-beta.1)
+file(READ "${CMAKE_SOURCE_DIR}/VERSION" CHARTCHOTIC_VERSION_RAW)
+string(STRIP "${CHARTCHOTIC_VERSION_RAW}" CHARTCHOTIC_VERSION_RAW)
+string(REGEX REPLACE "-.*$" "" CHARTCHOTIC_VERSION "${CHARTCHOTIC_VERSION_RAW}")
 
 project(Chartchotic VERSION ${CHARTCHOTIC_VERSION} LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Build channel: DEV or RELEASE (passed via -DBUILD_CHANNEL=...)
+# Build channel: DEV, BETA, or RELEASE (passed via -DBUILD_CHANNEL=...)
 if(NOT DEFINED BUILD_CHANNEL)
     set(BUILD_CHANNEL "DEV")
 endif()
@@ -18,9 +19,6 @@ endif()
 # For local dev builds, generate a timestamped version automatically
 if(NOT DEFINED VERSION_STRING)
     if(BUILD_CHANNEL STREQUAL "DEV")
-        # Local-time "MonDD-HHhMM" (e.g. Apr27-18h30). Abbreviated month name
-        # + hh-mm with an "h" separator reads instantly while iterating. CI /
-        # release builds pass -DVERSION_STRING explicitly and don't hit this.
         string(TIMESTAMP _timestamp "%b%d-%Hh%M")
         execute_process(
             COMMAND git rev-parse --short HEAD
@@ -34,7 +32,7 @@ if(NOT DEFINED VERSION_STRING)
         endif()
         set(VERSION_STRING "${CHARTCHOTIC_VERSION}-dev.${_timestamp}.${_short_sha}")
     else()
-        set(VERSION_STRING "${CHARTCHOTIC_VERSION}")
+        set(VERSION_STRING "${CHARTCHOTIC_VERSION_RAW}")
     endif()
 endif()
 

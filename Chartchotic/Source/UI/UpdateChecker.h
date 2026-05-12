@@ -15,6 +15,8 @@ public:
         juce::String version;
         juce::String downloadUrl;
         juce::String releaseNotes;
+        juce::String channelLabel;
+        juce::String displayMessage;
     };
 
     UpdateChecker();
@@ -33,6 +35,7 @@ private:
     void run() override;
 
     UpdateInfo checkReleaseChannel();
+    UpdateInfo checkBetaChannel();
     UpdateInfo checkDevChannel();
 
     bool isNewerVersion(const juce::String& remote, const juce::String& local) const;

@@ -15,10 +15,14 @@ public:
         addAndMakeVisible(badge);
     }
 
-    void setUpdateInfo(const juce::String& version, const juce::String& url, bool autoPrompt = true)
+    void setUpdateInfo(const juce::String& version, const juce::String& url,
+                       const juce::String& channelLbl = {}, const juce::String& displayMsg = {},
+                       bool autoPrompt = true)
     {
         updateVersion = version;
         downloadUrl = url;
+        channelLabel = channelLbl;
+        displayMessage = displayMsg;
         badge.setVisible(true);
         badge.setTooltip("Update " + version + " available");
         startTimerHz(30);
@@ -37,7 +41,7 @@ public:
         if (editor == nullptr) return;
 
         auto* overlay = new OverlayComponent();
-        overlay->setVersion(updateVersion);
+        overlay->setVersion(updateVersion, channelLabel, displayMessage);
         auto urlCopy = downloadUrl.isNotEmpty() ? downloadUrl
             : juce::String("https://github.com/noahbaxter/chartchotic/releases");
         auto dismissedCb = onPromptDismissed;
@@ -70,6 +74,8 @@ public:
 private:
     juce::String updateVersion;
     juce::String downloadUrl;
+    juce::String channelLabel;
+    juce::String displayMessage;
     float pulsePhase = 0.0f;
 
     void timerCallback() override
@@ -134,7 +140,12 @@ private:
         std::function<void()> onDownload;
         std::function<void()> onDismiss;
 
-        void setVersion(const juce::String& v) { version = v; }
+        void setVersion(const juce::String& v, const juce::String& label = {}, const juce::String& msg = {})
+        {
+            version = v;
+            chLabel = label;
+            dispMessage = msg.isNotEmpty() ? msg : "Chartchotic " + v + " is available.";
+        }
 
         OverlayComponent()
         {
@@ -173,9 +184,18 @@ private:
             g.drawText("Update Available", titleArea, juce::Justification::centredBottom);
 
             auto msgArea = inner.removeFromTop(inner.getHeight() * 0.32f).reduced(pad, 0.0f);
+
+            if (chLabel.isNotEmpty())
+            {
+                auto labelArea = msgArea.removeFromTop(msgArea.getHeight() * 0.45f);
+                g.setColour(juce::Colour(Theme::textDim));
+                g.setFont(Theme::getUIFont(13.0f * s));
+                g.drawText(chLabel, labelArea, juce::Justification::centredBottom);
+            }
+
             g.setColour(juce::Colour(Theme::textWhite));
             g.setFont(Theme::getUIFont(16.0f * s));
-            g.drawText("Chartchotic " + version + " is available.", msgArea, juce::Justification::centredTop);
+            g.drawText(dispMessage, msgArea, juce::Justification::centredTop);
         }
 
         void resized() override
@@ -220,6 +240,8 @@ private:
 
     private:
         juce::String version;
+        juce::String chLabel;
+        juce::String dispMessage;
         juce::TextButton dismissBtn, downloadBtn;
 
         juce::Rectangle<float> getCardBounds() const

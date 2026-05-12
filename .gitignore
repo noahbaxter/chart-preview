@@ -111,6 +111,9 @@ examples/
 # Development/Analysis Notes
 *_ANALYSIS.md
 
+# Internal planning docs
+.planning/
+
 # -----------------------------------------------------------------------------
 # Python
 .venv/

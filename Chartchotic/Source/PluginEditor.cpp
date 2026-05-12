@@ -754,7 +754,7 @@ void ChartchoticAudioProcessorEditor::initBottomBar()
         if (info.available)
         {
             bool autoPrompt = !audioProcessor.updatePromptDismissed;
-            updateBanner.setUpdateInfo(info.version, info.downloadUrl, autoPrompt);
+            updateBanner.setUpdateInfo(info.version, info.downloadUrl, info.channelLabel, info.displayMessage, autoPrompt);
             footer.setUpdateAvailable();
             resized();
         }
