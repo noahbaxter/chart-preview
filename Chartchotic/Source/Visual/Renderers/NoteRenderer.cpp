@@ -12,6 +12,17 @@
 #include "NoteRenderer.h"
 #include "../Utils/RenderTypeConfig.h"
 #include "../../Editor/AuthoringTypes.h"
+#include "../../Midi/Utils/InstrumentMapper.h"
+
+namespace
+{
+    Render::ClipHalf resolveBarKickClip(bool isDrums, bool barModeActive, uint gemColumn)
+    {
+        if (!isDrums || !barModeActive || !isDrumKick(gemColumn)) return Render::ClipHalf::None;
+        return InstrumentMapper::is2xKickLane(gemColumn) ? Render::ClipHalf::Left
+                                                          : Render::ClipHalf::Right;
+    }
+}
 
 using namespace PositionConstants;
 using namespace Render;
@@ -270,11 +281,13 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
 
     // Strike-reference width + horizontal offset from shared anchor
     float strikeColWidth, strikeOffsetX;
+    Render::ClipHalf barClipHalf = Render::ClipHalf::None;
     if (barNote)
     {
         strikeColWidth = ctx.fbStrikeWidth
                        * PositionConstants::BAR_FRETBOARD_FIT * PositionConstants::BAR_SIZE;
-        strikeOffsetX = 0.0f;  // bar is centered on fretboard
+        strikeOffsetX = 0.0f;
+        barClipHalf = resolveBarKickClip(isDrums, barModeDim < 1.0f, gemColumn);
     }
     else
     {
@@ -352,6 +365,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         s.drawOrder = barNote ? (int)DrawOrder::BAR : (int)DrawOrder::NOTE;
         s.drawColumn = (int)gemColumn;
         s.opacity   = opacity;
+        s.clipHalf  = barClipHalf;
         outFrame.sprites.push_back(s);
     }
 
@@ -403,8 +417,12 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         float cy = ctx.anchor.y + gs.offsetY * ctx.frameScale.y;
         float sw = gs.width  * ctx.frameScale.x;
         float sh = gs.height * ctx.frameScale.y;
-        hitBoxes.push_back({ (int)gemColumn, frameTime,
-            juce::Rectangle<float>(cx - sw * 0.5f, cy - sh * 0.5f, sw, sh) });
+        auto hbRect = juce::Rectangle<float>(cx - sw * 0.5f, cy - sh * 0.5f, sw, sh);
+        if (barClipHalf == Render::ClipHalf::Left)
+            hbRect = hbRect.withWidth(hbRect.getWidth() * 0.5f);
+        else if (barClipHalf == Render::ClipHalf::Right)
+            hbRect = hbRect.withX(hbRect.getCentreX()).withWidth(hbRect.getWidth() * 0.5f);
+        hitBoxes.push_back({ (int)gemColumn, frameTime, hbRect });
     }
 }
 
@@ -493,6 +511,8 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
     Render::Frame frame;
 
     int gemIdx = (int)frame.sprites.size();
+    Render::ClipHalf bemaniClipHalf = barNote ? resolveBarKickClip(isDrums, barModeDim < 1.0f, gemColumn)
+                                              : Render::ClipHalf::None;
     {
         Render::FrameSprite s;
         s.image = glyphImage;
@@ -503,6 +523,7 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
         s.drawOrder = barNote ? (int)DrawOrder::BAR : (int)DrawOrder::NOTE;
         s.drawColumn = (int)gemColumn;
         s.opacity = opacity;
+        s.clipHalf = bemaniClipHalf;
         frame.sprites.push_back(s);
     }
 
@@ -549,9 +570,13 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
     const auto& gs = frame.sprites[gemIdx];
     float sw = gs.width;
     float sh = gs.height;
-    hitBoxes.push_back({ (int)gemColumn, frameTime,
-        juce::Rectangle<float>(bemaniAnchor.x - sw * 0.5f,
-                               bemaniAnchor.y - sh * 0.5f, sw, sh) });
+    auto hbRect = juce::Rectangle<float>(bemaniAnchor.x - sw * 0.5f,
+                                          bemaniAnchor.y - sh * 0.5f, sw, sh);
+    if (bemaniClipHalf == Render::ClipHalf::Left)
+        hbRect = hbRect.withWidth(hbRect.getWidth() * 0.5f);
+    else if (bemaniClipHalf == Render::ClipHalf::Right)
+        hbRect = hbRect.withX(hbRect.getCentreX()).withWidth(hbRect.getWidth() * 0.5f);
+    hitBoxes.push_back({ (int)gemColumn, frameTime, hbRect });
 }
 
 float NoteRenderer::getColumnDistFromCenter(int column, bool isDrums)
