@@ -246,8 +246,8 @@ void AssetManager::rescaleForWidth(int viewportWidth)
 
 juce::Image* AssetManager::getGhostCursorImage(bool isDrums, int lane)
 {
-    if (lane == 0) return &barBlankImage;
-    if (isDrums && lane == 6) return &barBlankImage;
+    if (lane == DRUM_KICK_COLUMN) return &barBlankImage;
+    if (isDrums && lane == DRUM_KICK_2X_COLUMN) return &barBlankImage;
     return &noteBlankImage;
 }
 

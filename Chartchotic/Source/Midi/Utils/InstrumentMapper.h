@@ -305,13 +305,13 @@ public:
                 note == Drums::EXPERT_KICK_2X);
     }
 
-    static bool isKickLane(int lane) { return lane == 0 || lane == 6; }
-    static bool is2xKickLane(int lane) { return lane == 6; }
+    static bool isKickLane(int lane) { return isDrumKick((uint)lane); }
+    static bool is2xKickLane(int lane) { return lane == DRUM_KICK_2X_COLUMN; }
     enum class KickSide { None, Normal, Double };
     static KickSide getKickSide(int laneOrColumn)
     {
-        if (laneOrColumn == 6) return KickSide::Double;
-        if (laneOrColumn == 0) return KickSide::Normal;
+        if (laneOrColumn == DRUM_KICK_2X_COLUMN) return KickSide::Double;
+        if (laneOrColumn == DRUM_KICK_COLUMN)    return KickSide::Normal;
         return KickSide::None;
     }
 
@@ -319,8 +319,8 @@ public:
     {
         if (is2xKickLane(lane))
             return kick2xEnabled ? (int)MidiPitchDefinitions::Drums::EXPERT_KICK_2X : -1;
-        if (lane == 0)
-            return columnToDrumPitch(skill, 0, false);
+        if (lane == DRUM_KICK_COLUMN)
+            return columnToDrumPitch(skill, DRUM_KICK_COLUMN, false);
         return -1;
     }
 
@@ -329,8 +329,8 @@ public:
     {
         using Drums = MidiPitchDefinitions::Drums;
         if (pitch == (int)Drums::EXPERT_KICK_2X)
-            return { (int)Drums::EXPERT_KICK, 0 };
-        return { (int)Drums::EXPERT_KICK_2X, 6 };
+            return { (int)Drums::EXPERT_KICK, DRUM_KICK_COLUMN };
+        return { (int)Drums::EXPERT_KICK_2X, DRUM_KICK_2X_COLUMN };
     }
 
     static bool isModifier(uint pitch)

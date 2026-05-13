@@ -32,14 +32,17 @@ inline bool isPart(juce::ValueTree &state, Part part)
     return (int)state.getProperty("part") == (int)part;
 }
 
+constexpr int DRUM_KICK_COLUMN    = 0;
+constexpr int DRUM_KICK_2X_COLUMN = 6;
+
 inline bool isDrumKick(uint gemColumn)
 {
-    return gemColumn == 0 || gemColumn == 6;
+    return gemColumn == DRUM_KICK_COLUMN || gemColumn == DRUM_KICK_2X_COLUMN;
 }
 
 inline uint drumColumnIndex(uint gemColumn)
 {
-    return (gemColumn == 6) ? 0 : gemColumn;
+    return (gemColumn == DRUM_KICK_2X_COLUMN) ? DRUM_KICK_COLUMN : gemColumn;
 }
 
 inline bool isBarNote(uint gemColumn, Part part)

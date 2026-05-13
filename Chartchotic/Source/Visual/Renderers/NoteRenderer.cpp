@@ -583,7 +583,7 @@ float NoteRenderer::getColumnDistFromCenter(int column, bool isDrums)
 {
     const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
     const auto& colCoords = isDrums
-        ? laneCoordsDrums[(column == 6) ? 0 : ((column < (int)DRUM_LANE_COUNT) ? column : 1)]
+        ? laneCoordsDrums[drumColumnIndex(column) < DRUM_LANE_COUNT ? drumColumnIndex(column) : 1]
         : laneCoordsGuitar[(column < (int)GUITAR_LANE_COUNT) ? column : 1];
     return PositionMath::columnDistFromCenter(fbCoords, colCoords);
 }
@@ -620,7 +620,7 @@ const NoteRenderer::CurvedImageEntry& NoteRenderer::getCurvedImage(
     float fbHalfWNorm = fbCoords.normWidth1 * 0.5f;
 
     const auto& colCoords = isDrums
-        ? laneCoordsDrums[(column == 6) ? 0 : ((column < (int)DRUM_LANE_COUNT) ? column : 1)]
+        ? laneCoordsDrums[drumColumnIndex(column) < DRUM_LANE_COUNT ? drumColumnIndex(column) : 1]
         : laneCoordsGuitar[(column < (int)GUITAR_LANE_COUNT) ? column : 1];
 
     float fbWidthInCache = (float)srcW * (fbCoords.normWidth1 / colCoords.normWidth1);

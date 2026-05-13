@@ -11,6 +11,7 @@
 
 #include "HitTestMapper.h"
 #include "PositionConstants.h"
+#include "../../Utils/ChartTypes.h"
 #include "BemaniConfig.h"
 
 using namespace PositionConstants;
@@ -173,7 +174,7 @@ int HitTestMapper::identifyLane(float screenX, float position,
     if (screenX > fbEdge.rightX)
     {
         if (isDrums)
-            return 6;  // 2x kick column
+            return DRUM_KICK_2X_COLUMN;
         return (int)GUITAR_LANE_COUNT - 1;
     }
 
