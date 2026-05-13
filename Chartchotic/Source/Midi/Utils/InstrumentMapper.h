@@ -305,7 +305,7 @@ public:
                 note == Drums::EXPERT_KICK_2X);
     }
 
-    static bool isKickLane(int lane) { return isDrumKick((uint)lane); }
+    static bool isKickLane(int lane) { return lane == DRUM_KICK_COLUMN || lane == DRUM_KICK_2X_COLUMN; }
     static bool is2xKickLane(int lane) { return lane == DRUM_KICK_2X_COLUMN; }
     enum class KickSide { None, Normal, Double };
     static KickSide getKickSide(int laneOrColumn)

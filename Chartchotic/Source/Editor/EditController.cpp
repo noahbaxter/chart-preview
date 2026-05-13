@@ -81,7 +81,7 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
     if (cmd != WriteCommand::SelectAt) return;
 
     int clickPitch = resolveActivePitch(p.laneIndex);
-    int clickLane = barModeFlag ? 0 : p.laneIndex;
+    int clickLane = p.laneIndex;
 
     bool hitInteractableNote = p.overExistingNote && !p.hitSustainBody
         && findNote(resolveTrackIdx(), p.hitNoteStartQN, clickPitch).noteIndex >= 0;
@@ -242,7 +242,7 @@ void EditController::handleSelectAt(const AuthoringPoint& p)
     if (p.overExistingNote)
     {
         int trackIdx = resolveTrackIdx();
-        int lane = barModeFlag ? 0 : p.laneIndex;
+        int lane = p.laneIndex;
         int pitch = resolveActivePitch(p.laneIndex);
 
         if (isNoteSelected(p.hitNoteStartQN, pitch))
