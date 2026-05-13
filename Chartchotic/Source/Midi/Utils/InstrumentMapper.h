@@ -305,6 +305,34 @@ public:
                 note == Drums::EXPERT_KICK_2X);
     }
 
+    static bool isKickLane(int lane) { return lane == 0 || lane == 6; }
+    static bool is2xKickLane(int lane) { return lane == 6; }
+    enum class KickSide { None, Normal, Double };
+    static KickSide getKickSide(int laneOrColumn)
+    {
+        if (laneOrColumn == 6) return KickSide::Double;
+        if (laneOrColumn == 0) return KickSide::Normal;
+        return KickSide::None;
+    }
+
+    static int resolveKickPitch(SkillLevel skill, int lane, bool kick2xEnabled)
+    {
+        if (is2xKickLane(lane))
+            return kick2xEnabled ? (int)MidiPitchDefinitions::Drums::EXPERT_KICK_2X : -1;
+        if (lane == 0)
+            return columnToDrumPitch(skill, 0, false);
+        return -1;
+    }
+
+    struct KickConflict { int pitch; int lane; };
+    static KickConflict getConflictingKick(int pitch)
+    {
+        using Drums = MidiPitchDefinitions::Drums;
+        if (pitch == (int)Drums::EXPERT_KICK_2X)
+            return { (int)Drums::EXPERT_KICK, 0 };
+        return { (int)Drums::EXPERT_KICK_2X, 6 };
+    }
+
     static bool isModifier(uint pitch)
     {
         using Guitar = MidiPitchDefinitions::Guitar;

@@ -173,7 +173,7 @@ int HitTestMapper::identifyLane(float screenX, float position,
     if (screenX > fbEdge.rightX)
     {
         if (isDrums)
-            return (int)DRUM_LANE_COUNT;  // expert 2x kick
+            return 6;  // 2x kick column
         return (int)GUITAR_LANE_COUNT - 1;
     }
 
