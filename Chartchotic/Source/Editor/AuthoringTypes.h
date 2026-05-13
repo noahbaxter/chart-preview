@@ -61,20 +61,12 @@ struct MarqueeRect
         laneLo = laneHi = lane;
     }
 
-    void update(double qn, int lane, bool barMode, bool isDrums)
+    void update(double qn, int lane, bool /*barMode*/, bool /*isDrums*/)
     {
         qnLo = std::min(startQN, qn);
         qnHi = std::max(startQN, qn);
-        if (barMode)
-        {
-            laneLo = 0;
-            laneHi = isDrums ? 4 : 5;
-        }
-        else
-        {
-            laneLo = std::min(startLane, lane);
-            laneHi = std::max(startLane, lane);
-        }
+        laneLo = std::min(startLane, lane);
+        laneHi = std::max(startLane, lane);
     }
 
     bool contains(double qn, int lane) const

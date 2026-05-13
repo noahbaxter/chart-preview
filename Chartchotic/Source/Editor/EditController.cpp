@@ -371,15 +371,22 @@ void EditController::handleDoubleClick(const AuthoringPoint& p)
 
     if (barModeFlag)
     {
-        int barPitch = resolveBarPitch();
+        int barLane = p.laneIndex;
         if (p.overExistingNote)
         {
-            auto existing = findNote(trackIdx, p.hitNoteStartQN, barPitch);
-            if (existing.noteIndex >= 0)
-                eraseBarNote(trackIdx, existing.startQN);
+            for (int tryLane : {0, 6})
+            {
+                int tryPitch = resolveBarPitch(tryLane);
+                auto existing = findNote(trackIdx, p.hitNoteStartQN, tryPitch);
+                if (existing.noteIndex >= 0)
+                {
+                    eraseBarNote(trackIdx, existing.startQN, tryLane);
+                    break;
+                }
+            }
         }
         else
-            createBarNote(trackIdx, snapQN(p.rawProjectQN));
+            createBarNote(trackIdx, snapQN(p.rawProjectQN), barLane);
     }
     else if (p.overExistingNote)
     {
