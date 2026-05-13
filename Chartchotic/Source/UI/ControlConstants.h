@@ -110,7 +110,7 @@ constexpr float SUBTOOLBAR_BAR_W     = 2.5f;
 constexpr float SUBTOOLBAR_SNAP_W    = 1.5f;
 constexpr float SUBTOOLBAR_STEP_W    = 3.0f;
 constexpr float SUBTOOLBAR_MOD_W     = 10.0f;
-constexpr float SUBTOOLBAR_CYM_W     = 3.0f;
+constexpr float SUBTOOLBAR_CYM_W     = 1.5f;
 constexpr float SUBTOOLBAR_COL_GAP   = 2.0f;
 
 // Footer
