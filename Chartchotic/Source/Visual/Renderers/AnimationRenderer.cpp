@@ -47,7 +47,7 @@ void AnimationRenderer::detectAndTriggerAnimations(const TimeBasedTrackWindow& t
     // If it's a new note (different from last frame), trigger the animation
 
     std::array<double, 7> closestPastNotePerColumn = {999.0, 999.0, 999.0, 999.0, 999.0, 999.0, 999.0};
-    std::array<GemWrapper, 7> closestGemPerColumn;
+    std::array<GemWrapper, LANE_COUNT> closestGemPerColumn;
 
     // Find the closest note that has just crossed (or is at) the strike point for each column
     for (const auto &frameItem : trackWindow)

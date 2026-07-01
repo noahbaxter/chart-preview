@@ -334,10 +334,32 @@ juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uin
     return nullptr;
 }
 
-juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive)
+juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive, bool elite)
 {
     // Use the gem's star power flag to determine if it should be white
     bool shouldBeWhite = starPowerActive && gemWrapper.starPower;
+
+    if (elite)
+    {
+        // Elite: each lane is drum XOR cymbal, so the glyph is fixed by the lane
+        // (gemColumn), not the gem type. Temp art per the render-spike mapping
+        // (Snare-Hat-LCrash-Tom1-Tom2-Tom3-Ride-RCrash); Left Crash reuses the
+        // white cymbal as a placeholder (no purple art yet).
+        switch (gemColumn)
+        {
+        case 0:  return shouldBeWhite ? getBarWhiteImage()  : getBarKickImage();     // Kick
+        case 1:  return shouldBeWhite ? getNoteWhiteImage() : getNoteRedImage();     // Snare
+        case 2:  return shouldBeWhite ? getCymWhiteImage()  : getCymYellowImage();   // Hi-Hat
+        case 3:  return getCymWhiteImage();                                          // Left Crash (placeholder)
+        case 4:  return shouldBeWhite ? getNoteWhiteImage() : getNoteOrangeImage();  // Tom 1
+        case 5:  return getNoteWhiteImage();                                         // Tom 2
+        case 6:  return shouldBeWhite ? getNoteWhiteImage() : getNoteBlueImage();    // Tom 3
+        case 7:  return shouldBeWhite ? getCymWhiteImage()  : getCymBlueImage();     // Ride
+        case 8:  return shouldBeWhite ? getCymWhiteImage()  : getCymGreenImage();    // Right Crash
+        case 9:  return shouldBeWhite ? getBarWhiteImage()  : getBarKick2xImage();   // 2x Kick
+        default: return shouldBeWhite ? getBarWhiteImage()  : getBarKickImage();     // Stomp/Splash (placeholder bar)
+        }
+    }
 
     if (shouldBeWhite)
     {

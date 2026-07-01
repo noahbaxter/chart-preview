@@ -25,7 +25,7 @@ public:
 
     // Image picker methods
     juce::Image* getGuitarGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive);
-    juce::Image* getDrumGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive);
+    juce::Image* getDrumGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive, bool elite = false);
     juce::Image* getGridlineImage(Gridline gridlineType);
     juce::Image* getOverlayImage(Gem gem, Part part);
     juce::Colour getLaneColour(uint gemColumn, Part part, bool starPowerActive);

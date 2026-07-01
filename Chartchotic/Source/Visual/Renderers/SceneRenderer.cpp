@@ -82,11 +82,12 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     noteRenderer.strikePosBar = strikePosBar;
     noteRenderer.gemTypeScales = gemTypeScales;
     noteRenderer.overlayAdjusts = overlayAdjusts;       // pointer to scene-side array
+    bool isElite = (activePart == Part::ELITE_DRUMS);
     noteRenderer.guitarColAdjust = guitarColAdjust;
-    noteRenderer.drumColAdjust = drumColAdjust;
+    noteRenderer.drumColAdjust = isElite ? eliteDrumColAdjust : drumColAdjust;
     noteRenderer.resScale = resScale;                    // applied to ColumnAdjust::z reads
     noteRenderer.laneCoordsGuitar = guitarLaneCoordsLocal;
-    noteRenderer.laneCoordsDrums = drumLaneCoordsLocal;
+    noteRenderer.laneCoordsDrums = isElite ? eliteDrumLaneCoordsLocal : drumLaneCoordsLocal;
 
     {
         ScopedPhaseMeasure m(lastPhaseTiming.notes_us, collectPhaseTiming);
