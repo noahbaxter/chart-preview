@@ -7,6 +7,8 @@
 # -----------------------------------------------------------------------------
 **/build/
 build-benchmark/
+build-render*/
+tests/render_harness/*.png
 **/DerivedData/
 **/x64/
 **/Debug/
