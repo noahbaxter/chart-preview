@@ -73,6 +73,21 @@ namespace
         &bemaniHwyScaleDrums,
         &bemaniHitBarNudgeDrums,
     };
+
+    const RenderTypeConfig eliteDrumsConfig = {
+        ELITE_DRUM_LANE_COUNT,
+        &eliteDrumFretboardCoords,
+        eliteDrumBezierLaneCoords,
+        &DRUM_OFFSETS,
+        ELITE_DRUM_COL_ADJUST,
+        ELITE_DRUM_ANIMATION_OFFSETS,
+        &getDrumPP,
+        &bemaniGemNudgeDrums,
+        &bemaniLaneEndPxDrums,
+        &bemaniBarLaneEndPxDrums,
+        &bemaniHwyScaleDrums,
+        &bemaniHitBarNudgeDrums,
+    };
 } // anonymous namespace
 
 const RenderTypeConfig* getRenderTypeConfig(RenderType type)
@@ -81,6 +96,7 @@ const RenderTypeConfig* getRenderTypeConfig(RenderType type)
     {
         case RenderType::FIVE_FRET:       return &guitarFiveFretConfig;
         case RenderType::FOUR_LANE_DRUMS: return &drumsFourLaneConfig;
+        case RenderType::ELITE_DRUMS:     return &eliteDrumsConfig;
         default:                          return nullptr;
     }
 }
