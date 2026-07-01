@@ -27,6 +27,10 @@ public:
 
     Part activePart = Part::GUITAR;
 
+    // Force procedural side rails even for non-elite parts (for A/B comparison
+    // against the sidebar PNG). Elite always uses procedural rails regardless.
+    bool useProceduralRails = false;
+
     void paint(juce::Graphics& g, int viewportWidth, int viewportHeight);
 
     /** Paint the scrolling highway texture overlay. Call between track and scene rendering. */
@@ -174,6 +178,13 @@ private:
     void bakeLaneLinesPerspective(int w, int h, int overflow, bool isDrums,
                                    float farFadeEnd, float farFadeLen, float farFadeCurve,
                                    float posEnd);
+
+    // Procedural side rails stroked along the board edges (cached.edges). Used
+    // instead of the fixed sidebar PNG for render types whose board width/aspect
+    // differ from the PNG's baked perspective (e.g. Elite drums' wider 8-lane board).
+    void bakeSidebarRailsPerspective(int w, int h, int overflow, bool isDrums,
+                                      float farFadeEnd, float farFadeLen, float farFadeCurve,
+                                      float posEnd);
 
     static constexpr int PIXELS_PER_STRIP = 1;
     static constexpr int MIN_STRIPS = 40;
