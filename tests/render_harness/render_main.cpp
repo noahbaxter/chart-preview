@@ -108,14 +108,44 @@ static FakeScene makeComprehensiveScene(bool isDrums, float farEnd)
     return s;
 }
 
-// Elite: empty board (gridlines only) so the 8 lane dividers can be judged.
-// Notes are not wired into NoteRenderer's coord tables until Task 2.
+// Elite: a fake ED chart exercising all 8 hand lanes plus kicks. Columns:
+// 0 kick, 1 Snare, 2 Hi-Hat, 3 L-Crash, 4 Tom1, 5 Tom2, 6 Tom3, 7 Ride,
+// 8 R-Crash, 9 2x-kick. Cymbal lanes (2,3,7,8) carry CYM gems; the rest NOTE.
 static FakeScene makeEliteScene(float farEnd)
 {
     FakeScene s;
+    auto put = [&](double pos, int col, Gem g, bool sp = false)
+    {
+        auto& f = s.track[pos];
+        if (col >= 0 && col < (int)LANE_COUNT)
+            f[col] = GemWrapper(g, sp);
+    };
+    auto gemForLane = [](int lane) {
+        return (lane == 2 || lane == 3 || lane == 7 || lane == 8) ? Gem::CYM : Gem::NOTE;
+    };
+
+    // Staircase: one gem per hand lane 1..8 marching down the neck.
+    double p = 0.08;
+    for (int lane = 1; lane <= 8; ++lane, p += 0.10)
+        put(p, lane, gemForLane(lane));
+
+    // Kicks every quarter across the runway.
+    for (double k = 0.05; k <= farEnd; k += 0.25)
+        put(k, 0, Gem::NOTE);
+
+    // A 2x kick, then a full 8-lane chord further back.
+    put(1.00, 9, Gem::NOTE);
+    for (int lane = 1; lane <= 8; ++lane)
+        put(1.20, lane, gemForLane(lane));
+
+    // Star-power (white) row toward the far end.
+    for (int lane = 1; lane <= 8; ++lane)
+        put(1.60, lane, gemForLane(lane), true);
+
     int idx = 0;
-    for (double p = 0.0; p <= farEnd; p += 0.1, ++idx)
-        s.gridlines.push_back({ p, (idx % 4 == 0) ? Gridline::MEASURE : Gridline::BEAT });
+    for (double gp = 0.0; gp <= farEnd; gp += 0.1, ++idx)
+        s.gridlines.push_back({ gp, (idx % 4 == 0) ? Gridline::MEASURE : Gridline::BEAT });
+
     return s;
 }
 
