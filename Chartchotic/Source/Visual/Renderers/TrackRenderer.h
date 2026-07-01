@@ -124,8 +124,6 @@ private:
 
     // Layer source images
     juce::Image sidebarsImage;
-    juce::Image strikelineGuitarImage;
-    juce::Image strikelineDrumsImage;
     juce::Image strikelineConnectorsImage;
     juce::Image kickSmashersImage;
 
@@ -185,6 +183,12 @@ private:
     void bakeSidebarRailsPerspective(int w, int h, int overflow, bool isDrums,
                                       float farFadeEnd, float farFadeLen, float farFadeCurve,
                                       float posEnd);
+
+    // Procedural strikeline pads along the strike-plane lane geometry, baked into
+    // the STRIKELINE layer instead of the fixed strikeline PNG (Elite / A/B flag).
+    void bakeStrikelinePadsPerspective(int w, int h, int overflow, bool isDrums,
+                                        float farFadeEnd, float farFadeLen, float farFadeCurve,
+                                        float posEnd);
 
     static constexpr int PIXELS_PER_STRIP = 1;
     static constexpr int MIN_STRIPS = 40;
