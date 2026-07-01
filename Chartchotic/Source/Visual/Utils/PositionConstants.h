@@ -184,6 +184,7 @@ namespace PositionConstants
     // Lane Counts
     constexpr size_t GUITAR_LANE_COUNT = 6;             // Open + 5 frets
     constexpr size_t DRUM_LANE_COUNT = 5;               // Kick + 4 pads
+    constexpr size_t ELITE_DRUM_LANE_COUNT = 9;         // Kick + 8 hand lanes (Snare-Hat-LCrash-Tom1-Tom2-Tom3-Ride-RCrash)
 
     //==============================================================================
     // Animation Positioning & Scaling Factors
@@ -205,11 +206,28 @@ namespace PositionConstants
         {0.0f, 0.0f, 1.6f, 3.5f}    // Col 4 - Green
     };
 
+    // Elite drums: kick bar + 8 hand lanes (same anim shape as drums)
+    constexpr CoordinateOffset ELITE_DRUM_ANIMATION_OFFSETS[] = {
+        {0.0f, -8.0f, 1.4f, 10.0f}, // 0 Kick
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 1 Snare
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 2 Hi-Hat
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 3 Left Crash
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 4 Tom 1
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 5 Tom 2
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 6 Tom 3
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 7 Ride
+        {0.0f, 0.0f, 1.6f, 3.5f}    // 8 Right Crash
+    };
+
     //==============================================================================
     // Fretboard Boundary Coordinates (for bezier positioning system)
     constexpr NormalizedCoordinates guitarFretboardCoords =
         {0.16f, 0.34f, 0.73f, 0.234f, 0.68f, 0.32f};
     constexpr NormalizedCoordinates drumFretboardCoords =
+        {0.16f, 0.34f, 0.735f, 0.239f, 0.68f, 0.32f};
+    // Elite drums reuse the drum board shape for now (getFretboardEdge is not yet
+    // config-aware, so this MUST match drumFretboardCoords or lanes/fill diverge).
+    constexpr NormalizedCoordinates eliteDrumFretboardCoords =
         {0.16f, 0.34f, 0.735f, 0.239f, 0.68f, 0.32f};
     constexpr float FRETBOARD_SCALE = 1.25f;
 
@@ -234,6 +252,20 @@ namespace PositionConstants
         {0.376f, 0.436f, 0.70f, 0.22f, 0.120f, 0.064f},      // Yellow
         {0.506f, 0.500f, 0.70f, 0.22f, 0.118f, 0.066f},      // Blue
         {0.636f, 0.564f, 0.70f, 0.22f, 0.124f, 0.060f}       // Green
+    };
+    // Elite drums: kick (full width) + 8 hand lanes evenly spaced across the same
+    // fretboard span the 4 drum pads use (near 0.234..0.760, far 0.376..0.624).
+    // Starting values; tune live via the render harness.
+    constexpr NormalizedCoordinates eliteDrumBezierLaneCoords[] = {
+        {0.212f, 0.354f, 0.735f, 0.239f, 0.574f, 0.290f},    // 0 Kick (full width)
+        {0.2340f, 0.376f, 0.70f, 0.22f, 0.059f, 0.028f},     // 1 Snare
+        {0.2998f, 0.407f, 0.70f, 0.22f, 0.059f, 0.028f},     // 2 Hi-Hat
+        {0.3655f, 0.438f, 0.70f, 0.22f, 0.059f, 0.028f},     // 3 Left Crash
+        {0.4313f, 0.469f, 0.70f, 0.22f, 0.059f, 0.028f},     // 4 Tom 1
+        {0.4970f, 0.500f, 0.70f, 0.22f, 0.059f, 0.028f},     // 5 Tom 2
+        {0.5628f, 0.531f, 0.70f, 0.22f, 0.059f, 0.028f},     // 6 Tom 3
+        {0.6285f, 0.562f, 0.70f, 0.22f, 0.059f, 0.028f},     // 7 Ride
+        {0.6943f, 0.593f, 0.70f, 0.22f, 0.059f, 0.028f}      // 8 Right Crash
     };
 
     //==============================================================================
@@ -293,6 +325,17 @@ namespace PositionConstants
         {0, 1, 1, 1, 1},                // Yellow
         {0, 1, 1, 1, 1},                // Blue
         {0, 1, 1, 1, 1}                 // Green
+    };
+    constexpr ColumnAdjust ELITE_DRUM_COL_ADJUST[9] = {
+        {0, 1, 1, 1, 1},                // 0 Kick
+        {0, 1, 1, 1, 1},                // 1 Snare
+        {0, 1, 1, 1, 1},                // 2 Hi-Hat
+        {0, 1, 1, 1, 1},                // 3 Left Crash
+        {0, 1, 1, 1, 1},                // 4 Tom 1
+        {0, 1, 1, 1, 1},                // 5 Tom 2
+        {0, 1, 1, 1, 1},                // 6 Tom 3
+        {0, 1, 1, 1, 1},                // 7 Ride
+        {0, 1, 1, 1, 1}                 // 8 Right Crash
     };
 
     //==============================================================================
