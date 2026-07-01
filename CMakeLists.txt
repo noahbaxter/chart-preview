@@ -347,8 +347,6 @@ juce_add_binary_data(ChartchoticData
         assets/generated/ui/sidebars.png
         assets/generated/ui/lane_lines_guitar.png
         assets/generated/ui/lane_lines_drums.png
-        assets/generated/ui/strikeline_guitar.png
-        assets/generated/ui/strikeline_drums.png
         assets/generated/ui/strikeline_connectors.png
         assets/generated/ui/kick_smashers.png
         # Hit animations — flares (generated from PDFs)

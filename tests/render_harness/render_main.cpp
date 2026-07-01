@@ -159,7 +159,10 @@ int main(int argc, char** argv)
     float  length = 3.0f;        // highway length multiplier (3.0 = 300%); scales farFadeEnd
     float  fretWidth = 1.3f;     // elite box width multiplier (wider render box, same drum slant)
     bool   procRails = false;    // force procedural rails on non-elite parts (A/B vs PNG)
-    bool   railsOnly = false;    // draw ONLY the sidebar rails (no board/gridlines/gems) for clean scans
+    bool   railsOnly = false;    // alias for --only sidebars
+    // Render only the named parts in isolation (empty = all). Parts:
+    // board gridlines gems sidebars lanes strikeline connectors
+    juce::StringArray onlyParts;
 
     for (int i = 1; i < argc; ++i)
     {
@@ -172,6 +175,7 @@ int main(int argc, char** argv)
         else if (a == "--scroll" && i + 1 < argc) scroll = juce::String(argv[++i]).getFloatValue();
         else if (a == "--proc-rails") procRails = true;
         else if (a == "--rails-only") railsOnly = true;
+        else if (a == "--only" && i + 1 < argc) onlyParts.addTokens(argv[++i], ",", "");
         else if (! a.startsWith("--")) outPath = a;
     }
     if (outPath.isEmpty()) outPath = "highway.png";
@@ -243,24 +247,30 @@ int main(int argc, char** argv)
                   scene.farFadeEnd, scene.farFadeLen, scene.farFadeCurve,
                   scene.highwayPosEnd);
 
+    // Part isolation: render only the named parts (empty list = everything).
+    if (railsOnly) { onlyParts.clearQuick(); onlyParts.add("sidebars"); }
+    auto has = [&](const char* p) { return onlyParts.isEmpty() || onlyParts.contains(p); };
+    const bool showBoard      = has("board");
+    const bool showGems       = has("gems");
+    const bool showGridlines  = has("gridlines");
+    const bool showSidebars   = has("sidebars");
+    const bool showLanes      = has("lanes");
+    const bool showStrikeline = has("strikeline");
+    const bool showConnectors = has("connectors");
+
     // Wire baked track layer overlays into the scene (perspective mode).
     scene.overlayYOffset = overflow;
     scene.clearOverlays();
-    if (! railsOnly)
-    {
-        scene.setOverlay(DrawOrder::TRACK_STRIKELINE, &track.getLayerImage(TrackRenderer::STRIKELINE));
-        scene.setOverlay(DrawOrder::TRACK_LANE_LINES, &track.getLayerImage(TrackRenderer::LANE_LINES));
-    }
-    scene.setOverlay(DrawOrder::TRACK_SIDEBARS,   &track.getLayerImage(TrackRenderer::SIDEBARS));
-    if (! railsOnly)
-        scene.setOverlay(DrawOrder::TRACK_CONNECTORS, &track.getLayerImage(TrackRenderer::CONNECTORS));
+    if (showStrikeline) scene.setOverlay(DrawOrder::TRACK_STRIKELINE, &track.getLayerImage(TrackRenderer::STRIKELINE));
+    if (showLanes)      scene.setOverlay(DrawOrder::TRACK_LANE_LINES, &track.getLayerImage(TrackRenderer::LANE_LINES));
+    if (showSidebars)   scene.setOverlay(DrawOrder::TRACK_SIDEBARS,   &track.getLayerImage(TrackRenderer::SIDEBARS));
+    if (showConnectors) scene.setOverlay(DrawOrder::TRACK_CONNECTORS, &track.getLayerImage(TrackRenderer::CONNECTORS));
 
-    FakeScene fake = railsOnly ? FakeScene{}
-                   : isElite   ? makeEliteScene(scene.farFadeEnd)
-                               : makeComprehensiveScene(isDrums, scene.farFadeEnd);
-    TimeBasedTrackWindow   trackWindow   = fake.track;
-    TimeBasedSustainWindow sustainWindow = fake.sustains;
-    TimeBasedGridlineMap   gridlines     = fake.gridlines;
+    FakeScene fake = isElite ? makeEliteScene(scene.farFadeEnd)
+                             : makeComprehensiveScene(isDrums, scene.farFadeEnd);
+    TimeBasedTrackWindow   trackWindow   = showGems ? fake.track    : TimeBasedTrackWindow{};
+    TimeBasedSustainWindow sustainWindow = showGems ? fake.sustains : TimeBasedSustainWindow{};
+    TimeBasedGridlineMap   gridlines     = showGridlines ? fake.gridlines : TimeBasedGridlineMap{};
     TimeBasedFlipRegions   flipRegions;
     TimeBasedEventMarkers  eventMarkers;
 
@@ -272,7 +282,7 @@ int main(int argc, char** argv)
     juce::Image canvas(juce::Image::ARGB, renderWidth, totalH, true);
     {
         juce::Graphics g(canvas);
-        if (! railsOnly)
+        if (showBoard)
         {
             track.paint(g, renderWidth, totalH);
             track.paintTexture(g, scroll, renderWidth, totalH);
