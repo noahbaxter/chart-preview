@@ -9,6 +9,7 @@
 
 #include "TrackRenderer.h"
 #include "../Utils/RenderTypeConfig.h"
+#include "ProceduralTrackArt.h"
 
 using namespace PositionConstants;
 
@@ -463,8 +464,13 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
 
         // Bake individual overlay layers (drawn at interleaved z-positions by SceneRenderer)
         auto* layers = isDrums ? layersDrums : layersGuitar;
-        bakeLayerImage(layerImages[SIDEBARS], sidebarsImage, layers[SIDEBARS],
-                       width, totalH, overflow, isDrums, true, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+        // Elite drums use a wider board whose edges the fixed sidebar PNG can't follow;
+        // stroke the rails procedurally along the actual board edges instead.
+        if (getRenderType(activePart) == RenderType::ELITE_DRUMS || useProceduralRails)
+            bakeSidebarRailsPerspective(width, totalH, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+        else
+            bakeLayerImage(layerImages[SIDEBARS], sidebarsImage, layers[SIDEBARS],
+                           width, totalH, overflow, isDrums, true, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
         bakeLaneLinesPerspective(width, totalH, overflow, isDrums,
                                   farFadeEnd, farFadeLen, farFadeCurve, posEnd);
         bakeLayerImage(layerImages[STRIKELINE], isDrums ? strikelineDrumsImage : strikelineGuitarImage, layers[STRIKELINE],
@@ -531,6 +537,24 @@ void TrackRenderer::bakeLaneLinesPerspective(int w, int h, int overflow, bool is
 
             g.strokePath(path, juce::PathStrokeType(1.5f));
         }
+    }
+
+    applyFarFade(out, w, h, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
+                 posEnd);
+}
+
+void TrackRenderer::bakeSidebarRailsPerspective(int w, int h, int overflow, bool isDrums,
+                                                 float farFadeEnd, float farFadeLen, float farFadeCurve,
+                                                 float posEnd)
+{
+    auto& out = layerImages[SIDEBARS];
+    out = juce::Image(juce::Image::ARGB, w, h, true);
+
+    if (cached.stripCount < 1) { out = {}; return; }
+
+    {
+        juce::Graphics g(out);
+        ProceduralTrackArt::drawSidebarRails(g, cached.edges, cached.stripCount);
     }
 
     applyFarFade(out, w, h, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
