@@ -185,3 +185,40 @@ if(APPLE)
         "-framework Cocoa"
     )
 endif()
+
+# gem_compare — bakes procedural gem art and pixel-diffs it against the
+# original generated PNGs (the success metric for the procedural gem work).
+juce_add_console_app(gem_compare PRODUCT_NAME "Chartchotic Gem Compare")
+
+target_sources(gem_compare PRIVATE
+    gem_compare.cpp
+)
+
+target_include_directories(gem_compare PRIVATE
+    ${SOURCE_ROOT}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+juce_generate_juce_header(gem_compare)
+
+target_compile_definitions(gem_compare PRIVATE
+    JUCE_STANDALONE_APPLICATION=1
+    JUCE_USE_CURL=0
+    JUCE_WEB_BROWSER=0
+)
+
+target_link_libraries(gem_compare PRIVATE
+    juce::juce_core
+    juce::juce_data_structures
+    juce::juce_events
+    juce::juce_graphics
+    juce::juce_gui_basics
+    RenderHarnessData
+)
+
+if(APPLE)
+    target_link_libraries(gem_compare PRIVATE
+        "-framework Foundation"
+        "-framework Cocoa"
+    )
+endif()
