@@ -27,10 +27,6 @@ public:
 
     Part activePart = Part::GUITAR;
 
-    // Force procedural side rails even for non-elite parts (for A/B comparison
-    // against the sidebar PNG). Elite always uses procedural rails regardless.
-    bool useProceduralRails = false;
-
     void paint(juce::Graphics& g, int viewportWidth, int viewportHeight);
 
     /** Paint the scrolling highway texture overlay. Call between track and scene rendering. */
@@ -123,7 +119,6 @@ private:
     juce::ValueTree& state;
 
     // Layer source images
-    juce::Image sidebarsImage;
     juce::Image strikelineConnectorsImage;
     juce::Image kickSmashersImage;
 
