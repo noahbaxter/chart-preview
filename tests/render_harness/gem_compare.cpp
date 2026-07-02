@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "Visual/Renderers/Gems/GemArtCommon.h"
+#include "Visual/Renderers/Gems/NoteGemArt.h"
 
 struct CompareEntry
 {
@@ -82,9 +83,28 @@ static void diffImages(const juce::Image& a, const juce::Image& b,
 
 static std::vector<CompareEntry> buildEntries()
 {
+    auto tube = [](GemArt::TubeGemGeom geom, GemArt::TubeGemStyle style)
+    {
+        return [geom, style](juce::Rectangle<int> bbox)
+        {
+            return GemArt::bakeTubeGem(geom, { 0, 0, 1194, 598 }, bbox, style);
+        };
+    };
+    using namespace GemArt;
+
     return {
-        // Baked entries get registered per family as they land.
-        { "note_blue", BinaryData::note_blue_png, BinaryData::note_blue_pngSize, nullptr },
+        { "note_blue",   BinaryData::note_blue_png,   BinaryData::note_blue_pngSize,
+          tube(noteGeom(), tubeStyleOverlay(juce::Colour(0xff1777e0))) },
+        { "note_red",    BinaryData::note_red_png,    BinaryData::note_red_pngSize,
+          tube(noteGeom(), tubeStyleOverlay(juce::Colour(0xffed1c24))) },
+        { "note_yellow", BinaryData::note_yellow_png, BinaryData::note_yellow_pngSize,
+          tube(noteGeom(), tubeStyleOverlay(juce::Colour(0xffffd400))) },
+        { "note_green",  BinaryData::note_green_png,  BinaryData::note_green_pngSize,
+          tube(noteGeom(), tubeStyleGreen()) },
+        { "note_orange", BinaryData::note_orange_png, BinaryData::note_orange_pngSize,
+          tube(noteGeom(), tubeStyleOrange()) },
+        { "note_white",  BinaryData::note_white_png,  BinaryData::note_white_pngSize,
+          tube(noteGeom(), tubeStyleWhite()) },
     };
 }
 
