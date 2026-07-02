@@ -574,19 +574,37 @@ namespace FretColour
     const PadColours blue     { juce::Colour(0xFF0D447F), juce::Colour(0xFF1678E4) };
     const PadColours green    { juce::Colour(0xFF226D2C), juce::Colour(0xFF36B047) };
     const PadColours orange   { juce::Colour(0xFFA85A14), juce::Colour(0xFFE88A20) };
+    const PadColours purple   { juce::Colour(0xFF5B2A8C), juce::Colour(0xFF9B47D6) };
     const PadColours white    { juce::Colour(0xFFAEAEAE), juce::Colour(0xFFEAEAEA) };
     const PadColours fallback { juce::Colour(0xFF888888), juce::Colour(0xFFBBBBBB) };  // unmapped lane
+}
+
+// Map the shared lane tint (PositionConstants::ELITE_LANE_STYLES) to pad colours, so the
+// strikeline and the gems read from the same colour scheme.
+static PadColours tintToPad(PositionConstants::DrumLaneTint t)
+{
+    using namespace FretColour;
+    using T = PositionConstants::DrumLaneTint;
+    switch (t)
+    {
+        case T::Red:    return red;
+        case T::Yellow: return yellow;
+        case T::Purple: return purple;
+        case T::Orange: return orange;
+        case T::Blue:   return blue;
+        case T::Green:  return green;
+        case T::White:  return white;
+        case T::None:   return none;
+    }
+    return fallback;
 }
 
 static PadColours strikePadColours(Part part, int lane)
 {
     using namespace FretColour;
     if (part == Part::ELITE_DRUMS)
-    {
-        // kick, snare, hi-hat, L crash, tom1, tom2, tom3, ride, R crash
-        static const PadColours c[9] = { none, red, yellow, white, orange, white, blue, blue, green };
-        return (lane >= 0 && lane < 9) ? c[lane] : fallback;
-    }
+        return (lane >= 0 && lane < 9) ? tintToPad(PositionConstants::ELITE_LANE_STYLES[lane].tint)
+                                       : fallback;
     if (isGuitarLike(part))
     {
         // 5-fret GRYBO (lane 0 = open).
