@@ -192,6 +192,7 @@ juce_add_console_app(gem_compare PRODUCT_NAME "Chartchotic Gem Compare")
 
 target_sources(gem_compare PRIVATE
     gem_compare.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/Gems/GemArtCommon.cpp
 )
 
 target_include_directories(gem_compare PRIVATE

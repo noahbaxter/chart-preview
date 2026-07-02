@@ -23,6 +23,8 @@
 #include <functional>
 #include <vector>
 
+#include "Visual/Renderers/Gems/GemArtCommon.h"
+
 struct CompareEntry
 {
     const char* name;
@@ -183,9 +185,24 @@ int main(int argc, char** argv)
     return anyFail ? 1 : 0;
 }
 
-// Blend-math checks land with GemArtCommon; keep the hook so the CLI is stable.
+static bool near(float a, float b) { return std::abs(a - b) < 1e-5f; }
+
 static int runSelftest()
 {
+    // Overlay: identity at s=0.5, saturates at s=1 for b>=0.5
+    if (! near(GemArt::blendOverlay(0.25f, 0.5f), 0.25f)) { std::printf("overlay fail 1\n"); return 1; }
+    if (! near(GemArt::blendOverlay(0.75f, 0.5f), 0.75f)) { std::printf("overlay fail 2\n"); return 1; }
+    if (! near(GemArt::blendOverlay(0.5f, 1.0f), 1.0f))   { std::printf("overlay fail 3\n"); return 1; }
+    if (! near(GemArt::blendOverlay(0.0f, 1.0f), 0.0f))   { std::printf("overlay fail 4\n"); return 1; }
+
+    // Colour blend keeps the backdrop's luminosity
+    auto grey = juce::Colour::fromFloatRGBA(0.5f, 0.5f, 0.5f, 1.0f);
+    auto red  = juce::Colours::red;
+    auto r    = GemArt::blendColour(grey, red);
+    float l   = 0.3f * r.getFloatRed() + 0.59f * r.getFloatGreen() + 0.11f * r.getFloatBlue();
+    if (std::abs(l - 0.5f) > 0.01f) { std::printf("colour blend lum fail (%f)\n", l); return 1; }
+    if (r.getFloatRed() <= r.getFloatGreen()) { std::printf("colour blend hue fail\n"); return 1; }
+
     std::printf("selftest ok\n");
     return 0;
 }
