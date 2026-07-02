@@ -745,15 +745,21 @@ void HighwayComponent::rebuildTrack()
     updateOverflow();
 
     bool isDrums = isDrumLike(activePart);
+    bool isElite = getRenderType(activePart) == RenderType::ELITE_DRUMS;
     bool useCache = trackImageCache && trackImageCache->isValid() && !PositionMath::bemaniMode;
 
     sceneRenderer.rescaleAssets(w);
     sceneRenderer.overlayYOffset = topOverflow;
 
-    // Pass lane coords to TrackRenderer for perspective-projected lane lines
+    // Pass lane coords to TrackRenderer for perspective-projected lane lines. Elite
+    // has its own 9-lane table (kick + 8 hand lanes); isDrumLike() is true for elite
+    // too, so it must be checked first or elite would silently fall back to the
+    // 4-lane drum table.
     trackRenderer.setLaneCoords(
-        isDrums ? sceneRenderer.drumLaneCoordsLocal : sceneRenderer.guitarLaneCoordsLocal,
-        isDrums ? (int)PositionConstants::DRUM_LANE_COUNT : (int)PositionConstants::GUITAR_LANE_COUNT);
+        isElite ? sceneRenderer.eliteDrumLaneCoordsLocal
+                : isDrums ? sceneRenderer.drumLaneCoordsLocal : sceneRenderer.guitarLaneCoordsLocal,
+        isElite ? (int)PositionConstants::ELITE_DRUM_LANE_COUNT
+                : isDrums ? (int)PositionConstants::DRUM_LANE_COUNT : (int)PositionConstants::GUITAR_LANE_COUNT);
 
     if (useCache)
     {
