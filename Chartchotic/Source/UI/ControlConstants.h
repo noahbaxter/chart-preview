@@ -210,6 +210,7 @@ inline const std::vector<TrackNameEntry>& getImplementedTrackNames()
         { "PART BASS",        Part::BASS },
         { "PART KEYS",        Part::KEYS },
         { "PART DRUMS",       Part::DRUMS },
+        { "PART ELITE_DRUMS", Part::ELITE_DRUMS },
     };
     return names;
 }
