@@ -157,7 +157,7 @@ int main(int argc, char** argv)
     double aspect = 0.0;         // 0 = auto (1.5 for elite's wider board, 4:3 otherwise)
     float  scroll = 0.0f;
     float  length = 3.0f;        // highway length multiplier (3.0 = 300%); scales farFadeEnd
-    float  fretWidth = 1.3f;     // elite box width multiplier (wider render box, same drum slant)
+    float  fretWidth = PositionConstants::ELITE_BOARD_WIDTH_SCALE;   // elite box width multiplier (wider render box, same drum slant)
     bool   procRails = false;    // force procedural rails on non-elite parts (A/B vs PNG)
     bool   railsOnly = false;    // alias for --only sidebars
     // Render only the named parts in isolation (empty = all). Parts:
@@ -228,7 +228,7 @@ int main(int argc, char** argv)
 
     scene.rescaleAssets(renderWidth);
     if (isElite)
-        track.setLaneCoords(PositionConstants::eliteDrumBezierLaneCoords,
+        track.setLaneCoords(PositionConstants::eliteDrumBezierLaneCoords.data(),
                             (int)PositionConstants::ELITE_DRUM_LANE_COUNT);
     else
         track.setLaneCoords(isDrums ? scene.drumLaneCoordsLocal : scene.guitarLaneCoordsLocal,

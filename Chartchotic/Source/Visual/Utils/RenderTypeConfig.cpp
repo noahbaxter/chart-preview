@@ -77,7 +77,7 @@ namespace
     const RenderTypeConfig eliteDrumsConfig = {
         ELITE_DRUM_LANE_COUNT,
         &eliteDrumFretboardCoords,
-        eliteDrumBezierLaneCoords,
+        eliteDrumBezierLaneCoords.data(),
         &DRUM_OFFSETS,
         ELITE_DRUM_COL_ADJUST,
         ELITE_DRUM_ANIMATION_OFFSETS,
