@@ -67,7 +67,8 @@ PartWindow MidiInterpreter::resolveAllDifficulties(PPQ windowStart, PPQ windowEn
     SharedWindow shared;
     {
         const juce::ScopedLock lock(noteStateMapLock);
-        shared = TrackResolver::extract(noteStateMapArray, windowStart, windowEnd, latencyEnd, cfg.bemaniMode);
+        bool isElite = getRenderType(cfg.part) == RenderType::ELITE_DRUMS;
+        shared = TrackResolver::extract(noteStateMapArray, windowStart, windowEnd, latencyEnd, cfg.bemaniMode, isElite);
     }
 
     // Resolve on local data — no locks
