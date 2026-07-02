@@ -26,6 +26,7 @@
 #include "Visual/Renderers/Gems/GemArtCommon.h"
 #include "Visual/Renderers/Gems/NoteGemArt.h"
 #include "Visual/Renderers/Gems/BarGemArt.h"
+#include "Visual/Renderers/Gems/CymbalGemArt.h"
 
 struct CompareEntry
 {
@@ -128,6 +129,17 @@ static std::vector<CompareEntry> buildEntries()
           [](juce::Rectangle<int> bbox) { return bakeBar(barRampKick2x(), barCanvas(), bbox); } },
         { "bar_open",    BinaryData::bar_open_png,    BinaryData::bar_open_pngSize,
           [](juce::Rectangle<int> bbox) { return bakeBar(barRampOpen(),   barCanvas(), bbox); } },
+
+        { "cym_blue",    BinaryData::cym_blue_png,    BinaryData::cym_blue_pngSize,
+          [](juce::Rectangle<int> bbox) { return bakeCymbal(cymbalStyle(juce::Colour(0xff2266f1)), { 0, 0, 1194, 598 }, bbox); } },
+        { "cym_red",     BinaryData::cym_red_png,     BinaryData::cym_red_pngSize,
+          [](juce::Rectangle<int> bbox) { return bakeCymbal(cymbalStyle(juce::Colour(0xffed1c24)), { 0, 0, 1194, 598 }, bbox); } },
+        { "cym_yellow",  BinaryData::cym_yellow_png,  BinaryData::cym_yellow_pngSize,
+          [](juce::Rectangle<int> bbox) { return bakeCymbal(cymbalStyle(juce::Colour(0xffffde00)), { 0, 0, 1194, 598 }, bbox); } },
+        { "cym_green",   BinaryData::cym_green_png,   BinaryData::cym_green_pngSize,
+          [](juce::Rectangle<int> bbox) { return bakeCymbal(cymbalStyle(juce::Colour(0xff39b54a)), { 0, 0, 1194, 598 }, bbox); } },
+        { "cym_white",   BinaryData::cym_white_png,   BinaryData::cym_white_pngSize,
+          [](juce::Rectangle<int> bbox) { return bakeCymbal(cymbalStyleWhite(), { 0, 0, 1194, 598 }, bbox); } },
     };
 }
 
