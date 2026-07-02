@@ -50,6 +50,14 @@ inline uint drumColumnIndex(uint gemColumn, Part part = Part::DRUMS)
     return (gemColumn == DRUM_KICK_2X_COLUMN) ? DRUM_KICK_COLUMN : gemColumn;
 }
 
+// Elite hand lanes that are cymbals (Hi-Hat, L-Crash, Ride, R-Crash); the rest
+// (Snare, Toms) are drums. Each lane is drum XOR cymbal, fixed by lane, so this is
+// the chart-side source for gem type (mirrors ELITE_LANE_STYLES.cymbal on the visual side).
+inline bool isEliteCymbalLane(uint gemColumn)
+{
+    return gemColumn == 2 || gemColumn == 3 || gemColumn == 7 || gemColumn == 8;
+}
+
 inline bool isBarNote(uint gemColumn, Part part)
 {
     if (part == Part::GUITAR)
