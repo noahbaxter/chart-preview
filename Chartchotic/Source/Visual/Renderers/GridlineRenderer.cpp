@@ -275,8 +275,7 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
             Part part = activePart;
             float pos = normalizedPosition;
             drawCallMap[(int)DrawOrder::GRID][0].push_back([w, h, pe, part, pos, bemaniOpacity](juce::Graphics& g) {
-                bool drums = isDrumLike(part);
-                auto edge = PositionMath::getFretboardEdge(drums, pos, w, h,
+                auto edge = PositionMath::getFretboardEdge(getRenderType(part), pos, w, h,
                                 PositionConstants::HIGHWAY_POS_START, pe);
                 float lineH = std::max(1.0f, (float)w * 0.003f);
                 float lineY = edge.centerY - lineH * 0.5f + bemaniConfig.gridlineZ;
@@ -341,7 +340,7 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
         // step grid is the placement grid, kept visually quiet.
         if (writeAnchor)
         {
-            bool drums = isDrumLike(activePart);
+            RenderType rt = getRenderType(activePart);
             float pos = normalizedPosition;
             float zoff = gridZOffset;
             uint w = width, h = height;
@@ -355,8 +354,8 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
             float thickFrac  = (gridlineType == Gridline::MEASURE)
                              ? WRITE_PROTRUSION_MEASURE_THICKNESS_FRAC
                              : WRITE_PROTRUSION_BEAT_THICKNESS_FRAC;
-            drawCallMap[(int)DrawOrder::GRID][0].push_back([drums, pos, zoff, w, h, pe, wr, sw, op, lengthFrac, thickFrac](juce::Graphics& g) {
-                auto fbEdge = PositionMath::getFretboardEdge(drums, pos, w, h,
+            drawCallMap[(int)DrawOrder::GRID][0].push_back([rt, pos, zoff, w, h, pe, wr, sw, op, lengthFrac, thickFrac](juce::Graphics& g) {
+                auto fbEdge = PositionMath::getFretboardEdge(rt, pos, w, h,
                                 PositionConstants::HIGHWAY_POS_START, pe);
                 float thickness = std::max(1.5f, sw * thickFrac * wr);
                 float length    = std::max(4.0f, sw * lengthFrac * wr);
@@ -381,7 +380,7 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
         auto it = labelToRender.find(c.gridlineIdx);
         if (it == labelToRender.end()) continue;
 
-        bool drums = isDrumLike(activePart);
+        RenderType rt = getRenderType(activePart);
         float pos  = c.normalizedPosition;
         float zoff = gridZOffset;
         uint  w    = width, h_ = height;
@@ -390,10 +389,10 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
         float sw   = strikeWidth;
         juce::String labelText = it->second;
 
-        drawCallMap[(int)DrawOrder::GRID][0].push_back([drums, pos, zoff, w, h_, pe, wr, sw, labelText](juce::Graphics& g) {
+        drawCallMap[(int)DrawOrder::GRID][0].push_back([rt, pos, zoff, w, h_, pe, wr, sw, labelText](juce::Graphics& g) {
             float fontPx = sw * WRITE_MEASURE_LABEL_FONT_FRAC * wr;
             if (fontPx < WRITE_MEASURE_LABEL_MIN_FONT_PX) return;
-            auto fbEdge = PositionMath::getFretboardEdge(drums, pos, w, h_,
+            auto fbEdge = PositionMath::getFretboardEdge(rt, pos, w, h_,
                             PositionConstants::HIGHWAY_POS_START, pe);
             // Anchor past the MEASURE protrusion tip — keeps the label
             // column horizontally aligned across MEASURE/BEAT/HALF_BEAT.

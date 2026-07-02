@@ -85,7 +85,8 @@ void HighwayComponent::paint(juce::Graphics& g)
     // Draw them in component coordinates (no translation needed).
     if (showHighway)
     {
-        bool useCache = trackImageCache && !PositionMath::bemaniMode;
+        bool useCache = trackImageCache && !PositionMath::bemaniMode
+                        && getRenderType(activePart) != RenderType::ELITE_DRUMS;
 #ifdef DEBUG
         {
             ScopedPhaseMeasure _trackMeasure(debugTrackRender_us, sceneRenderer.collectPhaseTiming);
@@ -513,7 +514,7 @@ void HighwayComponent::paint(juce::Graphics& g)
         auto laneEdges = [&](int lane, float pos, bool splitKick = false) -> PositionConstants::LaneCorners {
             if (isDrums && InstrumentMapper::isKickLane(lane))
             {
-                auto fb = PositionMath::getFretboardEdge(isDrums, pos, (uint)w, (uint)h,
+                auto fb = PositionMath::getFretboardEdge(getRenderType(activePart), pos, (uint)w, (uint)h,
                     PositionConstants::HIGHWAY_POS_START, posEnd);
                 if (splitKick)
                 {
@@ -529,7 +530,7 @@ void HighwayComponent::paint(juce::Graphics& g)
             const auto& coords = isDrums
                 ? PositionConstants::drumBezierLaneCoords[clampedLane]
                 : PositionConstants::guitarBezierLaneCoords[clampedLane];
-            return PositionMath::getColumnPosition(isDrums, pos, (uint)w, (uint)h,
+            return PositionMath::getColumnPosition(getRenderType(activePart), pos, (uint)w, (uint)h,
                 PositionConstants::HIGHWAY_POS_START, posEnd,
                 coords, 1.0f, PositionConstants::FRETBOARD_SCALE);
         };
@@ -739,7 +740,7 @@ void HighwayComponent::updateOverflow()
     if (PositionMath::bemaniMode) { topOverflow = 0; return; }
     bool isDrums = isDrumLike(activePart);
     auto farEdge = PositionMath::getFretboardEdge(
-        isDrums, sceneRenderer.farFadeEnd, renderWidth, renderHeight,
+        getRenderType(activePart), sceneRenderer.farFadeEnd, renderWidth, renderHeight,
         PositionConstants::HIGHWAY_POS_START, sceneRenderer.highwayPosEnd);
     topOverflow = std::max(0, (int)std::ceil(-farEdge.centerY));
 }
@@ -756,7 +757,12 @@ void HighwayComponent::rebuildTrack()
 
     bool isDrums = isDrumLike(activePart);
     bool isElite = getRenderType(activePart) == RenderType::ELITE_DRUMS;
-    bool useCache = trackImageCache && trackImageCache->isValid() && !PositionMath::bemaniMode;
+    // The shared track-art cache only bakes guitar + 4-lane drums. Elite (which is
+    // drum-like) would otherwise pull the drum bake and render as a 4-pad, 4-lane
+    // board with drum assets. Until the cache learns a third elite variant, render
+    // elite live through the non-cache path (same one bemani/standalone use), which
+    // honours the 9-lane elite geometry/assets.
+    bool useCache = trackImageCache && trackImageCache->isValid() && !PositionMath::bemaniMode && !isElite;
 
     sceneRenderer.rescaleAssets(w);
     sceneRenderer.overlayYOffset = topOverflow;
@@ -777,7 +783,7 @@ void HighwayComponent::rebuildTrack()
         // Rebuild geometry + texture prebake when dimensions or instrument changed
         // (texture scanline LUT depends on fretboard edges which differ guitar vs drums).
         bool dimsChanged = w != bakedRenderW || h != bakedRenderH || topOverflow != bakedOverflow;
-        bool partChanged = isDrums != trackRenderer.getCachedIsDrums();
+        bool partChanged = getRenderType(activePart) != trackRenderer.getCachedRenderType();
         if (dimsChanged || partChanged)
             trackRenderer.rebuild(w, h, topOverflow,
                                   sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,

@@ -210,7 +210,7 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
 
         if (isBar)
         {
-            auto fb = PositionMath::getFretboardEdge(isDrums, startPosition, width, height,
+            auto fb = PositionMath::getFretboardEdge(getRenderType(activePart), startPosition, width, height,
                 PositionConstants::HIGHWAY_POS_START, posEnd);
             centerX = (fb.leftX + fb.rightX) * 0.5f;
             laneWidth = fb.rightX - fb.leftX;
@@ -331,9 +331,9 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
     if (endPosition > fadeStart)
     {
         float fadeStartClamped = std::max(fadeStart, startPosition);
-        auto fadeStartEdge = PositionMath::getFretboardEdge(isDrums, fadeStartClamped, width, height,
+        auto fadeStartEdge = PositionMath::getFretboardEdge(getRenderType(activePart), fadeStartClamped, width, height,
             PositionConstants::HIGHWAY_POS_START, posEnd);
-        auto fadeEndEdge = PositionMath::getFretboardEdge(isDrums, farFadeEnd, width, height,
+        auto fadeEndEdge = PositionMath::getFretboardEdge(getRenderType(activePart), farFadeEnd, width, height,
             PositionConstants::HIGHWAY_POS_START, posEnd);
 
         float gradStartY = fadeStartEdge.centerY;

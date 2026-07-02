@@ -227,7 +227,7 @@ void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targ
         if (!textureEnabled || !sourceTexture.isValid()) return;
 
         bool isDrums = isDrumLike(activePart);
-        auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, targetW, targetH,
+        auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, targetW, targetH,
                         HIGHWAY_POS_START, cached.posEnd);
         float leftX = edge.leftX;
         float hwyW = edge.rightX - edge.leftX;
@@ -408,7 +408,7 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     if (width == cached.width && height == cached.height && overflow == cached.overflow &&
         posEnd == cached.posEnd && farFadeEnd == cached.fadeEnd &&
         farFadeLen == cached.fadeLen && farFadeCurve == cached.fadeCurve &&
-        (isDrumLike(activePart)) == cached.isDrums)
+        getRenderType(activePart) == cached.renderType)
         return;
 
     bool isDrums = isDrumLike(activePart);
@@ -421,6 +421,7 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
         cached.height = height;
         cached.overflow = overflow;
         cached.isDrums = isDrums;
+        cached.renderType = getRenderType(activePart);
         cached.posEnd = posEnd;
         cached.fadeEnd = farFadeEnd;
         cached.fadeLen = farFadeLen;
@@ -437,9 +438,9 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     float effectiveEnd = std::max(posEnd, farFadeEnd);
     float posRange = effectiveEnd - HIGHWAY_POS_START;
 
-    auto edgeNear = PositionMath::getFretboardEdge(isDrums, HIGHWAY_POS_START, width, height,
+    auto edgeNear = PositionMath::getFretboardEdge(getRenderType(activePart), HIGHWAY_POS_START, width, height,
                                                     HIGHWAY_POS_START, posEnd);
-    auto edgeFar = PositionMath::getFretboardEdge(isDrums, effectiveEnd, width, height,
+    auto edgeFar = PositionMath::getFretboardEdge(getRenderType(activePart), effectiveEnd, width, height,
                                                    HIGHWAY_POS_START, posEnd);
     int pixelHeight = std::max(1, (int)(edgeNear.centerY - edgeFar.centerY));
     cached.stripCount = std::clamp(pixelHeight / PIXELS_PER_STRIP, MIN_STRIPS, MAX_STRIPS);
@@ -448,7 +449,7 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     for (int i = 0; i <= cached.stripCount; i++)
     {
         float pos = HIGHWAY_POS_START + posRange * (float)i / (float)cached.stripCount;
-        auto edge = PositionMath::getFretboardEdge(isDrums, pos, width, height,
+        auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), pos, width, height,
                                                     HIGHWAY_POS_START, posEnd);
         edge.centerY += (float)overflow;  // offset into taller bitmap
         cached.edges[i] = { edge, pos };
@@ -458,6 +459,7 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     cached.height = height;
     cached.overflow = overflow;
     cached.isDrums = isDrums;
+    cached.renderType = getRenderType(activePart);
     cached.posEnd = posEnd;
     cached.fadeEnd = farFadeEnd;
     cached.fadeLen = farFadeLen;

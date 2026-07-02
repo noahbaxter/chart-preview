@@ -209,13 +209,14 @@ int main(int argc, char** argv)
     const bool isElite = (part == Part::ELITE_DRUMS);
     if (aspect < 0.1) aspect = 4.0 / 3.0;   // same slant/height for every instrument
 
-    // All highways share the same perspective/slant (drum geometry) and the same
-    // render HEIGHT. Elite just renders into a WIDER box (renderWidth) so its 8
-    // lanes get more absolute horizontal room -- same look, wider, not scaled.
-    // Because elite reuses the proven drum geometry (a fixed fraction of the box),
-    // its bottom never clips (drums don't). fretWidth = elite box width multiplier.
+    // Elite renders into a WIDER canvas (same height, wider aspect) so its 8 lanes get
+    // more room; the board stays a fixed fraction of that width, so nothing clips. This
+    // mirrors the plugin giving the elite highway a wider slot.
     const int renderHeight = std::max(1, juce::roundToInt((double)W / aspect));
-    const int renderWidth  = isElite ? std::max(1, juce::roundToInt((double)W * fretWidth)) : W;
+    const int renderWidth  = isElite
+        ? std::max(1, juce::roundToInt((double)W * PositionConstants::ELITE_BOARD_WIDTH_SCALE))
+        : W;
+    juce::ignoreUnused(fretWidth);
 
     // Highway length: scale farFadeEnd (default 1.20) by the length multiplier so
     // the board renders a longer runway. highwayPosEnd (board geometry end) must
@@ -235,7 +236,7 @@ int main(int argc, char** argv)
     // Replicate HighwayComponent::updateOverflow(): the far end of the highway
     // sits above the visible slot, in a computed overflow band.
     auto farEdge = PositionMath::getFretboardEdge(
-        isDrums, scene.farFadeEnd, (uint)renderWidth, (uint)renderHeight,
+        getRenderType(part), scene.farFadeEnd, (uint)renderWidth, (uint)renderHeight,
         PositionConstants::HIGHWAY_POS_START, scene.highwayPosEnd);
     const int overflow = std::max(0, (int)std::ceil(-farEdge.centerY));
     const int totalH   = renderHeight + overflow;

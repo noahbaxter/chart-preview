@@ -360,7 +360,7 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
                 case T::Blue:   return getCymBlueImage();
                 case T::Green:  return getCymGreenImage();
                 case T::Red:    return getCymRedImage();
-                case T::Purple: return getOverlayNoteTapImage();   // placeholder: no purple cymbal art yet
+                case T::Purple: return getCymBlueImage();          // placeholder: reuse blue cymbal until purple art exists
                 default:        return getCymWhiteImage();
                 }
             }

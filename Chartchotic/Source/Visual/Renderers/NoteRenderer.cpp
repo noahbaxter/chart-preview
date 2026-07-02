@@ -145,8 +145,8 @@ void NoteRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow
 NoteRenderer::SharedFrameContext NoteRenderer::buildFrameContext(float position)
 {
     bool isDrums = isDrumLike(activePart);
-    auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height, HIGHWAY_POS_START, posEnd);
-    auto fbCur    = PositionMath::getFretboardEdge(isDrums, position, width, height, HIGHWAY_POS_START, posEnd);
+    auto fbStrike = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, width, height, HIGHWAY_POS_START, posEnd);
+    auto fbCur    = PositionMath::getFretboardEdge(getRenderType(activePart), position, width, height, HIGHWAY_POS_START, posEnd);
     float fbSW = fbStrike.rightX - fbStrike.leftX;
     float wRatio = (fbSW > 0.0f) ? ((fbCur.rightX - fbCur.leftX) / fbSW) : 1.0f;
 
