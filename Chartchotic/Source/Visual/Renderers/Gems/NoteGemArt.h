@@ -33,11 +33,18 @@ namespace GemArt
         float sheenBottom;                  // top sheen strip height
         float streakTop, streakBottom;      // light streak band
         float radCx, radCy, radR;           // body radial gradient
-        float radTy, radSy;                 //   gradientTransform translate/scaleY
+        float radTx, radTy, radSx, radSy;   //   gradientTransform translate/scale
     };
 
     TubeGemGeom noteGeom();     // tom blue.svg, viewBox 126.02 x 37.999
     TubeGemGeom hopoGeom();     // hopo blue.svg, viewBox 76.437 x 30.891
+
+    // Original generated-PNG canvas and content placement (measured alpha
+    // bboxes, verified by gem_compare). Baking with these keeps downstream
+    // aspect/offset math identical to the PNG era.
+    inline juce::Rectangle<int> noteCanvas()        { return { 0, 0, 1194, 598 }; }
+    inline juce::Rectangle<int> noteContentBounds() { return { 72, 140, 1050, 317 }; }
+    inline juce::Rectangle<int> hopoContentBounds() { return { 278, 170, 637, 257 }; }
 
     // Tint stacks matching the original per-colour SVG layers. capsGold is the
     // OD/star-power variant where caps+pillars are painted flat #ffb500.

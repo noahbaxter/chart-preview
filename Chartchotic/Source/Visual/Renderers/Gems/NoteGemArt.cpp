@@ -28,7 +28,7 @@ TubeGemGeom noteGeom()
     g.sheenBottom = 4.882f;
     g.streakTop = 13.882f;  g.streakBottom = 23.237f;
     g.radCx = 63.343f; g.radCy = 19.427f; g.radR = 59.718f;
-    g.radTy = 10.017f; g.radSy = 0.484f;
+    g.radTx = 0.0f; g.radTy = 10.017f; g.radSx = 1.0f; g.radSy = 0.484f;
     return g;
 }
 
@@ -43,9 +43,8 @@ TubeGemGeom hopoGeom()
     g.artBottom = 27.612f;
     g.sheenBottom = 3.969f;
     g.streakTop = 11.285f;  g.streakBottom = 18.89f;
-    // Placeholder radial (verified against hopo blue.svg defs in the hopo task)
-    g.radCx = 38.219f; g.radCy = 15.789f; g.radR = 36.222f;
-    g.radTy = 8.142f;  g.radSy = 0.484f;
+    g.radCx = 38.391f; g.radCy = 15.793f; g.radR = 33.084f;
+    g.radTx = 9.546f; g.radTy = 8.144f; g.radSx = 0.75f; g.radSy = 0.484f;
     return g;
 }
 
@@ -232,8 +231,8 @@ juce::Image bakeTubeGem(const TubeGemGeom& gg,
     // 6. Body: radial greyscale, y-squashed per the SVG gradientTransform
     {
         juce::Graphics::ScopedSaveState save(g);
-        auto squash = juce::AffineTransform::scale(1.0f, gg.radSy)
-                          .translated(0.0f, gg.radTy);
+        auto squash = juce::AffineTransform::scale(gg.radSx, gg.radSy)
+                          .translated(gg.radTx, gg.radTy);
         juce::Path body;
         body.addRectangle(bodyX0, 0.0f, bodyX1 - bodyX0, gg.artBottom);
         body.applyTransform(squash.inverted());

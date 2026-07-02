@@ -105,6 +105,19 @@ static std::vector<CompareEntry> buildEntries()
           tube(noteGeom(), tubeStyleOrange()) },
         { "note_white",  BinaryData::note_white_png,  BinaryData::note_white_pngSize,
           tube(noteGeom(), tubeStyleWhite()) },
+
+        { "hopo_blue",   BinaryData::hopo_blue_png,   BinaryData::hopo_blue_pngSize,
+          tube(hopoGeom(), tubeStyleOverlay(juce::Colour(0xff1777e0))) },
+        { "hopo_red",    BinaryData::hopo_red_png,    BinaryData::hopo_red_pngSize,
+          tube(hopoGeom(), tubeStyleOverlay(juce::Colour(0xffed1c24))) },
+        { "hopo_yellow", BinaryData::hopo_yellow_png, BinaryData::hopo_yellow_pngSize,
+          tube(hopoGeom(), tubeStyleOverlay(juce::Colour(0xffffd400))) },
+        { "hopo_green",  BinaryData::hopo_green_png,  BinaryData::hopo_green_pngSize,
+          tube(hopoGeom(), tubeStyleGreen()) },
+        { "hopo_orange", BinaryData::hopo_orange_png, BinaryData::hopo_orange_pngSize,
+          tube(hopoGeom(), tubeStyleOrange()) },
+        { "hopo_white",  BinaryData::hopo_white_png,  BinaryData::hopo_white_pngSize,
+          tube(hopoGeom(), tubeStyleWhite()) },
     };
 }
 
