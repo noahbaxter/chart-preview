@@ -42,15 +42,14 @@ namespace ProceduralTrackArt
         // so the rail foreshortens (thins) down the neck with the board.
         struct Band { float width; juce::Colour colour; };
         const Band bands[] = {
-            { 1.0f, juce::Colour(0xFF404040) },  // dark-grey inside edge
-            { 1.4f, juce::Colour(0xFF606060) },  // grey line (3rd from outer)
-            { 2.0f, juce::Colour(0xFF060606) },  // black track
-            { 1.0f, juce::Colour(0xFF606060) },  // thin grey line (outer)
+            { RailGeom::bandUnits[0], juce::Colour(0xFF404040) },  // dark-grey inside edge
+            { RailGeom::bandUnits[1], juce::Colour(0xFF606060) },  // grey line (3rd from outer)
+            { RailGeom::bandUnits[2], juce::Colour(0xFF060606) },  // black track
+            { RailGeom::bandUnits[3], juce::Colour(0xFF606060) },  // thin grey line (outer)
         };
-        float total = 0.0f;
-        for (const auto& b : bands) total += b.width;
+        const float total = RailGeom::totalUnits;
 
-        const float inset = 1.3f;   // units; shifts the whole rail inward to line up with the strikeline
+        const float inset = RailGeom::insetUnits;   // units; shifts the whole rail inward to line up with the strikeline
 
         // Fill a ribbon between two unit-offsets from the board edge (0 = on the
         // edge, increasing = outward). rightSide mirrors to the right rail.
@@ -99,22 +98,6 @@ namespace ProceduralTrackArt
         {
             float L = std::sqrt(v.x * v.x + v.y * v.y);
             return L > 1e-4f ? juce::Point<float>(v.x / L, v.y / L) : juce::Point<float>();
-        };
-        // Quad with slightly rounded corners (radius r px).
-        auto roundedQuad = [&](juce::Point<float> a, juce::Point<float> b,
-                               juce::Point<float> c, juce::Point<float> d, float r)
-        {
-            juce::Point<float> pt[4] = { a, b, c, d };
-            juce::Path p;
-            for (int i = 0; i < 4; i++)
-            {
-                auto cur = pt[i], prev = pt[(i + 3) % 4], next = pt[(i + 1) % 4];
-                auto pa = cur + unit(prev - cur) * r, pb = cur + unit(next - cur) * r;
-                if (i == 0) p.startNewSubPath(pa); else p.lineTo(pa);
-                p.quadraticTo(cur, pb);
-            }
-            p.closeSubPath();
-            return p;
         };
 
         // Dark strike-zone frame hugging the pad row: top and bottom follow the
@@ -168,7 +151,9 @@ namespace ProceduralTrackArt
             // The silver bar reaches all the way to the band bottom (near) and up to
             // the fret-top arc (far). Extend the near end down past the pad corner into
             // the mBot margin; the far end sits just above the far corners so the rod
-            // follows the top-of-fret curve with no dark notch between frets.
+            // follows the top-of-fret curve with no dark notch between frets. gN/gF (the
+            // lane-boundary groove points, on the laneline) extend along their own
+            // direction, which keeps them on the laneline.
             const float nearExt = 8.0f, farInset = -1.0f;
             auto extend = [&](juce::Point<float>& n, juce::Point<float>& f)
             {
@@ -178,27 +163,30 @@ namespace ProceduralTrackArt
             };
             extend(nO, fO);
             extend(nI, fI);
+            extend(gN, gF);
 
-            g.setColour(StrikeArt::connectorBack);
-            g.fillPath(quad(nO, nI, fI, fO));
+            // Dark backing behind the whole gap only when the strike-zone band is on;
+            // with it off (transparent default) the only dark mark in the gap should be
+            // the single groove line between the two bars, not a solid dark fill.
+            if (StrikeArt::drawBand)
+            {
+                g.setColour(StrikeArt::connectorBack);
+                g.fillPath(quad(nO, nI, fI, fO));
+            }
             if (doubleBar)
             {
-                // Centre the two bars + groove on the lane boundary (gN..gF projected
-                // onto the gap), so the groove lines up with the lane-separator line
-                // instead of the gap midpoint (they differ when neighbouring pads have
-                // different widths, e.g. across Elite's wide arc).
-                juce::Point<float> across = nI - nO;
-                float denom = across.x * across.x + across.y * across.y;
-                float t = denom > 1e-4f ? juce::jlimit(0.28f, 0.72f,
-                    ((gN - nO).x * across.x + (gN - nO).y * across.y) / denom) : 0.5f;
-                const float hw = barHalfFrac;
-                float s0 = t - hw, s2 = t + hw;
-                juce::Point<float> nL = lerp(nO, nI, s0), nM = lerp(nO, nI, t), nR = lerp(nO, nI, s2);
-                juce::Point<float> fL = lerp(fO, fI, s0), fM = lerp(fO, fI, t), fR = lerp(fO, fI, s2);
-                silverBar(nL, nM, fL, fM);
-                silverBar(nM, nR, fM, fR);
+                // Two bars centred ON the groove (gN..gF = the lane boundary), each a
+                // fixed fraction of the gap wide, so the connector is symmetric about
+                // the laneline with a consistent margin to the pads on both sides.
+                auto len = [](juce::Point<float> v) { return std::sqrt(v.x * v.x + v.y * v.y); };
+                juce::Point<float> aN = unit(nI - nO), aF = unit(fI - fO);
+                float bwN = barHalfFrac * len(nI - nO), bwF = barHalfFrac * len(fI - fO);
+                juce::Point<float> nL = gN - aN * bwN, nR = gN + aN * bwN;
+                juce::Point<float> fL = gF - aF * bwF, fR = gF + aF * bwF;
+                silverBar(nL, gN, fL, gF);
+                silverBar(gN, nR, gF, fR);
                 g.setColour(StrikeArt::groove);
-                g.drawLine({ nM, fM }, 2.0f);
+                g.drawLine({ gN, gF }, 2.0f);
             }
             else
             {
@@ -232,48 +220,118 @@ namespace ProceduralTrackArt
         const float borderBottom = 7.0f;   // thick lower ridge (~2x the top)
         const float splitPx      = 4.0f;
         const float splitFrac    = 0.42f;  // split position from top of interior (bottom cell taller)
-        const float cornerR      = 3.0f;
+        // Closed fill from a top polyline (L->R) and a bottom polyline (L->R).
+        auto ribbon = [](const std::vector<juce::Point<float>>& top,
+                         const std::vector<juce::Point<float>>& bot)
+        {
+            juce::Path p;
+            p.startNewSubPath(top.front());
+            for (size_t i = 1; i < top.size(); ++i) p.lineTo(top[i]);
+            for (size_t i = bot.size(); i-- > 0; ) p.lineTo(bot[i]);
+            p.closeSubPath();
+            return p;
+        };
+
+        // Same ribbon but with the 4 outer corners rounded (radius r). The top/bottom
+        // stay curved (the sampled points); only the TL/TR/BR/BL vertices get filleted.
+        // r is clamped to a fraction of each adjacent segment so narrow pads (whose top
+        // samples sit close together) don't overshoot and distort.
+        auto roundedRibbon = [&](const std::vector<juce::Point<float>>& top,
+                                 const std::vector<juce::Point<float>>& bot, float r)
+        {
+            std::vector<juce::Point<float>> b;
+            b.reserve(top.size() + bot.size());
+            for (const auto& q : top) b.push_back(q);
+            for (size_t i = bot.size(); i-- > 0; ) b.push_back(bot[i]);
+            const size_t m = b.size();
+            auto isCorner = [&](size_t i)
+            { return i == 0 || i == top.size() - 1 || i == top.size() || i == m - 1; };
+            auto len = [](juce::Point<float> v) { return std::sqrt(v.x * v.x + v.y * v.y); };
+
+            juce::Path p;
+            bool started = false;
+            for (size_t i = 0; i < m; ++i)
+            {
+                juce::Point<float> C = b[i];
+                if (isCorner(i))
+                {
+                    juce::Point<float> prev = b[(i + m - 1) % m], next = b[(i + 1) % m];
+                    juce::Point<float> pa = C + unit(prev - C) * std::min(r, 0.4f * len(prev - C));
+                    juce::Point<float> pb = C + unit(next - C) * std::min(r, 0.4f * len(next - C));
+                    if (!started) { p.startNewSubPath(pa); started = true; } else p.lineTo(pa);
+                    p.quadraticTo(C, pb);
+                }
+                else
+                {
+                    if (!started) { p.startNewSubPath(C); started = true; } else p.lineTo(C);
+                }
+            }
+            p.closeSubPath();
+            return p;
+        };
+        const float cornerR = 3.0f;
+
         for (const auto& p : pads)
         {
-            juce::Point<float> TL = p.farL, TR = p.farR, BR = p.nearR, BL = p.nearL;
-            juce::Point<float> topMid = (TL + TR) * 0.5f, botMid = (BL + BR) * 0.5f;
+            const auto& top = p.farEdge;    // curved top edge, L->R
+            const auto& bot = p.nearEdge;   // curved bottom edge, L->R
+            if (top.size() < 2 || bot.size() != top.size()) continue;
+            const size_t n = top.size();
+
+            juce::Point<float> topMid = (top.front() + top.back()) * 0.5f;
+            juce::Point<float> botMid = (bot.front() + bot.back()) * 0.5f;
 
             // Gradient axis perpendicular to the pad's top/bottom edges, so the dark->
             // bright shading follows the fret's tilt/curve (iso-colour lines stay
-            // parallel to the edges) instead of running straight up. Same idea as the
-            // silver bars' perpendicular bright band. For the centre pad this reduces to
-            // the plain vertical axis; only the angled side pads rotate.
-            juce::Point<float> topDir = unit(TR - TL);
+            // parallel to the edges) instead of running straight up. For the centre pad
+            // this reduces to the plain vertical axis; only the angled side pads rotate.
+            juce::Point<float> topDir = unit(top.back() - top.front());
             juce::Point<float> nrm(-topDir.y, topDir.x);
             juce::Point<float> gd = botMid - topMid;
             if (nrm.x * gd.x + nrm.y * gd.y < 0.0f) nrm = { -nrm.x, -nrm.y };
             juce::Point<float> gBot = topMid + nrm * (nrm.x * gd.x + nrm.y * gd.y);
 
-            // Bright colour border = outer rounded quad, vertical gradient. The PNG
-            // holds the dull top colour most of the way, then brightens only at the
-            // thick bottom ridge, so keep it flat until ~60% then ramp.
+            // Bright colour border = outer curved ribbon, vertical gradient. The PNG holds
+            // the dull top colour most of the way, then brightens only at the thick bottom
+            // ridge, so keep it flat until ~60% then ramp.
             juce::ColourGradient bord(p.baseColour, topMid.x, topMid.y,
                                       p.bottomColour, gBot.x, gBot.y, false);
             bord.addColour(0.6, p.baseColour);
             g.setGradientFill(bord);
-            g.fillPath(roundedQuad(TL, TR, BR, BL, cornerR));
+            g.fillPath(roundedRibbon(top, bot, cornerR));
 
-            // Interior corners, inset per edge (bottom inset more for the thick ridge).
-            juce::Point<float> iTL = TL + unit(BL - TL) * borderTop    + unit(TR - TL) * borderSide;
-            juce::Point<float> iTR = TR + unit(BR - TR) * borderTop    + unit(TL - TR) * borderSide;
-            juce::Point<float> iBL = BL + unit(TL - BL) * borderBottom + unit(BR - BL) * borderSide;
-            juce::Point<float> iBR = BR + unit(TR - BR) * borderBottom + unit(BL - BR) * borderSide;
+            // Interior edges: shift each column inward (top down, bottom up) then trim the
+            // horizontal ends so the coloured border shows on all four sides.
+            std::vector<juce::Point<float>> iTop(n), iBot(n);
+            for (size_t i = 0; i < n; ++i)
+            {
+                juce::Point<float> down = unit(bot[i] - top[i]);
+                iTop[i] = top[i] + down * borderTop;
+                iBot[i] = bot[i] - down * borderBottom;
+            }
+            auto trimSides = [&](std::vector<juce::Point<float>>& e)
+            {
+                e.front() += unit(e[1]       - e.front()) * borderSide;
+                e.back()  += unit(e[n - 2]   - e.back())  * borderSide;
+            };
+            trimSides(iTop); trimSides(iBot);
+
             juce::ColourGradient inr(p.baseColour.withMultipliedBrightness(StrikeArt::interiorTopMul), topMid.x, topMid.y,
                                      p.bottomColour.withMultipliedBrightness(StrikeArt::interiorBottomMul), gBot.x, gBot.y, false);
             g.setGradientFill(inr);
-            g.fillPath(roundedQuad(iTL, iTR, iBR, iBL, cornerR * 0.7f));
+            g.fillPath(roundedRibbon(iTop, iBot, cornerR * 0.7f));
 
-            // Split band, positioned along the interior side edges so it carries the
-            // same tilt/curve as the top and bottom edges.
-            juce::Point<float> sL = lerp(iTL, iBL, splitFrac), sR = lerp(iTR, iBR, splitFrac);
-            juce::Point<float> up = unit(iTL - iBL) * (splitPx * 0.5f);
+            // Split band: a thin ribbon at splitFrac between the interior edges, carrying
+            // the same curve/tilt.
+            std::vector<juce::Point<float>> sTop(n), sBot(n);
+            for (size_t i = 0; i < n; ++i)
+            {
+                juce::Point<float> s  = iTop[i] + (iBot[i] - iTop[i]) * splitFrac;
+                juce::Point<float> up = unit(iTop[i] - iBot[i]) * (splitPx * 0.5f);
+                sTop[i] = s + up; sBot[i] = s - up;
+            }
             g.setColour(p.baseColour);
-            g.fillPath(quad(sL + up, sR + up, sR - up, sL - up));
+            g.fillPath(ribbon(sTop, sBot));
         }
     }
 }

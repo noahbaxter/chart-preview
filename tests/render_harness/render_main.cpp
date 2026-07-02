@@ -158,7 +158,6 @@ int main(int argc, char** argv)
     float  scroll = 0.0f;
     float  length = 3.0f;        // highway length multiplier (3.0 = 300%); scales farFadeEnd
     float  fretWidth = PositionConstants::ELITE_BOARD_WIDTH_SCALE;   // elite box width multiplier (wider render box, same drum slant)
-    bool   procRails = false;    // force procedural rails on non-elite parts (A/B vs PNG)
     bool   railsOnly = false;    // alias for --only sidebars
     // Render only the named parts in isolation (empty = all). Parts:
     // board gridlines gems sidebars lanes strikeline connectors
@@ -173,7 +172,6 @@ int main(int argc, char** argv)
         else if (a == "--length" && i + 1 < argc) length = juce::String(argv[++i]).getFloatValue();
         else if (a == "--fret-width" && i + 1 < argc) fretWidth = juce::String(argv[++i]).getFloatValue();
         else if (a == "--scroll" && i + 1 < argc) scroll = juce::String(argv[++i]).getFloatValue();
-        else if (a == "--proc-rails") procRails = true;
         else if (a == "--rails-only") railsOnly = true;
         else if (a == "--only" && i + 1 < argc) onlyParts.addTokens(argv[++i], ",", "");
         else if (! a.startsWith("--")) outPath = a;
@@ -206,7 +204,6 @@ int main(int argc, char** argv)
     TrackRenderer track(state);
     scene.activePart = part;
     track.activePart = part;
-    track.useProceduralRails = procRails;   // A/B: force procedural rails on drums/guitar
 
     const bool isDrums = isDrumLike(part);
     const bool isElite = (part == Part::ELITE_DRUMS);

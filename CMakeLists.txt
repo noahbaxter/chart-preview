@@ -344,7 +344,6 @@ juce_add_binary_data(ChartchoticData
         assets/generated/lanes/lane_mid.png
         assets/generated/lanes/lane_start.png
         # Track layers (generated from PDFs)
-        assets/generated/ui/sidebars.png
         assets/generated/ui/lane_lines_guitar.png
         assets/generated/ui/lane_lines_drums.png
         assets/generated/ui/strikeline_connectors.png
