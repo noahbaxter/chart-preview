@@ -9,6 +9,7 @@
 */
 
 #include "AssetManager.h"
+#include "../Utils/PositionConstants.h"
 
 AssetManager::AssetManager()
 {
@@ -341,24 +342,42 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
 
     if (elite)
     {
-        // Elite: each lane is drum XOR cymbal, so the glyph is fixed by the lane
-        // (gemColumn), not the gem type. Temp art per the render-spike mapping
-        // (Snare-Hat-LCrash-Tom1-Tom2-Tom3-Ride-RCrash); Left Crash reuses the
-        // white cymbal as a placeholder (no purple art yet).
-        switch (gemColumn)
+        // Elite: each hand lane is drum XOR cymbal, and its colour comes from the shared
+        // ELITE_LANE_STYLES table (same source the strikeline pads use), so the gem and
+        // its pad always match. Kick / 2x-Kick are full-width bars. Purple (Left Crash)
+        // has no gem art yet, so it borrows the tap-note glyph as a placeholder until the
+        // procedural note glyph lands.
+        using T = PositionConstants::DrumLaneTint;
+        if (gemColumn >= 1 && gemColumn <= 8)
         {
-        case 0:  return shouldBeWhite ? getBarWhiteImage()  : getBarKickImage();     // Kick
-        case 1:  return shouldBeWhite ? getNoteWhiteImage() : getNoteRedImage();     // Snare
-        case 2:  return shouldBeWhite ? getCymWhiteImage()  : getCymYellowImage();   // Hi-Hat
-        case 3:  return getCymWhiteImage();                                          // Left Crash (placeholder)
-        case 4:  return shouldBeWhite ? getNoteWhiteImage() : getNoteOrangeImage();  // Tom 1
-        case 5:  return getNoteWhiteImage();                                         // Tom 2
-        case 6:  return shouldBeWhite ? getNoteWhiteImage() : getNoteBlueImage();    // Tom 3
-        case 7:  return shouldBeWhite ? getCymWhiteImage()  : getCymBlueImage();     // Ride
-        case 8:  return shouldBeWhite ? getCymWhiteImage()  : getCymGreenImage();    // Right Crash
-        case 9:  return shouldBeWhite ? getBarWhiteImage()  : getBarKick2xImage();   // 2x Kick
-        default: return shouldBeWhite ? getBarWhiteImage()  : getBarKickImage();     // Stomp/Splash (placeholder bar)
+            const auto& style = PositionConstants::ELITE_LANE_STYLES[gemColumn];
+            if (style.cymbal)
+            {
+                if (shouldBeWhite) return getCymWhiteImage();
+                switch (style.tint)
+                {
+                case T::Yellow: return getCymYellowImage();
+                case T::Blue:   return getCymBlueImage();
+                case T::Green:  return getCymGreenImage();
+                case T::Red:    return getCymRedImage();
+                case T::Purple: return getOverlayNoteTapImage();   // placeholder: no purple cymbal art yet
+                default:        return getCymWhiteImage();
+                }
+            }
+            if (shouldBeWhite) return getNoteWhiteImage();
+            switch (style.tint)
+            {
+            case T::Red:    return getNoteRedImage();
+            case T::Orange: return getNoteOrangeImage();
+            case T::Blue:   return getNoteBlueImage();
+            case T::Yellow: return getNoteYellowImage();
+            case T::Green:  return getNoteGreenImage();
+            case T::Purple: return getOverlayNoteTapImage();       // placeholder: no purple note art yet
+            default:        return getNoteWhiteImage();
+            }
         }
+        if (gemColumn == 9) return shouldBeWhite ? getBarWhiteImage() : getBarKick2xImage();  // 2x Kick
+        return shouldBeWhite ? getBarWhiteImage() : getBarKickImage();                        // Kick / other
     }
 
     if (shouldBeWhite)

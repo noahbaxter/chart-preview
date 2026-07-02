@@ -253,6 +253,25 @@ namespace PositionConstants
         {0.506f, 0.500f, 0.70f, 0.22f, 0.118f, 0.066f},      // Blue
         {0.636f, 0.564f, 0.70f, 0.22f, 0.124f, 0.060f}       // Green
     };
+    // Elite drums per-lane style -- single source of truth for the colour scheme, shared
+    // by the strikeline pads (strikePadColours) and the highway gems (getDrumGlyphImage)
+    // so the two can never disagree.
+    //   Snare Red | Hi-Hat Yellow | L-Crash Purple | Tom1/2/3 Orange | Ride Blue | R-Crash Green
+    // `cymbal` marks the cymbal lanes (Hi-Hat, L/R-Crash, Ride); drums are Snare + Toms.
+    enum class DrumLaneTint { None, Red, Yellow, Purple, Orange, Blue, Green, White };
+    struct EliteLaneStyle { DrumLaneTint tint; bool cymbal; };
+    constexpr EliteLaneStyle ELITE_LANE_STYLES[9] = {
+        { DrumLaneTint::None,   false },  // 0 Kick   (full-width bar)
+        { DrumLaneTint::Red,    false },  // 1 Snare      drum
+        { DrumLaneTint::Yellow, true  },  // 2 Hi-Hat     cymbal
+        { DrumLaneTint::Purple, true  },  // 3 Left Crash cymbal
+        { DrumLaneTint::Orange, false },  // 4 Tom 1      drum
+        { DrumLaneTint::Orange, false },  // 5 Tom 2      drum
+        { DrumLaneTint::Orange, false },  // 6 Tom 3      drum
+        { DrumLaneTint::Blue,   true  },  // 7 Ride       cymbal
+        { DrumLaneTint::Green,  true  },  // 8 Right Crash cymbal
+    };
+
     // Elite drums: kick (full width) + 8 hand lanes evenly spaced across the same
     // fretboard span the 4 drum pads use (near 0.234..0.760, far 0.376..0.624).
     // Starting values; tune live via the render harness.
