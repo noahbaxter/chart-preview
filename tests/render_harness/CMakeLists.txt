@@ -194,6 +194,7 @@ target_sources(gem_compare PRIVATE
     gem_compare.cpp
     ${SOURCE_ROOT}/Visual/Renderers/Gems/GemArtCommon.cpp
     ${SOURCE_ROOT}/Visual/Renderers/Gems/NoteGemArt.cpp
+    ${SOURCE_ROOT}/Visual/Renderers/Gems/BarGemArt.cpp
 )
 
 target_include_directories(gem_compare PRIVATE

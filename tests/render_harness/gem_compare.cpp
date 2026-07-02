@@ -25,6 +25,7 @@
 
 #include "Visual/Renderers/Gems/GemArtCommon.h"
 #include "Visual/Renderers/Gems/NoteGemArt.h"
+#include "Visual/Renderers/Gems/BarGemArt.h"
 
 struct CompareEntry
 {
@@ -118,6 +119,15 @@ static std::vector<CompareEntry> buildEntries()
           tube(hopoGeom(), tubeStyleOrange()) },
         { "hopo_white",  BinaryData::hopo_white_png,  BinaryData::hopo_white_pngSize,
           tube(hopoGeom(), tubeStyleWhite()) },
+
+        { "bar_white",   BinaryData::bar_white_png,   BinaryData::bar_white_pngSize,
+          [](juce::Rectangle<int> bbox) { return bakeBar(barRampWhite(),  barCanvas(), bbox); } },
+        { "bar_kick",    BinaryData::bar_kick_png,    BinaryData::bar_kick_pngSize,
+          [](juce::Rectangle<int> bbox) { return bakeBar(barRampKick(),   barCanvas(), bbox); } },
+        { "bar_kick_2x", BinaryData::bar_kick_2x_png, BinaryData::bar_kick_2x_pngSize,
+          [](juce::Rectangle<int> bbox) { return bakeBar(barRampKick2x(), barCanvas(), bbox); } },
+        { "bar_open",    BinaryData::bar_open_png,    BinaryData::bar_open_pngSize,
+          [](juce::Rectangle<int> bbox) { return bakeBar(barRampOpen(),   barCanvas(), bbox); } },
     };
 }
 
