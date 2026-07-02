@@ -990,39 +990,52 @@ void ChartchoticAudioProcessorEditor::resized()
 
             int pad = highwayGridPadding;
 
-            // Uniform padding: pad between every slot and at window edges.
-            // Total horizontal padding = (cols + 1) gaps × pad pixels.
+            // Uniform vertical padding; horizontal width is distributed by per-highway
+            // weight so a wider instrument (elite drums) gets a proportionally wider slot
+            // at the SAME row height (i.e. a wider aspect) alongside the normal ones.
             int totalPadX = (cols + 1) * pad;
             int totalPadY = (rows + 1) * pad;
-            int slotBaseW = (contentW - totalPadX) / cols;
+            int availW    = contentW - totalPadX;
             int slotBaseH = (contentH - totalPadY) / rows;
 
+            auto widthWeight = [](Part p) {
+                return p == Part::ELITE_DRUMS ? PositionConstants::ELITE_BOARD_WIDTH_SCALE : 1.0f;
+            };
+
+            // Per-row weight sum → width per unit weight (so each row still fills contentW).
+            std::vector<float> rowWeight((size_t)rows, 0.0f);
+            for (int i = 0; i < numSlots; ++i)
+                rowWeight[(size_t)(i / cols)] += widthWeight(slots[i].part);
+
+            std::vector<int> rowX((size_t)rows, pad);   // running x per row
             for (int i = 0; i < numSlots; ++i)
             {
                 auto& hw = *slots[i].highway;
-                int col = i % cols;
                 int row = i / cols;
+                float unitW = availW / std::max(1.0f, rowWeight[(size_t)row]);
+                float w     = widthWeight(slots[i].part);
 
-                int slotX = pad + col * (slotBaseW + pad);
+                int slotW = std::max(1, juce::roundToInt(w * unitW));
+                int slotX = rowX[(size_t)row];
+                rowX[(size_t)row] += slotW + pad;
                 int slotY = tbHeight + pad + row * (slotBaseH + pad);
-                int slotW = slotBaseW;
-                int slotH = slotBaseH;
 
-                // Each slot gets its own scene dimensions based on its bounds
                 if (PositionMath::bemaniMode)
                 {
                     hw.renderWidth = slotW;
                     int minH = juce::roundToInt(slotW / bemaniMinAspect);
-                    hw.renderHeight = std::max(minH, slotH);
+                    hw.renderHeight = std::max(minH, slotBaseH);
                 }
                 else
                 {
-                    hw.renderWidth = slotW;
-                    hw.renderHeight = juce::roundToInt(slotW / sceneAspectRatio);
+                    // Common render height across the row (unitW / aspect) → weighting the
+                    // width alone widens the elite highway's aspect without making it taller.
+                    hw.renderWidth  = slotW;
+                    hw.renderHeight = juce::roundToInt(unitW / sceneAspectRatio);
                 }
 
                 hw.updateOverflow();
-                hw.setBounds(slotX, slotY, slotW, slotH);
+                hw.setBounds(slotX, slotY, slotW, slotBaseH);
             }
         }
     }

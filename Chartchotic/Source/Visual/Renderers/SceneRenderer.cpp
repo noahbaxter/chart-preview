@@ -110,16 +110,16 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
 
         if (ghostCursor.positionLabel.isNotEmpty())
         {
-            bool drums = isDrumLike(activePart);
+            RenderType rt = getRenderType(activePart);
             float pos = ghostCursor.position;
             float pe = highwayPosEnd;
             uint w = width, h = height;
             juce::String label = ghostCursor.positionLabel;
-            auto strikeEdge = PositionMath::getFretboardEdge(drums, 0.0f, w, h, HIGHWAY_POS_START, pe);
+            auto strikeEdge = PositionMath::getFretboardEdge(rt, 0.0f, w, h, HIGHWAY_POS_START, pe);
             float sw = strikeEdge.rightX - strikeEdge.leftX;
 
-            drawCallMap[(int)DrawOrder::OVERLAY][0].push_back([drums, pos, w, h, pe, sw, label](juce::Graphics& g) {
-                auto fbEdge = PositionMath::getFretboardEdge(drums, pos, w, h,
+            drawCallMap[(int)DrawOrder::OVERLAY][0].push_back([rt, pos, w, h, pe, sw, label](juce::Graphics& g) {
+                auto fbEdge = PositionMath::getFretboardEdge(rt, pos, w, h,
                                   PositionConstants::HIGHWAY_POS_START, pe);
                 float wr = (sw > 0.0f) ? ((fbEdge.rightX - fbEdge.leftX) / sw) : 1.0f;
                 float fontPx = sw * WRITE_MEASURE_LABEL_FONT_FRAC * wr;

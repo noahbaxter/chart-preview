@@ -197,7 +197,7 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
 
         if (PositionMath::bemaniMode)
         {
-            edge = PositionMath::getFretboardEdge(isDrums, strikelinePosition, cachedWidth, cachedHeight,
+            edge = PositionMath::getFretboardEdge(getRenderType(activePart), strikelinePosition, cachedWidth, cachedHeight,
                        PositionConstants::HIGHWAY_POS_START, posEnd);
             // Use the bar note glyph aspect ratio (not the animation frame aspect)
             // to match NoteRenderer sizing exactly

@@ -13,6 +13,7 @@
 
 #include "PositionMath.h"
 #include "DrawingConstants.h"
+#include "RenderTypeConfig.h"
 
 using namespace PositionConstants;
 
@@ -113,16 +114,12 @@ juce::Rectangle<float> PositionMath::createPerspectiveGlyphRect(
 // Bezier Positioning System
 
 LaneCorners PositionMath::getFretboardEdge(
-    bool isDrums, float position, uint width, uint height,
+    RenderType renderType, float position, uint width, uint height,
     float posStart, float posEnd)
 {
-    const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
-
-#ifdef DEBUG
-    const auto& pp = perspParams(isDrums);
-#else
-    auto pp = getPerspectiveParams(isDrums);
-#endif
+    const auto* cfg = getRenderTypeConfig(renderType);
+    const auto& fbCoords = *cfg->fretboardCoords;
+    auto pp = cfg->getPerspectiveParams();   // handles DEBUG live-tuning internally
 
     auto rect = createPerspectiveGlyphRect(pp, position,
         fbCoords.normY1, fbCoords.normY2,
@@ -130,21 +127,25 @@ LaneCorners PositionMath::getFretboardEdge(
         fbCoords.normWidth1, fbCoords.normWidth2,
         true, width, height);
 
+    // Board stays a fixed fraction of the render width. Elite's extra width comes from a
+    // WIDER render canvas/slot (see ELITE_BOARD_WIDTH_SCALE usage in the highway layout
+    // and render harness), not from scaling the board inside a fixed canvas -- the latter
+    // always overflows the viewport by a constant fraction and clips the outer lanes.
     return {rect.getX(), rect.getRight(), rect.getCentreY()};
 }
 
 
 LaneCorners PositionMath::getColumnPosition(
-    bool isDrums, float position, uint width, uint height,
+    RenderType renderType, float position, uint width, uint height,
     float posStart, float posEnd,
     const NormalizedCoordinates& colCoords,
     float sizeScale, float fretboardScale,
     int bemaniLaneIdx)
 {
-    auto edge = getFretboardEdge(isDrums, position, width, height,
+    auto edge = getFretboardEdge(renderType, position, width, height,
                                  posStart, posEnd);
 
-    const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+    const auto& fbCoords = *getRenderTypeConfig(renderType)->fretboardCoords;
 
     float nearCenterNorm = colCoords.normX1 + colCoords.normWidth1 * 0.5f;
     float centerFrac = (nearCenterNorm - fbCoords.normX1) / fbCoords.normWidth1;
@@ -153,7 +154,7 @@ LaneCorners PositionMath::getColumnPosition(
     // In Bemani mode, use tunable gem positions by lane index
     if (bemaniMode)
     {
-        int numLanes = isDrums ? 4 : 5;
+        int numLanes = (renderType == RenderType::FIVE_FRET) ? 5 : 4;
 
         if (bemaniLaneIdx >= 0 && bemaniLaneIdx < numLanes)
         {

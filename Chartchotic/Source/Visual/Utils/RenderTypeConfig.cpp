@@ -87,6 +87,7 @@ namespace
         &bemaniBarLaneEndPxDrums,
         &bemaniHwyScaleDrums,
         &bemaniHitBarNudgeDrums,
+        ELITE_BOARD_WIDTH_SCALE,   // wider board for the 8 elite lanes
     };
 } // anonymous namespace
 
