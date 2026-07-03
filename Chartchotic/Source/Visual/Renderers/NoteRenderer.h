@@ -47,8 +47,10 @@ public:
     const PositionConstants::OverlayAdjust* overlayAdjusts = PositionConstants::OVERLAY_DEFAULTS;
     const PositionConstants::ColumnAdjust* guitarColAdjust = PositionConstants::GUITAR_COL_ADJUST;
     const PositionConstants::ColumnAdjust* drumColAdjust   = PositionConstants::DRUM_COL_ADJUST;
-    const PositionConstants::NormalizedCoordinates* laneCoordsGuitar = nullptr;
-    const PositionConstants::NormalizedCoordinates* laneCoordsDrums = nullptr;
+    // Active highway's lane coords + count (set per-part by SceneRenderer). Generic: any
+    // number of lanes. resolveLaneIndex() maps a gem column to an index into laneCoords.
+    const PositionConstants::NormalizedCoordinates* laneCoords = nullptr;
+    size_t laneCount = 0;
     // Z values in ColumnAdjust are tuned at REFERENCE_HEIGHT — multiply by
     // resScale at the read site instead of pre-baking per-frame.
     float resScale = 1.0f;
@@ -186,6 +188,8 @@ private:
 
     const CurvedImageEntry& getCurvedImage(juce::Image* src, int column, bool isDrums);
     float getColumnDistFromCenter(int column, bool isDrums);
+    // Gem column -> index into laneCoords, part-generic and bounded to laneCount.
+    uint resolveLaneIndex(uint gemColumn) const;
 
     std::vector<NoteHitBox> hitBoxes;
 };

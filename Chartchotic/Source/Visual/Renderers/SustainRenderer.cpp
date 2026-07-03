@@ -25,8 +25,7 @@ void SustainRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedSustainW
                                uint width, uint height, bool showLanes, bool showSustains,
                                float posEnd,
                                float farFadeEnd, float farFadeLen, float farFadeCurve,
-                               const NormalizedCoordinates* laneCoordsGuitar,
-                               const NormalizedCoordinates* laneCoordsDrums)
+                               const NormalizedCoordinates* laneCoords, size_t laneCount)
 {
     currentDrawCallMap = &drawCallMap;
     currentConfig = getRenderTypeConfig(getRenderType(activePart));
@@ -38,8 +37,8 @@ void SustainRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedSustainW
     this->farFadeEnd = farFadeEnd;
     this->farFadeLen = farFadeLen;
     this->farFadeCurve = farFadeCurve;
-    this->laneCoordsGuitar = laneCoordsGuitar;
-    this->laneCoordsDrums = laneCoordsDrums;
+    this->laneCoords = laneCoords;
+    this->laneCount = laneCount;
 
     for (const auto& sustain : sustainWindow)
     {
@@ -125,7 +124,7 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     bool starPowerActive = state.getProperty("starPower");
     bool shouldBeWhite = starPowerActive && sustain.gemType.starPower;
-    auto colour = assetManager.getLaneColour(sustain.gemColumn, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS, shouldBeWhite);
+    auto colour = assetManager.getLaneColour(sustain.gemColumn, isGuitarLike(activePart) ? Part::GUITAR : activePart, shouldBeWhite);
 
     for (const auto& ts : tintedSustains)
     {
@@ -158,6 +157,12 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     });
 }
 
+uint SustainRenderer::resolveLaneIndex(uint gemColumn) const
+{
+    uint idx = isGuitarLike(activePart) ? gemColumn : drumColumnIndex(gemColumn, activePart);
+    return (idx < laneCount) ? idx : 1u;
+}
+
 void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane)
 {
     bool isDrums = isDrumLike(activePart);
@@ -168,17 +173,13 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
     NormalizedCoordinates colCoords;
     float laneScale;
     int bemaniIdx = -1;
-    if (isDrums) {
-        bool isKick = isDrumKick(gemColumn);
-        uint dIdx = drumColumnIndex(gemColumn);
-        colCoords = laneCoordsDrums[dIdx];
-        laneScale = isKick ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
-        bemaniIdx = (int)dIdx - 1;
-    } else {
-        colCoords = laneCoordsGuitar[gemColumn];
+    uint laneCoordIdx = resolveLaneIndex(gemColumn);
+    colCoords = laneCoords[laneCoordIdx];
+    bemaniIdx = (int)laneCoordIdx - 1;
+    if (isDrums)
+        laneScale = isDrumKick(gemColumn, activePart) ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+    else
         laneScale = (gemColumn == 0) ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
-        bemaniIdx = (int)gemColumn - 1;
-    }
 
     int laneIdx = PositionMath::bemaniMode ? bemaniIdx : -1;
     auto startLane = getColumnEdge(startPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, laneIdx);
