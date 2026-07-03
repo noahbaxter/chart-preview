@@ -566,28 +566,37 @@ juce::Colour AssetManager::getLaneColour(uint gemColumn, Part part, bool starPow
         return juce::Colours::white;
     }
 
+    // All lane colours come from the shared LaneColours palette (same source as the
+    // strikeline pads and cymbal tints), keyed by the lane's tint, so gems, roll lanes,
+    // strikeline pads and effects always agree on a lane's colour.
+    using T = PositionConstants::DrumLaneTint;
+    auto fromTint = [](T t) -> juce::Colour
+    {
+        switch (t)
+        {
+        case T::Red:    return LaneColours::bright(LaneColours::red);
+        case T::Yellow: return LaneColours::bright(LaneColours::yellow);
+        case T::Blue:   return LaneColours::bright(LaneColours::blue);
+        case T::Green:  return LaneColours::bright(LaneColours::green);
+        case T::Orange: return LaneColours::bright(LaneColours::orange);
+        case T::Purple: return LaneColours::bright(LaneColours::purple);
+        default:        return LaneColours::bright(LaneColours::white);
+        }
+    };
+
+    if (part == Part::ELITE_DRUMS)
+    {
+        if (gemColumn >= 1 && gemColumn <= 8)
+            return fromTint(PositionConstants::ELITE_LANE_STYLES[gemColumn].tint);
+        return fromTint(T::Orange);   // kick / 2x-kick lanes read as orange
+    }
     if (part == Part::GUITAR)
     {
-        juce::Colour guitarColors[] = {
-            juce::Colours::purple,
-            juce::Colours::green,
-            juce::Colours::red,
-            juce::Colours::yellow,
-            juce::Colours::blue,
-            juce::Colours::orange
-        };
-        return guitarColors[std::min(gemColumn, 5u)];
+        // 5-fret: col 0 = open (purple), 1-5 = GRYBO.
+        static const T g[6] = { T::Purple, T::Green, T::Red, T::Yellow, T::Blue, T::Orange };
+        return fromTint(g[std::min(gemColumn, 5u)]);
     }
-    else // if (part == Part::DRUMS)
-    {
-        juce::Colour drumColors[] = {
-            juce::Colours::orange,
-            juce::Colours::red,
-            juce::Colours::yellow,
-            juce::Colours::blue,
-            juce::Colours::green
-        };
-        uint idx = std::min(drumColumnIndex(gemColumn), 4u);
-        return drumColors[idx];
-    }
+    // 4-lane drums: kick(orange), red, yellow, blue, green.
+    static const T d[5] = { T::Orange, T::Red, T::Yellow, T::Blue, T::Green };
+    return fromTint(d[std::min(drumColumnIndex(gemColumn), 4u)]);
 }
