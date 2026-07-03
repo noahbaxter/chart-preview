@@ -18,15 +18,14 @@
 #include "../Utils/PositionConstants.h"
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
+#include "HighwayRenderer.h"
 
 namespace PositionConstants { struct RenderTypeConfig; }
 
-class SustainRenderer
+class SustainRenderer : public HighwayRenderer
 {
 public:
     SustainRenderer(juce::ValueTree& state, AssetManager& assetManager);
-
-    Part activePart = Part::GUITAR;
 
     PositionConstants::LaneShapeConfig laneShape;
 
@@ -38,43 +37,15 @@ public:
                   uint width, uint height, bool showLanes, bool showSustains,
                   float posEnd,
                   float farFadeEnd, float farFadeLen, float farFadeCurve,
-                  const PositionConstants::NormalizedCoordinates* laneCoords, size_t laneCount);
+                  const PositionConstants::NormalizedCoordinates* laneCoords);
 
 private:
     juce::ValueTree& state;
     AssetManager& assetManager;
 
-    // Cached per-populate call
+    // Cached per-populate call (frame geometry state lives in HighwayRenderer)
     DrawCallMap* currentDrawCallMap = nullptr;
-    const PositionConstants::RenderTypeConfig* currentConfig = nullptr;
-    uint width = 0, height = 0;
-    float posEnd = 0;
-    float farFadeEnd = 0, farFadeLen = 0, farFadeCurve = 0;
-    const PositionConstants::NormalizedCoordinates* laneCoords = nullptr;
-    size_t laneCount = 0;
     bool showLanes = true, showSustains = true;
-
-    // Gem column -> index into laneCoords, part-generic and bounded to laneCount.
-    uint resolveLaneIndex(uint gemColumn) const;
-
-    using LaneCorners = PositionConstants::LaneCorners;
-    using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
-
-    LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
-                              float sizeScale, float fretboardScale = 1.0f,
-                              int bemaniLaneIdx = -1)
-    {
-        bool isDrums = isDrumLike(activePart);
-        return PositionMath::getColumnPosition(getRenderType(activePart), position, width, height,
-                                               PositionConstants::HIGHWAY_POS_START, posEnd,
-                                               colCoords, sizeScale, fretboardScale, bemaniLaneIdx);
-    }
-
-    float calculateOpacity(float position)
-    {
-        if (PositionMath::bemaniMode) return 1.0f;
-        return calculateFarFade(position, farFadeEnd, farFadeLen, farFadeCurve);
-    }
 
     void drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime);
     void drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition,

@@ -188,7 +188,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
                                  width, height, showLanes, showSustains,
                                  highwayPosEnd,
                                  farFadeEnd, farFadeLen, farFadeCurve,
-                                 activeLaneCoords, activeLaneCount);
+                                 activeLaneCoords);
     }
 
     {

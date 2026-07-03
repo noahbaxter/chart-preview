@@ -21,9 +21,7 @@ void TextEventRenderer::populate(DrawCallMap& drawCallMap,
                                  float posEnd,
                                  float farFadeEnd, float farFadeLen, float farFadeCurve)
 {
-    this->width = width;
-    this->height = height;
-    this->posEnd = posEnd;
+    setFrame(activePart, width, height, posEnd);
 
     double windowTimeSpan = windowEndTime - windowStartTime;
     if (windowTimeSpan <= 0.0) return;
@@ -61,9 +59,7 @@ void TextEventRenderer::populateEventMarkers(DrawCallMap& drawCallMap,
                                               float posEnd,
                                               float farFadeEnd, float farFadeLen, float farFadeCurve)
 {
-    this->width = width;
-    this->height = height;
-    this->posEnd = posEnd;
+    setFrame(activePart, width, height, posEnd);
 
     double windowTimeSpan = windowEndTime - windowStartTime;
     if (windowTimeSpan <= 0.0) return;

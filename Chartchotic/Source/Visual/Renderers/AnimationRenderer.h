@@ -23,13 +23,13 @@
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
 #include "../../UI/ControlConstants.h"
+#include "HighwayRenderer.h"
 
-class AnimationRenderer
+class AnimationRenderer : public HighwayRenderer
 {
 public:
     AnimationRenderer(juce::ValueTree &state, AssetManager &assetManager);
 
-    Part activePart = Part::GUITAR;
     ~AnimationRenderer();
 
     /**
@@ -45,21 +45,18 @@ public:
      */
     void updateSustainStates(const TimeBasedSustainWindow& sustainWindow, bool isPlaying);
 
-    // Tuning params — set by SceneRenderer before calling renderToDrawCallMap
-    // Active highway's lane coords + count (generic; any number of lanes).
-    const PositionConstants::NormalizedCoordinates* laneCoords = nullptr;
-    size_t laneCount = 0;
-    uint resolveLaneIndex(uint gemColumn) const;
+    // Tuning params — set by SceneRenderer before calling renderToDrawCallMap.
+    // Active highway's lane coords + count live in HighwayRenderer (generic;
+    // any number of lanes).
     float hitGemZOffset = 0.0f;
     float hitBarZOffset = 0.0f;
     float noteCurvature = 0.0f;
     PositionConstants::HitScale hitGemScale = PositionConstants::HIT_GEM_SCALE;
     PositionConstants::HitScale hitBarScale = PositionConstants::HIT_BAR_SCALE;
     PositionConstants::HitTypeConfig hitTypeConfig;
-    // Pointer into scene-side drumColAdjust + resScale — multiply ca.z * resScale
+    // Pointer into scene-side drumColAdjust — multiply ca.z * resScale (HighwayRenderer)
     // at use site so we don't pre-bake the full array per frame.
     const PositionConstants::ColumnAdjust* drumColAdjust = PositionConstants::DRUM_COL_ADJUST;
-    float resScale = 1.0f;
 
     /**
      * Populate drawCallMap with animation render calls.
@@ -91,20 +88,6 @@ private:
 
     // Helper: Trigger animation for a specific gem column
     void triggerAnimationForColumn(uint gemColumn, Gem gemType = Gem::NOTE, bool starPower = false);
-
-    // Bezier column edge helper
-    PositionConstants::LaneCorners getColumnEdge(float position, const PositionConstants::NormalizedCoordinates& colCoords,
-                                                  float sizeScale, float posEnd,
-                                                  float fretboardScale = 1.0f,
-                                                  int bemaniLaneIdx = -1)
-    {
-        bool isDrums = isDrumLike(activePart);
-        return PositionMath::getColumnPosition(getRenderType(activePart), position, cachedWidth, cachedHeight,
-                                               PositionConstants::HIGHWAY_POS_START, posEnd,
-                                               colCoords, sizeScale, fretboardScale, bemaniLaneIdx);
-    }
-
-    uint cachedWidth = 0, cachedHeight = 0;
 
     // Rendering helpers
     void renderKickAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset,

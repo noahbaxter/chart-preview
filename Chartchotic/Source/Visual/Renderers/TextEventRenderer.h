@@ -17,12 +17,11 @@
 #include "../Utils/PositionConstants.h"
 #include "../Utils/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
+#include "HighwayRenderer.h"
 
-class TextEventRenderer
+class TextEventRenderer : public HighwayRenderer
 {
 public:
-    Part activePart = Part::GUITAR;
-
     void populate(DrawCallMap& drawCallMap,
                   const std::vector<TimeBasedFlipRegion>& flipRegions,
                   double windowStartTime, double windowEndTime,
@@ -38,21 +37,6 @@ public:
                               float farFadeEnd, float farFadeLen, float farFadeCurve);
 
 private:
-    uint width = 0, height = 0;
-    float posEnd = 0;
-
-    using LaneCorners = PositionConstants::LaneCorners;
-    using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
-
-    LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
-                              float sizeScale, float fretboardScale = 1.0f)
-    {
-        bool isDrums = isDrumLike(activePart);
-        return PositionMath::getColumnPosition(getRenderType(activePart), position, width, height,
-                                               PositionConstants::HIGHWAY_POS_START, posEnd,
-                                               colCoords, sizeScale, fretboardScale);
-    }
-
     void drawMarker(juce::Graphics& g, float position, const juce::String& label,
                     float fadeOpacity);
 };
