@@ -114,37 +114,52 @@ static FakeScene makeComprehensiveScene(bool isDrums, float farEnd)
 static FakeScene makeEliteScene(float farEnd)
 {
     FakeScene s;
-    auto put = [&](double pos, int col, Gem g, bool sp = false)
+    // Everything is placed by integer beat index and positioned at beat * BEAT, and the
+    // gridlines are generated from the same index, so notes land exactly on the grid.
+    const double BEAT = 0.1;   // one gridline per beat; MEASURE every 4 beats
+    auto put = [&](int beat, int col, Gem g, bool sp = false)
     {
-        auto& f = s.track[pos];
         if (col >= 0 && col < (int)LANE_COUNT)
-            f[col] = GemWrapper(g, sp);
+            s.track[beat * BEAT][col] = GemWrapper(g, sp);
     };
-    auto gemForLane = [](int lane) {
-        return (lane == 2 || lane == 3 || lane == 7 || lane == 8) ? Gem::CYM : Gem::NOTE;
+    // Cymbal lanes are 2,3,7,8; note lanes are 1,4,5,6. Map a lane + dynamic to its glyph.
+    const bool cymLane[10] = { false,false,true,true,false,false,false,true,true,false };
+    enum Dyn { GHOST, NORMAL, ACCENT };
+    auto gemFor = [&](int lane, Dyn d) -> Gem {
+        bool cym = cymLane[lane];
+        if (d == GHOST)  return cym ? Gem::CYM_GHOST  : Gem::HOPO_GHOST;
+        if (d == ACCENT) return cym ? Gem::CYM_ACCENT : Gem::TAP_ACCENT;
+        return cym ? Gem::CYM : Gem::NOTE;
     };
 
-    // Staircase: one gem per hand lane 1..8 marching down the neck.
-    double p = 0.08;
-    for (int lane = 1; lane <= 8; ++lane, p += 0.10)
-        put(p, lane, gemForLane(lane));
+    // Permutation matrix, one chord per row so every combination is easy to compare:
+    //   row = one dynamic across ALL 8 hand lanes + a kick;
+    //   rows go GHOST -> NORMAL -> ACCENT, then the same three again in STAR POWER (white).
+    // Read across a row = every lane at that dynamic; read down a lane = ghost/normal/accent.
+    const Dyn dyns[3] = { GHOST, NORMAL, ACCENT };
+    int beat = 2;
+    for (bool sp : { false, true })
+    {
+        for (Dyn d : dyns)
+        {
+            for (int lane = 1; lane <= 8; ++lane)
+                put(beat, lane, gemFor(lane, d), sp);
+            put(beat, 0, Gem::NOTE, sp);            // kick every row
+            if (sp) put(beat, 9, Gem::NOTE, sp);    // 2x kick on the star-power rows
+            beat += 2;                              // one empty beat between rows
+        }
+        beat += 1;                                  // extra gap between the normal and SP groups
+    }
 
-    // Kicks every quarter across the runway.
-    for (double k = 0.05; k <= farEnd; k += 0.25)
-        put(k, 0, Gem::NOTE);
-
-    // A 2x kick, then a full 8-lane chord further back.
-    put(1.00, 9, Gem::NOTE);
+    // Then the lanes: a roll/tremolo LANE on every hand lane (note + cymbal rolls), on-grid.
+    const int rollStart = beat + 2, rollEnd = rollStart + 4;
     for (int lane = 1; lane <= 8; ++lane)
-        put(1.20, lane, gemForLane(lane));
+        s.sustains.push_back({ rollStart * BEAT, rollEnd * BEAT, (uint)lane,
+                               SustainType::LANE, GemWrapper(gemFor(lane, NORMAL)) });
 
-    // Star-power (white) row toward the far end.
-    for (int lane = 1; lane <= 8; ++lane)
-        put(1.60, lane, gemForLane(lane), true);
-
-    int idx = 0;
-    for (double gp = 0.0; gp <= farEnd; gp += 0.1, ++idx)
-        s.gridlines.push_back({ gp, (idx % 4 == 0) ? Gridline::MEASURE : Gridline::BEAT });
+    // Gridlines from the same beat index -> notes sit exactly on them.
+    for (int b = 0; b * BEAT <= farEnd; ++b)
+        s.gridlines.push_back({ b * BEAT, (b % 4 == 0) ? Gridline::MEASURE : Gridline::BEAT });
 
     return s;
 }
