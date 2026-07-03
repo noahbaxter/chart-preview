@@ -269,7 +269,6 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     float strikelinePosition = strikePos;
     bool isGuitar = isGuitarLike(activePart);
     bool isDrums = !isGuitar;
-    Part currentPart = isGuitar ? Part::GUITAR : Part::DRUMS;
 
     auto hitFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
 
@@ -280,9 +279,9 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
         ? assetManager.getHitFlareWhiteImage()
         : usePurple
             ? assetManager.getHitFlarePurpleImage()
-            : assetManager.getHitFlareImage(anim.lane, currentPart);
+            : assetManager.getHitFlareImage(anim.lane, activePart);
 
-    bool barNote = isBarNote(anim.lane, currentPart);
+    bool barNote = isBarNote(anim.lane, activePart);
     uint colIdx = resolveLaneIndex(anim.lane);
     const auto& colCoords = laneCoords[colIdx];
 
