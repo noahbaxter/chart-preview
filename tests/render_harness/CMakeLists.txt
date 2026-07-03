@@ -25,6 +25,7 @@ target_sources(render_harness PRIVATE
     ${SOURCE_ROOT}/Visual/Renderers/TextEventRenderer.cpp
     ${SOURCE_ROOT}/Visual/Art/TrackRenderer.cpp
     ${SOURCE_ROOT}/Visual/Art/ProceduralTrackArt.cpp
+    ${SOURCE_ROOT}/Visual/Art/BarGemArt.cpp
     ${SOURCE_ROOT}/Visual/Managers/AssetManager.cpp
     ${SOURCE_ROOT}/Visual/Geometry/PositionMath.cpp
     ${SOURCE_ROOT}/Visual/Geometry/RenderTypeConfig.cpp

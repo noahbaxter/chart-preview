@@ -11,6 +11,7 @@
 #include "AssetManager.h"
 #include "../Geometry/PositionConstants.h"
 #include "../Utils/LaneColours.h"
+#include "../Art/BarGemArt.h"
 
 namespace
 {
@@ -35,41 +36,6 @@ namespace
                 float w = juce::jlimit(0.0f, 1.0f, (px.getSaturation() - 0.18f) / 0.30f);
                 auto reh = juce::Colour::fromHSV(th, ts, px.getBrightness(), px.getFloatAlpha());
                 bmp.setPixelColour(x, y, px.interpolatedWith(reh, w));
-            }
-        return out;
-    }
-
-    // Greyscale tube master (bar_white) -> neon bar. Unlike a square gem (silver frame,
-    // saturation-masked), a bar is a glowing tube sitting in a neutral dark casing. The
-    // master's luminance drives a ramp: the low end stays GREY (the casing rim, colour-
-    // independent), then jumps to the lane colour for the tube body, up to a bright hot
-    // core that keeps its saturation (brightened by value, NOT lerped to white — else a
-    // dark hue like purple washes to a white streak). Reproduces the glow for any colour.
-    juce::Image tintBarNeon(const juce::Image& greyMaster, const LaneColours::Lane& lane)
-    {
-        const juce::Colour b = LaneColours::bright(lane);
-        const juce::Colour hot = juce::Colour::fromHSV(b.getHue(), b.getSaturation() * 0.8f, 1.0f, 1.0f);
-        const int   n = 6;
-        const float rampL[n] = { 0.0f, 0.33f, 0.46f, 0.55f, 0.74f, 1.0f };
-        const juce::Colour rampC[n] = {
-            TrackColours::barCasingDark, TrackColours::barCasingGrey, TrackColours::barCasingGrey, b, b, hot };
-
-        juce::Image out = greyMaster.createCopy();
-        juce::Image::BitmapData bmp(out, juce::Image::BitmapData::readWrite);
-        for (int y = 0; y < bmp.height; ++y)
-            for (int x = 0; x < bmp.width; ++x)
-            {
-                auto px = bmp.getPixelColour(x, y);
-                float lum = 0.3f * px.getFloatRed() + 0.59f * px.getFloatGreen() + 0.11f * px.getFloatBlue();
-                juce::Colour c = rampC[n - 1];
-                for (int i = 1; i < n; ++i)
-                    if (lum <= rampL[i])
-                    {
-                        float f = (lum - rampL[i - 1]) / (rampL[i] - rampL[i - 1]);
-                        c = rampC[i - 1].interpolatedWith(rampC[i], f);
-                        break;
-                    }
-                bmp.setPixelColour(x, y, c.withAlpha(px.getFloatAlpha()));
             }
         return out;
     }
@@ -109,12 +75,17 @@ void AssetManager::initAssets()
     // Bars: one greyscale tube master (bar_white) tinted per bar type. Kick = amber,
     // 2x kick = a distinct red-orange (gameplay cue), open = the shared open/purple.
     // White (star power) is the untinted master. No per-colour bar PNGs.
-    barWhiteImage = juce::ImageCache::getFromMemory(BinaryData::bar_white_png, BinaryData::bar_white_pngSize);
+    // Bars are procedurally baked from the tube geometry measured off the original art
+    // (BarGemArt): a glossy arc-bent tube + tilted end caps, with the vertical colour ramp
+    // sampled per bar from the source PNGs. Pixel-faithful and resolution-independent -- the
+    // 2432x152 bake is scaled to the highway width at draw time, so it renders at any length.
     {
-        // The greyscale bar_white tube drives the neon ramp for each bar colour.
-        barKickImage   = tintBarNeon(barWhiteImage, LaneColours::kick);
-        barKick2xImage = tintBarNeon(barWhiteImage, LaneColours::kick2x);
-        barOpenImage   = tintBarNeon(barWhiteImage, LaneColours::purple);
+        const auto canvas  = GemArt::barCanvas();
+        const auto content = GemArt::barContentBounds();
+        barWhiteImage  = GemArt::bakeBar(GemArt::barRampWhite(),  canvas, content);
+        barKickImage   = GemArt::bakeBar(GemArt::barRampKick(),   canvas, content);
+        barKick2xImage = GemArt::bakeBar(GemArt::barRampKick2x(), canvas, content);
+        barOpenImage   = GemArt::bakeBar(GemArt::barRampOpen(),   canvas, content);
     }
 
     // Cymbals: one greyscale metallic master (the blue cymbal collapsed to luminance) drives

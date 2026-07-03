@@ -67,9 +67,4 @@ namespace TrackColours
     inline const juce::Colour railInner       = juce::Colour(0xFF404040);
     inline const juce::Colour railLine        = juce::Colour(0xFF606060);
     inline const juce::Colour railBlack       = juce::Colour(0xFF060606);
-
-    // Bar (kick/open tube) casing — the neutral dark rim the glowing tube sits in.
-    // Colour-independent, so the bar tint ramps grey edges -> lane colour -> hot core.
-    inline const juce::Colour barCasingDark   = juce::Colour(0xFF1F1F1F);
-    inline const juce::Colour barCasingGrey   = juce::Colour(0xFF676565);
 }
