@@ -38,8 +38,7 @@ public:
                   uint width, uint height, bool showLanes, bool showSustains,
                   float posEnd,
                   float farFadeEnd, float farFadeLen, float farFadeCurve,
-                  const PositionConstants::NormalizedCoordinates* laneCoordsGuitar,
-                  const PositionConstants::NormalizedCoordinates* laneCoordsDrums);
+                  const PositionConstants::NormalizedCoordinates* laneCoords, size_t laneCount);
 
 private:
     juce::ValueTree& state;
@@ -51,9 +50,12 @@ private:
     uint width = 0, height = 0;
     float posEnd = 0;
     float farFadeEnd = 0, farFadeLen = 0, farFadeCurve = 0;
-    const PositionConstants::NormalizedCoordinates* laneCoordsGuitar = nullptr;
-    const PositionConstants::NormalizedCoordinates* laneCoordsDrums = nullptr;
+    const PositionConstants::NormalizedCoordinates* laneCoords = nullptr;
+    size_t laneCount = 0;
     bool showLanes = true, showSustains = true;
+
+    // Gem column -> index into laneCoords, part-generic and bounded to laneCount.
+    uint resolveLaneIndex(uint gemColumn) const;
 
     using LaneCorners = PositionConstants::LaneCorners;
     using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;

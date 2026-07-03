@@ -46,8 +46,10 @@ public:
     void updateSustainStates(const TimeBasedSustainWindow& sustainWindow, bool isPlaying);
 
     // Tuning params — set by SceneRenderer before calling renderToDrawCallMap
-    const PositionConstants::NormalizedCoordinates* laneCoordsGuitar = nullptr;
-    const PositionConstants::NormalizedCoordinates* laneCoordsDrums = nullptr;
+    // Active highway's lane coords + count (generic; any number of lanes).
+    const PositionConstants::NormalizedCoordinates* laneCoords = nullptr;
+    size_t laneCount = 0;
+    uint resolveLaneIndex(uint gemColumn) const;
     float hitGemZOffset = 0.0f;
     float hitBarZOffset = 0.0f;
     float noteCurvature = 0.0f;

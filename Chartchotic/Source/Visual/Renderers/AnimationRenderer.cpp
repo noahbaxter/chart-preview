@@ -27,6 +27,12 @@ AnimationRenderer::~AnimationRenderer()
 {
 }
 
+uint AnimationRenderer::resolveLaneIndex(uint gemColumn) const
+{
+    uint idx = isGuitarLike(activePart) ? gemColumn : drumColumnIndex(gemColumn, activePart);
+    return (idx < laneCount) ? idx : 1u;
+}
+
 //==============================================================================
 // Helper: Trigger animation for a specific gem column
 
@@ -186,10 +192,7 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
 
     if (animFrame)
     {
-        uint colIdx = 0; // Both guitar open and drum kick use index 0
-        const auto& colCoords = isDrums
-            ? laneCoordsDrums[colIdx]
-            : laneCoordsGuitar[colIdx];
+        const auto& colCoords = laneCoords[0]; // Both guitar open and drum kick use index 0
 
         // Kick/open = bar note — match NoteRenderer sizing exactly
         PositionConstants::LaneCorners edge;
@@ -290,15 +293,8 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
             : assetManager.getHitFlareImage(anim.lane, currentPart);
 
     bool barNote = isBarNote(anim.lane, currentPart);
-    uint colIdx = anim.lane;
-    if (isDrums) {
-        colIdx = drumColumnIndex(anim.lane) < PositionConstants::DRUM_LANE_COUNT ? drumColumnIndex(anim.lane) : 1;
-    } else {
-        colIdx = (anim.lane < PositionConstants::GUITAR_LANE_COUNT) ? anim.lane : 1;
-    }
-    const auto& colCoords = isDrums
-        ? laneCoordsDrums[colIdx]
-        : laneCoordsGuitar[colIdx];
+    uint colIdx = resolveLaneIndex(anim.lane);
+    const auto& colCoords = laneCoords[colIdx];
 
     float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
     int bemaniIdx = barNote ? -1 : ((int)colIdx - 1);

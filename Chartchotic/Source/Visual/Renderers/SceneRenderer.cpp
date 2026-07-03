@@ -11,6 +11,7 @@
 #include "SceneRenderer.h"
 #include "../Utils/DrawingConstants.h"
 #include "../Utils/PositionConstants.h"
+#include "../Utils/RenderTypeConfig.h"
 #include "../../UI/Theme.h"
 
 using namespace PositionConstants;
@@ -86,8 +87,16 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     noteRenderer.guitarColAdjust = guitarColAdjust;
     noteRenderer.drumColAdjust = isElite ? eliteDrumColAdjust : drumColAdjust;
     noteRenderer.resScale = resScale;                    // applied to ColumnAdjust::z reads
-    noteRenderer.laneCoordsGuitar = guitarLaneCoordsLocal;
-    noteRenderer.laneCoordsDrums = isElite ? eliteDrumLaneCoordsLocal : drumLaneCoordsLocal;
+
+    // ONE active lane-coord source for EVERY positioner (gems, roll lanes, hit animations)
+    // so a column resolves to the same place everywhere. Count comes from the render config,
+    // so any highway with any number of lanes works with no per-renderer baked-in counts.
+    const auto* rtConfig = getRenderTypeConfig(getRenderType(activePart));
+    const PositionConstants::NormalizedCoordinates* activeLaneCoords =
+        !isDrums ? guitarLaneCoordsLocal : (isElite ? eliteDrumLaneCoordsLocal : drumLaneCoordsLocal);
+    size_t activeLaneCount = rtConfig->laneCount;
+    noteRenderer.laneCoords = activeLaneCoords;
+    noteRenderer.laneCount  = activeLaneCount;
 
     {
         ScopedPhaseMeasure m(lastPhaseTiming.notes_us, collectPhaseTiming);
@@ -179,7 +188,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
                                  width, height, showLanes, showSustains,
                                  highwayPosEnd,
                                  farFadeEnd, farFadeLen, farFadeCurve,
-                                 guitarLaneCoordsLocal, drumLaneCoordsLocal);
+                                 activeLaneCoords, activeLaneCount);
     }
 
     {
@@ -217,8 +226,8 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
             double strikeTimeOffset = strikePosGem * windowTimeSpan;
             if (isPlaying) { animationRenderer.detectAndTriggerAnimations(trackWindow, strikeTimeOffset); }
 
-            animationRenderer.laneCoordsGuitar = guitarLaneCoordsLocal;
-            animationRenderer.laneCoordsDrums = drumLaneCoordsLocal;
+            animationRenderer.laneCoords = activeLaneCoords;
+            animationRenderer.laneCount  = activeLaneCount;
             animationRenderer.hitGemZOffset = offsets.hitGemZ * resScale;
             animationRenderer.hitBarZOffset = offsets.hitBarZ * resScale;
             animationRenderer.noteCurvature = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
