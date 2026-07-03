@@ -42,6 +42,7 @@ public:
     juce::Image* getCymRedImage() { return &cymRedImage; }
     juce::Image* getCymWhiteImage() { return &cymWhiteImage; }
     juce::Image* getCymYellowImage() { return &cymYellowImage; }
+    juce::Image* getCymPurpleImage() { return &cymPurpleImage; }
 
     // HOPO notes
     juce::Image* getHopoBarOpenImage() { return &barWhiteImage; }   // TODO: create unique asset
@@ -153,6 +154,7 @@ private:
     juce::Image cymRedImage;
     juce::Image cymWhiteImage;
     juce::Image cymYellowImage;
+    juce::Image cymPurpleImage;          // Generated at runtime by recolouring the blue cymbal
 
     // HOPO notes
     juce::Image hopoBlueImage;

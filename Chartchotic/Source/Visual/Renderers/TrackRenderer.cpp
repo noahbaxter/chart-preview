@@ -9,6 +9,7 @@
 
 #include "TrackRenderer.h"
 #include "../Utils/RenderTypeConfig.h"
+#include "../Utils/LaneColours.h"
 #include "ProceduralTrackArt.h"
 
 using namespace PositionConstants;
@@ -582,18 +583,19 @@ void TrackRenderer::bakeSidebarRailsPerspective(int w, int h, int overflow, bool
 // the reference PNG, which draws each pad as a vertical gradient.
 struct PadColours { juce::Colour top, bottom; };
 
-// The standard fret colours, sampled once from the reference PNGs and shared across
-// every part's lane table so the tables read as lane->colour maps with no magic hex.
+// Strikeline pad colours. The lane hues come from the shared LaneColours table (single
+// source of truth, also drives gem tints); pad top = lane dark, bottom = lane bright.
 namespace FretColour
 {
+    static PadColours pad(const LaneColours::Lane& l) { return { LaneColours::dark(l), LaneColours::bright(l) }; }
     const PadColours none     { juce::Colour(0),          juce::Colour(0) };          // kick / open lane (undrawn)
-    const PadColours red      { juce::Colour(0xFFA91E1A), juce::Colour(0xFFEB1C22) };
-    const PadColours yellow   { juce::Colour(0xFF987F0B), juce::Colour(0xFFFFD800) };
-    const PadColours blue     { juce::Colour(0xFF0D447F), juce::Colour(0xFF1678E4) };
-    const PadColours green    { juce::Colour(0xFF226D2C), juce::Colour(0xFF36B047) };
-    const PadColours orange   { juce::Colour(0xFFA85A14), juce::Colour(0xFFE88A20) };
-    const PadColours purple   { juce::Colour(0xFF5B2A8C), juce::Colour(0xFF9B47D6) };
-    const PadColours white    { juce::Colour(0xFFAEAEAE), juce::Colour(0xFFEAEAEA) };
+    const PadColours red      = pad(LaneColours::red);
+    const PadColours yellow   = pad(LaneColours::yellow);
+    const PadColours blue     = pad(LaneColours::blue);
+    const PadColours green    = pad(LaneColours::green);
+    const PadColours orange   = pad(LaneColours::orange);
+    const PadColours purple   = pad(LaneColours::purple);
+    const PadColours white    = pad(LaneColours::white);
     const PadColours fallback { juce::Colour(0xFF888888), juce::Colour(0xFFBBBBBB) };  // unmapped lane
 }
 
