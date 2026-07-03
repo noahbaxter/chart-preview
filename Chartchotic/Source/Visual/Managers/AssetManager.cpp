@@ -39,18 +39,20 @@ namespace
         return out;
     }
 
-    // Greyscale tube master (bar_white) -> neon bar. Unlike a square gem (which has a
-    // silver frame to preserve, so it's saturation-masked), a bar is a solid glowing tube:
-    // its luminance drives a ramp from a dark edge, through the lane colour, up to a
-    // near-white hot core, reproducing the glow for ANY colour. Alpha is preserved.
+    // Greyscale tube master (bar_white) -> neon bar. Unlike a square gem (silver frame,
+    // saturation-masked), a bar is a glowing tube sitting in a neutral dark casing. The
+    // master's luminance drives a ramp: the low end stays GREY (the casing rim, colour-
+    // independent), then jumps to the lane colour for the tube body, up to a bright hot
+    // core that keeps its saturation (brightened by value, NOT lerped to white — else a
+    // dark hue like purple washes to a white streak). Reproduces the glow for any colour.
     juce::Image tintBarNeon(const juce::Image& greyMaster, const LaneColours::Lane& lane)
     {
-        const juce::Colour d = LaneColours::dark(lane);
         const juce::Colour b = LaneColours::bright(lane);
-        const int   n = 5;
-        const float rampL[n] = { 0.0f, 0.30f, 0.58f, 0.84f, 1.0f };
+        const juce::Colour hot = juce::Colour::fromHSV(b.getHue(), b.getSaturation() * 0.8f, 1.0f, 1.0f);
+        const int   n = 6;
+        const float rampL[n] = { 0.0f, 0.33f, 0.46f, 0.55f, 0.74f, 1.0f };
         const juce::Colour rampC[n] = {
-            d.withMultipliedBrightness(0.35f), d, b, b.brighter(0.5f), juce::Colours::white };
+            TrackColours::barCasingDark, TrackColours::barCasingGrey, TrackColours::barCasingGrey, b, b, hot };
 
         juce::Image out = greyMaster.createCopy();
         juce::Image::BitmapData bmp(out, juce::Image::BitmapData::readWrite);
