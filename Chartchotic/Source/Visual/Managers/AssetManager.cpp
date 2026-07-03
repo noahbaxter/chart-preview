@@ -62,6 +62,25 @@ namespace
             }
         return out;
     }
+
+    // Greyscale "smoke" master -> lane-coloured flare. A flare is an additive glow,
+    // not metal: recolour by a simple luminance * colour multiply (keeping the soft
+    // alpha falloff), the same recipe the old purple tap flare used, generalized to
+    // any lane colour. Nothing baked per lane.
+    juce::Image tintFlare(const juce::Image& master, juce::Colour tint)
+    {
+        const float tr = tint.getFloatRed(), tg = tint.getFloatGreen(), tb = tint.getFloatBlue();
+        juce::Image out = master.createCopy();
+        juce::Image::BitmapData bmp(out, juce::Image::BitmapData::readWrite);
+        for (int y = 0; y < bmp.height; ++y)
+            for (int x = 0; x < bmp.width; ++x)
+            {
+                auto px = bmp.getPixelColour(x, y);
+                float lum = 0.3f * px.getFloatRed() + 0.59f * px.getFloatGreen() + 0.11f * px.getFloatBlue();
+                bmp.setPixelColour(x, y, juce::Colour::fromFloatRGBA(lum * tr, lum * tg, lum * tb, px.getFloatAlpha()));
+            }
+        return out;
+    }
 }
 
 AssetManager::AssetManager()
@@ -156,33 +175,10 @@ void AssetManager::initAssets()
     hitAnimationFrames[3] = juce::ImageCache::getFromMemory(BinaryData::hit_flash_4_png, BinaryData::hit_flash_4_pngSize);
     hitAnimationFrames[4] = juce::ImageCache::getFromMemory(BinaryData::hit_flash_5_png, BinaryData::hit_flash_5_pngSize);
 
-    // Hit flare images (blue=4, green=1, orange=5, red=2, yellow=3)
-    hitFlareImages[0] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_green_png, BinaryData::hit_flare_green_pngSize);
-    hitFlareImages[1] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_red_png, BinaryData::hit_flare_red_pngSize);
-    hitFlareImages[2] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_yellow_png, BinaryData::hit_flare_yellow_pngSize);
-    hitFlareImages[3] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_blue_png, BinaryData::hit_flare_blue_pngSize);
-    hitFlareImages[4] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_orange_png, BinaryData::hit_flare_orange_pngSize);
-    hitFlareImages[5] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_white_png, BinaryData::hit_flare_white_pngSize);
-
-    // Generate purple flare by tinting the white (grayscale) flare
-    // Purple color matched to tap overlay asset
-    {
-        auto& src = hitFlareImages[5];
-        hitFlarePurpleImage = src.createCopy();
-        juce::Image::BitmapData bmp(hitFlarePurpleImage, juce::Image::BitmapData::readWrite);
-        const float tintR = 0.55f, tintG = 0.05f, tintB = 1.0f;
-        for (int y = 0; y < bmp.height; ++y)
-        {
-            for (int x = 0; x < bmp.width; ++x)
-            {
-                auto px = bmp.getPixelColour(x, y);
-                float a = px.getFloatAlpha();
-                float lum = px.getFloatRed(); // grayscale source: R==G==B
-                bmp.setPixelColour(x, y, juce::Colour::fromFloatRGBA(
-                    lum * tintR, lum * tintG, lum * tintB, a));
-            }
-        }
-    }
+    // One greyscale "smoke" flare master. Every lane's flare is this tinted by the
+    // lane colour on demand (see getHitFlareImage), so there are no per-colour flare
+    // PNGs and any lane count / palette just works. Star power draws it untinted.
+    hitFlareWhite = juce::ImageCache::getFromMemory(BinaryData::hit_flare_white_png, BinaryData::hit_flare_white_pngSize);
 
     // Kick animation frames
     kickAnimationFrames[0] = juce::ImageCache::getFromMemory(BinaryData::hit_kick_1_png, BinaryData::hit_kick_1_pngSize);
@@ -228,11 +224,8 @@ void AssetManager::initAssets()
         {&hitAnimationFrames[0], hitAnimationFrames[0]}, {&hitAnimationFrames[1], hitAnimationFrames[1]},
         {&hitAnimationFrames[2], hitAnimationFrames[2]}, {&hitAnimationFrames[3], hitAnimationFrames[3]},
         {&hitAnimationFrames[4], hitAnimationFrames[4]},
-        // Hit flare images
-        {&hitFlareImages[0], hitFlareImages[0]}, {&hitFlareImages[1], hitFlareImages[1]},
-        {&hitFlareImages[2], hitFlareImages[2]}, {&hitFlareImages[3], hitFlareImages[3]},
-        {&hitFlareImages[4], hitFlareImages[4]}, {&hitFlareImages[5], hitFlareImages[5]},
-        {&hitFlarePurpleImage, hitFlarePurpleImage},
+        // Hit flare: only the greyscale master is scaled; lane tints derive from it.
+        {&hitFlareWhite, hitFlareWhite},
         // Kick animation frames
         {&kickAnimationFrames[0], kickAnimationFrames[0]}, {&kickAnimationFrames[1], kickAnimationFrames[1]},
         {&kickAnimationFrames[2], kickAnimationFrames[2]}, {&kickAnimationFrames[3], kickAnimationFrames[3]},
@@ -304,7 +297,34 @@ void AssetManager::rescaleForWidth(int viewportWidth)
     for (auto& asset : scalableAssets)
         *asset.target = downscale(asset.fullRes, targetWidth);
 
+    // Flare tints derive from the (now rescaled) smoke master — drop them so they
+    // regenerate at the new scale on next use.
+    flareTintCache.clear();
+
     lastScaledWidth = targetWidth;
+}
+
+// Tint the smoke master by an arbitrary lane colour, memoized per colour. Node-based
+// map => returned pointers stay valid as new colours are added within a frame.
+juce::Image* AssetManager::flareTinted(juce::Colour colour)
+{
+    auto key = colour.getARGB();
+    auto it = flareTintCache.find(key);
+    if (it == flareTintCache.end())
+        it = flareTintCache.emplace(key, tintFlare(hitFlareWhite, colour)).first;
+    return &it->second;
+}
+
+juce::Image* AssetManager::getHitFlarePurpleImage()
+{
+    return flareTinted(LaneColours::bright(LaneColours::purple));
+}
+
+juce::Image* AssetManager::getHitFlareImage(uint gemColumn, Part part)
+{
+    // Colour comes from the same generic source the gems/pads use, so the flare
+    // lights up in the lane's own colour for any part / lane count (elite included).
+    return flareTinted(getLaneColour(gemColumn, part, /*starPowerActive=*/false));
 }
 
 juce::Image* AssetManager::getGhostCursorImage(bool isDrums, int lane)
