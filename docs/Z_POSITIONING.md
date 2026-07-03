@@ -18,7 +18,7 @@ Originally reported by Invontor on Discord (Apr 3–10), tracked in `.planning/1
 
 ## Architectural root cause
 
-`Chartchotic/Source/Visual/Utils/PositionMath.cpp::createPerspectiveGlyphRect` runs **two different perspective formulas in parallel**:
+`Chartchotic/Source/Visual/Geometry/PositionMath.cpp::createPerspectiveGlyphRect` runs **two different perspective formulas in parallel**:
 
 ```cpp
 // Used for X position, Y position, AND fretboard width:
@@ -162,4 +162,4 @@ If you find yourself trying yet another formula for the foreshorten knob: **stop
 - Pre-rework state: `git checkout 44069d4`
 - Memory: `~/.claude/projects/-Users-noahbaxter-Code-personal-charting-chart-preview/memory/project_zoff_investigation.md` (Apr 11–12 notes)
 - Hotfix planning: `.planning/1.2.3-hotfix.md` (Task 1 — was the trigger for the rework)
-- Affected source: `Chartchotic/Source/Visual/Utils/PositionMath.cpp`, `Chartchotic/Source/Visual/Utils/PositionConstants.h`, `Chartchotic/Source/Visual/Renderers/{NoteRenderer,AnimationRenderer,GridlineRenderer,SustainRenderer,SceneRenderer}.cpp`
+- Affected source: `Chartchotic/Source/Visual/Geometry/PositionMath.cpp`, `Chartchotic/Source/Visual/Geometry/PositionConstants.h`, `Chartchotic/Source/Visual/Renderers/{NoteRenderer,AnimationRenderer,GridlineRenderer,SustainRenderer,SceneRenderer}.cpp`

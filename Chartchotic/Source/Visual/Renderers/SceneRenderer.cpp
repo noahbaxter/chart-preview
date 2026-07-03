@@ -10,8 +10,8 @@
 
 #include "SceneRenderer.h"
 #include "../Utils/DrawingConstants.h"
-#include "../Utils/PositionConstants.h"
-#include "../Utils/RenderTypeConfig.h"
+#include "../Geometry/PositionConstants.h"
+#include "../Geometry/RenderTypeConfig.h"
 #include "../../UI/Theme.h"
 
 using namespace PositionConstants;

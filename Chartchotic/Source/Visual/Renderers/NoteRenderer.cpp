@@ -10,7 +10,7 @@
 */
 
 #include "NoteRenderer.h"
-#include "../Utils/RenderTypeConfig.h"
+#include "../Geometry/RenderTypeConfig.h"
 #include "../../Editor/AuthoringTypes.h"
 #include "../../Midi/Utils/InstrumentMapper.h"
 

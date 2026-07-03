@@ -12,8 +12,8 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../Utils/PositionMath.h"
-#include "../Utils/PositionConstants.h"
+#include "../Geometry/PositionMath.h"
+#include "../Geometry/PositionConstants.h"
 #include "../Utils/DrawingConstants.h"
 
 /** Apply per-row far-end alpha fade to an already-composed image in-place.

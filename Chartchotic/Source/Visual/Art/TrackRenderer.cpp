@@ -8,7 +8,7 @@
 */
 
 #include "TrackRenderer.h"
-#include "../Utils/RenderTypeConfig.h"
+#include "../Geometry/RenderTypeConfig.h"
 #include "../Utils/LaneColours.h"
 #include "ProceduralTrackArt.h"
 

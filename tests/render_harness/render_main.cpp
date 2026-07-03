@@ -30,9 +30,9 @@
 #include "Midi/Utils/TimeConverter.h"
 #include "Visual/Managers/AssetManager.h"
 #include "Visual/Renderers/SceneRenderer.h"
-#include "Visual/Renderers/TrackRenderer.h"
-#include "Visual/Utils/PositionMath.h"
-#include "Visual/Utils/PositionConstants.h"
+#include "Visual/Art/TrackRenderer.h"
+#include "Visual/Geometry/PositionMath.h"
+#include "Visual/Geometry/PositionConstants.h"
 #include "Visual/Utils/DrawingConstants.h"
 
 // A comprehensive fake chart exercising every glyph type the renderer can draw,

@@ -10,7 +10,7 @@
 */
 
 #include "SustainRenderer.h"
-#include "../Utils/RenderTypeConfig.h"
+#include "../Geometry/RenderTypeConfig.h"
 #include "../../Editor/AuthoringTypes.h"
 
 using namespace PositionConstants;

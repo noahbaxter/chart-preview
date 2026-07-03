@@ -17,7 +17,7 @@
 #include <JuceHeader.h>
 #include "../../Utils/ChartTypes.h"
 #include "TrackFade.h"
-#include "../Utils/PositionMath.h"
+#include "../Geometry/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
 
 class TrackRenderer

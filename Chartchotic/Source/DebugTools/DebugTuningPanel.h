@@ -6,10 +6,10 @@
 #include "../UI/Controls/PopupMenuButton.h"
 #include "../UI/SectionHeader.h"
 #include "../Utils/ChartTypes.h"
-#include "../Visual/Utils/PositionConstants.h"
-#include "../Visual/Utils/PositionMath.h"
+#include "../Visual/Geometry/PositionConstants.h"
+#include "../Visual/Geometry/PositionMath.h"
 #include "../Visual/Utils/DrawingConstants.h"
-#include "../Visual/Renderers/TrackRenderer.h"
+#include "../Visual/Art/TrackRenderer.h"
 
 class SceneRenderer;
 class AssetManager;

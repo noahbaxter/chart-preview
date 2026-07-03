@@ -17,10 +17,10 @@
 #include "../Midi/Utils/TimeConverter.h"
 #include "../Editor/AuthoringTypes.h"
 #include "Renderers/SceneRenderer.h"
-#include "Renderers/TrackRenderer.h"
+#include "Art/TrackRenderer.h"
 #include "Managers/AssetManager.h"
 #include "Utils/DrawingConstants.h"
-#include "Utils/HitTestMapper.h"
+#include "Geometry/HitTestMapper.h"
 
 class TrackImageCache;
 

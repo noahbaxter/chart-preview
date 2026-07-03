@@ -14,8 +14,8 @@
 
 #include <JuceHeader.h>
 #include "../../Utils/ChartTypes.h"
-#include "../Utils/PositionConstants.h"
-#include "../Utils/PositionMath.h"
+#include "../Geometry/PositionConstants.h"
+#include "../Geometry/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
 #include "HighwayRenderer.h"
 

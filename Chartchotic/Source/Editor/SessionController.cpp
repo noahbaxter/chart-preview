@@ -1,7 +1,7 @@
 #include "SessionController.h"
 #include "../PluginProcessor.h"
 #include "../Midi/InstrumentSession.h"
-#include "../Visual/Utils/PositionMath.h"
+#include "../Visual/Geometry/PositionMath.h"
 
 void SessionController::init(juce::ValueTree& st,
                               ToolbarComponent& tb,
