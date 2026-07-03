@@ -23,12 +23,12 @@ target_sources(render_harness PRIVATE
     ${SOURCE_ROOT}/Visual/Renderers/GridlineRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/AnimationRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/TextEventRenderer.cpp
-    ${SOURCE_ROOT}/Visual/Renderers/TrackRenderer.cpp
-    ${SOURCE_ROOT}/Visual/Renderers/ProceduralTrackArt.cpp
+    ${SOURCE_ROOT}/Visual/Art/TrackRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Art/ProceduralTrackArt.cpp
     ${SOURCE_ROOT}/Visual/Managers/AssetManager.cpp
-    ${SOURCE_ROOT}/Visual/Utils/PositionMath.cpp
-    ${SOURCE_ROOT}/Visual/Utils/RenderTypeConfig.cpp
-    ${SOURCE_ROOT}/Visual/Utils/HitTestMapper.cpp
+    ${SOURCE_ROOT}/Visual/Geometry/PositionMath.cpp
+    ${SOURCE_ROOT}/Visual/Geometry/RenderTypeConfig.cpp
+    ${SOURCE_ROOT}/Visual/Geometry/HitTestMapper.cpp
     ${SOURCE_ROOT}/Visual/Utils/FrameRenderer.cpp
 )
 

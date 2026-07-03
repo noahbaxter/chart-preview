@@ -4,7 +4,7 @@
 #include "../Midi/Utils/MidiConstants.h"
 #include "../UI/ControlConstants.h"
 #include "../Midi/Utils/TempoTimeSignatureEventHelper.h"
-#include "../Visual/Utils/PositionMath.h"
+#include "../Visual/Geometry/PositionMath.h"
 
 // Apply latency offset to raw cursor position.
 // In REAPER mode, uses the tempo map for accurate time-to-PPQ conversion

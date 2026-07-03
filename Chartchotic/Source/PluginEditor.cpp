@@ -10,7 +10,7 @@
 #include "PluginEditor.h"
 #include "Host/ReaperTrackDetector.h"
 #include "Midi/Processing/NoteProcessor.h"
-#include "Visual/Utils/PositionMath.h"
+#include "Visual/Geometry/PositionMath.h"
 
 // CI injects CHARTCHOTIC_VERSION_STRING with full version (e.g. 0.9.5-dev.20260226.abc1234)
 // Falls back to JucePlugin_VersionString from .jucer (base semver), then "dev" for unset builds

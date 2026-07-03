@@ -10,7 +10,7 @@
 */
 
 #include "GridlineRenderer.h"
-#include "../Utils/RenderTypeConfig.h"
+#include "../Geometry/RenderTypeConfig.h"
 #include "../Utils/Frame.h"
 #include "../Utils/FrameRenderer.h"
 #include "../../UI/Theme.h"
