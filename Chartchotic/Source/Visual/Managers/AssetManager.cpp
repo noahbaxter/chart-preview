@@ -426,16 +426,19 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
                 default:        return getCymWhiteImage();
                 }
             }
-            if (shouldBeWhite) return getNoteWhiteImage();
+            // Note lanes: a ghost uses the short HOPO glyph (same cue as 4-lane drums);
+            // normal and accent use the full note glyph (accent adds its chevron overlay).
+            const bool ghost = (gemWrapper.gem == Gem::HOPO_GHOST);
+            if (shouldBeWhite) return ghost ? getHopoWhiteImage() : getNoteWhiteImage();
             switch (style.tint)
             {
-            case T::Red:    return getNoteRedImage();
-            case T::Orange: return getNoteOrangeImage();
-            case T::Blue:   return getNoteBlueImage();
-            case T::Yellow: return getNoteYellowImage();
-            case T::Green:  return getNoteGreenImage();
+            case T::Red:    return ghost ? getHopoRedImage()    : getNoteRedImage();
+            case T::Orange: return ghost ? getHopoOrangeImage() : getNoteOrangeImage();
+            case T::Blue:   return ghost ? getHopoBlueImage()   : getNoteBlueImage();
+            case T::Yellow: return ghost ? getHopoYellowImage() : getNoteYellowImage();
+            case T::Green:  return ghost ? getHopoGreenImage()  : getNoteGreenImage();
             case T::Purple: return getOverlayNoteTapImage();       // placeholder: no purple note art yet
-            default:        return getNoteWhiteImage();
+            default:        return ghost ? getHopoWhiteImage()  : getNoteWhiteImage();
             }
         }
         if (gemColumn == 9) return shouldBeWhite ? getBarWhiteImage() : getBarKick2xImage();  // 2x Kick
