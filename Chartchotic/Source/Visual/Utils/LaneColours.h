@@ -45,3 +45,26 @@ namespace LaneColours
     inline juce::Colour dark   (const Lane& l) { return juce::Colour(l.dark); }
     inline juce::Colour bright (const Lane& l) { return juce::Colour(l.bright); }
 }
+
+// Structural / neutral render colours (highway backing, strikeline pad bevels, side
+// rails). Kept here so every colour in the renderer lives in ONE place — no inline
+// juce::Colour literals scattered through the drawing code. The juce::Colour is built
+// once, here; consumers just name the constant.
+namespace TrackColours
+{
+    inline const juce::Colour highwayFill     = juce::Colour(0xFF111111);  // highway backing fill
+    inline const juce::Colour sheenWhite      = juce::Colour(0x40FFFFFF);  // translucent white sheen
+    inline const juce::Colour debugPoly       = juce::Colour(0xFFFF0000);  // debug poly-shade overlay
+
+    // Strikeline pad bevel (TrackRenderer FretColour gradient stops)
+    inline const juce::Colour padBevelInner   = juce::Colour(0xFF8C8C8C);
+    inline const juce::Colour padBevelOuter   = juce::Colour(0xFF606060);
+    inline const juce::Colour padBevelDark    = juce::Colour(0xFF1A1A1A);
+    inline const juce::Colour padFallbackDark = juce::Colour(0xFF888888);  // unmapped lane
+    inline const juce::Colour padFallbackLite = juce::Colour(0xFFBBBBBB);
+
+    // Side rail bands (ProceduralTrackArt)
+    inline const juce::Colour railInner       = juce::Colour(0xFF404040);
+    inline const juce::Colour railLine        = juce::Colour(0xFF606060);
+    inline const juce::Colour railBlack       = juce::Colour(0xFF060606);
+}

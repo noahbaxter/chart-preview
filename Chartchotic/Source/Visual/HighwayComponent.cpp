@@ -547,8 +547,8 @@ void HighwayComponent::paint(juce::Graphics& g)
             marquee.lineTo(botLeft.leftX, botLeft.centerY);
             marquee.closeSubPath();
 
-            auto col = ov.marqueeErase ? juce::Colour(255, 80, 80)
-                                       : juce::Colour(100, 180, 255);
+            auto col = ov.marqueeErase ? AuthoringColours::marqueeErase
+                                       : AuthoringColours::marqueeSelect;
             g.setColour(col.withAlpha(0.15f));
             g.fillPath(marquee);
             g.setColour(col.withAlpha(0.5f));
