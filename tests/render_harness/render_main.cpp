@@ -151,9 +151,10 @@ static FakeScene makeEliteScene(float farEnd)
         beat += 1;                                  // extra gap between the normal and SP groups
     }
 
-    // Then the lanes: a roll/tremolo LANE on every hand lane (note + cymbal rolls), on-grid.
+    // Then the lanes: roll/tremolo LANES on a few separated columns (snare, tom1, ride) so
+    // each lane's column bounds are clear, plus the far-apart Tom 3 to exercise col 6.
     const int rollStart = beat + 2, rollEnd = rollStart + 4;
-    for (int lane = 1; lane <= 8; ++lane)
+    for (int lane : { 1, 5, 7 })
         s.sustains.push_back({ rollStart * BEAT, rollEnd * BEAT, (uint)lane,
                                SustainType::LANE, GemWrapper(gemFor(lane, NORMAL)) });
 
