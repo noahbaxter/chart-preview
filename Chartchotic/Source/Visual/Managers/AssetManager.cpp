@@ -39,6 +39,39 @@ namespace
         return out;
     }
 
+    // Greyscale tube master (bar_white) -> neon bar. Unlike a square gem (which has a
+    // silver frame to preserve, so it's saturation-masked), a bar is a solid glowing tube:
+    // its luminance drives a ramp from a dark edge, through the lane colour, up to a
+    // near-white hot core, reproducing the glow for ANY colour. Alpha is preserved.
+    juce::Image tintBarNeon(const juce::Image& greyMaster, const LaneColours::Lane& lane)
+    {
+        const juce::Colour d = LaneColours::dark(lane);
+        const juce::Colour b = LaneColours::bright(lane);
+        const int   n = 5;
+        const float rampL[n] = { 0.0f, 0.30f, 0.58f, 0.84f, 1.0f };
+        const juce::Colour rampC[n] = {
+            d.withMultipliedBrightness(0.35f), d, b, b.brighter(0.5f), juce::Colours::white };
+
+        juce::Image out = greyMaster.createCopy();
+        juce::Image::BitmapData bmp(out, juce::Image::BitmapData::readWrite);
+        for (int y = 0; y < bmp.height; ++y)
+            for (int x = 0; x < bmp.width; ++x)
+            {
+                auto px = bmp.getPixelColour(x, y);
+                float lum = 0.3f * px.getFloatRed() + 0.59f * px.getFloatGreen() + 0.11f * px.getFloatBlue();
+                juce::Colour c = rampC[n - 1];
+                for (int i = 1; i < n; ++i)
+                    if (lum <= rampL[i])
+                    {
+                        float f = (lum - rampL[i - 1]) / (rampL[i] - rampL[i - 1]);
+                        c = rampC[i - 1].interpolatedWith(rampC[i], f);
+                        break;
+                    }
+                bmp.setPixelColour(x, y, c.withAlpha(px.getFloatAlpha()));
+            }
+        return out;
+    }
+
     // Greyscale "smoke" master -> lane-coloured flare. A flare is an additive glow,
     // not metal: recolour by a simple luminance * colour multiply (keeping the soft
     // alpha falloff), the same recipe the old purple tap flare used, generalized to
@@ -76,10 +109,10 @@ void AssetManager::initAssets()
     // White (star power) is the untinted master. No per-colour bar PNGs.
     barWhiteImage = juce::ImageCache::getFromMemory(BinaryData::bar_white_png, BinaryData::bar_white_pngSize);
     {
-        const juce::Image barMaster = juce::ImageCache::getFromMemory(BinaryData::bar_kick_png, BinaryData::bar_kick_pngSize);
-        barKickImage   = recolorGem(barMaster, LaneColours::bright(LaneColours::kick));
-        barKick2xImage = recolorGem(barMaster, LaneColours::bright(LaneColours::kick2x));
-        barOpenImage   = recolorGem(barMaster, LaneColours::bright(LaneColours::purple));
+        // The greyscale bar_white tube drives the neon ramp for each bar colour.
+        barKickImage   = tintBarNeon(barWhiteImage, LaneColours::kick);
+        barKick2xImage = tintBarNeon(barWhiteImage, LaneColours::kick2x);
+        barOpenImage   = tintBarNeon(barWhiteImage, LaneColours::purple);
     }
 
     // Cymbals: one greyscale metallic master (the blue cymbal collapsed to luminance) drives
