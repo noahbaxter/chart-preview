@@ -148,6 +148,19 @@ public:
         }
     }
 
+    // Elite roll/tremolo lane pitch -> hand-lane column. Pitches 110 (kick) .. 118
+    // (R-crash) map linearly onto the same columns as getEliteDrumColumn (0..8); 109
+    // is unused and 108 (stomp/splash) has no rendered column yet. Pan-difficulty, so
+    // no skill normalisation. Returns INVALID_COLUMN for any non-roll pitch.
+    static uint getEliteRollLaneColumn(uint pitch)
+    {
+        using ED = MidiPitchDefinitions::EliteDrums;
+        if (pitch >= (uint)ED::ROLL_KICK && pitch <= (uint)ED::ROLL_RCRASH)
+            return pitch - (uint)ED::ROLL_KICK;   // 110..118 -> 0..8
+        return INVALID_COLUMN;
+    }
+    static bool isEliteRollLane(uint pitch) { return getEliteRollLaneColumn(pitch) != INVALID_COLUMN; }
+
     // Inverse of getGuitarColumn: given a lane the user clicked, return the
     // MIDI pitch to write. col 0 = open, col 1-5 = green/red/yellow/blue/orange.
     // Returns -1 for invalid (col, skill) combinations.
@@ -384,11 +397,11 @@ public:
 
         // Elite drums own the whole 72-82 note octave (kick..R-crash), which overlaps
         // guitar's MEDIUM_HOPO (77) / MEDIUM_STRUM (78) etc. Those are ELITE NOTES, not
-        // modifiers, so for elite only its genuine modifiers count. Star Power (104) is
-        // handled; flam/hat/roll-lane modifiers live in the upper octave / 108-118 and
-        // aren't parsed yet (they fall through as non-playable and are ignored).
+        // modifiers, so for elite only its genuine modifiers count: Star Power (104) and
+        // the roll/tremolo lanes (110-118). Flam/hi-hat modifiers (upper octave) are not
+        // parsed yet and fall through as non-playable.
         if (isElite)
-            return pitch == (uint)MidiPitchDefinitions::EliteDrums::SP;
+            return pitch == (uint)MidiPitchDefinitions::EliteDrums::SP || isEliteRollLane(pitch);
 
         // Guitar modifiers (all sustained)
         if (pitch == (uint)Guitar::SP ||

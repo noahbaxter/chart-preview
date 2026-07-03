@@ -91,6 +91,12 @@ struct MidiPitchDefinitions
     {
         SP = 104,   // Overdrive / Star Power / Unison (pan-difficulty)
 
+        // Roll/tremolo lanes (pan-difficulty). Expert-only unless velocity in [41,50] -> Hard too.
+        // 110 kick .. 118 R-crash map linearly to columns 0..8; 109 unused (no 2x-kick roll lane).
+        ROLL_RCRASH = 118, ROLL_RIDE = 117, ROLL_TOM3  = 116, ROLL_TOM2  = 115,
+        ROLL_TOM1   = 114, ROLL_LCRASH = 113, ROLL_HIHAT = 112, ROLL_SNARE = 111,
+        ROLL_KICK   = 110, ROLL_STOMP  = 108,
+
         EXPERT_RCRASH = 82, EXPERT_RIDE = 81, EXPERT_TOM3 = 80, EXPERT_TOM2 = 79,
         EXPERT_TOM1 = 78,   EXPERT_LCRASH = 77, EXPERT_HIHAT = 76, EXPERT_SNARE = 75,
         EXPERT_KICK = 74,   EXPERT_KICK_2X = 73,

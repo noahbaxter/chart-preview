@@ -61,7 +61,8 @@ SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
                     else if (pitch == (uint)Guitar::HARD_STRUM)    shared.modifiers.strumForce[2].push_back(range);
                     else if (pitch == (uint)Guitar::EXPERT_STRUM)  shared.modifiers.strumForce[3].push_back(range);
                     else if (pitch == (uint)Guitar::LANE_1 || pitch == (uint)Drums::LANE_1 ||
-                             pitch == (uint)Guitar::LANE_2 || pitch == (uint)Drums::LANE_2)
+                             pitch == (uint)Guitar::LANE_2 || pitch == (uint)Drums::LANE_2 ||
+                             (isElite && InstrumentMapper::isEliteRollLane(pitch)))
                     {
                         PPQ extStart = bemaniMode ? onPPQ : onPPQ - MIDI_LANE_EXTENSION_TIME;
                         auto onIt = nsm.find(onPPQ);
@@ -321,6 +322,7 @@ void TrackResolver::resolveLanes(PartWindow& result,
     using Guitar = MidiPitchDefinitions::Guitar;
     using Drums = MidiPitchDefinitions::Drums;
     bool isGuitar = isGuitarLike(cfg.part);
+    bool isElite = getRenderType(cfg.part) == RenderType::ELITE_DRUMS;
 
     for (auto& dc : diffs)
     {
@@ -331,6 +333,22 @@ void TrackResolver::resolveLanes(PartWindow& result,
             bool appliesToSkill = (dc.skill == SkillLevel::EXPERT) ||
                                   (dc.skill == SkillLevel::HARD && lane.laneVelocity >= 41 && lane.laneVelocity <= 50);
             if (!appliesToSkill) continue;
+
+            // Elite roll lanes carry their column in the pitch itself (110..118 -> 0..8),
+            // one lane per pitch, so map directly instead of inferring from underlying notes.
+            if (isElite)
+            {
+                uint col = InstrumentMapper::getEliteRollLaneColumn(lane.laneType);
+                if (col >= LANE_COUNT) continue;
+                SustainEvent laneEvent;
+                laneEvent.startPPQ = lane.startPPQ;
+                laneEvent.endPPQ = lane.endPPQ;
+                laneEvent.gemColumn = col;
+                laneEvent.sustainType = SustainType::LANE;
+                laneEvent.gemType = GemWrapper(Gem::NOTE, false);
+                sw.push_back(laneEvent);
+                continue;
+            }
 
             uint maxNotes = (lane.laneType == (uint8_t)Drums::LANE_2 ||
                              lane.laneType == (uint8_t)Guitar::LANE_2) ? 2u : 1u;

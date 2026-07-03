@@ -2,6 +2,7 @@
 
 using Guitar = MidiPitchDefinitions::Guitar;
 using Drums = MidiPitchDefinitions::Drums;
+using EliteDrums = MidiPitchDefinitions::EliteDrums;
 
 // ============================================================================
 // getGuitarColumn
@@ -285,5 +286,47 @@ TEST_CASE("InstrumentMapper - isModifier", "[instrument_mapper]")
         REQUIRE(InstrumentMapper::isModifier((uint)Guitar::EXPERT_RED) == false);
         REQUIRE(InstrumentMapper::isModifier((uint)Drums::EXPERT_KICK) == false);
         REQUIRE(InstrumentMapper::isModifier((uint)Drums::EXPERT_RED) == false);
+    }
+}
+
+// ============================================================================
+// getEliteRollLaneColumn / isEliteRollLane (elite roll/tremolo lanes 110..118)
+
+TEST_CASE("InstrumentMapper - getEliteRollLaneColumn", "[instrument_mapper][elite]")
+{
+    SECTION("roll pitches 110..118 map linearly to columns 0..8")
+    {
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_KICK)   == 0);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_SNARE)  == 1);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_HIHAT)  == 2);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_LCRASH) == 3);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_TOM1)   == 4);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_TOM2)   == 5);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_TOM3)   == 6);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_RIDE)   == 7);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_RCRASH) == 8);
+    }
+
+    SECTION("non-roll pitches return INVALID_COLUMN")
+    {
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn(109) == uint(-1));   // unused (no 2x-kick roll)
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_STOMP) == uint(-1)); // 108, no column yet
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::EXPERT_SNARE) == uint(-1));
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::SP) == uint(-1));
+    }
+
+    SECTION("isEliteRollLane matches the mapping")
+    {
+        REQUIRE(InstrumentMapper::isEliteRollLane((uint)EliteDrums::ROLL_KICK)   == true);
+        REQUIRE(InstrumentMapper::isEliteRollLane((uint)EliteDrums::ROLL_RCRASH) == true);
+        REQUIRE(InstrumentMapper::isEliteRollLane(109) == false);
+        REQUIRE(InstrumentMapper::isEliteRollLane((uint)EliteDrums::SP) == false);
+    }
+
+    SECTION("elite isModifier accepts SP and roll lanes, not notes")
+    {
+        REQUIRE(InstrumentMapper::isModifier((uint)EliteDrums::SP, true) == true);
+        REQUIRE(InstrumentMapper::isModifier((uint)EliteDrums::ROLL_TOM3, true) == true);
+        REQUIRE(InstrumentMapper::isModifier((uint)EliteDrums::EXPERT_LCRASH, true) == false); // 77 = elite note, not modifier
     }
 }
