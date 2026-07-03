@@ -18,7 +18,7 @@ void DebugTuningPanel::initTunableSliders(ScrollableLabel* labels, const DebugTu
         static const auto monoFont = juce::Font(juce::Font::getDefaultMonospacedFontName(), 13.0f, juce::Font::plain);
         labels[i].setFont(monoFont);
         if (t.featured)
-            labels[i].setColour(juce::Label::textColourId, juce::Colour(0xFF4FC3F7));
+            labels[i].setColour(juce::Label::textColourId, DebugColours::accent);
         auto fmtRow = [](const char* name, float v, int dec) {
             juce::String s;
             s << "  " << name;
@@ -230,7 +230,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     auto setupSubHeader = [](juce::Label& lbl, const juce::String& text) {
         lbl.setText(text, juce::dontSendNotification);
         lbl.setJustificationType(juce::Justification::centredLeft);
-        lbl.setColour(juce::Label::textColourId, juce::Colour(0xFFFF6B6B));
+        lbl.setColour(juce::Label::textColourId, DebugColours::warning);
         lbl.setFont(juce::Font(12.0f, juce::Font::bold));
     };
     setupSubHeader(bemaniGroupHeaders[0], "Position");
@@ -244,7 +244,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         if (t.featured)
         {
             bemaniLabels[i].setFont(juce::Font(13.0f).boldened());
-            bemaniLabels[i].setColour(juce::Label::textColourId, juce::Colour(0xFF4FC3F7));
+            bemaniLabels[i].setColour(juce::Label::textColourId, DebugColours::accent);
         }
         float& val = bemaniConfig.*t.field;
         bemaniLabels[i].setText(juce::String(t.name) + ": " + juce::String(val, t.decimals), juce::dontSendNotification);
@@ -1322,7 +1322,7 @@ void DebugTuningPanel::setupSectionHeader(SectionHeader& header, const juce::Str
 {
     header.setTitle(text.toUpperCase());
     header.setJustificationType(juce::Justification::centredLeft);
-    header.setColour(juce::Label::textColourId, juce::Colour(0xFF4FC3F7));
+    header.setColour(juce::Label::textColourId, DebugColours::accent);
     header.setFont(juce::Font(14.0f).boldened());
     header.setInterceptsMouseClicks(true, true);
     header.onToggle = [this]() {

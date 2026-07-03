@@ -14,6 +14,13 @@
 class SceneRenderer;
 class AssetManager;
 
+// Debug-panel chrome colours (kept as named constants — no inline hex in the panel).
+namespace DebugColours
+{
+    static const juce::Colour accent  = juce::Colour(0xFF4FC3F7);  // section header / label blue
+    static const juce::Colour warning = juce::Colour(0xFFFF6B6B);  // warning label red
+}
+
 // Universal descriptor for a single debug tuning slider
 struct DebugTunable
 {
