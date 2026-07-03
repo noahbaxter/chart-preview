@@ -27,12 +27,6 @@ AnimationRenderer::~AnimationRenderer()
 {
 }
 
-uint AnimationRenderer::resolveLaneIndex(uint gemColumn) const
-{
-    uint idx = isGuitarLike(activePart) ? gemColumn : drumColumnIndex(gemColumn, activePart);
-    return (idx < laneCount) ? idx : 1u;
-}
-
 //==============================================================================
 // Helper: Trigger animation for a specific gem column
 
@@ -136,11 +130,9 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
                                              float posEnd,
                                              float strikePos)
 {
-    cachedWidth = width;
-    cachedHeight = height;
+    setFrame(activePart, width, height, posEnd);
 
     const auto& animations = animationManager.getActiveAnimations();
-    const auto* config = getRenderTypeConfig(getRenderType(activePart));
     float resScale = (float)height / PositionConstants::REFERENCE_HEIGHT;
 
     for (const auto& anim : animations)
@@ -150,7 +142,7 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
         if (anim.isBar)
         {
             uint column = anim.is2xKick ? 6 : 0;
-            CoordinateOffset offset = config->animOffsets[0];
+            CoordinateOffset offset = currentConfig->animOffsets[0];
             offset.xOffset *= resScale;
             offset.yOffset *= resScale;
 
@@ -160,7 +152,7 @@ void AnimationRenderer::renderToDrawCallMap(DrawCallMap& drawCallMap, uint width
         }
         else
         {
-            CoordinateOffset offset = config->animOffsets[anim.lane];
+            CoordinateOffset offset = currentConfig->animOffsets[anim.lane];
             offset.xOffset *= resScale;
             offset.yOffset *= resScale;
 
@@ -177,7 +169,6 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
     float strikelinePosition = strikePos;
     bool isGuitar = isGuitarLike(activePart);
     bool isDrums = !isGuitar;
-    const auto* config = getRenderTypeConfig(getRenderType(activePart));
 
     bool useWhiteSP = anim.starPower && hitTypeConfig.spWhiteFlare;
 
@@ -200,7 +191,7 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
 
         if (PositionMath::bemaniMode)
         {
-            edge = PositionMath::getFretboardEdge(getRenderType(activePart), strikelinePosition, cachedWidth, cachedHeight,
+            edge = PositionMath::getFretboardEdge(getRenderType(activePart), strikelinePosition, width, height,
                        PositionConstants::HIGHWAY_POS_START, posEnd);
             // Use the bar note glyph aspect ratio (not the animation frame aspect)
             // to match NoteRenderer sizing exactly
@@ -211,7 +202,7 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
                 ? (float)noteGlyph->getWidth() / (float)noteGlyph->getHeight()
                 : imageAspect;
             auto kickRect = PositionMath::computeBemaniBarRect(
-                isDrums, strikelinePosition, cachedWidth, cachedHeight,
+                isDrums, strikelinePosition, width, height,
                 posEnd, PositionConstants::BAR_SIZE, noteAspect);
 
             // Match NoteRenderer: user barScale
@@ -224,8 +215,8 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
                 kickRect.getHeight() * bh * userScale * offset.heightScale
             );
             // Center on the strikeline pad, then apply hit bar nudge
-            float padY = (float)cachedHeight * bemaniConfig.strikelinePos;
-            kickRect.translate(offset.xOffset, offset.yOffset + (padY - kickRect.getCentreY()) + kickRect.getHeight() * config->bemaniHitBarNudge());
+            float padY = (float)height * bemaniConfig.strikelinePos;
+            kickRect.translate(offset.xOffset, offset.yOffset + (padY - kickRect.getCentreY()) + kickRect.getHeight() * currentConfig->bemaniHitBarNudge());
 
             g.setOpacity(1.0f);
             g.drawImage(*animFrame, kickRect);
@@ -243,8 +234,8 @@ void AnimationRenderer::renderKickAnimation(juce::Graphics &g, const AnimationCo
         else
         {
             edge = getColumnEdge(strikelinePosition, colCoords, PositionConstants::BAR_SIZE,
-                                 posEnd, PositionConstants::FRETBOARD_SCALE, -1);
-            auto perspParams = config->getPerspectiveParams();
+                                 PositionConstants::FRETBOARD_SCALE, -1);
+            auto perspParams = currentConfig->getPerspectiveParams();
             float colWidth = edge.rightX - edge.leftX;
             float colHeight = colWidth / perspParams.barNoteHeightRatio;
             juce::Rectangle<float> kickRect(edge.leftX, edge.centerY - colHeight * 0.5f + hitBarZOffset, colWidth, colHeight);
@@ -279,7 +270,6 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     bool isGuitar = isGuitarLike(activePart);
     bool isDrums = !isGuitar;
     Part currentPart = isGuitar ? Part::GUITAR : Part::DRUMS;
-    const auto* config = getRenderTypeConfig(getRenderType(activePart));
 
     auto hitFrame = assetManager.getHitAnimationFrame(anim.currentFrame);
 
@@ -299,8 +289,8 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     float sizeScale = barNote ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
     int bemaniIdx = barNote ? -1 : ((int)colIdx - 1);
     auto edge = getColumnEdge(strikelinePosition, colCoords, sizeScale,
-                               posEnd, PositionConstants::FRETBOARD_SCALE, bemaniIdx);
-    auto perspParams = config->getPerspectiveParams();
+                               PositionConstants::FRETBOARD_SCALE, bemaniIdx);
+    auto perspParams = currentConfig->getPerspectiveParams();
     float colWidth = edge.rightX - edge.leftX;
     float colHeight = colWidth / (barNote ? perspParams.barNoteHeightRatio : perspParams.regularNoteHeightRatio);
 
@@ -315,7 +305,7 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     float arcOffset = 0.0f;
     if (noteCurvature != 0.0f && !barNote)
     {
-        const auto& fbCoords = *config->fretboardCoords;
+        const auto& fbCoords = *currentConfig->fretboardCoords;
         float dist = PositionMath::columnDistFromCenter(fbCoords, colCoords);
         float fbWidthPx = colWidth * (fbCoords.normWidth1 / colCoords.normWidth1);
         arcOffset = fbWidthPx * noteCurvature * (1.0f - dist * dist);
@@ -350,7 +340,7 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
         // Center on the strikeline pad, then apply the same Y nudge the gem
         // received in NoteRenderer::drawGemBemani so the hit lands where the
         // gem sat (cymbals tracked separately from toms).
-        float padY = (float)cachedHeight * bemaniConfig.strikelinePos;
+        float padY = (float)height * bemaniConfig.strikelinePos;
         bool isCymbalGem = isDrums && (anim.gemType == Gem::CYM
                                        || anim.gemType == Gem::CYM_GHOST
                                        || anim.gemType == Gem::CYM_ACCENT);

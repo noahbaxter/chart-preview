@@ -107,15 +107,9 @@ void NoteRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow
 {
     hitBoxes.clear();
     currentDrawCallMap = &drawCallMap;
-    currentConfig = getRenderTypeConfig(getRenderType(activePart));
+    setFrame(activePart, width, height, posEnd, farFadeEnd, farFadeLen, farFadeCurve);
     currentVpDepth = currentConfig->getPerspectiveParams().vanishingPointDepth;
     currentNoteCurvature = isDrumLike(activePart) ? noteCurvatureDrums : noteCurvatureGuitar;
-    this->width = width;
-    this->height = height;
-    this->posEnd = posEnd;
-    this->farFadeEnd = farFadeEnd;
-    this->farFadeLen = farFadeLen;
-    this->farFadeCurve = farFadeCurve;
 
     double windowTimeSpan = windowEndTime - windowStartTime;
     bool hitAnimationsOn = state.getProperty("hitIndicators");
@@ -583,14 +577,6 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
     else if (bemaniClipHalf == Render::ClipHalf::Right)
         hbRect = hbRect.withX(hbRect.getCentreX()).withWidth(hbRect.getWidth() * 0.5f);
     hitBoxes.push_back({ (int)gemColumn, frameTime, hbRect });
-}
-
-uint NoteRenderer::resolveLaneIndex(uint gemColumn) const
-{
-    // Guitar columns map straight through; drums remap the kick/2x virtual column. Bounded
-    // to the active lane count so any highway (any number of lanes) is handled generically.
-    uint idx = isGuitarLike(activePart) ? gemColumn : drumColumnIndex(gemColumn, activePart);
-    return (idx < laneCount) ? idx : 1u;
 }
 
 float NoteRenderer::getColumnDistFromCenter(int column, bool isDrums)

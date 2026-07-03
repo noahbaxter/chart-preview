@@ -25,20 +25,13 @@ void SustainRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedSustainW
                                uint width, uint height, bool showLanes, bool showSustains,
                                float posEnd,
                                float farFadeEnd, float farFadeLen, float farFadeCurve,
-                               const NormalizedCoordinates* laneCoords, size_t laneCount)
+                               const NormalizedCoordinates* laneCoords)
 {
     currentDrawCallMap = &drawCallMap;
-    currentConfig = getRenderTypeConfig(getRenderType(activePart));
-    this->width = width;
-    this->height = height;
     this->showLanes = showLanes;
     this->showSustains = showSustains;
-    this->posEnd = posEnd;
-    this->farFadeEnd = farFadeEnd;
-    this->farFadeLen = farFadeLen;
-    this->farFadeCurve = farFadeCurve;
     this->laneCoords = laneCoords;
-    this->laneCount = laneCount;
+    setFrame(activePart, width, height, posEnd, farFadeEnd, farFadeLen, farFadeCurve);
 
     for (const auto& sustain : sustainWindow)
     {
@@ -155,12 +148,6 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     (*currentDrawCallMap)[static_cast<int>(sustainDrawOrder)][sustain.gemColumn].push_back([=](juce::Graphics& g) {
         this->drawSustainBody(g, sustain.gemColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane);
     });
-}
-
-uint SustainRenderer::resolveLaneIndex(uint gemColumn) const
-{
-    uint idx = isGuitarLike(activePart) ? gemColumn : drumColumnIndex(gemColumn, activePart);
-    return (idx < laneCount) ? idx : 1u;
 }
 
 void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane)
