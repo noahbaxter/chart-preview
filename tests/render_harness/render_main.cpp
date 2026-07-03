@@ -154,7 +154,7 @@ static FakeScene makeEliteScene(float farEnd)
     // Then the lanes: roll/tremolo LANES on a few separated columns (snare, tom1, ride) so
     // each lane's column bounds are clear, plus the far-apart Tom 3 to exercise col 6.
     const int rollStart = beat + 2, rollEnd = rollStart + 4;
-    for (int lane : { 1, 5, 7 })
+    for (int lane = 1; lane <= 8; ++lane)
         s.sustains.push_back({ rollStart * BEAT, rollEnd * BEAT, (uint)lane,
                                SustainType::LANE, GemWrapper(gemFor(lane, NORMAL)) });
 
