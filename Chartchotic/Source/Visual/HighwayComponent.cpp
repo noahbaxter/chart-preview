@@ -881,7 +881,7 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
                                      (uint)juce::jmax(0, renderWidth),
                                      (uint)juce::jmax(0, renderHeight),
                                      frameData.windowStartTime, frameData.windowEndTime,
-                                     isDrums, sceneRenderer.farFadeEnd);
+                                     activePart, sceneRenderer.farFadeEnd);
 
     outPoint.screenPos = local;
     if (hit.valid && hit.laneIndex >= 0)
@@ -915,7 +915,7 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
                                             (uint)juce::jmax(0, renderWidth),
                                             (uint)juce::jmax(0, renderHeight),
                                             frameData.windowStartTime, frameData.windowEndTime,
-                                            isDrums, sceneRenderer.farFadeEnd);
+                                            activePart, sceneRenderer.farFadeEnd);
         outPoint.rawProjectQN = secondsToProjectQN(barHit.timeFromCursor);
     }
     else

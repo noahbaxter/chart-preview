@@ -11,6 +11,7 @@
 
 #include "HitTestMapper.h"
 #include "PositionConstants.h"
+#include "RenderTypeConfig.h"
 #include "../../Utils/ChartTypes.h"
 #include "BemaniConfig.h"
 
@@ -23,13 +24,13 @@ using namespace PositionConstants;
 HitTestResult HitTestMapper::hitTest(float screenX, float screenY,
                                      uint viewportWidth, uint viewportHeight,
                                      double windowStartTime, double windowEndTime,
-                                     bool isDrums, float farFadeEnd,
+                                     Part activePart, float farFadeEnd,
                                      float fretboardScale) const
 {
     HitTestResult result;
 
     float position = invertYToPosition(screenY, viewportWidth, viewportHeight,
-                                       isDrums, farFadeEnd);
+                                       activePart, farFadeEnd);
 
     // Clamp at the visible highway bottom (HIGHWAY_POS_START).
     // Negative positions are valid — they're "in front of" the strikeline.
@@ -41,7 +42,7 @@ HitTestResult HitTestMapper::hitTest(float screenX, float screenY,
     result.normalizedPosition = position;
     result.timeFromCursor = (double)position * windowTimeSpan + windowStartTime;
     result.laneIndex = identifyLane(screenX, position, viewportWidth, viewportHeight,
-                                    isDrums, fretboardScale);
+                                    activePart, fretboardScale);
     result.valid = true;
 
     return result;
@@ -91,15 +92,13 @@ static float invertYBemani(float screenY, uint viewportHeight, float farFadeEnd)
 // =============================================================================
 
 static float invertYPerspective(float screenY, uint viewportWidth, uint viewportHeight,
-                                bool isDrums, float farFadeEnd)
+                                Part activePart, float farFadeEnd)
 {
-#ifdef DEBUG
-    const auto& pp = PositionMath::perspParams(isDrums);
-#else
-    auto pp = getPerspectiveParams(isDrums);
-#endif
-
-    const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+    // Perspective + fretboard come from the part's render config (getPerspectiveParams()
+    // already handles DEBUG live-tuning vs RELEASE), so this matches the forward render.
+    const auto* config = getRenderTypeConfig(getRenderType(activePart));
+    auto pp = config->getPerspectiveParams();
+    const auto& fbCoords = *config->fretboardCoords;
 
     // Compute k (same as forward path)
     float expDenom = std::pow(10.0f, pp.exponentialCurve) - 1.0f;
@@ -144,12 +143,12 @@ static float invertYPerspective(float screenY, uint viewportWidth, uint viewport
 // =============================================================================
 
 float HitTestMapper::invertYToPosition(float screenY, uint viewportWidth, uint viewportHeight,
-                                       bool isDrums, float farFadeEnd) const
+                                       Part activePart, float farFadeEnd) const
 {
     if (PositionMath::bemaniMode)
         return invertYBemani(screenY, viewportHeight, farFadeEnd);
     else
-        return invertYPerspective(screenY, viewportWidth, viewportHeight, isDrums, farFadeEnd);
+        return invertYPerspective(screenY, viewportWidth, viewportHeight, activePart, farFadeEnd);
 }
 
 // =============================================================================
@@ -158,14 +157,20 @@ float HitTestMapper::invertYToPosition(float screenY, uint viewportWidth, uint v
 
 int HitTestMapper::identifyLane(float screenX, float position,
                                 uint viewportWidth, uint viewportHeight,
-                                bool isDrums, float fretboardScale) const
+                                Part activePart, float fretboardScale) const
 {
-    int numLanes = isDrums ? (int)DRUM_LANE_COUNT : (int)GUITAR_LANE_COUNT;
-    const auto* laneCoords = isDrums ? drumBezierLaneCoords : guitarBezierLaneCoords;
+    // Lane count + coords come from the part's render config -- the SAME source the
+    // renderers use -- so any highway (any number of lanes) is handled generically and a
+    // lane's click zone is exactly the column it renders in.
+    const RenderType rt = getRenderType(activePart);
+    const auto* config = getRenderTypeConfig(rt);
+    const int numLanes = (int)config->laneCount;
+    const auto* laneCoords = config->bezierLaneCoords;
+    const bool isDrums = isDrumLike(activePart);
 
-    // Outside fretboard — left = open/kick, right = last lane (or 2x kick)
+    // Outside fretboard — left = open/kick, right = last lane (or the 2x-kick column).
     auto fbEdge = PositionMath::getFretboardEdge(
-        isDrums, position, viewportWidth, viewportHeight,
+        rt, position, viewportWidth, viewportHeight,
         HIGHWAY_POS_START, HIGHWAY_POS_END);
 
     if (screenX < fbEdge.leftX)
@@ -174,8 +179,8 @@ int HitTestMapper::identifyLane(float screenX, float position,
     if (screenX > fbEdge.rightX)
     {
         if (isDrums)
-            return DRUM_KICK_2X_COLUMN;
-        return (int)GUITAR_LANE_COUNT - 1;
+            return activePart == Part::ELITE_DRUMS ? ELITE_KICK_2X_COLUMN : DRUM_KICK_2X_COLUMN;
+        return numLanes - 1;
     }
 
     // Right-to-left: left of lane N's left edge = lane N-1, etc.
@@ -183,7 +188,7 @@ int HitTestMapper::identifyLane(float screenX, float position,
     for (int i = numLanes - 1; i >= 1; i--)
     {
         auto corners = PositionMath::getColumnPosition(
-            isDrums, position, viewportWidth, viewportHeight,
+            rt, position, viewportWidth, viewportHeight,
             HIGHWAY_POS_START, HIGHWAY_POS_END,
             laneCoords[i], GEM_SIZE, fretboardScale,
             PositionMath::bemaniMode ? i : -1);
