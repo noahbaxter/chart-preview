@@ -63,6 +63,10 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
     float strikeHeight = (perspParams.barNoteHeightRatio > 0.0f)
                        ? (strikeWidth / perspParams.barNoteHeightRatio)
                        : strikeWidth;
+    // Elite renders into a wider canvas (boardWidthScale), which would make the full-width
+    // gridline proportionally thicker too. Gridlines should stretch WIDER, not thicker, so
+    // divide the thickness back down (1.0 for non-widened guitar / 4-lane types).
+    strikeHeight /= config->boardWidthScale;
 
     double windowTimeSpan = windowEndTime - windowStartTime;
 
