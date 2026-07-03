@@ -25,7 +25,8 @@ HitTestResult HitTestMapper::hitTest(float screenX, float screenY,
                                      uint viewportWidth, uint viewportHeight,
                                      double windowStartTime, double windowEndTime,
                                      Part activePart, float farFadeEnd,
-                                     float fretboardScale) const
+                                     float fretboardScale,
+                                     const PositionConstants::NormalizedCoordinates* laneCoords) const
 {
     HitTestResult result;
 
@@ -42,7 +43,7 @@ HitTestResult HitTestMapper::hitTest(float screenX, float screenY,
     result.normalizedPosition = position;
     result.timeFromCursor = (double)position * windowTimeSpan + windowStartTime;
     result.laneIndex = identifyLane(screenX, position, viewportWidth, viewportHeight,
-                                    activePart, fretboardScale);
+                                    activePart, fretboardScale, laneCoords);
     result.valid = true;
 
     return result;
@@ -157,15 +158,17 @@ float HitTestMapper::invertYToPosition(float screenY, uint viewportWidth, uint v
 
 int HitTestMapper::identifyLane(float screenX, float position,
                                 uint viewportWidth, uint viewportHeight,
-                                Part activePart, float fretboardScale) const
+                                Part activePart, float fretboardScale,
+                                const PositionConstants::NormalizedCoordinates* laneCoordsOverride) const
 {
-    // Lane count + coords come from the part's render config -- the SAME source the
-    // renderers use -- so any highway (any number of lanes) is handled generically and a
-    // lane's click zone is exactly the column it renders in.
+    // Lane count comes from the part's render config. Lane coords come from the caller's
+    // (debug-tunable) source when supplied -- the SAME array the renderers use -- so a
+    // lane's click zone stays exactly the column it renders in, even under debug tuning.
+    // Falls back to the config's const coords when no override is passed.
     const RenderType rt = getRenderType(activePart);
     const auto* config = getRenderTypeConfig(rt);
     const int numLanes = (int)config->laneCount;
-    const auto* laneCoords = config->bezierLaneCoords;
+    const auto* laneCoords = laneCoordsOverride ? laneCoordsOverride : config->bezierLaneCoords;
     const bool isDrums = isDrumLike(activePart);
 
     // Outside fretboard — left = open/kick, right = last lane (or the 2x-kick column).

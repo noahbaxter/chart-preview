@@ -877,11 +877,18 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
 #endif
 
     bool isDrums = isDrumLike(activePart);
+    bool isElite = getRenderType(activePart) == RenderType::ELITE_DRUMS;
+    // Hit-test against the SAME (debug-tunable) lane coords the renderers use, so click
+    // zones can't drift from the rendered columns when the debug panel nudges coords.
+    const PositionConstants::NormalizedCoordinates* activeHitCoords =
+        isElite ? sceneRenderer.eliteDrumLaneCoordsLocal
+                : isDrums ? sceneRenderer.drumLaneCoordsLocal : sceneRenderer.guitarLaneCoordsLocal;
     auto hit = hitTestMapper.hitTest(renderPt.x, hitY,
                                      (uint)juce::jmax(0, renderWidth),
                                      (uint)juce::jmax(0, renderHeight),
                                      frameData.windowStartTime, frameData.windowEndTime,
-                                     activePart, sceneRenderer.farFadeEnd);
+                                     activePart, sceneRenderer.farFadeEnd,
+                                     PositionConstants::FRETBOARD_SCALE, activeHitCoords);
 
     outPoint.screenPos = local;
     if (hit.valid && hit.laneIndex >= 0)
@@ -915,7 +922,8 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
                                             (uint)juce::jmax(0, renderWidth),
                                             (uint)juce::jmax(0, renderHeight),
                                             frameData.windowStartTime, frameData.windowEndTime,
-                                            activePart, sceneRenderer.farFadeEnd);
+                                            activePart, sceneRenderer.farFadeEnd,
+                                            PositionConstants::FRETBOARD_SCALE, activeHitCoords);
         outPoint.rawProjectQN = secondsToProjectQN(barHit.timeFromCursor);
     }
     else
