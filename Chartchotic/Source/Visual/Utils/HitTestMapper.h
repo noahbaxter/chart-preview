@@ -39,12 +39,17 @@ public:
      *                             render config, so any highway (any lane count) hit-tests right.
      *  @param farFadeEnd          Highway length (farFadeEnd from SceneRenderer)
      *  @param fretboardScale      Fretboard width scale (FRETBOARD_SCALE or debug override)
+     *  @param laneCoords          The active highway's lane coords. Pass the SAME
+     *                             (debug-tunable) source the renderers use so click
+     *                             zones track the rendered columns under debug tuning.
+     *                             null falls back to the render config's const coords.
      */
     HitTestResult hitTest(float screenX, float screenY,
                           uint viewportWidth, uint viewportHeight,
                           double windowStartTime, double windowEndTime,
                           Part activePart, float farFadeEnd,
-                          float fretboardScale = PositionConstants::FRETBOARD_SCALE) const;
+                          float fretboardScale = PositionConstants::FRETBOARD_SCALE,
+                          const PositionConstants::NormalizedCoordinates* laneCoords = nullptr) const;
 
 private:
     /** Invert the Y coordinate to get normalized position (0=strike, positive=far end).
@@ -57,5 +62,6 @@ private:
      *  use, so the click zone for a lane is exactly the area that lane renders in. */
     int identifyLane(float screenX, float position,
                      uint viewportWidth, uint viewportHeight,
-                     Part activePart, float fretboardScale) const;
+                     Part activePart, float fretboardScale,
+                     const PositionConstants::NormalizedCoordinates* laneCoordsOverride) const;
 };
