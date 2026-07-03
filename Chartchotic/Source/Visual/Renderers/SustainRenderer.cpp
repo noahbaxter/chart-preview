@@ -154,7 +154,9 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
 {
     bool isDrums = isDrumLike(activePart);
     const auto* config = currentConfig;
-    bool isBar = isBarNote(gemColumn, isDrums ? Part::DRUMS : Part::GUITAR);
+    // Guitar-like keeps GUITAR bar semantics (bar = col 0); drums pass the real
+    // part so elite's kick columns (0 and the 2x virtual col) resolve correctly.
+    bool isBar = isBarNote(gemColumn, isDrums ? activePart : Part::GUITAR);
 
     // Look up lane coords
     NormalizedCoordinates colCoords;
