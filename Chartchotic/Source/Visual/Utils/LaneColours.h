@@ -33,14 +33,14 @@ namespace LaneColours
     constexpr Lane red    { 0xFFA91E1A, 0xFFEB1C22 };
     constexpr Lane yellow { 0xFF987F0B, 0xFFFFD800 };
     constexpr Lane blue   { 0xFF0D447F, 0xFF1678E4 };
-    constexpr Lane green  { 0xFF226D2C, 0xFF36B047 };
-    constexpr Lane orange { 0xFFA85A14, 0xFFE88A20 };
+    constexpr Lane green  { 0xFF145A20, 0xFF1FA838 };   // deepened to match baked art (was 226D2C/36B047)
+    constexpr Lane orange { 0xFF8A4A08, 0xFFE97500 };   // purer, less amber (was A85A14/E88A20)
     constexpr Lane purple { 0xFF5B2A8C, 0xFFAF3EE6 };   // bright = vivid open-bar purple
     constexpr Lane white  { 0xFFAEAEAE, 0xFFEAEAEA };
 
     // Kick / bar tube colours (tint the greyscale bar master). Open bars reuse `purple`.
-    constexpr Lane kick   { 0xFFA8641A, 0xFFE8901E };   // kick bar: amber
-    constexpr Lane kick2x { 0xFFA8391A, 0xFFE8501C };   // 2x-kick bar: distinct red-orange cue
+    constexpr Lane kick   { 0xFF8A3D06, 0xFFF16E0B };   // kick bar: red amber (baked art)
+    constexpr Lane kick2x { 0xFF8A2806, 0xFFF14A0B };   // 2x-kick bar: distinct redder cue
 
     inline juce::Colour dark   (const Lane& l) { return juce::Colour(l.dark); }
     inline juce::Colour bright (const Lane& l) { return juce::Colour(l.bright); }
