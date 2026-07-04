@@ -11,6 +11,7 @@
 #include "AssetManager.h"
 #include "../Geometry/PositionConstants.h"
 #include "../Utils/LaneColours.h"
+#include "../Art/BarGemArt.h"
 
 namespace
 {
@@ -74,12 +75,17 @@ void AssetManager::initAssets()
     // Bars: one greyscale tube master (bar_white) tinted per bar type. Kick = amber,
     // 2x kick = a distinct red-orange (gameplay cue), open = the shared open/purple.
     // White (star power) is the untinted master. No per-colour bar PNGs.
-    barWhiteImage = juce::ImageCache::getFromMemory(BinaryData::bar_white_png, BinaryData::bar_white_pngSize);
+    // Bars are procedurally baked from the tube geometry measured off the original art
+    // (BarGemArt): a glossy arc-bent tube + tilted end caps, with the vertical colour ramp
+    // sampled per bar from the source PNGs. Pixel-faithful and resolution-independent -- the
+    // 2432x152 bake is scaled to the highway width at draw time, so it renders at any length.
     {
-        const juce::Image barMaster = juce::ImageCache::getFromMemory(BinaryData::bar_kick_png, BinaryData::bar_kick_pngSize);
-        barKickImage   = recolorGem(barMaster, LaneColours::bright(LaneColours::kick));
-        barKick2xImage = recolorGem(barMaster, LaneColours::bright(LaneColours::kick2x));
-        barOpenImage   = recolorGem(barMaster, LaneColours::bright(LaneColours::purple));
+        const auto canvas  = GemArt::barCanvas();
+        const auto content = GemArt::barContentBounds();
+        barWhiteImage  = GemArt::bakeBar(GemArt::barRampWhite(),  canvas, content);
+        barKickImage   = GemArt::bakeBar(GemArt::barRampKick(),   canvas, content);
+        barKick2xImage = GemArt::bakeBar(GemArt::barRampKick2x(), canvas, content);
+        barOpenImage   = GemArt::bakeBar(GemArt::barRampOpen(),   canvas, content);
     }
 
     // Cymbals: one greyscale metallic master (the blue cymbal collapsed to luminance) drives

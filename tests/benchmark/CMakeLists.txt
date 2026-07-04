@@ -22,6 +22,7 @@ target_sources(bench_rendering PRIVATE
     ${SOURCE_ROOT}/Visual/Renderers/GridlineRenderer.cpp
     ${SOURCE_ROOT}/Visual/Art/TrackRenderer.cpp
     ${SOURCE_ROOT}/Visual/Managers/AssetManager.cpp
+    ${SOURCE_ROOT}/Visual/Art/BarGemArt.cpp
     ${SOURCE_ROOT}/Visual/Geometry/PositionMath.cpp
     ${SOURCE_ROOT}/Midi/Processing/MidiInterpreter.cpp
     ${SOURCE_ROOT}/Midi/Utils/ChordAnalyzer.cpp
@@ -167,6 +168,7 @@ target_sources(bench_pipeline PRIVATE
     ${SOURCE_ROOT}/Visual/Renderers/TextEventRenderer.cpp
     ${SOURCE_ROOT}/Visual/Art/TrackRenderer.cpp
     ${SOURCE_ROOT}/Visual/Managers/AssetManager.cpp
+    ${SOURCE_ROOT}/Visual/Art/BarGemArt.cpp
     ${SOURCE_ROOT}/Visual/HighwayComponent.cpp
     ${SOURCE_ROOT}/UI/LookAndFeel/ChartchoticLookAndFeel.cpp
 )
