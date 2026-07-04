@@ -200,6 +200,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Visual/Art/TrackRenderer.cpp
 
         Chartchotic/Source/Visual/Art/ProceduralTrackArt.cpp
+        Chartchotic/Source/Visual/Art/BarGemArt.cpp
+        Chartchotic/Source/Visual/Art/BarGemArt.h
         Chartchotic/Source/Visual/Art/TrackRenderer.h
         Chartchotic/Source/Visual/HighwayComponent.cpp
         Chartchotic/Source/Visual/HighwayComponent.h
