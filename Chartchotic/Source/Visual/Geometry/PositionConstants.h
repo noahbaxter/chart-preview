@@ -429,7 +429,7 @@ namespace PositionConstants
     //==============================================================================
     // Gem/bar base scales (ElementScale: width, height) — per-instrument
     constexpr ElementScale GUITAR_GEM_SCALE = {0.9f, 1.035f};   // 0.9 × {1.0, 1.15}
-    constexpr ElementScale GUITAR_BAR_SCALE = {1.10f, 1.10f};
+    constexpr ElementScale GUITAR_BAR_SCALE = {1.06f, 1.10f};   // width trimmed so the open bar clears the side rails
     constexpr ElementScale DRUM_GEM_SCALE   = {0.9f, 1.035f};   // matches guitar
     constexpr ElementScale DRUM_BAR_SCALE   = {1.05f, 1.05f};
     // Legacy single-value aliases (still referenced by SceneRenderer/DebugTuningPanel)
