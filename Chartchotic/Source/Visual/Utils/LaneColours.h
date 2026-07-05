@@ -33,7 +33,7 @@ namespace LaneColours
     constexpr Lane red    { 0xFFA91E1A, 0xFFEB1C22 };
     constexpr Lane yellow { 0xFF987F0B, 0xFFFFD800 };
     constexpr Lane blue   { 0xFF0D447F, 0xFF1678E4 };
-    constexpr Lane green  { 0xFF145A20, 0xFF1FA838 };   // deepened to match baked art (was 226D2C/36B047)
+    constexpr Lane green  { 0xFF226D2C, 0xFF36B047 };   // softer/less-saturated (reverted from the deepened 145A20/1FA838, which read too neon on the metallic cymbals)
     constexpr Lane orange { 0xFF8A4A08, 0xFFE97500 };   // purer, less amber (was A85A14/E88A20)
     constexpr Lane purple { 0xFF5B2A8C, 0xFFAF3EE6 };   // bright = vivid open-bar purple
     constexpr Lane white  { 0xFFAEAEAE, 0xFFEAEAEA };
