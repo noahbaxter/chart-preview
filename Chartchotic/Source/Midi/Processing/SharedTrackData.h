@@ -34,6 +34,8 @@ struct ModifierRanges {
     std::vector<ModifierRange> tomYellow;
     std::vector<ModifierRange> tomBlue;
     std::vector<ModifierRange> tomGreen;
+    std::array<std::vector<ModifierRange>, 4> hihatPedal;        // elite: Pedal Down under Yellow => Closed hat (indexed by SkillLevel)
+    std::array<std::vector<ModifierRange>, 4> hihatIndifferent;  // elite: Indifferent marker over Yellow => Indifferent hat
 
     static bool isActiveAt(const std::vector<ModifierRange>& ranges, PPQ position)
     {

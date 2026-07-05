@@ -84,12 +84,19 @@ struct MidiPitchDefinitions
     };
 
     // Elite Drums (PART ELITE_DRUMS). Lower octave = gem placement; each lower
-    // difficulty is a fixed -24 from Expert (Expert 73-82, +72 pedal). MVP covers
-    // gem placement (1x/2x kick + 8 hand lanes); the upper-octave modifiers
-    // (flam, indifferent hat, disco) and the pedal (72) are deferred.
+    // difficulty is a fixed -24 from Expert (Expert 72-82). Gem placement (1x/2x kick +
+    // 8 hand lanes) plus the hi-hat pedal state modifiers: Pedal Down (lower-octave C,
+    // dual-purpose but wired as the Closed-hat modifier here; Stomp/Splash gem generation
+    // deferred) and the upper-octave Indifferent-hat marker. Flam + disco still deferred.
     enum class EliteDrums
     {
         SP = 104,   // Overdrive / Star Power / Unison (pan-difficulty)
+
+        // Hi-hat pedal state modifiers (per difficulty, -24 offset like the gems):
+        //   Pedal Down (lower-octave C) — coincident under a Yellow note => Closed Hi-Hat.
+        //   Indifferent (upper-octave E) — coincident marker => Indifferent Yellow cymbal.
+        EXPERT_PEDAL = 72, HARD_PEDAL = 48, MEDIUM_PEDAL = 24, EASY_PEDAL = 0,
+        EXPERT_INDIFFERENT = 88, HARD_INDIFFERENT = 64, MEDIUM_INDIFFERENT = 40, EASY_INDIFFERENT = 16,
 
         // Roll/tremolo lanes (pan-difficulty). Expert-only unless velocity in [41,50] -> Hard too.
         // 110 kick .. 118 R-crash map linearly to columns 0..8; 109 unused (no 2x-kick roll lane).

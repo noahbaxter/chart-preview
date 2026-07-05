@@ -60,6 +60,10 @@ SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
                     else if (pitch == (uint)Guitar::MEDIUM_STRUM)  shared.modifiers.strumForce[1].push_back(range);
                     else if (pitch == (uint)Guitar::HARD_STRUM)    shared.modifiers.strumForce[2].push_back(range);
                     else if (pitch == (uint)Guitar::EXPERT_STRUM)  shared.modifiers.strumForce[3].push_back(range);
+                    else if (isElite && InstrumentMapper::eliteHiHatPedalSkillIndex(pitch) >= 0)
+                        shared.modifiers.hihatPedal[InstrumentMapper::eliteHiHatPedalSkillIndex(pitch)].push_back(range);
+                    else if (isElite && InstrumentMapper::eliteHiHatIndifferentSkillIndex(pitch) >= 0)
+                        shared.modifiers.hihatIndifferent[InstrumentMapper::eliteHiHatIndifferentSkillIndex(pitch)].push_back(range);
                     else if (pitch == (uint)Guitar::LANE_1 || pitch == (uint)Drums::LANE_1 ||
                              pitch == (uint)Guitar::LANE_2 || pitch == (uint)Drums::LANE_2 ||
                              (isElite && InstrumentMapper::isEliteRollLane(pitch)))
@@ -223,7 +227,21 @@ void TrackResolver::resolveNotes(PartWindow& result,
                     }
                 }
 
-                frame[gemColumn] = GemWrapper(gemType, spActive);
+                // Elite Hi-Hat (yellow cymbal) pedal state: default Open, coincident Pedal Down
+                // makes it Closed, a coincident Indifferent marker makes it Indifferent (which
+                // wins over Closed, per the ED spec's Appendix B interaction table).
+                HiHatState hihat = HiHatState::None;
+                if (isElite && isEliteHiHatLane(gemColumn))
+                {
+                    if (ModifierRanges::isActiveAt(shared.modifiers.hihatIndifferent[dc.idx], position))
+                        hihat = HiHatState::Indifferent;
+                    else if (ModifierRanges::isActiveAt(shared.modifiers.hihatPedal[dc.idx], position))
+                        hihat = HiHatState::Closed;
+                    else
+                        hihat = HiHatState::Open;
+                }
+
+                frame[gemColumn] = GemWrapper(gemType, spActive, hihat);
             }
 
             if (noteCount == 0) continue;
