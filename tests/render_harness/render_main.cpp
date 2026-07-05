@@ -132,12 +132,30 @@ static FakeScene makeEliteScene(float farEnd)
         return cym ? Gem::CYM : Gem::NOTE;
     };
 
+    // Hi-Hat tuning surface at the FRONT (nearest = largest): closed and open hi-hats each at
+    // ghost / normal / accent so the ghost-ring + accent-chevron overlay alignment is easy to
+    // eyeball against the (taller than a standard cone) hi-hat art. Indifferent (ordinary yellow
+    // cymbal) as a control. Marches up col 2: closed g/n/a, then open g/n/a, then indifferent.
+    auto putHat = [&](int b, Gem g, HiHatState hh) { s.track[b * BEAT][2] = GemWrapper(g, false, hh); };
+    putHat(1,  Gem::CYM_GHOST,  HiHatState::Open);
+    putHat(3,  Gem::CYM,        HiHatState::Open);
+    putHat(5,  Gem::CYM_ACCENT, HiHatState::Open);
+    putHat(7,  Gem::CYM_GHOST,  HiHatState::Closed);
+    putHat(9,  Gem::CYM,        HiHatState::Closed);
+    putHat(11, Gem::CYM_ACCENT, HiHatState::Closed);
+    putHat(13, Gem::CYM,        HiHatState::Indifferent);
+
+    // Stomp (col 10) and Splash (col 11) pedal bars: mini kick-bars centered on the hi-hat.
+    // Kept clear of the front hi-hat cluster (beats 1-13) and the permutation block (beat 14+).
+    s.track[15 * BEAT][10] = GemWrapper(Gem::STOMP);
+    s.track[17 * BEAT][11] = GemWrapper(Gem::SPLASH);
+
     // Permutation matrix, one chord per row so every combination is easy to compare:
     //   row = one dynamic across ALL 8 hand lanes + a kick;
     //   rows go GHOST -> NORMAL -> ACCENT, then the same three again in STAR POWER (white).
     // Read across a row = every lane at that dynamic; read down a lane = ghost/normal/accent.
     const Dyn dyns[3] = { GHOST, NORMAL, ACCENT };
-    int beat = 2;
+    int beat = 14;
     for (bool sp : { false, true })
     {
         for (Dyn d : dyns)
@@ -178,11 +196,13 @@ int main(int argc, char** argv)
     // Render only the named parts in isolation (empty = all). Parts:
     // board gridlines gems sidebars lanes strikeline connectors
     juce::StringArray onlyParts;
+    juce::String dumpStomp;   // if set: save the baked Stomp bar asset alone and exit
 
     for (int i = 1; i < argc; ++i)
     {
         juce::String a(argv[i]);
-        if      (a == "--part"   && i + 1 < argc) partName = argv[++i];
+        if      (a == "--dump-stomp" && i + 1 < argc) dumpStomp = argv[++i];
+        else if (a == "--part"   && i + 1 < argc) partName = argv[++i];
         else if (a == "--width"  && i + 1 < argc) W = juce::String(argv[++i]).getIntValue();
         else if (a == "--aspect" && i + 1 < argc) aspect = juce::String(argv[++i]).getDoubleValue();
         else if (a == "--length" && i + 1 < argc) length = juce::String(argv[++i]).getFloatValue();
@@ -216,6 +236,19 @@ int main(int argc, char** argv)
     state.setProperty("showStrikeline",    true,                    nullptr);
 
     AssetManager assets;
+
+    // Isolation dump: save just the baked Stomp bar asset (for pixel-accurate iteration
+    // against the source art), then exit — no scene, no highway.
+    if (dumpStomp.isNotEmpty())
+    {
+        juce::File f(dumpStomp);
+        f.deleteFile();
+        juce::FileOutputStream os(f);
+        juce::PNGImageFormat png;
+        png.writeImageToStream(*assets.getBarStompImage(), os);
+        return 0;
+    }
+
     SceneRenderer scene(state, assets);
     TrackRenderer track(state);
     scene.activePart = part;

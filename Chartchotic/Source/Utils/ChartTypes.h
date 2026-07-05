@@ -86,13 +86,26 @@ enum class Gem
     SPLASH,         // Elite hi-hat pedal: "splash" (same bar; also a hi-hat sustain generator)
 };
 
+// Elite hi-hat pedal state, orthogonal to the gem's ghost/accent type. Only meaningful on the
+// Hi-Hat (yellow cymbal) lane. Open is the spec default; Closed needs a coincident pedal-down;
+// Indifferent renders as an ordinary cymbal.
+enum class HiHatState
+{
+    None,
+    Open,
+    Closed,
+    Indifferent,
+};
+
 struct GemWrapper
 {
     Gem gem;
     bool starPower;
+    HiHatState hihat;
 
-    GemWrapper() : gem(Gem::NONE), starPower(false) {}
-    GemWrapper(Gem g, bool sp = false) : gem(g), starPower(sp) {}
+    GemWrapper() : gem(Gem::NONE), starPower(false), hihat(HiHatState::None) {}
+    GemWrapper(Gem g, bool sp = false, HiHatState hh = HiHatState::None)
+        : gem(g), starPower(sp), hihat(hh) {}
 };
 
 enum class Gridline

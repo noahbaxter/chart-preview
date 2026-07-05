@@ -105,6 +105,11 @@ void AssetManager::initAssets()
         cymGreenImage  = recolorGem(cymMaster, LaneColours::bright(LaneColours::green));
         cymPurpleImage = recolorGem(cymMaster, LaneColours::bright(LaneColours::purple));
     }
+    // Elite hi-hat: extracted gold/metallic art, drawn as-is (NOT tinted) on the Hi-Hat lane.
+    // Closed is the default; the open variant hooks in once open/closed parsing (upper octave
+    // 84-90) lands to pick a gem type.
+    cymHiHatClosedImage = juce::ImageCache::getFromMemory(BinaryData::cym_hihat_closed_png, BinaryData::cym_hihat_closed_pngSize);
+    cymHiHatOpenImage   = juce::ImageCache::getFromMemory(BinaryData::cym_hihat_open_png,   BinaryData::cym_hihat_open_pngSize);
 
     // Notes + HOPOs: same greyscale-master + LaneColours tint as cymbals. One master per
     // family (a mid-tone colour PNG collapsed to luminance) recolours to every lane, so a
@@ -226,6 +231,7 @@ void AssetManager::initAssets()
         {&cymBlueImage, cymBlueImage}, {&cymGreenImage, cymGreenImage},
         {&cymRedImage, cymRedImage}, {&cymWhiteImage, cymWhiteImage},
         {&cymYellowImage, cymYellowImage}, {&cymPurpleImage, cymPurpleImage},
+        {&cymHiHatClosedImage, cymHiHatClosedImage}, {&cymHiHatOpenImage, cymHiHatOpenImage},
         // HOPOs
         {&hopoBlueImage, hopoBlueImage}, {&hopoGreenImage, hopoGreenImage},
         {&hopoOrangeImage, hopoOrangeImage}, {&hopoRedImage, hopoRedImage},
@@ -463,7 +469,19 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
                 if (shouldBeWhite) return getCymWhiteImage();
                 switch (style.tint)
                 {
-                case T::Yellow: return getCymYellowImage();
+                // Hi-Hat (col 2, the only Yellow cymbal lane): the gem art follows the pedal
+                // state (spec: Yellow defaults to Open, Closed via coincident pedal-down,
+                // Indifferent looks like an ordinary cymbal). Open is the default when no
+                // state is set (e.g. before MIDI parsing populates it).
+                case T::Yellow:
+                    switch (gemWrapper.hihat)
+                    {
+                    case HiHatState::Closed:      return getCymHiHatClosedImage();
+                    case HiHatState::Indifferent: return getCymYellowImage();
+                    case HiHatState::Open:
+                    case HiHatState::None:
+                    default:                      return getCymHiHatOpenImage();
+                    }
                 case T::Blue:   return getCymBlueImage();
                 case T::Green:  return getCymGreenImage();
                 case T::Red:    return getCymRedImage();

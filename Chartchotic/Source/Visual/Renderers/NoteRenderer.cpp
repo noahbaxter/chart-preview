@@ -56,16 +56,29 @@ NoteRenderer::NoteRenderer(juce::ValueTree& state, AssetManager& assetManager)
 {
 }
 
-const OverlayAdjust& NoteRenderer::getOverlayAdjustForGem(Gem gem, bool isDrums) const
+const OverlayAdjust& NoteRenderer::getOverlayAdjustForGem(Gem gem, bool isDrums, bool hiHat, bool hiHatOpen) const
 {
     if (!isDrums) return overlayAdjusts[OVERLAY_GUITAR_TAP];
+    // Open hi-hat art is taller than closed (cone lifted over a separated disc), so it needs its
+    // own overlay offsets; closed hi-hats and standard cymbals fall through to their own types.
     switch (gem) {
     case Gem::HOPO_GHOST: return overlayAdjusts[OVERLAY_DRUM_NOTE_GHOST];
     case Gem::TAP_ACCENT: return overlayAdjusts[OVERLAY_DRUM_NOTE_ACCENT];
-    case Gem::CYM_GHOST:  return overlayAdjusts[OVERLAY_DRUM_CYM_GHOST];
-    case Gem::CYM_ACCENT: return overlayAdjusts[OVERLAY_DRUM_CYM_ACCENT];
+    case Gem::CYM_GHOST:  return overlayAdjusts[hiHat ? (hiHatOpen ? OVERLAY_DRUM_HIHAT_OPEN_GHOST  : OVERLAY_DRUM_HIHAT_GHOST)
+                                                      : OVERLAY_DRUM_CYM_GHOST];
+    case Gem::CYM_ACCENT: return overlayAdjusts[hiHat ? (hiHatOpen ? OVERLAY_DRUM_HIHAT_OPEN_ACCENT : OVERLAY_DRUM_HIHAT_ACCENT)
+                                                      : OVERLAY_DRUM_CYM_ACCENT];
     default: { static const OverlayAdjust none; return none; }
     }
+}
+
+bool NoteRenderer::isEliteHiHatGlyph(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive) const
+{
+    if (activePart != Part::ELITE_DRUMS || gemColumn < 1 || gemColumn > 8) return false;
+    const auto& style = PositionConstants::ELITE_LANE_STYLES[gemColumn];
+    if (!style.cymbal || style.tint != PositionConstants::DrumLaneTint::Yellow) return false;
+    if (starPowerActive && gemWrapper.starPower) return false;   // SP draws the white cymbal
+    return gemWrapper.hihat != HiHatState::Indifferent;          // Indifferent = ordinary cymbal
 }
 
 void NoteRenderer::applyCurvedImageSwap(Frame& frame, int gemIdx, int ovlIdx,
@@ -416,7 +429,9 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     int ovlIdx = -1;
     if (overlayImage != nullptr)
     {
-        const auto& overlayAdj = getOverlayAdjustForGem(gemWrapper.gem, isDrums);
+        bool hiHat = isEliteHiHatGlyph(gemWrapper, gemColumn, starPowerActive);
+        const auto& overlayAdj = getOverlayAdjustForGem(gemWrapper.gem, isDrums, hiHat,
+                                     hiHat && gemWrapper.hihat == HiHatState::Open);
         overlayAdjPtr = &overlayAdj;
 
         float ovlRectSX = overlayAdj.scaleX * overlayAdj.scale;
@@ -576,7 +591,10 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
     int ovlIdx = -1;
     if (overlayImage != nullptr)
     {
-        const auto& overlayAdj = getOverlayAdjustForGem(gemWrapper.gem, isDrums);
+        bool starPowerActive = state.getProperty("starPower");
+        bool hiHat = isEliteHiHatGlyph(gemWrapper, gemColumn, starPowerActive);
+        const auto& overlayAdj = getOverlayAdjustForGem(gemWrapper.gem, isDrums, hiHat,
+                                     hiHat && gemWrapper.hihat == HiHatState::Open);
         overlayAdjPtr = &overlayAdj;
 
         float ovlRectSX = overlayAdj.scaleX * overlayAdj.scale;
