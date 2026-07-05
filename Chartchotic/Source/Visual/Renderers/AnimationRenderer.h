@@ -83,8 +83,11 @@ private:
     AnimationManager animationManager;
     AssetManager& assetManager;
 
-    // Track the last note time per column to ensure every note triggers an animation
-    std::array<double, 7> lastNoteTimePerColumn = {-999.0, -999.0, -999.0, -999.0, -999.0, -999.0, -999.0};
+    // Track the last note time per column to ensure every note triggers an animation. Sized to
+    // LANE_COUNT (not 7): elite has columns up to 11, and a smaller array was indexed out of
+    // bounds by the detection loop (which iterates all LANE_COUNT columns) -> corrupted/dropped
+    // hits. Filled to -999 in the constructor.
+    std::array<double, LANE_COUNT> lastNoteTimePerColumn;
 
     // Helper: Trigger animation for a specific gem column
     void triggerAnimationForColumn(uint gemColumn, Gem gemType = Gem::NOTE, bool starPower = false);

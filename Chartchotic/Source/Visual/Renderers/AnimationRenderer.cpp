@@ -21,6 +21,7 @@ using namespace PositionConstants;
 AnimationRenderer::AnimationRenderer(juce::ValueTree &state, AssetManager &assetManager)
     : state(state), assetManager(assetManager)
 {
+    lastNoteTimePerColumn.fill(-999.0);
 }
 
 AnimationRenderer::~AnimationRenderer()
@@ -33,8 +34,12 @@ AnimationRenderer::~AnimationRenderer()
 void AnimationRenderer::triggerAnimationForColumn(uint gemColumn, Gem gemType, bool starPower)
 {
     bool isDrums = isDrumLike(activePart);
-    bool is2xKick = isDrums && gemColumn == DRUM_KICK_2X_COLUMN;
-    animationManager.triggerHit(gemColumn, isDrums, is2xKick, gemType, starPower);
+    // Elite's 2x kick lives at ELITE_KICK_2X_COLUMN (9); col 6 is a real Tom lane. Pick the right
+    // 2x-kick column per part so elite 2x kicks animate and its Tom 3 isn't mistaken for one.
+    uint kick2xColumn = (activePart == Part::ELITE_DRUMS) ? (uint)ELITE_KICK_2X_COLUMN
+                                                          : (uint)DRUM_KICK_2X_COLUMN;
+    bool is2xKick = isDrums && gemColumn == kick2xColumn;
+    animationManager.triggerHit(gemColumn, activePart, is2xKick, gemType, starPower);
 }
 
 //==============================================================================
@@ -46,7 +51,9 @@ void AnimationRenderer::detectAndTriggerAnimations(const TimeBasedTrackWindow& t
     // For each column, find the closest note that has passed the strike point
     // If it's a new note (different from last frame), trigger the animation
 
-    std::array<double, 7> closestPastNotePerColumn = {999.0, 999.0, 999.0, 999.0, 999.0, 999.0, 999.0};
+    // Sized to LANE_COUNT so elite's columns 7-11 are tracked (and never indexed out of bounds).
+    std::array<double, LANE_COUNT> closestPastNotePerColumn;
+    closestPastNotePerColumn.fill(999.0);
     std::array<GemWrapper, LANE_COUNT> closestGemPerColumn;
 
     // Find the closest note that has just crossed (or is at) the strike point for each column
@@ -96,7 +103,7 @@ void AnimationRenderer::updateSustainStates(const TimeBasedSustainWindow& sustai
 {
     // Strikeline is at time 0 (current playback position)
     // Check if each lane is currently in a sustain (sustain crosses the strikeline)
-    std::array<bool, 6> lanesSustaining = {false, false, false, false, false, false};
+    std::array<bool, LANE_COUNT> lanesSustaining{};   // LANE_COUNT so elite's higher columns aren't dropped
     const auto& animations = animationManager.getActiveAnimations();
 
     for (const auto& sustain : sustainWindow)
