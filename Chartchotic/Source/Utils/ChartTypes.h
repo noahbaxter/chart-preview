@@ -82,6 +82,8 @@ enum class Gem
     CYM_GHOST,
     CYM,
     CYM_ACCENT,
+    STOMP,          // Elite hi-hat pedal: closed-pedal "stomp" (mini kick bar over the hi-hat zone)
+    SPLASH,         // Elite hi-hat pedal: "splash" (same bar; also a hi-hat sustain generator)
 };
 
 struct GemWrapper

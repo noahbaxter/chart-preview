@@ -195,6 +195,120 @@ BarRamp barRampOpen()
         { 0.866f, 0xff7c0bd6 }, { 0.938f, 0xff7503d4 }, { 1.000f, 0xff7200d3 } });
 }
 
+juce::Image bakeStompBar(float arch, float thickness)
+{
+    // Flat pseudo-3D model measured off the source: a flat white PLANE (full-width thin
+    // trapezoid, tapered ends) with a raised BOX on centre. Two flat greys, NO gradients:
+    //   white (255) = plane + box top face; grey (190) = box front; darker grey = box side.
+    // `thickness` scales vertical extent; `arch` bows the whole profile down at the ends
+    // (parabola) so it follows the curved gridlines.
+    constexpr int   W     = 2432;
+    const juce::Colour WHITE (0xffffffff);   // plane + box top face  (source 255)
+    const juce::Colour GREY  (0xffbebebe);   // box front face        (source 190)
+    const juce::Colour CAP   (0xff808080);   // box left/right end caps (source 128)
+
+    // Box geometry (content px): a uniform ~0.70x scale of the measured source (3469x187) so the
+    // box keeps its true wide/flat proportion. The box sits ON the flat plane and spans the
+    // plane's full depth: its end caps bridge the plane's BACK edge (planeTop) to its FRONT edge
+    // (planeBot) as a diagonal, so no flat plane shows in front of or behind the box. The plane
+    // is a parallelogram: its FRONT edge is inset by `depth` so both ends read as diagonals (a
+    // flat slab in perspective). `depth` = one unit of receding depth, shared by the plane ends
+    // and the box caps so they stay consistent. `thickness` scales vertically about the plane
+    // centreline; `arch` bows the ends down (parabola) to follow the curved gridlines.
+    const float cx        = W * 0.5f;
+    const float hw        = 387.0f;    // front-face half width (source 552 * 0.70)
+    const float depth     = 22.0f;     // receding-depth X offset (box cap splay + plane end diagonal)
+    const float pcy       = 75.0f;     // plane band centreline
+    auto sy = [&](float y) { return pcy + (y - pcy) * thickness; };
+    const float topBack   = sy(8.0f);    // top-face back edge (highest point)
+    const float frontTop  = sy(48.0f);   // top-face / front-face seam
+    const float planeTop  = sy(55.0f);   // plane BACK edge  (box back-bottom sits here)
+    const float planeBot  = sy(95.0f);   // plane FRONT edge (box front-bottom sits here)
+    auto arc = [&](float x) { float t = (x - cx) / cx; return arch * t * t; };
+
+    // Size the canvas around the actual content extent (topBack is the highest point and goes
+    // negative once thickness > 1, since sy scales about the plane centreline). Shift content so
+    // the top sits at `pad`, with symmetric padding, so the box top never clips and the content
+    // stays centred in the image (thickness = 1 -> yShift 0, identical to the old bake).
+    const float pad    = 8.0f;
+    const float yShift = pad - topBack;
+    const int   H = (int) std::ceil((planeBot - topBack) + std::abs(arch) + 2.0f * pad);
+
+    juce::Image img(juce::Image::ARGB, W, H, true);
+    juce::Graphics g(img);
+
+    auto quad = [&](juce::Colour c,
+                    float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3)
+    {
+        juce::Path p;
+        p.startNewSubPath(x0, y0 + yShift + arc(x0)); p.lineTo(x1, y1 + yShift + arc(x1));
+        p.lineTo(x2, y2 + yShift + arc(x2));          p.lineTo(x3, y3 + yShift + arc(x3));
+        p.closeSubPath();
+        g.setColour(c); g.fillPath(p);
+    };
+
+    // Flat white plane: a parallelogram — full-width BACK edge, front edge inset by `depth` so
+    // both ends are diagonals (implying the flat slab receding in perspective).
+    quad(WHITE, 0.0f, planeTop, (float) W, planeTop, (float) W - depth, planeBot, depth, planeBot);
+    const float capW = depth;
+
+    // Box end caps (dark): front-top -> splayed back-top -> plane BACK edge -> plane FRONT edge.
+    // The bottom edge is the diagonal that bridges the plane's back and front.
+    quad(CAP, cx - hw, frontTop, cx - hw - capW, topBack, cx - hw - capW, planeTop, cx - hw, planeBot);
+    quad(CAP, cx + hw, frontTop, cx + hw + capW, topBack, cx + hw + capW, planeTop, cx + hw, planeBot);
+    // Front face (grey): sits at the plane's front edge.
+    quad(GREY, cx - hw, frontTop, cx + hw, frontTop, cx + hw, planeBot, cx - hw, planeBot);
+    // Top face (white trapezoid: front edge -> splayed, raised back edge).
+    quad(WHITE, cx - hw, frontTop, cx + hw, frontTop, cx + hw + capW, topBack, cx - hw - capW, topBack);
+
+    return img;
+}
+
+juce::Image bakeGridline(float thickness, juce::Colour colour, float arch)
+{
+    // A thin flat bar spanning the fretboard: full-width top edge, diagonal-cut ends, bowed by
+    // the parabola arc(x) = arch * t^2 (t = -1..1 across the content). The centre sits at the
+    // top of the bow and the ends drop by `arch`, matching the notes' centre-lifted highway
+    // curve. Margins match the old marker PNGs (89px) so the drawn width lines up unchanged.
+    const int   W        = kGridlineWidth;
+    const float x0       = 89.0f;
+    const float x1       = (float) W - 89.0f;
+    const float cx       = (x0 + x1) * 0.5f;
+    const float half     = (x1 - x0) * 0.5f;
+    const float endInset = 40.0f;   // horizontal inset of the bottom corners -> diagonal ends
+    const float topPad   = 12.0f;   // headroom above the centre so the bar never clips row 0
+
+    auto arc = [&](float x) { float t = (x - cx) / half; return arch * t * t; };
+
+    const int H = (int) std::ceil(topPad + thickness + std::abs(arch) + 12.0f);
+    juce::Image img(juce::Image::ARGB, W, H, true);
+    juce::Graphics g(img);
+
+    // Tessellate the bowed edges so the parabola is smooth (a 4-corner quad would give straight
+    // edges between the ends). Top edge L->R at full width; bottom edge R->L inset at both ends.
+    constexpr int N = 256;
+    juce::Path p;
+    for (int i = 0; i <= N; ++i)
+    {
+        float x = x0 + (x1 - x0) * (float) i / (float) N;
+        float y = topPad + arc(x);
+        if (i == 0) p.startNewSubPath(x, y);
+        else        p.lineTo(x, y);
+    }
+    const float bx0 = x0 + endInset, bx1 = x1 - endInset;
+    for (int i = 0; i <= N; ++i)
+    {
+        float x = bx1 - (bx1 - bx0) * (float) i / (float) N;
+        float y = topPad + thickness + arc(x);
+        p.lineTo(x, y);
+    }
+    p.closeSubPath();
+
+    g.setColour(colour);
+    g.fillPath(p);
+    return img;
+}
+
 juce::Image bakeBar(const BarRamp& ramp,
                     juce::Rectangle<int> canvas,
                     juce::Rectangle<int> contentBounds)

@@ -332,6 +332,19 @@ namespace PositionConstants
     constexpr float NOTE_CURVATURE = -0.02f;        // Arc height as fraction of fretboard width (guitar)
     constexpr float NOTE_CURVATURE_DRUMS = -0.016f; // Drum default (slightly less bow than guitar)
     constexpr float BAR_CURVATURE = 0.0f;          // Bars stay flat (span full fretboard)
+    // Elite Stomp/Splash bar spans ~3 lanes (Snare-HiHat-LCrash) centred on the hi-hat: this is
+    // that span as a fraction of the fretboard width. The baked bar's arc uses it to match the
+    // gridline curvature over the bar's span: arch = |NOTE_CURVATURE_DRUMS| * width * fraction.
+    constexpr float ELITE_PEDAL_ZONE_WIDTH_FRACTION = 0.36f;
+    // Pedal (Stomp/Splash) bar fine-tune to sit ON the procedural gridline over its off-centre
+    // span. The whole-bar lift (arcOffsetStrike) carries FRETBOARD_SCALE but the internal warp
+    // tilt does not, so the bar over-lifts (worst on the far-left end) and the tilt runs a hair
+    // shallow. GAIN steepens the warp tilt; Z_NUDGE drops the whole bar (px at REFERENCE_HEIGHT,
+    // positive = down). Dialed against the gridline in render_harness (elite, beats 8/10).
+    constexpr float ELITE_PEDAL_CURVE_GAIN = 1.25f;
+    constexpr float ELITE_PEDAL_Z_NUDGE    = 1.5f;
+    // Vertical scale of the baked Stomp/Splash bar (taller = easier to read on the highway).
+    constexpr float ELITE_PEDAL_THICKNESS  = 2.0f;
     constexpr int NOTE_CACHE_DOWNSAMPLE = 2;       // Source resolution divisor (2 = 1/2 res)
 
     //==============================================================================

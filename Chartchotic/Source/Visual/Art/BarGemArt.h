@@ -33,4 +33,22 @@ namespace GemArt
 
     inline juce::Rectangle<int> barCanvas()        { return { 0, 0, 2432, 152 }; }
     inline juce::Rectangle<int> barContentBounds() { return { 86, 0, 2260, 152 }; }
+
+    // Elite Stomp/Splash pedal bar: a flat white plane with a raised pseudo-3D box, flat greys
+    // (no gradients). Symmetric and parabolically arced so it sits along the highway's curved
+    // gridlines. Self-contained (defines its own canvas). `arch` sets the arc depth in content px
+    // (caller derives it from the shared curvature constant); `thickness` scales the vertical
+    // extent. The content canvas is kStompBarWidth wide, so arch = |curvature| * kStompBarWidth *
+    // spanFraction matches the gridline curvature over the bar's span.
+    constexpr int kStompBarWidth = 2432;
+    juce::Image bakeStompBar(float arch = 0.0f, float thickness = 1.0f);
+
+    // Procedural gridline marker: a thin flat-grey parallelogram (diagonal-cut ends) bowed by
+    // the SAME parabola the notes / stomp bar use. The caller derives `arch` from
+    // NOTE_CURVATURE_DRUMS over the full board width, so gridlines and the stomp bar curve from
+    // ONE source and pixel-match instead of the gridline baking a hand-guessed arc. `thickness`
+    // is the bar height in content px; `colour` is the flat fill (grey + per-subdivision alpha);
+    // `arch` bows the ends down (centre rises) by that many px. Canvas is kGridlineWidth wide.
+    constexpr int kGridlineWidth = 2496;
+    juce::Image bakeGridline(float thickness, juce::Colour colour, float arch);
 }

@@ -318,6 +318,9 @@ juce_add_binary_data(ChartchoticData
         assets/generated/notes/cym_red.png
         assets/generated/notes/cym_white.png
         assets/generated/notes/cym_yellow.png
+        # Elite hi-hat cymbals (extracted gold art, used as-is)
+        assets/generated/cymbals/cym_hihat_closed.png
+        assets/generated/cymbals/cym_hihat_open.png
         # Ghost cursor templates (write-mode hover preview)
         assets/generated/templates/note_blank.png
         assets/generated/templates/hopo_blank.png
@@ -337,10 +340,6 @@ juce_add_binary_data(ChartchoticData
         # Sustains (generated from PDFs)
         assets/generated/sustains/sustain_open.png
         assets/generated/sustains/sustain_open_white.png
-        # Markers (generated from PDFs)
-        assets/generated/markers/marker_beat.png
-        assets/generated/markers/marker_half_beat.png
-        assets/generated/markers/marker_measure.png
         # Lanes (generated from PDFs)
         assets/generated/lanes/lane_end.png
         assets/generated/lanes/lane_mid.png
