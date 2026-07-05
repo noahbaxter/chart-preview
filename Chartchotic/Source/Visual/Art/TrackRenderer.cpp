@@ -485,7 +485,14 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
         // Strikeline pads are drawn procedurally for every part (they replaced the
         // fixed strikeline PNGs).
         bakeStrikelinePadsPerspective(width, totalH, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
-        bakeLayerImage(layerImages[CONNECTORS], isDrums ? kickSmashersImage : strikelineConnectorsImage, layers[CONNECTORS],
+        // Kick smashers (CONNECTORS) are a fixed-width PNG scaled to the RENDER width, so unlike
+        // the procedural rails/lanes/strikeline they don't follow the wider elite board coords.
+        // Widen the transform by the same board factor so the end-caps sit on the elite board edge
+        // instead of floating inside it.
+        LayerTransform connectors = layers[CONNECTORS];
+        if (activePart == Part::ELITE_DRUMS)
+            connectors.scale *= PositionConstants::ELITE_BOARD_WIDTH_SCALE;
+        bakeLayerImage(layerImages[CONNECTORS], isDrums ? kickSmashersImage : strikelineConnectorsImage, connectors,
                        width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
     }
 

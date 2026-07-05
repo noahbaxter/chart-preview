@@ -990,9 +990,12 @@ void ChartchoticAudioProcessorEditor::resized()
 
             int pad = highwayGridPadding;
 
-            // Uniform vertical padding; horizontal width is distributed by per-highway
-            // weight so a wider instrument (elite drums) gets a proportionally wider slot
-            // at the SAME row height (i.e. a wider aspect) alongside the normal ones.
+            // Horizontal width is distributed by per-highway weight: elite drums gets a wider slot
+            // so its 8 lanes have room, at the SAME row height (a wider aspect) alongside the
+            // others. This is the lever for a genuinely wider highway -- the board + its natural
+            // rails scale to fill the wider slot, no clipping or rail warping. (The board-coord
+            // widening, ELITE_BOARD_WIDTH_SCALE, additionally widens the board WITHIN any slot so a
+            // solo elite highway is wider too, sized so its natural rails still fit.)
             int totalPadX = (cols + 1) * pad;
             int totalPadY = (rows + 1) * pad;
             int availW    = contentW - totalPadX;

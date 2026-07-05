@@ -258,13 +258,12 @@ int main(int argc, char** argv)
     const bool isElite = (part == Part::ELITE_DRUMS);
     if (aspect < 0.1) aspect = 4.0 / 3.0;   // same slant/height for every instrument
 
-    // Elite renders into a WIDER canvas (same height, wider aspect) so its 8 lanes get
-    // more room; the board stays a fixed fraction of that width, so nothing clips. This
-    // mirrors the plugin giving the elite highway a wider slot.
+    // Every part renders into the SAME canvas (width W, aspect 4:3). Elite's extra width now
+    // lives in its wider board COORDS (ELITE_BOARD_WIDTH_SCALE scales the fretboard + lanes),
+    // not in a wider canvas -- so this matches the plugin, where a solo highway fills its slot
+    // and the board being a larger fraction of it is what makes elite wider.
     const int renderHeight = std::max(1, juce::roundToInt((double)W / aspect));
-    const int renderWidth  = isElite
-        ? std::max(1, juce::roundToInt((double)W * PositionConstants::ELITE_BOARD_WIDTH_SCALE))
-        : W;
+    const int renderWidth  = W;
     juce::ignoreUnused(fretWidth);
 
     // Highway length: scale farFadeEnd (default 1.20) by the length multiplier so
