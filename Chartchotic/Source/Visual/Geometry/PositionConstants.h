@@ -170,6 +170,10 @@ namespace PositionConstants
         OVERLAY_DRUM_NOTE_ACCENT,
         OVERLAY_DRUM_CYM_GHOST,
         OVERLAY_DRUM_CYM_ACCENT,
+        OVERLAY_DRUM_HIHAT_GHOST,
+        OVERLAY_DRUM_HIHAT_ACCENT,
+        OVERLAY_DRUM_HIHAT_OPEN_GHOST,
+        OVERLAY_DRUM_HIHAT_OPEN_ACCENT,
         NUM_OVERLAY_TYPES
     };
 
@@ -179,6 +183,16 @@ namespace PositionConstants
         { 0.0f, -0.10f, 1.0f, 1.0f, 1.0f },  // DRUM_NOTE_ACCENT
         { 0.0f, -0.04f, 1.0f, 1.0f, 1.33f }, // DRUM_CYM_GHOST
         { 0.0f, -0.08f, 1.0f, 1.0f, 1.0f },  // DRUM_CYM_ACCENT
+        // Hi-Hat gem art sits higher in its (taller) sprite than a standard cymbal cone, so the
+        // ghost ring / accent chevron must ride up to hug the cone base instead of sitting on the
+        // lower disc. The OPEN sprite is taller still (cone lifted, disc separated below a gap), so
+        // its cone sits higher again and needs its own (larger) up-shift -- one value can't serve
+        // both. Dialed in render_harness against a reference cymbal at matching depth (col 2 vs 3).
+        // NOTE: the open-hat art fits an overlay poorly at best; new open-hat assets are wanted.
+        { 0.0f, -0.10f, 1.0f, 1.0f, 1.33f }, // DRUM_HIHAT_GHOST        (closed)
+        { 0.0f, -0.14f, 1.0f, 1.0f, 1.0f },  // DRUM_HIHAT_ACCENT       (closed)
+        { 0.0f, -0.24f, 1.0f, 1.0f, 1.33f }, // DRUM_HIHAT_OPEN_GHOST
+        { 0.0f, -0.28f, 1.0f, 1.0f, 1.0f },  // DRUM_HIHAT_OPEN_ACCENT
     };
 
     //==============================================================================
