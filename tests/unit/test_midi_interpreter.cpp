@@ -72,6 +72,19 @@ TEST_CASE("resolveAllDifficulties - star power", "[resolve][star_power]")
         auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
         REQUIRE(dw.trackWindow[PPQ(2.0)][1].starPower == false);
     }
+
+    SECTION("elite drums: SP modifier (104) held across snare → starPower = true")
+    {
+        using ED = MidiPitchDefinitions::EliteDrums;
+        f.state.setProperty("part", (int)Part::ELITE_DRUMS, nullptr);
+        f.addNote((uint)ED::EXPERT_SNARE, PPQ(2.0), PPQ(2.5));
+        f.addModifier((uint)ED::SP, PPQ(1.0), PPQ(5.0));
+
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(6.0));
+        uint col = InstrumentMapper::getEliteDrumColumn((uint)ED::EXPERT_SNARE, SkillLevel::EXPERT, true);
+        REQUIRE(dw.trackWindow[PPQ(2.0)][col].gem == Gem::NOTE);
+        REQUIRE(dw.trackWindow[PPQ(2.0)][col].starPower == true);
+    }
 }
 
 // ============================================================================
