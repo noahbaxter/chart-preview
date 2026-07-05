@@ -154,6 +154,92 @@ TEST_CASE("resolveAllDifficulties - drum mode", "[resolve][drums]")
 }
 
 // ============================================================================
+// Elite drums hi-hat pedal state (Open / Closed / Indifferent)
+
+TEST_CASE("resolveAllDifficulties - elite hi-hat pedal state", "[resolve][elite][hihat]")
+{
+    using ED = MidiPitchDefinitions::EliteDrums;
+    TestFixture f;
+    f.state.setProperty("part", (int)Part::ELITE_DRUMS, nullptr);
+    const uint HH = (uint)ELITE_HIHAT_COLUMN;
+
+    SECTION("bare yellow hi-hat → Open (spec default)")
+    {
+        f.addNote((uint)ED::EXPERT_HIHAT, PPQ(2.0), PPQ(2.5));
+
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow[PPQ(2.0)][HH].gem == Gem::CYM);
+        REQUIRE(dw.trackWindow[PPQ(2.0)][HH].hihat == HiHatState::Open);
+    }
+
+    SECTION("coincident Pedal Down → Closed")
+    {
+        f.addNote((uint)ED::EXPERT_HIHAT, PPQ(2.0), PPQ(2.5));
+        f.addModifier((uint)ED::EXPERT_PEDAL, PPQ(2.0), PPQ(2.5));
+
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow[PPQ(2.0)][HH].hihat == HiHatState::Closed);
+    }
+
+    SECTION("Pedal Down dragged under the note → Closed")
+    {
+        f.addNote((uint)ED::EXPERT_HIHAT, PPQ(2.0), PPQ(2.5));
+        f.addModifier((uint)ED::EXPERT_PEDAL, PPQ(1.0), PPQ(3.0));   // pedal held across the note
+
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow[PPQ(2.0)][HH].hihat == HiHatState::Closed);
+    }
+
+    SECTION("coincident Indifferent marker → Indifferent")
+    {
+        f.addNote((uint)ED::EXPERT_HIHAT, PPQ(2.0), PPQ(2.5));
+        f.addModifier((uint)ED::EXPERT_INDIFFERENT, PPQ(2.0), PPQ(2.5));
+
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow[PPQ(2.0)][HH].hihat == HiHatState::Indifferent);
+    }
+
+    SECTION("Indifferent + Pedal Down together → Indifferent wins (Appendix B)")
+    {
+        f.addNote((uint)ED::EXPERT_HIHAT, PPQ(2.0), PPQ(2.5));
+        f.addModifier((uint)ED::EXPERT_PEDAL, PPQ(2.0), PPQ(2.5));
+        f.addModifier((uint)ED::EXPERT_INDIFFERENT, PPQ(2.0), PPQ(2.5));
+
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow[PPQ(2.0)][HH].hihat == HiHatState::Indifferent);
+    }
+
+    SECTION("pedal state applies to the hi-hat lane only, not other cymbals")
+    {
+        f.addNote((uint)ED::EXPERT_LCRASH, PPQ(2.0), PPQ(2.5));   // col 3, purple cymbal
+        f.addModifier((uint)ED::EXPERT_PEDAL, PPQ(2.0), PPQ(2.5));
+
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow[PPQ(2.0)][3].hihat == HiHatState::None);
+    }
+
+    SECTION("a lower-difficulty pedal does not close an Expert hi-hat")
+    {
+        f.addNote((uint)ED::EXPERT_HIHAT, PPQ(2.0), PPQ(2.5));
+        f.addModifier((uint)ED::HARD_PEDAL, PPQ(2.0), PPQ(2.5));   // Hard pedal, not Expert
+
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        REQUIRE(dw.trackWindow[PPQ(2.0)][HH].hihat == HiHatState::Open);
+    }
+
+    SECTION("Pedal Down / Indifferent modifiers are not themselves rendered as gems")
+    {
+        f.addModifier((uint)ED::EXPERT_PEDAL, PPQ(2.0), PPQ(2.5));
+        f.addModifier((uint)ED::EXPERT_INDIFFERENT, PPQ(3.0), PPQ(3.5));
+
+        auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
+        for (auto& [ppq, frame] : dw.trackWindow)
+            for (uint col = 0; col < LANE_COUNT; col++)
+                REQUIRE(frame[col].gem == Gem::NONE);
+    }
+}
+
+// ============================================================================
 // Guitar sustains
 
 TEST_CASE("resolveAllDifficulties - guitar sustains", "[resolve][sustains]")
