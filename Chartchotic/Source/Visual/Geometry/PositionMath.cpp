@@ -154,7 +154,10 @@ LaneCorners PositionMath::getColumnPosition(
     // In Bemani mode, use tunable gem positions by lane index
     if (bemaniMode)
     {
-        int numLanes = (renderType == RenderType::FIVE_FRET) ? 5 : 4;
+        // Playable (non-bar) lanes = laneCount - 1 (drop the kick/open bar lane): guitar 5,
+        // 4-lane drums 4, elite drums 8. Was hardcoded to 4 for every non-guitar part, which
+        // crushed elite's 8 lanes into 4 even positions/widths -- gems misplaced and overlapping.
+        int numLanes = (int)getRenderTypeConfig(renderType)->laneCount - 1;
 
         if (bemaniLaneIdx >= 0 && bemaniLaneIdx < numLanes)
         {

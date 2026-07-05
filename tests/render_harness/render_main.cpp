@@ -197,6 +197,7 @@ int main(int argc, char** argv)
     // board gridlines gems sidebars lanes strikeline connectors
     juce::StringArray onlyParts;
     juce::String dumpStomp;   // if set: save the baked Stomp bar asset alone and exit
+    bool bemani = false;      // --bemani: flat (Bemani) mode instead of perspective
 
     for (int i = 1; i < argc; ++i)
     {
@@ -209,9 +210,12 @@ int main(int argc, char** argv)
         else if (a == "--fret-width" && i + 1 < argc) fretWidth = juce::String(argv[++i]).getFloatValue();
         else if (a == "--scroll" && i + 1 < argc) scroll = juce::String(argv[++i]).getFloatValue();
         else if (a == "--rails-only") railsOnly = true;
+        else if (a == "--bemani") bemani = true;
         else if (a == "--only" && i + 1 < argc) onlyParts.addTokens(argv[++i], ",", "");
         else if (! a.startsWith("--")) outPath = a;
     }
+    PositionMath::bemaniMode = bemani;
+    PositionMath::bemaniHwyScale = bemani ? length : 1.0f;
     if (outPath.isEmpty()) outPath = "highway.png";
     if (length < 0.1f) length = 1.0f;
 
