@@ -36,6 +36,8 @@ public:
     juce::Image* getBarKick2xImage() { return &barKick2xImage; }
     juce::Image* getBarOpenImage() { return &barOpenImage; }
     juce::Image* getBarWhiteImage() { return &barWhiteImage; }
+    // Elite pedal/stomp bar (extracted). Loaded but not yet drawn: col 10/11 stomp lane is unmapped.
+    juce::Image* getBarStompImage() { return &barStompImage; }
 
     // Cymbal notes
     juce::Image* getCymBlueImage() { return &cymBlueImage; }
@@ -142,6 +144,7 @@ private:
     juce::Image barKick2xImage;
     juce::Image barOpenImage;
     juce::Image barWhiteImage;
+    juce::Image barStompImage;           // Extracted elite pedal/stomp bar (col 10/11 still unmapped)
 
     // Cymbal notes
     juce::Image cymBlueImage;

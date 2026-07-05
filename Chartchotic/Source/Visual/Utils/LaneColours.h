@@ -67,4 +67,11 @@ namespace TrackColours
     inline const juce::Colour railInner       = juce::Colour(0xFF404040);
     inline const juce::Colour railLine        = juce::Colour(0xFF606060);
     inline const juce::Colour railBlack       = juce::Colour(0xFF060606);
+
+    // Procedural gridline markers (flat grey bar). Alpha differs per subdivision, matching the
+    // old baked marker PNGs so the renderer's per-type opacity multipliers stay tuned. STEP
+    // reuses the half-beat bake (opacity differentiates it in GridlineRenderer).
+    inline const juce::Colour gridlineMeasure  = juce::Colour(0xBFA6A6A6);
+    inline const juce::Colour gridlineBeat     = juce::Colour(0x80A6A6A6);
+    inline const juce::Colour gridlineHalfBeat = juce::Colour(0x80A6A6A6);
 }

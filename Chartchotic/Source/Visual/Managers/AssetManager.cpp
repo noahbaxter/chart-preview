@@ -87,6 +87,10 @@ void AssetManager::initAssets()
         barKick2xImage = GemArt::bakeBar(GemArt::barRampKick2x(), canvas, content);
         barOpenImage   = GemArt::bakeBar(GemArt::barRampOpen(),   canvas, content);
     }
+    // Elite Stomp/Splash pedal bar: procedurally baked FLAT (like the kick bars). The highway
+    // curve is applied at render time (over the bar's off-centre span) so it matches the tilted
+    // gridline exactly, rather than baking a symmetric bow that can't tilt.
+    barStompImage = GemArt::bakeStompBar(0.0f, PositionConstants::ELITE_PEDAL_THICKNESS);
 
     // Cymbals: one greyscale metallic master (the blue cymbal collapsed to luminance) drives
     // every lane colour through a LaneColours tint ramp, presets AND any custom hue alike, so
@@ -131,9 +135,22 @@ void AssetManager::initAssets()
     laneMidImage = juce::ImageCache::getFromMemory(BinaryData::lane_mid_png, BinaryData::lane_mid_pngSize);
     laneStartImage = juce::ImageCache::getFromMemory(BinaryData::lane_start_png, BinaryData::lane_start_pngSize);
 
-    markerBeatImage = juce::ImageCache::getFromMemory(BinaryData::marker_beat_png, BinaryData::marker_beat_pngSize);
-    markerHalfBeatImage = juce::ImageCache::getFromMemory(BinaryData::marker_half_beat_png, BinaryData::marker_half_beat_pngSize);
-    markerMeasureImage = juce::ImageCache::getFromMemory(BinaryData::marker_measure_png, BinaryData::marker_measure_pngSize);
+    // Gridline markers: procedurally baked (was baked-curve PNGs). The arc derives from the SAME
+    // curvature constant the notes / stomp bar use, so the gridline and the pedal (stomp/splash)
+    // bar curve from ONE source and pixel-match over their shared span, rather than the gridline
+    // baking a hand-guessed arc the stomp bar then chases. Thickness/alpha reproduce the old PNGs
+    // (measure = brightest; beat / half-beat dimmer; half-beat thinner). STEP reuses half-beat.
+    {
+        constexpr float gridMeasureThick  = 57.0f;
+        constexpr float gridHalfBeatThick  = 33.0f;
+        // Full-board parabola amplitude (peak-to-edge) in bake px = width * |curvature|, matching
+        // getCurvedImage's arcHeight = srcW * curv over the fretboard span.
+        const float gridArch = (float) GemArt::kGridlineWidth
+                             * std::abs(PositionConstants::NOTE_CURVATURE_DRUMS);
+        markerMeasureImage  = GemArt::bakeGridline(gridMeasureThick,  TrackColours::gridlineMeasure,  gridArch);
+        markerBeatImage     = GemArt::bakeGridline(gridMeasureThick,  TrackColours::gridlineBeat,     gridArch);
+        markerHalfBeatImage = GemArt::bakeGridline(gridHalfBeatThick, TrackColours::gridlineHalfBeat, gridArch);
+    }
 
     // Write-mode markers: copies of the same source PNGs with their alpha
     // amplified. The original PNGs bake alpha (~0.75 MEASURE / ~0.50 BEAT)
@@ -217,6 +234,7 @@ void AssetManager::initAssets()
         // Bars
         {&barKickImage, barKickImage}, {&barKick2xImage, barKick2xImage},
         {&barOpenImage, barOpenImage}, {&barWhiteImage, barWhiteImage},
+        {&barStompImage, barStompImage},
         // Overlays
         {&overlayCymAccentImage, overlayCymAccentImage}, {&overlayCymGhostImage, overlayCymGhostImage},
         {&overlayNoteAccentImage, overlayNoteAccentImage}, {&overlayNoteGhostImage, overlayNoteGhostImage},
@@ -425,6 +443,12 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
 
     if (elite)
     {
+        // Hi-hat pedal bars (Stomp / Splash): the raised-white mini kick-bar art. Same art
+        // for both (spec: both render as miniature kick bars); the renderer positions it
+        // centered on the hi-hat lane. Identified by gem type, not column.
+        if (gemWrapper.gem == Gem::STOMP || gemWrapper.gem == Gem::SPLASH)
+            return getBarStompImage();
+
         // Elite: each hand lane is drum XOR cymbal, and its colour comes from the shared
         // ELITE_LANE_STYLES table (same source the strikeline pads use), so the gem and
         // its pad always match. Kick / 2x-Kick are full-width bars. Purple (Left Crash)
