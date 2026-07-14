@@ -71,7 +71,7 @@ jobs:
       shell: cmd
       run: |
         choco install innosetup -y --no-progress
-        iscc /DMyAppVersion="${{ inputs.version_string }}" /DSourceDir="%GITHUB_WORKSPACE%\dist-windows" "%GITHUB_WORKSPACE%\.ci\windows-installer.iss"
+        iscc /DVERSION="${{ inputs.version_string }}" /DSOURCE_DIR="%GITHUB_WORKSPACE%\build\Chartchotic_artefacts\Release" "%GITHUB_WORKSPACE%\.ci\windows-installer.iss"
 
     - name: Upload Windows artifact
       uses: actions/upload-artifact@v4

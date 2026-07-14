@@ -35,6 +35,12 @@ if(NOT DEFINED VERSION_STRING)
     endif()
 endif()
 
+# Stage the vendored REAPER VST3 interface header into the (gitignored) SDK path
+# so the build is self-contained on any checkout. CI used to copy this by hand;
+# doing it at configure time keeps the generic release hub working too.
+file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/.ci/reaper-headers/reaper_vst3_interfaces.h"
+     DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/third_party/reaper-sdk/sdk")
+
 # Suppress warnings from JUCE (third-party code)
 set(_saved_cxx_flags "${CMAKE_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w")
