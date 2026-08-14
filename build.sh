@@ -115,10 +115,8 @@ if [ ! -f "$REAPER_HEADER" ]; then
     cp "$SCRIPT_DIR/.ci/reaper-headers/reaper_vst3_interfaces.h" "$REAPER_HEADER"
 fi
 
-# Kill running instances before build to avoid locked files
-if [ "$OPEN_REAPER" = true ]; then
-    killall -9 REAPER 2>/dev/null || true
-fi
+# Kill running instances before build to avoid locked files. REAPER is not
+# killed here: see the restart block at the end.
 if [ "$BUILD_STANDALONE" = true ]; then
     killall -9 "Chartchotic" 2>/dev/null || true
 fi
@@ -309,8 +307,15 @@ echo "========================================"
 [ "$BUILD_BENCHMARK" = true ]  && echo "  Benchmark:  $BENCH_BIN"
 echo ""
 
-# Open REAPER if requested
+# Restart REAPER if requested. It is killed here rather than before the build
+# so a compile or install failure leaves the running instance alone: set -e
+# aborts further up and never reaches this point.
 if [ "$OPEN_REAPER" = true ]; then
+    if pgrep -x REAPER > /dev/null; then
+        echo "Restarting REAPER..."
+        killall -9 REAPER 2>/dev/null || true
+        sleep 0.5
+    fi
     if [ -f "$REAPER_TEST_PROJECT" ]; then
         echo "Opening REAPER with test project..."
         open -a "REAPER" "$REAPER_TEST_PROJECT"
