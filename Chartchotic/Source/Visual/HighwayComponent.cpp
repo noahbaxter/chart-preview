@@ -123,6 +123,7 @@ void HighwayComponent::paint(juce::Graphics& g)
     // Ghost cursor: set before paint so it renders through the note pipeline.
     sceneRenderer.ghostCursor.visible = false;
     sceneRenderer.ghostCursor.positionLabel = {};
+    sceneRenderer.ghostCursor.modeLabel = {};
     if (overlayStateGetter)
     {
         const auto& ov = overlayStateGetter();
@@ -136,6 +137,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                 sceneRenderer.ghostCursor.position = pos;
                 sceneRenderer.ghostCursor.positionLabel = formatPositionQN
                     ? formatPositionQN(ov.ghostQN) : juce::String();
+                sceneRenderer.ghostCursor.modeLabel = ov.ghostModeLabel;
 
                 sceneRenderer.ghostCursor.stampGhosts.clear();
                 if (!ov.stampGhosts.empty())
