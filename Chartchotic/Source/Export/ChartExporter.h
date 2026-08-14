@@ -76,7 +76,6 @@ public:
     */
     struct ChartName
     {
-        juce::String folder;    // full stem, used as the folder name
         juce::String artist;
         juce::String album;
         juce::String track;
@@ -85,7 +84,15 @@ public:
         juce::StringArray sources;     // every audio file considered
         juce::StringArray ambiguous;   // fields blanked because sources disagreed
 
-        bool resolved() const { return folder.isNotEmpty(); }
+        /**
+            Charts are always written as "ARTIST - ALBUM - ## - TITLE",
+            assembled from the fields rather than copied from any input
+            filename. Empty until every field has a value, which is what the
+            export dialog is for.
+        */
+        juce::String folderName() const;
+        bool complete() const;
+        juce::StringArray missingFields() const;
     };
 
     ChartName inferChartName(const TimeRange& range) const;

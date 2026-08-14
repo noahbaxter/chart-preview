@@ -171,6 +171,35 @@ namespace
     }
 }
 
+juce::StringArray ChartExporter::ChartName::missingFields() const
+{
+    juce::StringArray missing;
+    if (artist.isEmpty()) missing.add("artist");
+    if (album.isEmpty())  missing.add("album");
+    if (track.isEmpty())  missing.add("track");
+    if (title.isEmpty())  missing.add("title");
+    return missing;
+}
+
+bool ChartExporter::ChartName::complete() const
+{
+    return missingFields().isEmpty();
+}
+
+juce::String ChartExporter::ChartName::folderName() const
+{
+    if (!complete()) return {};
+
+    // Track numbers are padded to two digits in the output regardless of how
+    // they arrived, since that is the shape charts are published in.
+    juce::String number = track.trim();
+    if (number.containsOnly("0123456789") && number.length() < 2)
+        number = number.paddedLeft('0', 2);
+
+    return artist.trim() + kFieldSeparator + album.trim()
+         + kFieldSeparator + number + kFieldSeparator + title.trim();
+}
+
 std::vector<ChartExporter::SourceClaim> ChartExporter::claimsUnder(const TimeRange& range) const
 {
     std::vector<SourceClaim> claims;
@@ -256,12 +285,11 @@ ChartExporter::ChartName ChartExporter::inferChartName(const TimeRange& range) c
     // Only files that say something about themselves get a vote. A raw mix
     // stem sitting under the same range is not evidence of anything, and
     // letting it vote would blank every field on a perfectly clear export.
-    juce::StringArray stems, artists, albums, tracks, titles;
+    juce::StringArray artists, albums, tracks, titles;
     for (const auto& c : claims)
     {
         name.sources.add(c.file);
         if (!c.claimsAnything()) continue;
-        if (c.conventional) stems.add(c.stem);
         artists.add(c.artist);
         albums.add(c.album);
         tracks.add(c.track);
@@ -271,8 +299,6 @@ ChartExporter::ChartName ChartExporter::inferChartName(const TimeRange& range) c
     // Disagreement means we do not know, so the field is left empty rather
     // than guessed at from whichever item happened to come first.
     bool conflict = false;
-    name.folder = consensus(stems, conflict);
-    if (conflict) name.ambiguous.add("folder");
     name.artist = consensus(artists, conflict);
     if (conflict) name.ambiguous.add("artist");
     name.album = consensus(albums, conflict);
@@ -356,16 +382,15 @@ juce::String ChartExporter::describeContext() const
         out << "[export] left blank, sources disagree: "
             << name.ambiguous.joinIntoString(", ") << "\n";
 
-    if (!name.resolved())
-        out << "[export] cannot name the chart from the audio under the range\n";
+    out << "[export] proposed  artist '" << name.artist << "'  album '" << name.album
+        << "'  track '" << name.track << "'  title '" << name.title << "'\n";
+
+    auto missing = name.missingFields();
+    if (!missing.isEmpty())
+        out << "[export] needs filling in: " << missing.joinIntoString(", ") << "\n";
     else
-    {
-        out << "[export] chart folder: " << name.folder << "\n";
-        out << "[export]   artist '" << name.artist << "'  album '" << name.album
-            << "'  track '" << name.track << "'  title '" << name.title << "'\n";
         out << "[export] would write to: "
-            << exportRoot().getChildFile(name.folder).getFullPathName() << "\n";
-    }
+            << exportRoot().getChildFile(name.folderName()).getFullPathName() << "\n";
 
     auto rgns = regions();
     out << "[export] " << (int)rgns.size() << " regions\n";
