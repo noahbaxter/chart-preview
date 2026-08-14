@@ -590,7 +590,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onExportChart = [this]() {
         auto& provider = audioProcessor.getReaperMidiProvider();
         ChartExporter exporter(provider.getAPIs(), provider.getReaperGetFunc());
-        DBG(exporter.describeContext());
+        exporter.logContext();
     };
     toolbar.onDiscoFlipChanged = [this](bool on) { state.setProperty("discoFlip", on, nullptr); propagateToSlots("discoFlip", on); };
     toolbar.onDynamicsChanged = [this](bool on) { state.setProperty("dynamics", on, nullptr); propagateToSlots("dynamics", on); };

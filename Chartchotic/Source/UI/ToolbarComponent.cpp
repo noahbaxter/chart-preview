@@ -1040,6 +1040,18 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
         y += sectionGap - gap;
     }
 
+    // --- Export ---
+    // Only REAPER can render the audio, so the section is meaningless without it.
+    exportHeader.setVisible(reaperMode);
+    exportButton.setVisible(reaperMode);
+    if (reaperMode)
+    {
+        exportHeader.setBounds(margin, y, w, headerH);
+        y += headerH + gap;
+        exportButton.setBounds(margin, y, w, stepperH);
+        y += stepperH + sectionGap;
+    }
+
     // --- Sync ---
     syncHeader.setBounds(margin, y, w, headerH);
     y += headerH + gap;

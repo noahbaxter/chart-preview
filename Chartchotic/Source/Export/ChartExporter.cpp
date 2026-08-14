@@ -5,6 +5,31 @@ ChartExporter::ChartExporter(const ReaperAPIs& a, std::function<void*(const char
 {
 }
 
+juce::File ChartExporter::logFile()
+{
+    return juce::FileLogger::getSystemLogFileFolder()
+             .getChildFile("Chartchotic")
+             .getChildFile("export.log");
+}
+
+void ChartExporter::log(const juce::String& message)
+{
+    auto file = logFile();
+    file.getParentDirectory().createDirectory();
+
+    juce::String stamped;
+    for (const auto& line : juce::StringArray::fromLines(message.trimEnd()))
+        stamped << juce::Time::getCurrentTime().toString(false, true, true, true)
+                << "  " << line << "\n";
+
+    file.appendText(stamped, false, false, "\n");
+}
+
+void ChartExporter::logContext() const
+{
+    log("=== export requested ===\n" + describeContext());
+}
+
 void* ChartExporter::project() const
 {
     return ReaperApiHelpers::getProject(getReaperApi);
@@ -18,16 +43,26 @@ bool ChartExporter::available() const
         && apis.GetSet_LoopTimeRange2 != nullptr;
 }
 
-juce::String ChartExporter::Sink::formatCode() const
+juce::String ChartExporter::Sink::readableFourcc() const
 {
-    // RENDER_FORMAT takes the sink's fourcc as four raw bytes. REAPER stores
-    // these reversed relative to how they read, which is why the WAV sink shows
-    // up in project files as "evaw" rather than "wave".
     char code[5] = {};
     code[0] = (char)((fourcc >> 24) & 0xFF);
     code[1] = (char)((fourcc >> 16) & 0xFF);
     code[2] = (char)((fourcc >> 8) & 0xFF);
     code[3] = (char)(fourcc & 0xFF);
+    return juce::String(juce::CharPointer_UTF8(code));
+}
+
+juce::String ChartExporter::Sink::formatCode() const
+{
+    // PCM_Sink_Enum hands back the fourcc the way it reads ("wave", "mp3l"),
+    // but RENDER_FORMAT wants it byte-reversed. Confirmed twice: project files
+    // store the WAV sink as "evaw", and the SDK's own MP3 example is "l3pm".
+    char code[5] = {};
+    code[0] = (char)(fourcc & 0xFF);
+    code[1] = (char)((fourcc >> 8) & 0xFF);
+    code[2] = (char)((fourcc >> 16) & 0xFF);
+    code[3] = (char)((fourcc >> 24) & 0xFF);
     return juce::String(juce::CharPointer_UTF8(code));
 }
 
@@ -96,12 +131,21 @@ std::vector<ChartExporter::Region> ChartExporter::regions() const
 
 juce::String ChartExporter::projectDirectory() const
 {
-    void* proj = project();
-    if (!proj || !apis.GetProjectPathEx) return {};
+    // Deliberately not GetProjectPathEx: that returns the media folder, which
+    // for this project is .../lockslip/Media. The chart belongs beside the RPP,
+    // so ask EnumProjects for the project file itself and take its parent.
+    if (!getReaperApi) return {};
 
-    char buf[2048] = {};
-    apis.GetProjectPathEx(proj, buf, sizeof(buf));
-    return juce::String(juce::CharPointer_UTF8(buf));
+    using EnumProjectsFn = void* (*)(int, char*, int);
+    auto enumProjects = (EnumProjectsFn)getReaperApi("EnumProjects");
+    if (!enumProjects) return {};
+
+    char path[2048] = {};
+    if (!enumProjects(-1, path, sizeof(path))) return {};
+
+    juce::File projectFile{ juce::String(juce::CharPointer_UTF8(path)) };
+    if (projectFile.getFullPathName().isEmpty()) return {};
+    return projectFile.getParentDirectory().getFullPathName();
 }
 
 juce::String ChartExporter::describeContext() const
@@ -117,23 +161,22 @@ juce::String ChartExporter::describeContext() const
 
     out << "[export] project dir: " << projectDirectory() << "\n";
 
-    auto sinks = availableSinks();
-    out << "[export] " << (int)sinks.size() << " render sinks\n";
-    for (const auto& s : sinks)
-        out << "    '" << s.formatCode() << "'  0x"
-            << juce::String::toHexString((int)s.fourcc) << "  " << s.description << "\n";
-
     auto compressed = compressedSinks();
-    out << "[export] " << (int)compressed.size() << " usable for song audio\n";
+    out << "[export] " << (int)compressed.size() << " sinks usable for song audio\n";
     for (const auto& s : compressed)
-        out << "    '" << s.formatCode() << "'  " << s.description << "\n";
+        out << "    " << s.readableFourcc() << " -> RENDER_FORMAT '" << s.formatCode()
+            << "'   " << s.description << "\n";
 
     auto sel = timeSelection();
-    if (sel.valid())
+    if (!sel.exists())
+        out << "[export] NO TIME SELECTION\n";
+    else if (!sel.plausible())
+        out << "[export] time selection only " << juce::String(sel.length(), 3)
+            << "s, under the " << juce::String(kMinimumExportSeconds, 1)
+            << "s minimum — treating as leftover, not a deliberate range\n";
+    else
         out << "[export] time selection " << juce::String(sel.startSec, 3) << "s to "
             << juce::String(sel.endSec, 3) << "s (" << juce::String(sel.length(), 3) << "s)\n";
-    else
-        out << "[export] NO TIME SELECTION\n";
 
     auto rgns = regions();
     out << "[export] " << (int)rgns.size() << " regions\n";

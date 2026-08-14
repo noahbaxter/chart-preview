@@ -23,16 +23,27 @@ public:
     {
         unsigned int fourcc = 0;
         juce::String description;
-        /** The 4-byte string RENDER_FORMAT wants, derived from the fourcc. */
+        /** The fourcc as it reads, e.g. "wave". Diagnostics only. */
+        juce::String readableFourcc() const;
+        /** Byte-reversed, which is what RENDER_FORMAT actually wants ("evaw"). */
         juce::String formatCode() const;
     };
+
+    /**
+        A sanity floor, not a tuned value: exporting a sub-second "song" is a
+        confusing failure, so it is worth asking rather than proceeding. Both
+        questions are reported separately since "a selection exists" and "this
+        looks deliberate" are not the same thing.
+    */
+    static constexpr double kMinimumExportSeconds = 2.0;
 
     struct TimeRange
     {
         double startSec = 0.0;
         double endSec = 0.0;
-        bool   valid() const { return endSec > startSec; }
+        bool   exists() const { return endSec > startSec; }
         double length() const { return endSec - startSec; }
+        bool   plausible() const { return length() >= kMinimumExportSeconds; }
     };
 
     struct Region
@@ -61,6 +72,17 @@ public:
 
     /** Human-readable dump of everything above, for wiring up and diagnosis. */
     juce::String describeContext() const;
+
+    /**
+        Everything the exporter does goes here rather than to DBG, so it can be
+        read after the fact without attaching a console to REAPER.
+        ~/Library/Logs/Chartchotic/export.log on macOS.
+    */
+    static juce::File logFile();
+    static void log(const juce::String& message);
+
+    /** Writes a session banner plus describeContext() to the log. */
+    void logContext() const;
 
 private:
     const ReaperAPIs& apis;
