@@ -84,6 +84,12 @@ struct ReaperAPIs
     void* (*CreateNewMIDIItemInProj)(void* track, double starttime, double endtime,
                                      const bool* qnInOptional) = nullptr;
 
+    // Text event write functions — chart-level switches are FF 01 text events,
+    // not notes.
+    bool (*MIDI_InsertTextSysexEvt)(void* take, bool selected, bool muted, double ppqpos,
+                                    int type, const char* bytestr, int bytestr_sz) = nullptr;
+    bool (*MIDI_DeleteTextSysexEvt)(void* take, int textsyxevtidx) = nullptr;
+
     // Undo — only OnStateChange works reliably from plugin GUI threads.
     // BeginBlock2/EndBlock2 open a block that never closes from plugin context.
     void (*Undo_OnStateChange)(const char* descchange) = nullptr;
@@ -237,6 +243,10 @@ public:
             apiFunc("CreateNewMIDIItemInProj");
 
         // Undo
+        outAPIs.MIDI_InsertTextSysexEvt = (bool(*)(void*, bool, bool, double, int, const char*, int))
+            apiFunc("MIDI_InsertTextSysexEvt");
+        outAPIs.MIDI_DeleteTextSysexEvt = (bool(*)(void*, int))apiFunc("MIDI_DeleteTextSysexEvt");
+
         outAPIs.Undo_OnStateChange = (void(*)(const char*))apiFunc("Undo_OnStateChange");
 
         // Project state

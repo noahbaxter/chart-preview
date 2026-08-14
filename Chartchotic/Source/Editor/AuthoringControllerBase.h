@@ -153,7 +153,27 @@ protected:
             return false;
         }
         patchAdd(lane, qn);
+        ensureChartDynamics(trackIdx, velocity);
         return true;
+    }
+
+    // Ghost and accent velocities mean nothing to the game unless the chart
+    // carries ENABLE_CHART_DYNAMICS, so writing a dynamic note guarantees it
+    // rather than leaving the charter to remember. Cached per track: it only
+    // ever needs doing once, and the check costs a REAPER scan.
+    //
+    // Written bare despite the spec table showing it bracketed, because every
+    // chart that carries the event at all writes it bare (17 of 17 across three
+    // independent sources). Official Rock Band charts cannot settle it: their
+    // drums are a flat velocity 96 and predate dynamics entirely.
+    void ensureChartDynamics(int trackIdx, int velocity)
+    {
+        if (!isDrums() || dynamicsEnsuredTrack == trackIdx) return;
+        if (velocity != (int)Dynamic::GHOST && velocity != (int)Dynamic::ACCENT) return;
+
+        if (auto* writer = noteEditor.getMidiWriter())
+            if (writer->ensureTrackTextEvent(trackIdx, "ENABLE_CHART_DYNAMICS"))
+                dynamicsEnsuredTrack = trackIdx;
     }
 
     bool eraseNote(int trackIdx, double qn, int pitch, bool drums, int lane, SkillLevel skill)
@@ -432,6 +452,7 @@ protected:
     bool                    snapEnabledFlag      = true;
     bool                    barModeFlag          = false;
     bool                    kick2xEnabled        = false;
+    int                     dynamicsEnsuredTrack = -1;
     DrumDynamic             currentDrumDynamic   = DrumDynamic::Normal;
     GuitarForce             currentGuitarForce   = GuitarForce::None;
     bool                    cymbalModeFlag       = false;
