@@ -586,6 +586,12 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onHitIndicatorsChanged = [this](bool on) { state.setProperty("hitIndicators", on, nullptr); propagateToSlots("hitIndicators", on); };
     toolbar.onStarPowerChanged = [this](bool on) { state.setProperty("starPower", on, nullptr); propagateToSlots("starPower", on); };
     toolbar.onKick2xChanged = [this](bool on) { state.setProperty("kick2x", on, nullptr); propagateToSlots("kick2x", on); };
+
+    toolbar.onExportChart = [this]() {
+        auto& provider = audioProcessor.getReaperMidiProvider();
+        ChartExporter exporter(provider.getAPIs(), provider.getReaperGetFunc());
+        DBG(exporter.describeContext());
+    };
     toolbar.onDiscoFlipChanged = [this](bool on) { state.setProperty("discoFlip", on, nullptr); propagateToSlots("discoFlip", on); };
     toolbar.onDynamicsChanged = [this](bool on) { state.setProperty("dynamics", on, nullptr); propagateToSlots("dynamics", on); };
 

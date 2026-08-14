@@ -104,6 +104,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Editor/CommandMapper.cpp
         Chartchotic/Source/Editor/CommandMapper.h
         Chartchotic/Source/Editor/ModifierSlots.h
+        Chartchotic/Source/Export/ChartExporter.cpp
+        Chartchotic/Source/Export/ChartExporter.h
         Chartchotic/Source/Editor/EditController.cpp
         Chartchotic/Source/Editor/EditController.h
         Chartchotic/Source/Editor/InteractionController.cpp

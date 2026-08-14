@@ -90,6 +90,30 @@ struct ReaperAPIs
                                     int type, const char* bytestr, int bytestr_sz) = nullptr;
     bool (*MIDI_DeleteTextSysexEvt)(void* take, int textsyxevtidx) = nullptr;
 
+    // Render/export. REAPER has no direct "render now" call, so exporting means
+    // writing the project's render settings, firing the render action, and
+    // putting the user's settings back.
+    double (*GetSetProjectInfo)(void* proj, const char* desc, double value, bool is_set) = nullptr;
+    bool (*GetSetProjectInfo_String)(void* proj, const char* desc,
+                                     char* valuestrNeedBig, bool is_set) = nullptr;
+    void (*GetProjectPathEx)(void* proj, char* bufOut, int bufOut_sz) = nullptr;
+    int  (*ResolveRenderPattern)(void* proj, const char* path, const char* pattern,
+                                 char* targets, int targets_sz) = nullptr;
+
+    // Sink enumeration: the fourcc a format wants for RENDER_FORMAT is
+    // discovered here rather than hardcoded, since which sinks exist depends on
+    // the install.
+    unsigned int (*PCM_Sink_Enum)(int idx, const char** descstrOut) = nullptr;
+    const char*  (*PCM_Sink_GetExtension)(const char* data, int data_sz) = nullptr;
+
+    // Export bounds come from either the time selection or a region.
+    void (*GetSet_LoopTimeRange2)(void* proj, bool isSet, bool isLoop,
+                                  double* startOut, double* endOut, bool allowautoseek) = nullptr;
+    int  (*CountProjectMarkers)(void* proj, int* num_markersOut, int* num_regionsOut) = nullptr;
+    int  (*EnumProjectMarkers3)(void* proj, int idx, bool* isrgnOut, double* posOut,
+                                double* rgnendOut, const char** nameOut,
+                                int* markrgnindexnumberOut, int* colorOut) = nullptr;
+
     // Undo — only OnStateChange works reliably from plugin GUI threads.
     // BeginBlock2/EndBlock2 open a block that never closes from plugin context.
     void (*Undo_OnStateChange)(const char* descchange) = nullptr;
@@ -246,6 +270,23 @@ public:
         outAPIs.MIDI_InsertTextSysexEvt = (bool(*)(void*, bool, bool, double, int, const char*, int))
             apiFunc("MIDI_InsertTextSysexEvt");
         outAPIs.MIDI_DeleteTextSysexEvt = (bool(*)(void*, int))apiFunc("MIDI_DeleteTextSysexEvt");
+
+        outAPIs.GetSetProjectInfo = (double(*)(void*, const char*, double, bool))
+            apiFunc("GetSetProjectInfo");
+        outAPIs.GetSetProjectInfo_String = (bool(*)(void*, const char*, char*, bool))
+            apiFunc("GetSetProjectInfo_String");
+        outAPIs.GetProjectPathEx = (void(*)(void*, char*, int))apiFunc("GetProjectPathEx");
+        outAPIs.ResolveRenderPattern = (int(*)(void*, const char*, const char*, char*, int))
+            apiFunc("ResolveRenderPattern");
+        outAPIs.PCM_Sink_Enum = (unsigned int(*)(int, const char**))apiFunc("PCM_Sink_Enum");
+        outAPIs.PCM_Sink_GetExtension = (const char*(*)(const char*, int))
+            apiFunc("PCM_Sink_GetExtension");
+        outAPIs.GetSet_LoopTimeRange2 = (void(*)(void*, bool, bool, double*, double*, bool))
+            apiFunc("GetSet_LoopTimeRange2");
+        outAPIs.CountProjectMarkers = (int(*)(void*, int*, int*))apiFunc("CountProjectMarkers");
+        outAPIs.EnumProjectMarkers3 = (int(*)(void*, int, bool*, double*, double*,
+                                              const char**, int*, int*))
+            apiFunc("EnumProjectMarkers3");
 
         outAPIs.Undo_OnStateChange = (void(*)(const char*))apiFunc("Undo_OnStateChange");
 

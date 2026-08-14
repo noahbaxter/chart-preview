@@ -197,6 +197,12 @@ void ToolbarComponent::initChartPanel()
         if (onKick2xChanged) onKick2xChanged(kick2xToggle.getToggleState());
     };
 
+    exportButton.onClick = [this]() {
+        // Momentary: exporting is an action, not a state to sit in.
+        exportButton.setToggleState(false, juce::dontSendNotification);
+        if (onExportChart) onExportChart();
+    };
+
     cymbalsToggle.onClick = [this]() {
         // Cymbals ON = Pro (id 2), OFF = Normal (id 1)
         if (onDrumTypeChanged) onDrumTypeChanged(cymbalsToggle.getToggleState() ? 2 : 1);
@@ -510,6 +516,8 @@ void ToolbarComponent::initSettingsPanel()
     settingsButton.addPanelChild(&backgroundStepper);
     settingsButton.addPanelChild(&gemScaleStepper);
     settingsButton.addPanelChild(&barScaleStepper);
+    settingsButton.addPanelChild(&exportHeader);
+    settingsButton.addPanelChild(&exportButton);
     settingsButton.addPanelChild(&syncHeader);
     settingsButton.addPanelChild(&syncOffsetStepper);
     settingsButton.addPanelChild(&latencyStepper);

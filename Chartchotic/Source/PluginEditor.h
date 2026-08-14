@@ -26,6 +26,7 @@
 #include "UI/Controls/WriteModeIcon.h"
 #include "UI/UpdateBannerComponent.h"
 #include "UI/FooterComponent.h"
+#include "Export/ChartExporter.h"
 #include "Editor/AssetController.h"
 #include "Editor/SessionController.h"
 #include "Editor/FrameDataBuilder.h"
