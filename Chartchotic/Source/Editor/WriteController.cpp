@@ -300,8 +300,14 @@ void WriteController::onPointerUp(const AuthoringPoint& p,
     if (sustainPendingClick)
     {
         sustainPendingClick = false;
+        // Replacing a note's type must not destroy its sustain, so carry the
+        // existing duration across when we land on the same note.
+        auto existing = findNote(sustainDragTrackIdx, sustainPendingClickQN, sustainDragPitch);
+        double duration = (existing.noteIndex >= 0
+                           && std::abs(existing.startQN - sustainPendingClickQN) < kQNEpsilon)
+                        ? existing.endQN - existing.startQN : 0.0;
         createNote(sustainDragTrackIdx, sustainPendingClickQN,
-                   sustainDragPitch, sustainDragLane, resolveVelocity());
+                   sustainDragPitch, sustainDragLane, resolveVelocity(), duration);
         if (isDrums())
             writeTomMarker(sustainDragTrackIdx, sustainPendingClickQN, sustainDragLane);
         else
@@ -382,11 +388,20 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
 
     if (drums)
     {
-        if (!onExistingNote)
+        // No guard on an existing note: clicking one re-applies the current
+        // type, so dropping an accent on a normal note upgrades it instead of
+        // silently doing nothing. createNote erases and recreates at the same
+        // QN, which makes this a replace. Targeting clickQN rather than the
+        // hit note also means clicking further along a sustain body creates a
+        // new note at that step, which previously fell through and did nothing.
+        double duration = 0.0;
+        if (onExistingNote && std::abs(p.hitNoteStartQN - clickQN) < kQNEpsilon)
         {
-            createNote(trackIdx, clickQN, pitch, p.laneIndex, resolveVelocity());
-            writeTomMarker(trackIdx, clickQN, p.laneIndex);
+            auto found = findNote(trackIdx, p.hitNoteStartQN, pitch);
+            if (found.noteIndex >= 0) duration = found.endQN - found.startQN;
         }
+        createNote(trackIdx, clickQN, pitch, p.laneIndex, resolveVelocity(), duration);
+        writeTomMarker(trackIdx, clickQN, p.laneIndex);
         return;
     }
 
