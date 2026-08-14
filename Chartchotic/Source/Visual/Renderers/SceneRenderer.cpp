@@ -99,7 +99,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
         {
             for (const auto& sg : ghostCursor.stampGhosts)
                 noteRenderer.renderGhost(drawCallMap, sg.lane, sg.position,
-                                         nullptr, ghostCursor.opacity);
+                                         nullptr, ghostCursor.opacity, sg.gem);
         }
         else if (ghostCursor.visible)
         {

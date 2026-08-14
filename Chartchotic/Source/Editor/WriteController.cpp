@@ -97,16 +97,11 @@ void WriteController::recomputeGhost()
     {
         if (!stamp.empty())
         {
-            int minLane = stamp[0].lane, maxStampLane = stamp[0].lane;
+            // The stamp holds the lanes it was copied from. The mouse moves it
+            // in time only; left/right arrows are the only way to move it
+            // across lanes, via shiftStampLanes.
             for (const auto& sn : stamp)
-            {
-                minLane = std::min(minLane, sn.lane);
-                maxStampLane = std::max(maxStampLane, sn.lane);
-            }
-            stampMouseLaneOffset = juce::jlimit(-minLane, maxLane() - maxStampLane,
-                                                lastPoint.laneIndex - minLane);
-            for (const auto& sn : stamp)
-                overlayState.stampGhosts.push_back({ sn.lane + stampMouseLaneOffset, sn.qnOffset, sn.duration });
+                overlayState.stampGhosts.push_back({ sn.lane, sn.qnOffset, sn.duration, sn.gem });
         }
         else
         {
@@ -131,10 +126,12 @@ void WriteController::clearStamp()
 void WriteController::shiftStampLanes(int delta)
 {
     if (stamp.empty()) return;
-    int maxLane = isDrums() ? 4 : 5;
 
+    // maxLane() rather than a local count: arrows are now the only way to move
+    // a stamp sideways, so they have to reach every lane the mouse used to,
+    // kick lanes included when kick2x is on.
     for (const auto& sn : stamp)
-        if (sn.lane + delta < 0 || sn.lane + delta > maxLane) return;
+        if (sn.lane + delta < 0 || sn.lane + delta > maxLane()) return;
 
     for (auto& sn : stamp)
         sn.lane += delta;
@@ -336,8 +333,11 @@ void WriteController::onFrameTick([[maybe_unused]] double currentProjectQN,
         for (const auto& cn : classified)
         {
             if (cn.sustainOnly) continue;
+            uint32_t mask = captureMarkerMask(stampCaptureTrackIdx, cn.note.startQN, cn.lane);
             notes.push_back({ cn.lane, cn.note.startQN - minQN,
-                              cn.note.endQN - cn.note.startQN });
+                              cn.note.endQN - cn.note.startQN,
+                              cn.note.velocity, mask,
+                              resolveCapturedGem(cn.lane, cn.note.velocity, mask) });
         }
         if (notes.size() >= 2)
             setStamp(std::move(notes));
@@ -360,15 +360,16 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
         beginBatch("Chartchotic: Stamp notes");
         for (const auto& sn : stamp)
         {
-            int lane = sn.lane + stampMouseLaneOffset;
+            int lane = sn.lane;
             int sp = resolvePitch(lane, drums);
             if (sp >= 0)
             {
-                createNote(trackIdx, clickQN + sn.qnOffset, sp, lane, resolveVelocity(), sn.duration);
-                if (drums)
-                    writeTomMarker(trackIdx, clickQN + sn.qnOffset, lane);
-                else
-                    writeGuitarForceMarker(trackIdx, clickQN + sn.qnOffset);
+                // Velocity and markers come from the captured note, not the
+                // current toolbar state, so a paste round-trips drum dynamics
+                // and note type exactly as copied. One path for both
+                // instruments: the mask says which markers to reproduce.
+                createNote(trackIdx, clickQN + sn.qnOffset, sp, lane, sn.velocity, sn.duration);
+                writeMarkerMask(trackIdx, clickQN + sn.qnOffset, lane, sn.markerMask);
             }
         }
         if (drums) { endBatch(); return; }
@@ -422,7 +423,7 @@ void WriteController::handleUpdateSustain(const AuthoringPoint& p)
         bool drums = isDrums();
         for (const auto& sn : stamp)
         {
-            int lane = sn.lane + stampMouseLaneOffset;
+            int lane = sn.lane;
             overlayState.drawPreviewNotes.push_back({
                 lane, sustainDragStartQN + sn.qnOffset, dragQN, resolvePitch(lane, drums)
             });
@@ -447,7 +448,7 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
             bool drums = isDrums();
             for (const auto& sn : stamp)
             {
-                int lane = sn.lane + stampMouseLaneOffset;
+                int lane = sn.lane;
                 int sp = resolvePitch(lane, drums);
                 if (sp >= 0)
                     chainExtendNotes(sustainDragTrackIdx,
@@ -545,15 +546,14 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
         {
             for (const auto& sn : stamp)
             {
-                int lane = sn.lane + stampMouseLaneOffset;
+                int lane = sn.lane;
                 int sp = resolvePitch(lane, drums);
                 if (sp >= 0)
                 {
-                    createNote(paintDragTrackIdx, snapped + sn.qnOffset, sp, lane, resolveVelocity());
-                    if (drums)
-                        writeTomMarker(paintDragTrackIdx, snapped + sn.qnOffset, lane);
-                    else
-                        writeGuitarForceMarker(paintDragTrackIdx, snapped + sn.qnOffset);
+                    // Painting a stamp is still a paste, so it carries the
+                    // captured velocity and markers like the click path does.
+                    createNote(paintDragTrackIdx, snapped + sn.qnOffset, sp, lane, sn.velocity);
+                    writeMarkerMask(paintDragTrackIdx, snapped + sn.qnOffset, lane, sn.markerMask);
                 }
             }
         }
@@ -585,7 +585,7 @@ void WriteController::paintShrinkTo(double lo, double hi)
             {
                 for (const auto& sn : stamp)
                 {
-                    int lane = sn.lane + stampMouseLaneOffset;
+                    int lane = sn.lane;
                     int sp = resolvePitch(lane, drums);
                     if (sp >= 0)
                         eraseNote(paintDragTrackIdx, it->qn + sn.qnOffset, sp, drums, lane, currentActiveSkill);
