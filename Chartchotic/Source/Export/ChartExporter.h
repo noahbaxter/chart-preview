@@ -67,8 +67,52 @@ public:
 
     std::vector<Region> regions() const;
 
-    /** Directory holding the project file, where the chart folder goes. */
+    /**
+        What the chart is called, taken from the audio item sitting under the
+        export range. Your library already names those files
+        "Artist - Album - NN - Title.wav", which is exactly the chart folder
+        name, so nothing needs typing in. Fields stay empty when the filename
+        does not split that way.
+    */
+    struct ChartName
+    {
+        juce::String folder;    // full stem, used as the folder name
+        juce::String artist;
+        juce::String album;
+        juce::String track;
+        juce::String title;
+
+        juce::StringArray sources;     // every audio file considered
+        juce::StringArray ambiguous;   // fields blanked because sources disagreed
+
+        bool resolved() const { return folder.isNotEmpty(); }
+    };
+
+    ChartName inferChartName(const TimeRange& range) const;
+
+    /** Everything one audio file claims about itself, filename and tags. */
+    struct SourceClaim
+    {
+        juce::String file;
+        juce::String stem;
+        juce::String artist, album, track, title;
+        /** Filename follows "Artist - Album - NN - Title". */
+        bool conventional = false;
+        /** Says something about itself, so it gets a vote on the name. */
+        bool claimsAnything() const
+        {
+            return conventional || artist.isNotEmpty() || album.isNotEmpty()
+                || track.isNotEmpty() || title.isNotEmpty();
+        }
+    };
+
+    std::vector<SourceClaim> claimsUnder(const TimeRange& range) const;
+
+    /** Directory holding the project file. */
     juce::String projectDirectory() const;
+
+    /** Charts are written into an "export" folder beside the project file. */
+    juce::File exportRoot() const;
 
     /** Human-readable dump of everything above, for wiring up and diagnosis. */
     juce::String describeContext() const;

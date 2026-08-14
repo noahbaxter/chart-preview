@@ -106,6 +106,13 @@ struct ReaperAPIs
     unsigned int (*PCM_Sink_Enum)(int idx, const char** descstrOut) = nullptr;
     const char*  (*PCM_Sink_GetExtension)(const char* data, int data_sz) = nullptr;
 
+    // Source file behind a take. The audio item under the export range names
+    // the chart, so nothing has to be typed in.
+    void* (*GetMediaItemTake_Source)(void* take) = nullptr;
+    void  (*GetMediaSourceFileName)(void* source, char* buf, int buf_sz) = nullptr;
+    int   (*GetMediaFileMetadata)(void* source, const char* identifier,
+                                  char* bufOut, int bufOut_sz) = nullptr;
+
     // Export bounds come from either the time selection or a region.
     void (*GetSet_LoopTimeRange2)(void* proj, bool isSet, bool isLoop,
                                   double* startOut, double* endOut, bool allowautoseek) = nullptr;
@@ -278,6 +285,11 @@ public:
         outAPIs.GetProjectPathEx = (void(*)(void*, char*, int))apiFunc("GetProjectPathEx");
         outAPIs.ResolveRenderPattern = (int(*)(void*, const char*, const char*, char*, int))
             apiFunc("ResolveRenderPattern");
+        outAPIs.GetMediaItemTake_Source = (void*(*)(void*))apiFunc("GetMediaItemTake_Source");
+        outAPIs.GetMediaSourceFileName = (void(*)(void*, char*, int))
+            apiFunc("GetMediaSourceFileName");
+        outAPIs.GetMediaFileMetadata = (int(*)(void*, const char*, char*, int))
+            apiFunc("GetMediaFileMetadata");
         outAPIs.PCM_Sink_Enum = (unsigned int(*)(int, const char**))apiFunc("PCM_Sink_Enum");
         outAPIs.PCM_Sink_GetExtension = (const char*(*)(const char*, int))
             apiFunc("PCM_Sink_GetExtension");

@@ -129,6 +129,169 @@ std::vector<ChartExporter::Region> ChartExporter::regions() const
     return out;
 }
 
+namespace
+{
+    // Tag identifiers vary by container, so each field is looked up under
+    // every spelling REAPER might report for it.
+    const char* kArtistTags[] = { "ID3:TPE1", "VORBIS:ARTIST", "INFO:IART", "XMP:dm/artist", nullptr };
+    const char* kAlbumTags[]  = { "ID3:TALB", "VORBIS:ALBUM",  "INFO:IPRD", "XMP:dm/album",  nullptr };
+    const char* kTitleTags[]  = { "ID3:TIT2", "VORBIS:TITLE",  "INFO:INAM", "XMP:dc/title",  nullptr };
+    const char* kTrackTags[]  = { "ID3:TRCK", "VORBIS:TRACKNUMBER", "INFO:ITRK", nullptr };
+
+    // The convention is "Artist - Album - NN - Title" with spaced dashes.
+    // Splitting on the bare character would tear apart any working filename
+    // that merely contains a hyphen and let the fragments pose as metadata, so
+    // the separator has to be the spaced form.
+    const juce::String kFieldSeparator = " - ";
+
+    juce::StringArray splitOnSeparator(const juce::String& text)
+    {
+        juce::StringArray parts;
+        int from = 0;
+        for (;;)
+        {
+            int at = text.indexOf(from, kFieldSeparator);
+            if (at < 0) { parts.add(text.substring(from).trim()); break; }
+            parts.add(text.substring(from, at).trim());
+            from = at + kFieldSeparator.length();
+        }
+        return parts;
+    }
+
+    /** Single value if every non-empty entry agrees, otherwise empty. */
+    juce::String consensus(const juce::StringArray& values, bool& conflicted)
+    {
+        juce::StringArray distinct;
+        for (const auto& v : values)
+            if (v.isNotEmpty() && !distinct.contains(v, true))
+                distinct.add(v);
+
+        conflicted = distinct.size() > 1;
+        return distinct.size() == 1 ? distinct[0] : juce::String();
+    }
+}
+
+std::vector<ChartExporter::SourceClaim> ChartExporter::claimsUnder(const TimeRange& range) const
+{
+    std::vector<SourceClaim> claims;
+    void* proj = project();
+    if (!proj || !range.exists()) return claims;
+    if (!apis.CountMediaItems || !apis.GetMediaItem || !apis.GetActiveTake
+        || !apis.GetMediaItemTake_Source || !apis.GetMediaSourceFileName
+        || !apis.GetMediaItemInfo_Value)
+        return claims;
+
+    auto readTag = [this](void* source, const char* const* ids) -> juce::String
+    {
+        if (!apis.GetMediaFileMetadata) return {};
+        for (int i = 0; ids[i] != nullptr; ++i)
+        {
+            char buf[1024] = {};
+            if (apis.GetMediaFileMetadata(source, ids[i], buf, sizeof(buf)) > 0)
+            {
+                juce::String value = juce::String(juce::CharPointer_UTF8(buf)).trim();
+                if (value.isNotEmpty() && value != "[Binary data]") return value;
+            }
+        }
+        return {};
+    };
+
+    int count = apis.CountMediaItems(proj);
+    for (int i = 0; i < count; ++i)
+    {
+        void* item = apis.GetMediaItem(proj, i);
+        if (!item) continue;
+
+        double pos = apis.GetMediaItemInfo_Value(item, "D_POSITION");
+        double len = apis.GetMediaItemInfo_Value(item, "D_LENGTH");
+        if (std::min(pos + len, range.endSec) - std::max(pos, range.startSec) <= 0.0)
+            continue;
+
+        void* take = apis.GetActiveTake(item);
+        if (!take) continue;
+        void* source = apis.GetMediaItemTake_Source(take);
+        if (!source) continue;
+
+        char path[2048] = {};
+        apis.GetMediaSourceFileName(source, path, sizeof(path));
+        juce::File file{ juce::String(juce::CharPointer_UTF8(path)) };
+        if (file.getFileName().isEmpty()) continue;
+        if (file.getFileExtension().equalsIgnoreCase(".mid")) continue;   // MIDI names nothing
+
+        SourceClaim claim;
+        claim.file = file.getFullPathName();
+        claim.stem = file.getFileNameWithoutExtension();
+
+        // Tags win where present; the filename is the fallback shape.
+        claim.artist = readTag(source, kArtistTags);
+        claim.album  = readTag(source, kAlbumTags);
+        claim.title  = readTag(source, kTitleTags);
+        claim.track  = readTag(source, kTrackTags);
+
+        auto parts = splitOnSeparator(claim.stem);
+        claim.conventional = parts.size() >= 4;
+        if (claim.conventional)
+        {
+            juce::StringArray rest;
+            for (int k = 3; k < parts.size(); ++k) rest.add(parts[k]);
+
+            if (claim.artist.isEmpty()) claim.artist = parts[0];
+            if (claim.album.isEmpty())  claim.album  = parts[1];
+            if (claim.track.isEmpty())  claim.track  = parts[2];
+            if (claim.title.isEmpty())  claim.title  = rest.joinIntoString(kFieldSeparator);
+        }
+
+        claims.push_back(claim);
+    }
+
+    return claims;
+}
+
+ChartExporter::ChartName ChartExporter::inferChartName(const TimeRange& range) const
+{
+    ChartName name;
+    auto claims = claimsUnder(range);
+    if (claims.empty()) return name;
+
+    // Only files that say something about themselves get a vote. A raw mix
+    // stem sitting under the same range is not evidence of anything, and
+    // letting it vote would blank every field on a perfectly clear export.
+    juce::StringArray stems, artists, albums, tracks, titles;
+    for (const auto& c : claims)
+    {
+        name.sources.add(c.file);
+        if (!c.claimsAnything()) continue;
+        if (c.conventional) stems.add(c.stem);
+        artists.add(c.artist);
+        albums.add(c.album);
+        tracks.add(c.track);
+        titles.add(c.title);
+    }
+
+    // Disagreement means we do not know, so the field is left empty rather
+    // than guessed at from whichever item happened to come first.
+    bool conflict = false;
+    name.folder = consensus(stems, conflict);
+    if (conflict) name.ambiguous.add("folder");
+    name.artist = consensus(artists, conflict);
+    if (conflict) name.ambiguous.add("artist");
+    name.album = consensus(albums, conflict);
+    if (conflict) name.ambiguous.add("album");
+    name.track = consensus(tracks, conflict);
+    if (conflict) name.ambiguous.add("track");
+    name.title = consensus(titles, conflict);
+    if (conflict) name.ambiguous.add("title");
+
+    return name;
+}
+
+juce::File ChartExporter::exportRoot() const
+{
+    auto dir = projectDirectory();
+    if (dir.isEmpty()) return {};
+    return juce::File(dir).getChildFile("export");
+}
+
 juce::String ChartExporter::projectDirectory() const
 {
     // Deliberately not GetProjectPathEx: that returns the media folder, which
@@ -177,6 +340,32 @@ juce::String ChartExporter::describeContext() const
     else
         out << "[export] time selection " << juce::String(sel.startSec, 3) << "s to "
             << juce::String(sel.endSec, 3) << "s (" << juce::String(sel.length(), 3) << "s)\n";
+
+    auto claims = claimsUnder(sel);
+    out << "[export] " << (int)claims.size() << " audio items under the range\n";
+    for (const auto& c : claims)
+    {
+        out << "    " << c.stem << (c.claimsAnything() ? "" : "   (no claim, ignored)") << "\n";
+        if (c.claimsAnything())
+            out << "        artist '" << c.artist << "'  album '" << c.album
+                << "'  track '" << c.track << "'  title '" << c.title << "'\n";
+    }
+
+    auto name = inferChartName(sel);
+    if (!name.ambiguous.isEmpty())
+        out << "[export] left blank, sources disagree: "
+            << name.ambiguous.joinIntoString(", ") << "\n";
+
+    if (!name.resolved())
+        out << "[export] cannot name the chart from the audio under the range\n";
+    else
+    {
+        out << "[export] chart folder: " << name.folder << "\n";
+        out << "[export]   artist '" << name.artist << "'  album '" << name.album
+            << "'  track '" << name.track << "'  title '" << name.title << "'\n";
+        out << "[export] would write to: "
+            << exportRoot().getChildFile(name.folder).getFullPathName() << "\n";
+    }
 
     auto rgns = regions();
     out << "[export] " << (int)rgns.size() << " regions\n";

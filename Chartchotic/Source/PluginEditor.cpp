@@ -591,6 +591,19 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         auto& provider = audioProcessor.getReaperMidiProvider();
         ChartExporter exporter(provider.getAPIs(), provider.getReaperGetFunc());
         exporter.logContext();
+
+        // Reveal where the chart lands, so the result is visible rather than
+        // something you have to go looking for. Currently the project folder;
+        // becomes the chart folder itself once the export writes one.
+        juce::File destination = exporter.exportRoot();
+        if (destination.getFullPathName().isNotEmpty())
+        {
+            destination.createDirectory();
+            destination.revealToUser();
+        }
+        else
+            ChartExporter::log("[export] destination does not exist: "
+                               + destination.getFullPathName());
     };
     toolbar.onDiscoFlipChanged = [this](bool on) { state.setProperty("discoFlip", on, nullptr); propagateToSlots("discoFlip", on); };
     toolbar.onDynamicsChanged = [this](bool on) { state.setProperty("dynamics", on, nullptr); propagateToSlots("dynamics", on); };
