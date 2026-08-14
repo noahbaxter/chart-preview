@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "WriteController.h"
 #include "EditController.h"
+#include "ModifierSlots.h"
 
 class InteractionController
 {
@@ -61,6 +62,7 @@ public:
 
 private:
     bool isEditActive() const;
+    void applyModifierSlot(const ModifierSlot& slot);
 
     juce::ValueTree& state;
     bool barModeFlag = false;

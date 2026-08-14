@@ -24,6 +24,7 @@ public:
     void setSubMode(SubMode mode);
     void setStepDivision(int division);
     void setTuplet(int t);
+    void toggleTuplet();
     void cycleTuplet();
     void setSnapEnabled(bool enabled);
 
@@ -84,6 +85,10 @@ private:
     int stampMouseLaneOffset = 0;
 
     // Stamp capture (hold C + drag in draw mode)
+    // Value T restores when toggling the tuplet grid back on. Triplet until
+    // Shift+T picks something else.
+    int         lastTuplet = 3;
+
     bool        stampCaptureActive = false;
     int         stampCaptureTrackIdx = -1;
     MarqueeRect stampCaptureRect;
