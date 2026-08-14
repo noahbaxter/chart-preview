@@ -20,6 +20,8 @@ public:
     void onFrameTick();
     const std::vector<SelectedNote>& getSelection() const { return selection; }
     MidiWriter::NoteInfo lookupNote(int trackIdx, double qn, int pitch) { return findNote(trackIdx, qn, pitch); }
+    uint32_t markerMaskAt(int trackIdx, double qn, int lane) { return captureMarkerMask(trackIdx, qn, lane); }
+    Gem capturedGem(int lane, int velocity, uint32_t mask) const { return resolveCapturedGem(lane, velocity, mask); }
 
     void applyDrumDynamicToSelection(DrumDynamic dynamic);
     void applyGuitarForceToSelection(GuitarForce force);

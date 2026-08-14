@@ -317,7 +317,11 @@ void EditController::handleContinueMove(const AuthoringPoint& p)
         int newPitch = resolvePitch(newLane, isDrums());
         auto info = findNote(n.trackIdx, n.startQN, n.pitch);
         double duration = (info.noteIndex >= 0) ? (info.endQN - info.startQN) : 0.1;
-        overlayState.movePreviewNotes.push_back({ newLane, newQN, newQN + duration, newPitch });
+        // Velocity and markers come from the source note, resolved against the
+        // lane it is moving to, so the drag preview looks like the real note.
+        uint32_t mask = captureMarkerMask(n.trackIdx, n.startQN, n.lane);
+        overlayState.movePreviewNotes.push_back({ newLane, newQN, newQN + duration, newPitch,
+                                                  resolveCapturedGem(newLane, info.velocity, mask) });
     }
 
     if (onStateChanged) onStateChanged();
@@ -478,7 +482,10 @@ void EditController::updateArrowPreview()
         if (newQN < 0.0) newQN = 0.0;
         int newPitch = resolvePitch(newLane, isDrums());
         double duration = n.endQN - n.startQN;
-        overlayState.movePreviewNotes.push_back({ newLane, newQN, newQN + duration, newPitch });
+        auto info = findNote(n.trackIdx, n.startQN, n.pitch);
+        uint32_t mask = captureMarkerMask(n.trackIdx, n.startQN, n.lane);
+        overlayState.movePreviewNotes.push_back({ newLane, newQN, newQN + duration, newPitch,
+                                                  resolveCapturedGem(newLane, info.velocity, mask) });
     }
     notifyChanged();
 }

@@ -45,6 +45,9 @@ public:
         double startQN = 0;
         double endQN = 0;
         int    pitch = -1;
+        // Drum dynamics live in velocity (ghost 1, accent 127, normal 100), so
+        // anything that copies a note has to carry this across.
+        int    velocity = 100;
     };
 
     virtual NoteInfo findNote(int trackIndex, double positionQN, int pitch)
