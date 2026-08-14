@@ -78,6 +78,7 @@ void WriteController::recomputeGhost()
     overlayState.ghostQN         = 0.0;
     overlayState.ghostShowsErase = false;
     overlayState.ghostGem        = Gem::NOTE;
+    overlayState.ghostModeLabel  = {};
     overlayState.stampGhosts.clear();
 
     if (!lastPointValid)                                  return;
@@ -91,6 +92,11 @@ void WriteController::recomputeGhost()
     overlayState.ghostVisible = true;
     overlayState.ghostQN      = qn;
 
+    // Outside the drag guard below: the mode is still in force while you are
+    // painting, so the hint stays up for as long as shift is held.
+    if (altKickArmed)
+        overlayState.ghostModeLabel = "ALTERNATE KICKS";
+
     if (currentSubMode == SubMode::Draw
         && !sustainDragActive && !paintDragActive && !eraseDragActive
         && !stampCaptureActive)
@@ -102,6 +108,14 @@ void WriteController::recomputeGhost()
             // across lanes, via shiftStampLanes.
             for (const auto& sn : stamp)
                 overlayState.stampGhosts.push_back({ sn.lane, sn.qnOffset, sn.duration, sn.gem });
+        }
+        else if (altKickArmed)
+        {
+            // A shift-drag from here lays an alternating roll that always opens
+            // on 1x, so preview the 1x lane rather than whichever side the
+            // mouse is on.
+            overlayState.ghostLane = DRUM_KICK_COLUMN;
+            overlayState.ghostGem  = resolveGhostGem(DRUM_KICK_COLUMN);
         }
         else
         {
@@ -322,9 +336,26 @@ void WriteController::onPointerUp(const AuthoringPoint& p,
     if (eraseDragActive)     { handleEndErase();        return; }
 }
 
+bool WriteController::altKickAvailable() const
+{
+    return writeModeActive()
+        && currentSubMode == SubMode::Draw
+        && barModeFlag
+        && isDrums()
+        && kick2xEnabled;
+}
+
 void WriteController::onFrameTick([[maybe_unused]] double currentProjectQN,
                                   [[maybe_unused]] bool isPlaying)
 {
+    bool armed = altKickAvailable()
+              && juce::ModifierKeys::getCurrentModifiers().isShiftDown();
+    if (armed != altKickArmed)
+    {
+        altKickArmed = armed;
+        recomputeGhost();
+    }
+
     if (stampCaptureActive && !juce::KeyPress::isKeyCurrentlyDown('C'))
     {
         stampCaptureActive = false;
@@ -539,6 +570,10 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
 {
     bool drums = isDrums();
 
+    // Paint is only ever reached by shift-dragging, so kick mode needs no
+    // extra modifier to mean "alternate": being here is the request.
+    bool alternatingKicks = drums && barModeFlag && kick2xEnabled;
+
     double spacing = stepSpacingQN(currentStepDivision, currentTuplet);
     if (spacing <= 0.0) return;
 
@@ -574,16 +609,33 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
         }
         else
         {
-            int pitch = resolveActivePitch(lane);
+            // Painting kicks lays down an alternating 1x/2x roll rather than a
+            // run of one pitch, so a 1x-only player still gets a playable
+            // half-speed version of the pattern. Parity is anchored to
+            // paintStartQN so it stays put when the drag reverses or refills,
+            // and the run always opens on 1x.
+            int paintLane = lane;
+            if (alternatingKicks)
+            {
+                long long step = std::llround((snapped - paintStartQN) / spacing);
+                bool offbeat = ((step % 2) + 2) % 2 == 1;
+                paintLane = offbeat ? DRUM_KICK_2X_COLUMN : DRUM_KICK_COLUMN;
+            }
+
+            int pitch = alternatingKicks
+                ? InstrumentMapper::resolveKickPitch(currentActiveSkill, paintLane, kick2xEnabled)
+                : resolveActivePitch(lane);
             if (pitch < 0) continue;
             auto pre = findNote(paintDragTrackIdx, snapped, pitch);
             if (pre.noteIndex >= 0 && std::abs(pre.startQN - snapped) < 0.001)
                 continue;
-            createNote(paintDragTrackIdx, snapped, pitch, lane, resolveVelocity());
+            createNote(paintDragTrackIdx, snapped, pitch, paintLane, resolveVelocity());
             if (drums)
-                writeTomMarker(paintDragTrackIdx, snapped, lane);
+                writeTomMarker(paintDragTrackIdx, snapped, paintLane);
             else
                 writeGuitarForceMarker(paintDragTrackIdx, snapped);
+            paintedNotes.push_back({ snapped, paintLane });
+            continue;
         }
         paintedNotes.push_back({ snapped, lane });
     }

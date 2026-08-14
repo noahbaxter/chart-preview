@@ -100,6 +100,11 @@ private:
     // Shift+T picks something else.
     int         lastTuplet = 3;
 
+    // Shift in kick mode arms the alternating 1x/2x paint. Polled per frame so
+    // the hint appears the moment the key goes down, with no mouse move.
+    bool        altKickArmed = false;
+    bool        altKickAvailable() const;
+
     bool        stampCaptureActive = false;
     int         stampCaptureTrackIdx = -1;
     MarqueeRect stampCaptureRect;

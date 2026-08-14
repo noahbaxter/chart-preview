@@ -67,6 +67,7 @@ class SceneRenderer
             float  opacity = 0.5f;
             Gem    gem     = Gem::NOTE;
             juce::String positionLabel;    // "37.2" style label shown in write mode
+            juce::String modeLabel;        // transient mode hint, drawn opposite the position
             struct StampGhostEntry { int lane; float position; Gem gem = Gem::NOTE; };
             std::vector<StampGhostEntry> stampGhosts;
         };
