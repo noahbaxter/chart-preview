@@ -595,15 +595,30 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         // Reveal where the chart lands, so the result is visible rather than
         // something you have to go looking for. Currently the project folder;
         // becomes the chart folder itself once the export writes one.
-        juce::File destination = exporter.exportRoot();
-        if (destination.getFullPathName().isNotEmpty())
+        auto range = exporter.timeSelection();
+        auto name  = exporter.inferChartName(range);
+
+        if (!range.plausible())
         {
-            destination.createDirectory();
-            destination.revealToUser();
+            ChartExporter::log("[export] aborted, no usable time selection");
+            return;
         }
-        else
-            ChartExporter::log("[export] destination does not exist: "
-                               + destination.getFullPathName());
+
+        // Falls back to the range itself when the name is incomplete, so a
+        // render still lands somewhere findable rather than being refused.
+        juce::String folderName = name.folderName();
+        if (folderName.isEmpty())
+            folderName = "export " + juce::String((int)range.startSec)
+                       + "s-" + juce::String((int)range.endSec) + "s";
+
+        juce::File destination = exporter.exportRoot().getChildFile(folderName);
+        destination.createDirectory();
+
+        auto rendered = exporter.renderSongAudio(range, destination);
+        ChartExporter::log(juce::String("[export] ")
+                           + (rendered.ok ? "OK " : "FAILED ") + rendered.message);
+
+        destination.revealToUser();
     };
     toolbar.onDiscoFlipChanged = [this](bool on) { state.setProperty("discoFlip", on, nullptr); propagateToSlots("discoFlip", on); };
     toolbar.onDynamicsChanged = [this](bool on) { state.setProperty("dynamics", on, nullptr); propagateToSlots("dynamics", on); };

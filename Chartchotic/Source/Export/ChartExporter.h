@@ -121,6 +121,23 @@ public:
     /** Charts are written into an "export" folder beside the project file. */
     juce::File exportRoot() const;
 
+    struct RenderResult
+    {
+        bool ok = false;
+        juce::String message;
+        juce::File output;
+    };
+
+    /**
+        Renders the master mix over `range` into `folder` as song.opus.
+
+        REAPER has no render API, so this writes the project's render settings,
+        fires the render action, and restores the previous settings afterwards.
+        The restore happens unconditionally: leaving someone's project pointed
+        at a chart folder would be a nasty surprise the next time they render.
+    */
+    RenderResult renderSongAudio(const TimeRange& range, const juce::File& folder) const;
+
     /** Human-readable dump of everything above, for wiring up and diagnosis. */
     juce::String describeContext() const;
 

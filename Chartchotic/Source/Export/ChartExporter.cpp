@@ -311,6 +311,126 @@ ChartExporter::ChartName ChartExporter::inferChartName(const TimeRange& range) c
     return name;
 }
 
+namespace
+{
+    // Every render setting this touches, so the whole set can be put back
+    // exactly as found rather than reset to some assumed default.
+    const char* kNumericRenderKeys[] = {
+        "RENDER_SETTINGS", "RENDER_BOUNDSFLAG", "RENDER_STARTPOS", "RENDER_ENDPOS",
+        "RENDER_CHANNELS", "RENDER_SRATE", "RENDER_ADDTOPROJ", "RENDER_TAILFLAG",
+        nullptr
+    };
+    const char* kStringRenderKeys[] = { "RENDER_FILE", "RENDER_PATTERN", "RENDER_FORMAT", nullptr };
+
+    constexpr int kRenderActionId = 41824;   // render with last settings, auto-close
+}
+
+ChartExporter::RenderResult ChartExporter::renderSongAudio(const TimeRange& range,
+                                                           const juce::File& folder) const
+{
+    RenderResult result;
+    void* proj = project();
+
+    if (!proj || !apis.GetSetProjectInfo || !apis.GetSetProjectInfo_String || !apis.Main_OnCommand)
+    { result.message = "render APIs unavailable"; return result; }
+
+    if (!range.exists())
+    { result.message = "no time selection to render"; return result; }
+
+    juce::String formatCode;
+    for (const auto& s : compressedSinks())
+        if (s.description.containsIgnoreCase("opus")) formatCode = s.formatCode();
+    if (formatCode.isEmpty())
+    { result.message = "no Opus sink available"; return result; }
+
+    folder.createDirectory();
+
+    // --- save ---------------------------------------------------------------
+    std::vector<double> numericBackup;
+    for (int i = 0; kNumericRenderKeys[i]; ++i)
+        numericBackup.push_back(apis.GetSetProjectInfo(proj, kNumericRenderKeys[i], 0.0, false));
+
+    std::vector<juce::String> stringBackup;
+    for (int i = 0; kStringRenderKeys[i]; ++i)
+    {
+        char buf[4096] = {};
+        apis.GetSetProjectInfo_String(proj, kStringRenderKeys[i], buf, false);
+        stringBackup.push_back(juce::String(juce::CharPointer_UTF8(buf)));
+    }
+
+    auto restore = [&]()
+    {
+        for (int i = 0; kNumericRenderKeys[i]; ++i)
+            apis.GetSetProjectInfo(proj, kNumericRenderKeys[i], numericBackup[(size_t)i], true);
+        for (int i = 0; kStringRenderKeys[i]; ++i)
+        {
+            auto copy = stringBackup[(size_t)i];
+            std::vector<char> buf(4096, 0);
+            copy.copyToUTF8(buf.data(), (int)buf.size());
+            apis.GetSetProjectInfo_String(proj, kStringRenderKeys[i], buf.data(), true);
+        }
+    };
+
+    auto setString = [&](const char* key, const juce::String& value)
+    {
+        std::vector<char> buf(4096, 0);
+        value.copyToUTF8(buf.data(), (int)buf.size());
+        return apis.GetSetProjectInfo_String(proj, key, buf.data(), true);
+    };
+
+    // --- configure ----------------------------------------------------------
+    // Explicit start/end rather than "use the time selection", so the render is
+    // pinned to the range we resolved even if the selection moves.
+    apis.GetSetProjectInfo(proj, "RENDER_SETTINGS",  0.0, true);   // master mix
+    apis.GetSetProjectInfo(proj, "RENDER_BOUNDSFLAG", 0.0, true);  // custom bounds
+    apis.GetSetProjectInfo(proj, "RENDER_STARTPOS", range.startSec, true);
+    apis.GetSetProjectInfo(proj, "RENDER_ENDPOS",   range.endSec, true);
+    apis.GetSetProjectInfo(proj, "RENDER_CHANNELS", 2.0, true);
+    apis.GetSetProjectInfo(proj, "RENDER_SRATE",    0.0, true);    // project rate
+    apis.GetSetProjectInfo(proj, "RENDER_ADDTOPROJ", 0.0, true);   // do not re-import
+    apis.GetSetProjectInfo(proj, "RENDER_TAILFLAG", 0.0, true);    // no tail
+
+    setString("RENDER_FILE", folder.getFullPathName());
+    setString("RENDER_PATTERN", "song");
+    setString("RENDER_FORMAT", formatCode);
+
+    // --- verify before firing ----------------------------------------------
+    juce::String targets;
+    {
+        char buf[8192] = {};
+        if (apis.GetSetProjectInfo_String(proj, "RENDER_TARGETS", buf, false))
+            targets = juce::String(juce::CharPointer_UTF8(buf));
+    }
+    log("[render] format '" + formatCode + "'  bounds "
+        + juce::String(range.startSec, 3) + "s to " + juce::String(range.endSec, 3)
+        + "s\n[render] targets: " + (targets.isEmpty() ? "(none reported)" : targets));
+
+    if (targets.isEmpty())
+    {
+        restore();
+        result.message = "REAPER reported no render target, refusing to fire";
+        return result;
+    }
+
+    result.output = juce::File(targets.upToFirstOccurrenceOf(";", false, false).trim());
+
+    // --- fire ---------------------------------------------------------------
+    apis.Main_OnCommand(kRenderActionId, 0);
+    restore();
+
+    if (!result.output.existsAsFile())
+    {
+        result.message = "render produced nothing at " + result.output.getFullPathName()
+                       + " (action " + juce::String(kRenderActionId) + " may be wrong)";
+        return result;
+    }
+
+    result.ok = true;
+    result.message = "rendered " + juce::File::descriptionOfSizeInBytes(result.output.getSize())
+                   + " to " + result.output.getFileName();
+    return result;
+}
+
 juce::File ChartExporter::exportRoot() const
 {
     auto dir = projectDirectory();
