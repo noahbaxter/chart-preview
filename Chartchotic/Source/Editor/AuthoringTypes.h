@@ -172,6 +172,10 @@ enum class ModifierFlags : int {
     Shift = 1 << 0,
     Ctrl  = 1 << 1,
     Alt   = 1 << 2,
+    // Never bound to anything: the host owns Cmd. Tracked only so a bare-key
+    // binding refuses to fire while Cmd is held, leaving Cmd+S and friends to
+    // reach REAPER.
+    Cmd   = 1 << 3,
 };
 inline ModifierFlags operator|(ModifierFlags a, ModifierFlags b) {
     return static_cast<ModifierFlags>(static_cast<int>(a) | static_cast<int>(b));
@@ -205,9 +209,16 @@ enum class WriteCommand {
     ToggleWriteMode,
     ToggleSubMode,
     ToggleSnap,
+    ToggleTuplet,
     CycleTuplet,
     StepDown,
     StepUp,
+    // Home-row note-type slots; meaning is per-instrument, see ModifierSlots.h
+    ModifierSlot1,
+    ModifierSlot2,
+    ModifierSlot3,
+    ModifierSlot4,
+    ModifierSlot5,
     DeleteSelection,
     DeselectAll,
     ToggleBarMode,

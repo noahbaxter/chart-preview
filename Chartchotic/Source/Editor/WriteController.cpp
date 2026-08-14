@@ -212,15 +212,27 @@ void WriteController::setTuplet(int t)
     stateDidChange();
 }
 
+void WriteController::toggleTuplet()
+{
+    if (currentTuplet != 0)
+    {
+        lastTuplet = currentTuplet;
+        setTuplet(0);
+        return;
+    }
+    setTuplet(lastTuplet);
+}
+
 void WriteController::cycleTuplet()
 {
+    // Always lands on a live tuplet, so this doubles as "turn it on" when off.
     switch (currentTuplet)
     {
-        case 0: setTuplet(3); break;
-        case 3: setTuplet(5); break;
-        case 5: setTuplet(7); break;
-        default: setTuplet(0); break;
+        case 3:  lastTuplet = 5; break;
+        case 5:  lastTuplet = 7; break;
+        default: lastTuplet = 3; break;
     }
+    setTuplet(lastTuplet);
 }
 
 void WriteController::setSnapEnabled(bool enabled)
@@ -698,6 +710,7 @@ bool WriteController::onKeyPress(const juce::KeyPress& key)
         case WriteCommand::ToggleSnap:      setSnapEnabled(!snapEnabled());                   return true;
         case WriteCommand::StepDown:        setStepDivision(std::max(1, stepDivision() / 2)); return true;
         case WriteCommand::StepUp:          setStepDivision(stepDivision() * 2);              return true;
+        case WriteCommand::ToggleTuplet:    toggleTuplet();                                   return true;
         case WriteCommand::CycleTuplet:     cycleTuplet();                                    return true;
         default: return false;
     }
