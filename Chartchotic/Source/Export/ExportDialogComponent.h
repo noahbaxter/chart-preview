@@ -126,6 +126,7 @@ private:
     ArtSlot albumArt { "ALBUM ART" };
     ArtSlot backgroundArt { "BACKGROUND" };
     CheckboxToggle generateBackgroundToggle { "Generate background from artwork" };
+    SegmentedButtons backgroundStyleButtons;
 
     juce::TextButton exportButton { "Export" };
     juce::TextButton cancelButton { "Cancel" };
