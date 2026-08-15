@@ -587,39 +587,7 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onStarPowerChanged = [this](bool on) { state.setProperty("starPower", on, nullptr); propagateToSlots("starPower", on); };
     toolbar.onKick2xChanged = [this](bool on) { state.setProperty("kick2x", on, nullptr); propagateToSlots("kick2x", on); };
 
-    toolbar.onExportChart = [this]() {
-        auto& provider = audioProcessor.getReaperMidiProvider();
-        ChartExporter exporter(provider.getAPIs(), provider.getReaperGetFunc());
-        exporter.logContext();
-
-        // Reveal where the chart lands, so the result is visible rather than
-        // something you have to go looking for. Currently the project folder;
-        // becomes the chart folder itself once the export writes one.
-        auto range = exporter.timeSelection();
-        auto name  = exporter.inferChartName(range);
-
-        if (!range.plausible())
-        {
-            ChartExporter::log("[export] aborted, no usable time selection");
-            return;
-        }
-
-        // Falls back to the range itself when the name is incomplete, so a
-        // render still lands somewhere findable rather than being refused.
-        juce::String folderName = name.folderName();
-        if (folderName.isEmpty())
-            folderName = "export " + juce::String((int)range.startSec)
-                       + "s-" + juce::String((int)range.endSec) + "s";
-
-        juce::File destination = exporter.exportRoot().getChildFile(folderName);
-        destination.createDirectory();
-
-        auto rendered = exporter.renderSongAudio(range, destination);
-        ChartExporter::log(juce::String("[export] ")
-                           + (rendered.ok ? "OK " : "FAILED ") + rendered.message);
-
-        destination.revealToUser();
-    };
+    toolbar.onExportChart = [this]() { showExportDialog(); };
     toolbar.onDiscoFlipChanged = [this](bool on) { state.setProperty("discoFlip", on, nullptr); propagateToSlots("discoFlip", on); };
     toolbar.onDynamicsChanged = [this](bool on) { state.setProperty("dynamics", on, nullptr); propagateToSlots("dynamics", on); };
 
@@ -1097,6 +1065,74 @@ void ChartchoticAudioProcessorEditor::resized()
     debug.getConsole().setBounds(margin, debugTop + 28, getWidth() - (2 * margin), getHeight() - debugTop - 38);
     #endif
 
+}
+
+void ChartchoticAudioProcessorEditor::showExportDialog()
+{
+    auto& provider = audioProcessor.getReaperMidiProvider();
+    ChartExporter exporter(provider);
+    exporter.logContext();
+
+    auto range = exporter.timeSelection();
+    if (!range.plausible())
+    {
+        ChartExporter::log("[export] aborted, no usable time selection");
+        return;
+    }
+
+    ExportDialogComponent::Context context;
+    context.range = range;
+    context.inferred = exporter.inferChartName(range);
+    context.trackNames = exporter.chartTrackNames();
+    context.audioFormats = exporter.compressedSinks();
+    context.destinationRoot = exporter.exportRoot();
+    context.artworkSearchPaths = exporter.artworkSearchPaths(range);
+    context.drums = exporter.drumProfile(range);
+    context.remembered = state.getChildWithName("exportDialog");
+    context.charter = ChartSettings::charter();
+    context.icon = ChartSettings::icon();
+
+    auto* dialog = new ExportDialogComponent(std::move(context));
+
+    auto dismiss = [this, dialog]()
+    {
+        // Kept in the project state rather than the settings file: a title and
+        // a difficulty belong to this song, not to every song this machine
+        // will ever export.
+        auto remembered = dialog->toValueTree();
+        state.removeChild(state.getChildWithName("exportDialog"), nullptr);
+        state.appendChild(remembered, nullptr);
+
+        // Deferred: the click that dismissed it is still being delivered to
+        // one of the dialog's own children.
+        juce::MessageManager::callAsync([dialog]() { delete dialog; });
+    };
+
+    dialog->onDismiss = dismiss;
+    dialog->onExport = [this, range, dismiss](const ChartExporter::ExportOptions& options)
+    {
+        // A fresh exporter: the dialog may have been sitting open long enough
+        // for the project to have moved on.
+        // Persisted on export rather than per keystroke, so a half-typed name
+        // never becomes the default for every future project.
+        ChartSettings::setCharter(options.charter);
+        ChartSettings::setIcon(options.icon);
+
+        ChartExporter runner(audioProcessor.getReaperMidiProvider());
+        auto outcome = runner.runExport(range, options);
+        ChartExporter::log(juce::String("[export] ")
+                           + (outcome.ok ? "DONE " : "FAILED ") + outcome.message);
+
+        if (outcome.ok)
+            outcome.output.revealToUser();
+
+        dismiss();
+    };
+
+    addAndMakeVisible(dialog);
+    dialog->setBounds(getLocalBounds());
+    dialog->toFront(true);
+    dialog->grabKeyboardFocus();
 }
 
 void ChartchoticAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()

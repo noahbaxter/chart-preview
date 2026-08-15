@@ -1,8 +1,16 @@
 #include "ChartExporter.h"
 
-ChartExporter::ChartExporter(const ReaperAPIs& a, std::function<void*(const char*)> getFunc)
-    : apis(a), getReaperApi(std::move(getFunc))
+ChartExporter::ChartExporter(ReaperMidiProvider& p)
+    : provider(p), apis(p.getAPIs()), getReaperApi(p.getReaperGetFunc())
 {
+}
+
+ChartMidiWriter::Result ChartExporter::writeNotesMidi(const TimeRange& range,
+                                                      const juce::File& folder,
+                                                      const juce::String& songName)
+{
+    ChartMidiWriter writer(provider);
+    return writer.write(range.startSec, range.endSec, folder, songName);
 }
 
 juce::File ChartExporter::logFile()
@@ -137,6 +145,10 @@ namespace
     const char* kAlbumTags[]  = { "ID3:TALB", "VORBIS:ALBUM",  "INFO:IPRD", "XMP:dm/album",  nullptr };
     const char* kTitleTags[]  = { "ID3:TIT2", "VORBIS:TITLE",  "INFO:INAM", "XMP:dc/title",  nullptr };
     const char* kTrackTags[]  = { "ID3:TRCK", "VORBIS:TRACKNUMBER", "INFO:ITRK", nullptr };
+    // Only tags for these two: no filename convention carries them, so an
+    // untagged source simply leaves them out of song.ini.
+    const char* kGenreTags[]  = { "ID3:TCON", "VORBIS:GENRE", "INFO:IGNR", nullptr };
+    const char* kYearTags[]   = { "ID3:TDRC", "ID3:TYER", "VORBIS:DATE", "INFO:ICRD", nullptr };
 
     // The convention is "Artist - Album - NN - Title" with spaced dashes.
     // Splitting on the bare character would tear apart any working filename
@@ -256,6 +268,10 @@ std::vector<ChartExporter::SourceClaim> ChartExporter::claimsUnder(const TimeRan
         claim.album  = readTag(source, kAlbumTags);
         claim.title  = readTag(source, kTitleTags);
         claim.track  = readTag(source, kTrackTags);
+        claim.genre  = readTag(source, kGenreTags);
+        // Dates arrive in every shape from "2026" to "2026-04-13T00:00", and
+        // song.ini wants the year on its own.
+        claim.year   = readTag(source, kYearTags).retainCharacters("0123456789").substring(0, 4);
 
         auto parts = splitOnSeparator(claim.stem);
         claim.conventional = parts.size() >= 4;
@@ -285,7 +301,7 @@ ChartExporter::ChartName ChartExporter::inferChartName(const TimeRange& range) c
     // Only files that say something about themselves get a vote. A raw mix
     // stem sitting under the same range is not evidence of anything, and
     // letting it vote would blank every field on a perfectly clear export.
-    juce::StringArray artists, albums, tracks, titles;
+    juce::StringArray artists, albums, tracks, titles, genres, years;
     for (const auto& c : claims)
     {
         name.sources.add(c.file);
@@ -294,6 +310,8 @@ ChartExporter::ChartName ChartExporter::inferChartName(const TimeRange& range) c
         albums.add(c.album);
         tracks.add(c.track);
         titles.add(c.title);
+        genres.add(c.genre);
+        years.add(c.year);
     }
 
     // Disagreement means we do not know, so the field is left empty rather
@@ -307,6 +325,10 @@ ChartExporter::ChartName ChartExporter::inferChartName(const TimeRange& range) c
     if (conflict) name.ambiguous.add("track");
     name.title = consensus(titles, conflict);
     if (conflict) name.ambiguous.add("title");
+    name.genre = consensus(genres, conflict);
+    if (conflict) name.ambiguous.add("genre");
+    name.year = consensus(years, conflict);
+    if (conflict) name.ambiguous.add("year");
 
     return name;
 }
@@ -326,7 +348,8 @@ namespace
 }
 
 ChartExporter::RenderResult ChartExporter::renderSongAudio(const TimeRange& range,
-                                                           const juce::File& folder) const
+                                                           const juce::File& folder,
+                                                           const juce::String& formatCode) const
 {
     RenderResult result;
     void* proj = project();
@@ -337,11 +360,8 @@ ChartExporter::RenderResult ChartExporter::renderSongAudio(const TimeRange& rang
     if (!range.exists())
     { result.message = "no time selection to render"; return result; }
 
-    juce::String formatCode;
-    for (const auto& s : compressedSinks())
-        if (s.description.containsIgnoreCase("opus")) formatCode = s.formatCode();
     if (formatCode.isEmpty())
-    { result.message = "no Opus sink available"; return result; }
+    { result.message = "no audio format chosen"; return result; }
 
     folder.createDirectory();
 
@@ -429,6 +449,214 @@ ChartExporter::RenderResult ChartExporter::renderSongAudio(const TimeRange& rang
     result.message = "rendered " + juce::File::descriptionOfSizeInBytes(result.output.getSize())
                    + " to " + result.output.getFileName();
     return result;
+}
+
+juce::StringPairArray ChartExporter::songIniValues(const TimeRange& range,
+                                                   const ExportOptions& options,
+                                                   const ChartMidiWriter::Result& midi) const
+{
+    juce::StringPairArray values;
+
+    // name, artist and charter are the three a chart cannot load without.
+    values.set("name", options.title);
+    values.set("artist", options.artist);
+    values.set("album", options.album);
+    values.set("genre", options.genre);
+    values.set("year", options.year);
+    values.set("album_track", options.track);
+    values.set("charter", options.charter);
+    values.set("icon", options.icon);
+
+    const bool hasDrums = std::any_of(midi.trackNames.begin(), midi.trackNames.end(),
+                                      [](const juce::String& t) { return t.containsIgnoreCase("DRUM"); });
+    if (hasDrums)
+    {
+        values.set("pro_drums", options.proDrums ? "1" : "0");
+        values.set("five_lane_drums", options.fiveLaneDrums ? "1" : "0");
+        values.set("diff_drums", juce::String(options.diffDrums));
+        values.set("diff_drums_real", juce::String(options.diffDrumsReal));
+    }
+
+    // Metadata only as far as the games are concerned, but chart_validate
+    // checks it against the audio, which is what catches a render and a range
+    // that disagree.
+    values.set("song_length", juce::String(juce::roundToInt(range.length() * 1000.0)));
+
+    return values;
+}
+
+ChartExporter::IniResult ChartExporter::writeSongIni(const juce::File& folder,
+                                                     const juce::StringPairArray& values) const
+{
+    IniResult result;
+    result.output = folder.getChildFile("song.ini");
+
+    juce::String ini;
+    ini << "[Song]\n";
+    for (const auto& key : values.getAllKeys())
+        ini << key << " = " << values[key] << "\n";
+
+    if (!result.output.replaceWithText(ini, false, false, "\n"))
+    {
+        result.message = "could not write " + result.output.getFullPathName();
+        return result;
+    }
+
+    result.ok = true;
+    result.message = "wrote song.ini, " + juce::String(values.size()) + " keys";
+    return result;
+}
+
+juce::StringArray ChartExporter::chartTrackNames()
+{
+    ChartMidiWriter writer(provider);
+    return writer.trackNames();
+}
+
+ChartMidiWriter::DrumProfile ChartExporter::drumProfile(const TimeRange& range)
+{
+    ChartMidiWriter writer(provider);
+    return writer.analyseDrums(range.startSec, range.endSec);
+}
+
+juce::Array<juce::File> ChartExporter::artworkSearchPaths(const TimeRange& range) const
+{
+    juce::Array<juce::File> paths;
+
+    // Beside the project first: art that belongs to this chart lives with the
+    // chart. The album's own folder second, since a whole album shares one
+    // cover and that is where it will already be sitting.
+    auto dir = projectDirectory();
+    if (dir.isNotEmpty()) paths.addIfNotAlreadyThere(juce::File(dir));
+
+    for (const auto& claim : claimsUnder(range))
+    {
+        auto parent = juce::File(claim.file).getParentDirectory();
+        if (parent.isDirectory()) paths.addIfNotAlreadyThere(parent);
+    }
+
+    return paths;
+}
+
+ChartExporter::ExportOutcome ChartExporter::runExport(const TimeRange& range,
+                                                      const ExportOptions& options)
+{
+    ExportOutcome outcome;
+
+    if (!range.plausible())
+    {
+        outcome.message = "no usable time selection";
+        return outcome;
+    }
+    if (!options.nameable() || options.folderName.isEmpty())
+    {
+        outcome.message = "chart needs a title and an artist";
+        return outcome;
+    }
+    if (!options.rated())
+    {
+        outcome.message = "chart needs a difficulty rating";
+        return outcome;
+    }
+
+    const juce::File root = options.destinationRoot.getFullPathName().isNotEmpty()
+                              ? options.destinationRoot : exportRoot();
+    if (root.getFullPathName().isEmpty())
+    {
+        outcome.message = "nowhere to export to, project has no folder";
+        return outcome;
+    }
+
+    // In .sng mode the loose files are staging rather than output, so they are
+    // assembled somewhere temporary and the container is the only thing that
+    // lands beside the project.
+    const juce::File staging = options.packAsSng
+        ? juce::File::getSpecialLocation(juce::File::tempDirectory)
+            .getChildFile("chartchotic-export").getChildFile(options.folderName)
+        : root.getChildFile(options.folderName);
+
+    // Only ever recursive on our own temp staging: a stale file left behind
+    // from a previous run would otherwise get packed into the container.
+    if (options.packAsSng && staging.isAChildOf(juce::File::getSpecialLocation(juce::File::tempDirectory)))
+        staging.deleteRecursively();
+
+    staging.createDirectory();
+    log("=== export: " + options.folderName + (options.packAsSng ? " (.sng)" : " (folder)") + " ===");
+
+    auto midi = writeNotesMidi(range, staging, options.title);
+    log(juce::String("[export] ") + (midi.ok ? "OK " : "FAILED ") + midi.message);
+    if (midi.detail.isNotEmpty()) log(midi.detail.trimEnd());
+    if (!midi.ok)
+    {
+        outcome.message = midi.message;
+        return outcome;
+    }
+
+    // Artwork keeps its own extension: the games accept png and jpg, and
+    // renaming a jpg to .png makes a file nothing will open.
+    auto copyArt = [&staging](const juce::File& source, const juce::String& stem)
+    {
+        if (!source.existsAsFile()) return juce::String();
+        auto target = staging.getChildFile(stem + source.getFileExtension().toLowerCase());
+        if (!source.copyFileTo(target))
+            return "could not copy " + source.getFileName();
+        return juce::String();
+    };
+
+    for (const auto& art : { std::make_pair(options.albumArt, juce::String("album")),
+                             std::make_pair(options.backgroundArt, juce::String("background")) })
+    {
+        auto failure = copyArt(art.first, art.second);
+        if (failure.isNotEmpty()) log("[export] " + failure);
+    }
+
+    // Only when nothing was picked: a background someone chose beats one
+    // derived from the cover.
+    if (options.generateBackground && !options.backgroundArt.existsAsFile()
+        && options.albumArt.existsAsFile())
+    {
+        const bool made = BackgroundGenerator::writeTo(staging.getChildFile("background.png"),
+                                                       options.albumArt, options.backgroundOptions);
+        log(juce::String("[export] ") + (made ? "generated background from album art"
+                                              : "could not generate a background"));
+    }
+
+    const auto values = songIniValues(range, options, midi);
+
+    // A .sng carries these as its metadata section, so writing song.ini into
+    // the staging folder would only pack a file the format has no slot for.
+    if (!options.packAsSng)
+    {
+        auto ini = writeSongIni(staging, values);
+        log(juce::String("[export] ") + (ini.ok ? "OK " : "FAILED ") + ini.message);
+    }
+
+    auto rendered = renderSongAudio(range, staging, options.audioFormatCode);
+    log(juce::String("[export] ") + (rendered.ok ? "OK " : "FAILED ") + rendered.message);
+
+    if (!options.packAsSng)
+    {
+        outcome.ok = true;
+        outcome.output = staging;
+        outcome.message = rendered.ok ? "chart written" : "chart written, audio failed: " + rendered.message;
+        return outcome;
+    }
+
+    std::vector<SngPacker::Entry> entries;
+    for (const auto& file : staging.findChildFiles(juce::File::findFiles, false))
+        entries.push_back({ file.getFileName().toLowerCase(), file });
+
+    auto packed = SngPacker::pack(root.getChildFile(options.folderName + ".sng"), values, entries);
+    log(juce::String("[export] ") + (packed.ok ? "OK " : "FAILED ") + packed.message);
+
+    staging.deleteRecursively();
+
+    outcome.ok = packed.ok;
+    outcome.output = packed.output;
+    outcome.message = packed.ok && !rendered.ok
+                        ? "packed, audio failed: " + rendered.message
+                        : packed.message;
+    return outcome;
 }
 
 juce::File ChartExporter::exportRoot() const

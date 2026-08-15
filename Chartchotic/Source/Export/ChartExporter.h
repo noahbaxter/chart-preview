@@ -1,6 +1,9 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "ChartMidiWriter.h"
+#include "SngPacker.h"
+#include "BackgroundGenerator.h"
 #include "../Midi/Providers/REAPER/ReaperApiHelpers.h"
 
 /**
@@ -17,7 +20,7 @@
 class ChartExporter
 {
 public:
-    ChartExporter(const ReaperAPIs& apis, std::function<void*(const char*)> getReaperApi);
+    explicit ChartExporter(ReaperMidiProvider& provider);
 
     struct Sink
     {
@@ -81,6 +84,13 @@ public:
         juce::String track;
         juce::String title;
 
+        /**
+            Tag-only, and only used by song.ini. Neither is part of the folder
+            name, so neither counts towards completeness.
+        */
+        juce::String genre;
+        juce::String year;
+
         juce::StringArray sources;     // every audio file considered
         juce::StringArray ambiguous;   // fields blanked because sources disagreed
 
@@ -102,7 +112,7 @@ public:
     {
         juce::String file;
         juce::String stem;
-        juce::String artist, album, track, title;
+        juce::String artist, album, track, title, genre, year;
         /** Filename follows "Artist - Album - NN - Title". */
         bool conventional = false;
         /** Says something about itself, so it gets a vote on the name. */
@@ -136,7 +146,111 @@ public:
         The restore happens unconditionally: leaving someone's project pointed
         at a chart folder would be a nasty surprise the next time they render.
     */
-    RenderResult renderSongAudio(const TimeRange& range, const juce::File& folder) const;
+    RenderResult renderSongAudio(const TimeRange& range, const juce::File& folder,
+                                 const juce::String& formatCode) const;
+
+    /**
+        Everything the export dialog collects. Nothing here is inferred at
+        write time: the dialog proposes, the charter confirms, and this is what
+        comes back, so what gets written is always what was on screen.
+    */
+    struct ExportOptions
+    {
+        juce::String title, artist, album, genre, year, track;
+        juce::String charter, icon;
+
+        /**
+            A rating is a judgement about the chart that cannot be read off it,
+            so both stay unset until someone types a number, and the dialog
+            will not export while they are.
+        */
+        int diffDrums = kUnrated;
+        int diffDrumsReal = kUnrated;
+
+        bool proDrums = true;
+        bool fiveLaneDrums = false;
+
+        juce::File albumArt;
+        juce::File backgroundArt;
+
+        /**
+            Build background.png out of the album art rather than needing a
+            second image. Ignored when a background was picked explicitly:
+            something chosen beats something derived.
+        */
+        bool generateBackground = true;
+        BackgroundGenerator::Options backgroundOptions;
+
+        /** RENDER_FORMAT code, from Sink::formatCode(). */
+        juce::String audioFormatCode;
+
+        /** One .sng container rather than a folder of loose files. */
+        bool packAsSng = false;
+
+        juce::File destinationRoot;
+        juce::String folderName;
+
+        static constexpr int kUnrated = -1;
+        bool rated() const { return diffDrums != kUnrated && diffDrumsReal != kUnrated; }
+        bool nameable() const { return title.isNotEmpty() && artist.isNotEmpty(); }
+    };
+
+    struct ExportOutcome
+    {
+        bool ok = false;
+        juce::String message;
+        /** The finished chart: a folder, or the .sng when packed. */
+        juce::File output;
+    };
+
+    /**
+        Writes the whole chart: notes.mid, song.ini, artwork, rendered audio,
+        and the .sng container when one was asked for.
+
+        Order is deliberate. The chart is written before the audio because the
+        render is the slow half and the half that can be repeated by hand, so a
+        failed render should still leave something worth looking at.
+    */
+    ExportOutcome runExport(const TimeRange& range, const ExportOptions& options);
+
+    /** Chart tracks the project has right now, named as they will export. */
+    juce::StringArray chartTrackNames();
+
+    /** Drum type read off the notes, since the track name cannot say. */
+    ChartMidiWriter::DrumProfile drumProfile(const TimeRange& range);
+
+    /** Directories worth searching for album and background art. */
+    juce::Array<juce::File> artworkSearchPaths(const TimeRange& range) const;
+
+    /**
+        Writes notes.mid for `range` into `folder`, rebased so the range start
+        is tick 0 and the chart lines up with audio that starts at zero.
+    */
+    ChartMidiWriter::Result writeNotesMidi(const TimeRange& range, const juce::File& folder,
+                                           const juce::String& songName);
+
+    struct IniResult
+    {
+        bool ok = false;
+        juce::String message;
+        juce::File output;
+    };
+
+    /**
+        song.ini as key/value pairs.
+
+        Both output modes read from here: a folder gets these written to
+        song.ini, and a .sng carries them as its metadata section instead,
+        since the container has no song.ini file in it.
+
+        The drum flags matter more than the metadata. Without `pro_drums` the
+        game falls back to sniffing the notes for tom markers, so a song
+        charted without any loads as plain 4-lane. See _refs/midi/drums.md.
+    */
+    juce::StringPairArray songIniValues(const TimeRange& range, const ExportOptions& options,
+                                        const ChartMidiWriter::Result& midi) const;
+
+    IniResult writeSongIni(const juce::File& folder, const juce::StringPairArray& values) const;
 
     /** Human-readable dump of everything above, for wiring up and diagnosis. */
     juce::String describeContext() const;
@@ -153,6 +267,7 @@ public:
     void logContext() const;
 
 private:
+    ReaperMidiProvider& provider;
     const ReaperAPIs& apis;
     std::function<void*(const char*)> getReaperApi;
 

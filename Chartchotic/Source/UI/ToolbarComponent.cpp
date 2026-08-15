@@ -200,6 +200,9 @@ void ToolbarComponent::initChartPanel()
     exportButton.onClick = [this]() {
         // Momentary: exporting is an action, not a state to sit in.
         exportButton.setToggleState(false, juce::dontSendNotification);
+        // The settings panel would otherwise sit on top of the dialog it just
+        // opened, over the part of it you need to read.
+        settingsButton.dismissPanel();
         if (onExportChart) onExportChart();
     };
 
