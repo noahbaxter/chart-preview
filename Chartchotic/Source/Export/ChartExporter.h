@@ -187,6 +187,13 @@ public:
         /** One .sng container rather than a folder of loose files. */
         bool packAsSng = false;
 
+        /**
+            Re-render the audio. Off once a chart has audio, because a
+            re-export is nearly always about the chart: the audio takes the
+            longest, blocks REAPER while it runs, and comes out the same.
+        */
+        bool renderAudio = true;
+
         juce::File destinationRoot;
         juce::String folderName;
 
@@ -215,6 +222,9 @@ public:
 
     /** Chart tracks the project has right now, named as they will export. */
     juce::StringArray chartTrackNames();
+
+    /** Song audio already sitting in a chart folder, if any. */
+    static juce::File existingAudio(const juce::File& folder);
 
     /** Drum type read off the notes, since the track name cannot say. */
     ChartMidiWriter::DrumProfile drumProfile(const TimeRange& range);

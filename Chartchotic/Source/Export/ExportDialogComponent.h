@@ -120,6 +120,7 @@ private:
     CheckboxToggle proDrumsToggle { "Pro drums" };
     CheckboxToggle fiveLaneToggle { "5-lane drums" };
 
+    CheckboxToggle renderAudioToggle { "Re-render audio" };
     SegmentedButtons formatButtons;
     SegmentedButtons packagingButtons;
 
