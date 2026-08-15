@@ -108,6 +108,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Export/BackgroundGenerator.h
         Chartchotic/Source/Export/ChartExporter.cpp
         Chartchotic/Source/Export/ChartExporter.h
+        Chartchotic/Source/Export/IconPreview.cpp
+        Chartchotic/Source/Export/IconPreview.h
         Chartchotic/Source/Export/SngPacker.cpp
         Chartchotic/Source/Export/SngPacker.h
         Chartchotic/Source/Editor/EditController.cpp
