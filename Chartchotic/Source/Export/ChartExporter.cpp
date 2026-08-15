@@ -132,7 +132,23 @@ std::vector<ChartExporter::Region> ChartExporter::regions() const
         if (!apis.EnumProjectMarkers3(proj, i, &isRegion, &pos, &rgnEnd, &name, &number, &colour))
             continue;
         if (!isRegion) continue;
-        out.push_back({ name ? juce::String(name) : juce::String(), pos, rgnEnd, number });
+
+        Region region;
+        region.name = name ? juce::String(name) : juce::String();
+        region.startSec = pos;
+        region.endSec = rgnEnd;
+        region.index = number;
+
+        if (apis.GetSetRegionOrMarkerInfo_String)
+        {
+            char guid[128] = {};
+            if (apis.GetSetRegionOrMarkerInfo_String(proj, i, true, "GUID", guid, sizeof(guid), false))
+                region.guid = juce::String(juce::CharPointer_UTF8(guid));
+        }
+        // Better than nothing, and stable as long as nobody renames it.
+        if (region.guid.isEmpty()) region.guid = "name:" + region.name;
+
+        out.push_back(region);
     }
     return out;
 }
@@ -549,66 +565,60 @@ juce::Array<juce::File> ChartExporter::artworkSearchPaths(const TimeRange& range
     return paths;
 }
 
-ChartExporter::ExportOutcome ChartExporter::runExport(const TimeRange& range,
-                                                      const ExportOptions& options)
+ChartExporter::StagedChart ChartExporter::stageChart(const SongExport& song)
 {
-    ExportOutcome outcome;
+    const auto& options = song.options;
 
-    if (!range.plausible())
-    {
-        outcome.message = "no usable time selection";
-        return outcome;
-    }
-    if (!options.nameable() || options.folderName.isEmpty())
-    {
-        outcome.message = "chart needs a title and an artist";
-        return outcome;
-    }
-    if (!options.rated())
-    {
-        outcome.message = "chart needs a difficulty rating";
-        return outcome;
-    }
+    StagedChart staged;
+    staged.name = options.folderName;
+    staged.range = song.range;
+    staged.options = &options;
+
+    if (!song.range.plausible())      { staged.failure = "range too short"; return staged; }
+    if (!options.nameable())          { staged.failure = "needs a title and an artist"; return staged; }
+    if (options.folderName.isEmpty()) { staged.failure = "needs a title and an artist"; return staged; }
+    if (!options.rated())             { staged.failure = "needs a difficulty rating"; return staged; }
 
     const juce::File root = options.destinationRoot.getFullPathName().isNotEmpty()
                               ? options.destinationRoot : exportRoot();
     if (root.getFullPathName().isEmpty())
     {
-        outcome.message = "nowhere to export to, project has no folder";
-        return outcome;
+        staged.failure = "nowhere to export to, project has no folder";
+        return staged;
     }
 
     // In .sng mode the loose files are staging rather than output, so they are
     // assembled somewhere temporary and the container is the only thing that
     // lands beside the project.
-    const juce::File staging = options.packAsSng
+    staged.destination = root.getChildFile(options.folderName + (options.packAsSng ? ".sng" : ""));
+    staged.staging = options.packAsSng
         ? juce::File::getSpecialLocation(juce::File::tempDirectory)
             .getChildFile("chartchotic-export").getChildFile(options.folderName)
         : root.getChildFile(options.folderName);
 
     // Only ever recursive on our own temp staging: a stale file left behind
     // from a previous run would otherwise get packed into the container.
-    if (options.packAsSng && staging.isAChildOf(juce::File::getSpecialLocation(juce::File::tempDirectory)))
-        staging.deleteRecursively();
+    if (options.packAsSng && staged.staging.isAChildOf(juce::File::getSpecialLocation(juce::File::tempDirectory)))
+        staged.staging.deleteRecursively();
 
-    staging.createDirectory();
+    staged.staging.createDirectory();
     log("=== export: " + options.folderName + (options.packAsSng ? " (.sng)" : " (folder)") + " ===");
 
-    auto midi = writeNotesMidi(range, staging, options.title);
+    auto midi = writeNotesMidi(song.range, staged.staging, options.title);
     log(juce::String("[export] ") + (midi.ok ? "OK " : "FAILED ") + midi.message);
     if (midi.detail.isNotEmpty()) log(midi.detail.trimEnd());
     if (!midi.ok)
     {
-        outcome.message = midi.message;
-        return outcome;
+        staged.failure = midi.message;
+        return staged;
     }
 
     // Artwork keeps its own extension: the games accept png and jpg, and
     // renaming a jpg to .png makes a file nothing will open.
-    auto copyArt = [&staging](const juce::File& source, const juce::String& stem)
+    auto copyArt = [&staged](const juce::File& source, const juce::String& stem)
     {
         if (!source.existsAsFile()) return juce::String();
-        auto target = staging.getChildFile(stem + source.getFileExtension().toLowerCase());
+        auto target = staged.staging.getChildFile(stem + source.getFileExtension().toLowerCase());
         if (!source.copyFileTo(target))
             return "could not copy " + source.getFileName();
         return juce::String();
@@ -626,69 +636,119 @@ ChartExporter::ExportOutcome ChartExporter::runExport(const TimeRange& range,
     if (options.generateBackground && !options.backgroundArt.existsAsFile()
         && options.albumArt.existsAsFile())
     {
-        const bool made = BackgroundGenerator::writeTo(staging.getChildFile("background.png"),
+        const bool made = BackgroundGenerator::writeTo(staged.staging.getChildFile("background.png"),
                                                        options.albumArt, options.backgroundOptions);
         log(juce::String("[export] ") + (made ? "generated background from album art"
                                               : "could not generate a background"));
     }
 
-    const auto values = songIniValues(range, options, midi);
+    staged.iniValues = songIniValues(song.range, options, midi);
 
     // A .sng carries these as its metadata section, so writing song.ini into
     // the staging folder would only pack a file the format has no slot for.
     if (!options.packAsSng)
     {
-        auto ini = writeSongIni(staging, values);
+        auto ini = writeSongIni(staged.staging, staged.iniValues);
         log(juce::String("[export] ") + (ini.ok ? "OK " : "FAILED ") + ini.message);
     }
 
-    RenderResult rendered;
-    if (options.renderAudio)
-    {
-        rendered = renderSongAudio(range, staging, options.audioFormatCode);
-        log(juce::String("[export] ") + (rendered.ok ? "OK " : "FAILED ") + rendered.message);
-    }
-    else
-    {
-        // Reused from the last export rather than rendered again. In .sng mode
-        // the staging folder is empty every time, so it has to be copied back
-        // in or the container would ship without audio.
-        rendered.ok = true;
-        rendered.message = "kept existing audio";
+    staged.needsAudio = options.renderAudio;
 
-        if (options.packAsSng)
-        {
-            auto previous = existingAudio(root.getChildFile(options.folderName));
-            if (previous.existsAsFile() && previous.copyFileTo(staging.getChildFile(previous.getFileName())))
-                rendered.message = "reused " + previous.getFileName();
-            else
-                rendered = { false, "no audio to reuse, render it once first", {} };
-        }
-        log("[export] " + rendered.message);
+    if (!options.renderAudio && options.packAsSng)
+    {
+        // The staging folder is empty every time in .sng mode, so audio being
+        // reused has to be copied back in or the container ships without it.
+        auto previous = existingAudio(root.getChildFile(options.folderName));
+        if (previous.existsAsFile() && previous.copyFileTo(staged.staging.getChildFile(previous.getFileName())))
+            log("[export] reused " + previous.getFileName());
+        else
+            staged.failure = "no audio to reuse, render it once first";
     }
 
-    if (!options.packAsSng)
+    return staged;
+}
+
+void ChartExporter::finishChart(StagedChart& staged)
+{
+    if (!staged.ok() || staged.options == nullptr) return;
+    if (!staged.options->packAsSng) return;
+
+    std::vector<SngPacker::Entry> entries;
+    for (const auto& file : staged.staging.findChildFiles(juce::File::findFiles, false))
+        entries.push_back({ file.getFileName().toLowerCase(), file });
+
+    auto packed = SngPacker::pack(staged.destination, staged.iniValues, entries);
+    log(juce::String("[export] ") + (packed.ok ? "OK " : "FAILED ") + packed.message);
+
+    staged.staging.deleteRecursively();
+    if (!packed.ok) staged.failure = packed.message;
+}
+
+ChartExporter::BatchOutcome ChartExporter::runBatch(const std::vector<SongExport>& songs)
+{
+    BatchOutcome outcome;
+    if (songs.empty())
     {
-        outcome.ok = true;
-        outcome.output = staging;
-        outcome.message = rendered.ok ? "chart written" : "chart written, audio failed: " + rendered.message;
+        outcome.message = "nothing selected to export";
         return outcome;
     }
 
-    std::vector<SngPacker::Entry> entries;
-    for (const auto& file : staging.findChildFiles(juce::File::findFiles, false))
-        entries.push_back({ file.getFileName().toLowerCase(), file });
+    // Phase one: every chart, for every song. Cheap, and it means a bad title
+    // or a missing rating is reported before anything slow starts.
+    std::vector<StagedChart> staged;
+    staged.reserve(songs.size());
+    for (const auto& song : songs)
+        staged.push_back(stageChart(song));
 
-    auto packed = SngPacker::pack(root.getChildFile(options.folderName + ".sng"), values, entries);
-    log(juce::String("[export] ") + (packed.ok ? "OK " : "FAILED ") + packed.message);
+    // Phase two: the audio, which is the half that blocks REAPER. Songs whose
+    // audio is already on disk never get here.
+    int rendered = 0;
+    for (auto& chart : staged)
+    {
+        if (!chart.ok() || !chart.needsAudio) continue;
 
-    staging.deleteRecursively();
+        auto result = renderSongAudio(chart.range, chart.staging, chart.options->audioFormatCode);
+        log(juce::String("[export] ") + (result.ok ? "OK " : "FAILED ") + result.message);
+        if (result.ok) ++rendered;
+        // A chart without its audio is still worth keeping, so this is
+        // reported rather than treated as a failed export.
+        else outcome.failures.add(chart.name + ": audio failed, " + result.message);
+    }
 
-    outcome.ok = packed.ok;
-    outcome.output = packed.output;
-    outcome.message = packed.ok && !rendered.ok
-                        ? "packed, audio failed: " + rendered.message
-                        : packed.message;
+    // Phase three: packing, which has to come after the audio exists.
+    int written = 0;
+    for (auto& chart : staged)
+    {
+        finishChart(chart);
+        if (chart.ok())
+        {
+            ++written;
+            outcome.outputs.add(chart.destination);
+        }
+        else
+        {
+            outcome.failures.add(chart.name.isNotEmpty() ? chart.name + ": " + chart.failure
+                                                         : chart.failure);
+        }
+    }
+
+    outcome.ok = written > 0;
+    outcome.message = juce::String(written) + " of " + juce::String((int)songs.size())
+                    + (songs.size() == 1 ? " chart" : " charts") + " written, "
+                    + juce::String(rendered) + " rendered";
+    return outcome;
+}
+
+ChartExporter::ExportOutcome ChartExporter::runExport(const TimeRange& range,
+                                                      const ExportOptions& options)
+{
+    auto batch = runBatch({ SongExport{ range, options, {} } });
+
+    ExportOutcome outcome;
+    outcome.ok = batch.ok;
+    outcome.message = batch.failures.isEmpty() ? batch.message
+                                               : batch.failures.joinIntoString("; ");
+    outcome.output = batch.outputs.isEmpty() ? juce::File() : batch.outputs.getFirst();
     return outcome;
 }
 

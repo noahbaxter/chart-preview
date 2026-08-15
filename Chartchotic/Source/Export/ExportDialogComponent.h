@@ -5,20 +5,27 @@
 #include <vector>
 
 #include "ChartExporter.h"
+#include "IconPreview.h"
 #include "../UI/Theme.h"
 #include "../UI/Controls/CheckboxToggle.h"
 #include "../UI/Controls/SegmentedButtons.h"
 #include "../UI/Controls/ValueStepper.h"
-#include "IconPreview.h"
 
 /**
-    The export dialog: everything that goes into a chart, on one screen, with
-    the inferred values already filled in.
+    The export dialog: pick which songs to export, and what goes in them.
 
-    It collects and validates only. Nothing here writes a file; pressing Export
-    hands an ExportOptions back to the caller, which is what runs the export.
-    That split keeps the writing testable without a UI and keeps this from
-    needing to know what a .sng is.
+    Songs are project regions, which is what lets one album project hold eleven
+    charts. Nothing is imposed on how regions are named: a region's name is the
+    default title and nothing more, and which rows are ticked is the whole of
+    the selection, so a project can be laid out however suits it.
+
+    Fields are split by what they belong to. Artist, album, year, genre,
+    artwork and packaging are the same for every song on an album and are asked
+    once; title, track number and difficulty belong to one song and follow its
+    region around.
+
+    It collects and validates only. Nothing here writes a file; Export hands
+    back one SongExport per ticked row and the caller runs them.
 
     Lives as an overlay child of the editor rather than a DialogWindow, so it
     picks up the plugin's look and feel and never opens an OS window inside a
@@ -27,28 +34,28 @@
 class ExportDialogComponent : public juce::Component
 {
 public:
-    /** What the dialog needs to fill itself in. */
     struct Context
     {
-        ChartExporter::TimeRange range;
+        /** Used when the project has no regions at all. */
+        ChartExporter::TimeRange selection;
+        std::vector<ChartExporter::Region> regions;
+
         ChartExporter::ChartName inferred;
-        juce::StringArray trackNames;      // chart tracks found in the project
+        juce::StringArray trackNames;
         std::vector<ChartExporter::Sink> audioFormats;
         juce::File destinationRoot;
-        /** Searched for album.* and background.* to pre-fill the artwork. */
         juce::Array<juce::File> artworkSearchPaths;
-        /** Drum type read off the notes, which is the only place it exists. */
         ChartMidiWriter::DrumProfile drums;
-        /** Per-project values from a previous open, so nothing is retyped. */
+
+        /** Album-wide values, with a child per song keyed by region GUID. */
         juce::ValueTree remembered;
-        /** Charter identity, which belongs to the machine rather than the song. */
         juce::String charter, icon;
     };
 
     explicit ExportDialogComponent(Context context);
 
-    /** Fired with the collected options. The dialog is still on screen. */
-    std::function<void(const ChartExporter::ExportOptions&)> onExport;
+    /** Fired with one entry per ticked song. The dialog is still on screen. */
+    std::function<void(const std::vector<ChartExporter::SongExport>&)> onExport;
     std::function<void()> onDismiss;
 
     void paint(juce::Graphics& g) override;
@@ -57,7 +64,7 @@ public:
     void mouseDown(const juce::MouseEvent& event) override;
     void parentSizeChanged() override;
 
-    /** Everything typed here, so reopening in this project starts where it left off. */
+    /** Everything typed here, so reopening starts where it left off. */
     juce::ValueTree toValueTree() const;
 
     /** False while the icon lookup is still in flight. For snapshot tests. */
@@ -94,48 +101,87 @@ private:
         std::unique_ptr<juce::FileChooser> chooser;
     };
 
-    ChartExporter::ExportOptions collect() const;
-    void restore(const juce::ValueTree& tree);
+    /** One song, and everything about it not shared with the album. */
+    struct Song
+    {
+        ChartExporter::Region region;
+        bool selected = false;
+        juce::String title, track;
+        int diffDrums = ChartExporter::ExportOptions::kUnrated;
+        int diffPro = ChartExporter::ExportOptions::kUnrated;
+        bool proDrums = true;
+        bool fiveLane = false;
+
+        /** Empty when ready, otherwise why it cannot be exported. */
+        juce::String blocker(bool albumNamed, bool drums) const;
+    };
+
+    /** A row in the song list: tick, name, and whether it is ready. */
+    struct SongRow : public juce::Component
+    {
+        SongRow();
+        void paint(juce::Graphics& g) override;
+        void resized() override;
+        void mouseDown(const juce::MouseEvent&) override { if (onSelect) onSelect(); }
+
+        CheckboxToggle tick { "" };
+        juce::String name, status;
+        bool ready = false;
+        bool current = false;
+        std::function<void()> onSelect;
+    };
+
+    void buildSongs();
+    void loadSong(int index);
+    void storeSong(int index);
+    void refreshRows();
     void refreshValidity();
     void prefillArtwork();
+    void restore(const juce::ValueTree& tree);
+
+    ChartExporter::ExportOptions optionsFor(const Song& song) const;
+    juce::String albumBlocker() const;
     juce::Rectangle<float> cardBounds() const;
     float scale() const;
 
     Context context;
+    std::vector<Song> songs;
+    int current = 0;
+    bool hasDrums = false;
 
+    juce::Viewport listView;
+    juce::Component listContent;
+    std::vector<std::unique_ptr<SongRow>> rows;
+
+    // Per song
     Field titleField { "TITLE" };
+    Field trackField { "TRACK", true };
+    ValueStepper drumsDifficulty { "DIFF DRUMS" };
+    ValueStepper proDrumsDifficulty { "DIFF PRO" };
+    CheckboxToggle proDrumsToggle { "Pro drums" };
+    CheckboxToggle fiveLaneToggle { "5-lane drums" };
+
+    // Album wide
     Field artistField { "ARTIST" };
     Field albumField { "ALBUM" };
     Field genreField { "GENRE" };
     Field yearField { "YEAR", true };
-    Field trackField { "TRACK", true };
     Field charterField { "CHARTER" };
     Field iconField { "ICON" };
     IconPreview iconPreview;
     juce::TextButton browseIconsButton { "Browse icons" };
-
-    ValueStepper drumsDifficulty { "DIFF DRUMS" };
-    ValueStepper proDrumsDifficulty { "DIFF PRO" };
-
-    CheckboxToggle proDrumsToggle { "Pro drums" };
-    CheckboxToggle fiveLaneToggle { "5-lane drums" };
-
-    CheckboxToggle renderAudioToggle { "Re-render audio" };
-    SegmentedButtons formatButtons;
-    SegmentedButtons packagingButtons;
 
     ArtSlot albumArt { "ALBUM ART" };
     ArtSlot backgroundArt { "BACKGROUND" };
     CheckboxToggle generateBackgroundToggle { "Generate background from artwork" };
     SegmentedButtons backgroundStyleButtons;
 
+    CheckboxToggle renderAudioToggle { "Re-render audio" };
+    SegmentedButtons formatButtons;
+    SegmentedButtons packagingButtons;
+
     juce::TextButton exportButton { "Export" };
     juce::TextButton cancelButton { "Cancel" };
-
-    /** Unrated until typed, and Export stays disabled while either is. */
-    int drumsRating = ChartExporter::ExportOptions::kUnrated;
-    int proDrumsRating = ChartExporter::ExportOptions::kUnrated;
-    bool hasDrums = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ExportDialogComponent)
 };

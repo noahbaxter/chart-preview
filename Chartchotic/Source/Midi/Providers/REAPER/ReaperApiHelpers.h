@@ -117,6 +117,11 @@ struct ReaperAPIs
     void (*GetSet_LoopTimeRange2)(void* proj, bool isSet, bool isLoop,
                                   double* startOut, double* endOut, bool allowautoseek) = nullptr;
     int  (*CountProjectMarkers)(void* proj, int* num_markersOut, int* num_regionsOut) = nullptr;
+    // Region identity that survives renaming and dragging. Newer than the
+    // marker functions above, so it is allowed to be missing.
+    bool (*GetSetRegionOrMarkerInfo_String)(void* proj, int regionindex, bool isrgn,
+                                            const char* parmname, char* stringNeedBig,
+                                            int stringNeedBig_sz, bool setNewValue) = nullptr;
     int  (*EnumProjectMarkers3)(void* proj, int idx, bool* isrgnOut, double* posOut,
                                 double* rgnendOut, const char** nameOut,
                                 int* markrgnindexnumberOut, int* colorOut) = nullptr;
@@ -296,6 +301,9 @@ public:
         outAPIs.GetSet_LoopTimeRange2 = (void(*)(void*, bool, bool, double*, double*, bool))
             apiFunc("GetSet_LoopTimeRange2");
         outAPIs.CountProjectMarkers = (int(*)(void*, int*, int*))apiFunc("CountProjectMarkers");
+        outAPIs.GetSetRegionOrMarkerInfo_String =
+            (bool(*)(void*, int, bool, const char*, char*, int, bool))
+            apiFunc("GetSetRegionOrMarkerInfo_String");
         outAPIs.EnumProjectMarkers3 = (int(*)(void*, int, bool*, double*, double*,
                                               const char**, int*, int*))
             apiFunc("EnumProjectMarkers3");

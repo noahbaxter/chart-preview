@@ -55,6 +55,14 @@ public:
         double startSec = 0.0;
         double endSec = 0.0;
         int    index = 0;
+        /**
+            Identity that survives a rename or a drag, which the name and the
+            index both do not. Falls back to the name when REAPER is too old to
+            report one.
+        */
+        juce::String guid;
+
+        TimeRange range() const { return { startSec, endSec }; }
     };
 
     bool available() const;
@@ -210,6 +218,38 @@ public:
         juce::File output;
     };
 
+    /** One song in an export: what to write, and where it came from. */
+    struct SongExport
+    {
+        TimeRange range;
+        ExportOptions options;
+        /**
+            The region this song is, when it is one. Identity only; empty for a
+            time-selection export.
+        */
+        juce::String regionGuid;
+    };
+
+    struct BatchOutcome
+    {
+        bool ok = false;
+        juce::String message;
+        /** One entry per song that did not finish, named and explained. */
+        juce::StringArray failures;
+        juce::Array<juce::File> outputs;
+    };
+
+    /**
+        Exports several songs in phases rather than one song at a time.
+
+        Everything cheap happens for every song first (notes.mid, song.ini,
+        artwork), then the audio, then packing. Rendering is what blocks REAPER
+        for minutes at a time, so it is worth knowing every chart wrote before
+        any of it starts, and worth skipping entirely for songs whose audio is
+        already on disk.
+    */
+    BatchOutcome runBatch(const std::vector<SongExport>& songs);
+
     /**
         Writes the whole chart: notes.mid, song.ini, artwork, rendered audio,
         and the .sng container when one was asked for.
@@ -219,6 +259,26 @@ public:
         failed render should still leave something worth looking at.
     */
     ExportOutcome runExport(const TimeRange& range, const ExportOptions& options);
+
+private:
+    /** A song part-way through an export, between phases. */
+    struct StagedChart
+    {
+        juce::String name;
+        juce::File staging;         // where files are assembled
+        juce::File destination;     // folder or .sng that finally lands
+        juce::StringPairArray iniValues;
+        TimeRange range;
+        const ExportOptions* options = nullptr;
+        bool needsAudio = false;
+        juce::String failure;
+        bool ok() const { return failure.isEmpty(); }
+    };
+
+    StagedChart stageChart(const SongExport& song);
+    void finishChart(StagedChart& staged);
+
+public:
 
     /** Chart tracks the project has right now, named as they will export. */
     juce::StringArray chartTrackNames();

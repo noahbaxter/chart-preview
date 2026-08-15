@@ -22,12 +22,31 @@
 namespace
 {
     juce::String iconName { "toki" };
+    bool noRegions = false;
 
     ExportDialogComponent::Context makeContext()
     {
         ExportDialogComponent::Context context;
-        context.range.startSec = 513.0;
-        context.range.endSec = 717.235;
+        context.selection.startSec = 513.0;
+        context.selection.endSec = 717.235;
+
+        // An album's worth of regions, named the way a project actually is.
+        const char* const names[] = {
+            "Gray World", "Vengeance", "Rattle of Death", "I'm the Same",
+            "Speak Without Words", "Inglorius", nullptr
+        };
+        double at = 0.0;
+        for (int i = 0; !noRegions && names[i] != nullptr; ++i)
+        {
+            ChartExporter::Region region;
+            region.name = names[i];
+            region.startSec = at;
+            region.endSec = at + 204.0;
+            region.index = i + 1;
+            region.guid = juce::String("{region-") + juce::String(i) + "}";
+            context.regions.push_back(region);
+            at = region.endSec + 2.0;
+        }
 
         context.inferred.artist = "Lockslip";
         context.inferred.album = "The Conversation";
@@ -73,12 +92,13 @@ int main(int argc, char** argv)
     int width = 1280;
     int height = 720;
 
-    for (int i = 2; i < argc - 1; ++i)
+    for (int i = 2; i < argc; ++i)
     {
         juce::String flag(argv[i]);
-        if (flag == "--width")  width = juce::String(argv[++i]).getIntValue();
-        if (flag == "--height") height = juce::String(argv[++i]).getIntValue();
-        if (flag == "--icon")   iconName = juce::String(argv[++i]);
+        if (flag == "--width" && i + 1 < argc)  width = juce::String(argv[++i]).getIntValue();
+        if (flag == "--height" && i + 1 < argc) height = juce::String(argv[++i]).getIntValue();
+        if (flag == "--icon" && i + 1 < argc)   iconName = juce::String(argv[++i]);
+        if (flag == "--no-regions") noRegions = true;
     }
 
     // --background <art.png> <out.png> checks the generator instead of the dialog.
