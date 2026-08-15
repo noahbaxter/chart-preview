@@ -1074,20 +1074,26 @@ void ChartchoticAudioProcessorEditor::showExportDialog()
     exporter.logContext();
 
     auto range = exporter.timeSelection();
-    if (!range.plausible())
+    auto regions = exporter.regions();
+    if (regions.empty() && !range.plausible())
     {
-        ChartExporter::log("[export] aborted, no usable time selection");
+        ChartExporter::log("[export] aborted, no regions and no usable time selection");
         return;
     }
 
+    // Drums are read off whichever range is to hand, since the answer is a
+    // property of how the project is charted rather than of one song.
+    auto probe = regions.empty() ? range : regions.front().range();
+
     ExportDialogComponent::Context context;
-    context.range = range;
+    context.selection = range;
+    context.regions = regions;
     context.inferred = exporter.inferChartName(range);
     context.trackNames = exporter.chartTrackNames();
     context.audioFormats = exporter.compressedSinks();
     context.destinationRoot = exporter.exportRoot();
-    context.artworkSearchPaths = exporter.artworkSearchPaths(range);
-    context.drums = exporter.drumProfile(range);
+    context.artworkSearchPaths = exporter.artworkSearchPaths(regions.empty() ? range : probe);
+    context.drums = exporter.drumProfile(probe);
     context.remembered = state.getChildWithName("exportDialog");
     context.charter = ChartSettings::charter();
     context.icon = ChartSettings::icon();
@@ -1109,22 +1115,29 @@ void ChartchoticAudioProcessorEditor::showExportDialog()
     };
 
     dialog->onDismiss = dismiss;
-    dialog->onExport = [this, range, dismiss](const ChartExporter::ExportOptions& options)
+    dialog->onExport = [this, dismiss](const std::vector<ChartExporter::SongExport>& batch)
     {
-        // A fresh exporter: the dialog may have been sitting open long enough
-        // for the project to have moved on.
         // Persisted on export rather than per keystroke, so a half-typed name
         // never becomes the default for every future project.
-        ChartSettings::setCharter(options.charter);
-        ChartSettings::setIcon(options.icon);
+        if (!batch.empty())
+        {
+            ChartSettings::setCharter(batch.front().options.charter);
+            ChartSettings::setIcon(batch.front().options.icon);
+        }
 
+        // A fresh exporter: the dialog may have been sitting open long enough
+        // for the project to have moved on.
         ChartExporter runner(audioProcessor.getReaperMidiProvider());
-        auto outcome = runner.runExport(range, options);
+        auto outcome = runner.runBatch(batch);
         ChartExporter::log(juce::String("[export] ")
                            + (outcome.ok ? "DONE " : "FAILED ") + outcome.message);
+        for (const auto& failure : outcome.failures)
+            ChartExporter::log("[export] " + failure);
 
-        if (outcome.ok)
-            outcome.output.revealToUser();
+        // The folder rather than each chart: eleven Finder windows is not a
+        // result anybody wants.
+        if (outcome.ok && !outcome.outputs.isEmpty())
+            outcome.outputs.getFirst().getParentDirectory().revealToUser();
 
         dismiss();
     };
