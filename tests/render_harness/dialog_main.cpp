@@ -85,6 +85,16 @@ int main(int argc, char** argv)
     if (juce::String(argv[1]) == "--background" && argc >= 4)
     {
         BackgroundGenerator::Options options;
+        for (int i = 4; i < argc; ++i)
+        {
+            juce::String flag(argv[i]);
+            if (flag == "--style" && i + 1 < argc)
+            {
+                juce::String name(argv[++i]);
+                if (name == "blur")  options.style = BackgroundGenerator::Style::blur;
+                if (name == "tiled") options.style = BackgroundGenerator::Style::tiled;
+            }
+        }
         const bool ok = BackgroundGenerator::writeTo(
             juce::File::getCurrentWorkingDirectory().getChildFile(argv[3]),
             juce::File::getCurrentWorkingDirectory().getChildFile(argv[2]), options);

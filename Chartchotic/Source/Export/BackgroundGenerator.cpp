@@ -68,23 +68,80 @@ namespace
     }
 }
 
+juce::StringArray BackgroundGenerator::styleNames()
+{
+    return { "Cover", "Blur", "Tiled" };
+}
+
 juce::Image BackgroundGenerator::generate(const juce::File& artwork, const Options& options)
 {
     auto source = juce::ImageFileFormat::loadFrom(artwork);
     if (!source.isValid()) return {};
 
-    juce::Image background(juce::Image::ARGB, kWidth, kHeight, true);
+    // The frame is sized off the source rather than fixed, which is what
+    // folder_gen.py does: 16:9 around the art's own resolution, capped.
+    int width, height;
+    if (source.getWidth() > source.getHeight())
     {
-        juce::Graphics g(background);
-
-        // Cover, not contain: a square cover on a 16:9 frame has to overflow
-        // top and bottom or there would be bars down the sides.
-        g.drawImage(source, juce::Rectangle<float>(0.0f, 0.0f, (float)kWidth, (float)kHeight),
-                    juce::RectanglePlacement::centred | juce::RectanglePlacement::fillDestination);
+        width = source.getWidth();
+        height = juce::roundToInt((float)width * 9.0f / 16.0f);
+    }
+    else
+    {
+        height = source.getHeight();
+        width = juce::roundToInt((float)height * 16.0f / 9.0f);
     }
 
-    boxBlur(background, juce::roundToInt((float)kHeight * juce::jlimit(0.0f, 0.2f, options.blur)));
+    const float capped = juce::jmin(1.0f, (float)kMaxWidth / (float)width,
+                                          (float)kMaxHeight / (float)height);
+    width = juce::roundToInt((float)width * capped);
+    height = juce::roundToInt((float)height * capped);
 
+    juce::Image background(juce::Image::ARGB, width, height, true);
+
+    if (options.style == Style::tiled)
+    {
+        juce::Graphics g(background);
+        const int columns = juce::jmax(1, options.tileColumns);
+        const float tile = (float)width / (float)columns;
+        for (float y = 0.0f; y < (float)height; y += tile)
+            for (float x = 0.0f; x < (float)width; x += tile)
+                g.drawImage(source, juce::Rectangle<float>(x, y, tile, tile),
+                            juce::RectanglePlacement::centred | juce::RectanglePlacement::fillDestination);
+    }
+    else
+    {
+        {
+            juce::Graphics g(background);
+            // Cover, not contain: a square cover on a 16:9 frame has to
+            // overflow top and bottom or there would be bars down the sides.
+            g.drawImage(source, juce::Rectangle<float>(0.0f, 0.0f, (float)width, (float)height),
+                        juce::RectanglePlacement::centred | juce::RectanglePlacement::fillDestination);
+        }
+
+        boxBlur(background, juce::roundToInt((float)height * juce::jlimit(0.0f, 0.2f, options.blur)));
+
+        if (options.style == Style::coverOnBlur)
+        {
+            // Scaled off the source image, not the frame, and raised above
+            // centre so the highway comes up out of the cover rather than
+            // through the middle of it.
+            const float scale = juce::jlimit(0.05f, 1.0f, options.coverScale) * capped;
+            const int coverWidth = juce::roundToInt((float)source.getWidth() * scale);
+            const int coverHeight = juce::roundToInt((float)source.getHeight() * scale);
+            const int x = (width - coverWidth) / 2;
+            const int y = (height - coverHeight) / 2 - juce::roundToInt((float)height * options.coverRise);
+            const int border = juce::roundToInt((float)width * options.coverBorder);
+
+            juce::Graphics g(background);
+            g.setColour(juce::Colours::black);
+            g.fillRect(juce::Rectangle<int>(x, y, coverWidth, coverHeight).expanded(border));
+            g.drawImage(source, juce::Rectangle<int>(x, y, coverWidth, coverHeight).toFloat(),
+                        juce::RectanglePlacement::centred | juce::RectanglePlacement::fillDestination);
+        }
+    }
+
+    if (options.darken > 0.0f)
     {
         juce::Graphics g(background);
         g.setColour(juce::Colours::black.withAlpha(juce::jlimit(0.0f, 1.0f, options.darken)));

@@ -263,8 +263,16 @@ ExportDialogComponent::ExportDialogComponent(Context ctx)
     addAndMakeVisible(backgroundArt);
 
     generateBackgroundToggle.setToggleState(true);
-    generateBackgroundToggle.onClick = [this]() { repaint(); };
+    generateBackgroundToggle.onClick = [this]()
+    {
+        backgroundStyleButtons.setEnabled(generateBackgroundToggle.getToggleState());
+        repaint();
+    };
     addAndMakeVisible(generateBackgroundToggle);
+
+    backgroundStyleButtons.setItems(BackgroundGenerator::styleNames());
+    backgroundStyleButtons.setSelectedIndex(0);
+    addAndMakeVisible(backgroundStyleButtons);
     addAndMakeVisible(exportButton);
     addAndMakeVisible(cancelButton);
 
@@ -289,6 +297,7 @@ namespace
     const juce::Identifier kProDrums { "proDrums" }, kFiveLane { "fiveLane" };
     const juce::Identifier kAlbumArt { "albumArt" }, kBackgroundArt { "backgroundArt" };
     const juce::Identifier kGenerateBackground { "generateBackground" };
+    const juce::Identifier kBackgroundStyle { "backgroundStyle" };
 }
 
 juce::ValueTree ExportDialogComponent::toValueTree() const
@@ -307,6 +316,7 @@ juce::ValueTree ExportDialogComponent::toValueTree() const
     tree.setProperty(kAlbumArt, albumArt.file.getFullPathName(), nullptr);
     tree.setProperty(kBackgroundArt, backgroundArt.file.getFullPathName(), nullptr);
     tree.setProperty(kGenerateBackground, generateBackgroundToggle.getToggleState(), nullptr);
+    tree.setProperty(kBackgroundStyle, backgroundStyleButtons.getSelectedIndex(), nullptr);
     return tree;
 }
 
@@ -347,6 +357,8 @@ void ExportDialogComponent::restore(const juce::ValueTree& tree)
 
     if (tree.hasProperty(kGenerateBackground))
         generateBackgroundToggle.setToggleState((bool)tree.getProperty(kGenerateBackground));
+    if (tree.hasProperty(kBackgroundStyle))
+        backgroundStyleButtons.setSelectedIndex((int)tree.getProperty(kBackgroundStyle));
 
     // Art paths can go stale between sessions, so a file that has since moved
     // falls back to whatever prefill found rather than showing a dead path.
@@ -396,6 +408,8 @@ ChartExporter::ExportOptions ExportDialogComponent::collect() const
     options.albumArt = albumArt.file;
     options.backgroundArt = backgroundArt.file;
     options.generateBackground = generateBackgroundToggle.getToggleState();
+    options.backgroundOptions.style =
+        (BackgroundGenerator::Style)juce::jmax(0, backgroundStyleButtons.getSelectedIndex());
 
     const int format = formatButtons.getSelectedIndex();
     if (juce::isPositiveAndBelow(format, (int)context.audioFormats.size()))
@@ -512,7 +526,10 @@ void ExportDialogComponent::resized()
     packagingButtons.setBounds(formatRow);
     inner.removeFromBottom(gap * 2);
 
-    generateBackgroundToggle.setBounds(inner.removeFromBottom(row));
+    auto backgroundRow = inner.removeFromBottom(row);
+    backgroundStyleButtons.setBounds(backgroundRow.removeFromRight((int)(180.0f * s)));
+    backgroundRow.removeFromRight(gap);
+    generateBackgroundToggle.setBounds(backgroundRow);
     inner.removeFromBottom(gap);
     backgroundArt.setBounds(inner.removeFromBottom(artRow));
     inner.removeFromBottom(gap);
