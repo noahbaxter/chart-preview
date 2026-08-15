@@ -12,7 +12,7 @@ namespace
     const char* const kArtExtensions[] = { ".png", ".jpg", ".jpeg", nullptr };
 
     constexpr float kCardWidth = 660.0f;
-    constexpr float kCardHeight = 600.0f;
+    constexpr float kCardHeight = 640.0f;
     constexpr float kRowHeight = 30.0f;
     constexpr float kRowGap = 8.0f;
     constexpr float kPad = 26.0f;
@@ -270,6 +270,19 @@ ExportDialogComponent::ExportDialogComponent(Context ctx)
     };
     addAndMakeVisible(generateBackgroundToggle);
 
+    // Off when the chart already has audio: a re-export is nearly always about
+    // the chart, and the render is the slow half that comes out the same.
+    const auto previous = ChartExporter::existingAudio(
+        context.destinationRoot.getChildFile(collect().folderName));
+    renderAudioToggle.setToggleState(!previous.existsAsFile());
+    renderAudioToggle.onClick = [this]()
+    {
+        formatButtons.setEnabled(renderAudioToggle.getToggleState());
+        repaint();
+    };
+    formatButtons.setEnabled(renderAudioToggle.getToggleState());
+    addAndMakeVisible(renderAudioToggle);
+
     backgroundStyleButtons.setItems(BackgroundGenerator::styleNames());
     backgroundStyleButtons.setSelectedIndex(0);
     addAndMakeVisible(backgroundStyleButtons);
@@ -416,6 +429,7 @@ ChartExporter::ExportOptions ExportDialogComponent::collect() const
         options.audioFormatCode = context.audioFormats[(size_t)format].formatCode();
 
     options.packAsSng = packagingButtons.getSelectedIndex() == 1;
+    options.renderAudio = renderAudioToggle.getToggleState();
     options.destinationRoot = context.destinationRoot;
 
     // Built from the fields rather than copied from any input filename, so
@@ -524,6 +538,9 @@ void ExportDialogComponent::resized()
     formatButtons.setBounds(formatRow.removeFromLeft((int)(formatRow.getWidth() * 0.62f)));
     formatRow.removeFromLeft(gap);
     packagingButtons.setBounds(formatRow);
+    inner.removeFromBottom(gap);
+
+    renderAudioToggle.setBounds(inner.removeFromBottom(row));
     inner.removeFromBottom(gap * 2);
 
     auto backgroundRow = inner.removeFromBottom(row);

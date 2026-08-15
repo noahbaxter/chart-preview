@@ -519,6 +519,17 @@ ChartMidiWriter::DrumProfile ChartExporter::drumProfile(const TimeRange& range)
     return writer.analyseDrums(range.startSec, range.endSec);
 }
 
+juce::File ChartExporter::existingAudio(const juce::File& folder)
+{
+    // The names the games look for, which is also what we write.
+    for (const auto* name : { "song.opus", "song.ogg", "song.mp3", "song.wav" })
+    {
+        auto file = folder.getChildFile(name);
+        if (file.existsAsFile()) return file;
+    }
+    return {};
+}
+
 juce::Array<juce::File> ChartExporter::artworkSearchPaths(const TimeRange& range) const
 {
     juce::Array<juce::File> paths;
@@ -631,8 +642,30 @@ ChartExporter::ExportOutcome ChartExporter::runExport(const TimeRange& range,
         log(juce::String("[export] ") + (ini.ok ? "OK " : "FAILED ") + ini.message);
     }
 
-    auto rendered = renderSongAudio(range, staging, options.audioFormatCode);
-    log(juce::String("[export] ") + (rendered.ok ? "OK " : "FAILED ") + rendered.message);
+    RenderResult rendered;
+    if (options.renderAudio)
+    {
+        rendered = renderSongAudio(range, staging, options.audioFormatCode);
+        log(juce::String("[export] ") + (rendered.ok ? "OK " : "FAILED ") + rendered.message);
+    }
+    else
+    {
+        // Reused from the last export rather than rendered again. In .sng mode
+        // the staging folder is empty every time, so it has to be copied back
+        // in or the container would ship without audio.
+        rendered.ok = true;
+        rendered.message = "kept existing audio";
+
+        if (options.packAsSng)
+        {
+            auto previous = existingAudio(root.getChildFile(options.folderName));
+            if (previous.existsAsFile() && previous.copyFileTo(staging.getChildFile(previous.getFileName())))
+                rendered.message = "reused " + previous.getFileName();
+            else
+                rendered = { false, "no audio to reuse, render it once first", {} };
+        }
+        log("[export] " + rendered.message);
+    }
 
     if (!options.packAsSng)
     {
