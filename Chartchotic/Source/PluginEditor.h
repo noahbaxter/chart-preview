@@ -27,6 +27,8 @@
 #include "UI/UpdateBannerComponent.h"
 #include "UI/FooterComponent.h"
 #include "Export/ChartExporter.h"
+#include "Export/ExportDialogComponent.h"
+#include "Export/ChartSettings.h"
 #include "Editor/AssetController.h"
 #include "Editor/SessionController.h"
 #include "Editor/FrameDataBuilder.h"
@@ -160,6 +162,9 @@ public:
 
 private:
     juce::ValueTree& state;
+
+    /** Opens the export overlay, filled in from the current time selection. */
+    void showExportDialog();
 
     ChartchoticAudioProcessor& audioProcessor;
     AssetManager assetManager;

@@ -185,3 +185,62 @@ if(APPLE)
         "-framework Cocoa"
     )
 endif()
+
+# Export dialog snapshot. The dialog only collects and validates, so it needs
+# no live project, but it does drag in the exporter for ChartName::folderName
+# and Sink::formatCode, and the exporter drags in the REAPER provider.
+juce_add_console_app(dialog_harness PRODUCT_NAME "Chartchotic Dialog Harness")
+
+target_sources(dialog_harness PRIVATE
+    dialog_main.cpp
+    ${SOURCE_ROOT}/Export/ExportDialogComponent.cpp
+    ${SOURCE_ROOT}/Export/BackgroundGenerator.cpp
+    ${SOURCE_ROOT}/Export/IconPreview.cpp
+    ${SOURCE_ROOT}/Export/ChartExporter.cpp
+    ${SOURCE_ROOT}/Export/ChartMidiWriter.cpp
+    ${SOURCE_ROOT}/Export/SngPacker.cpp
+    ${SOURCE_ROOT}/Host/ReaperTrackDetector.cpp
+    ${SOURCE_ROOT}/Midi/Providers/REAPER/ReaperMidiProvider.cpp
+    ${SOURCE_ROOT}/Midi/Providers/REAPER/ReaperNoteFetcher.cpp
+    ${SOURCE_ROOT}/Midi/Providers/REAPER/ReaperMidiWriter.cpp
+    ${SOURCE_ROOT}/Midi/Providers/REAPER/ReaperItemManager.cpp
+    ${SOURCE_ROOT}/Midi/Providers/REAPER/MidiCache.cpp
+)
+
+target_include_directories(dialog_harness PRIVATE
+    ${SOURCE_ROOT}
+    ${REPO_ROOT}/third_party/reaper-sdk/sdk
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+juce_generate_juce_header(dialog_harness)
+
+target_compile_definitions(dialog_harness PRIVATE
+    JUCE_STANDALONE_APPLICATION=1
+    # The snapshot has to pump the message loop to let the icon lookup land.
+    JUCE_MODAL_LOOPS_PERMITTED=1
+    JUCE_USE_CURL=0
+    JUCE_WEB_BROWSER=0
+    JucePlugin_Name="Chartchotic"
+    JucePlugin_Build_VST3=0
+    JucePlugin_Build_AU=0
+)
+
+target_link_libraries(dialog_harness PRIVATE
+    juce::juce_audio_basics
+    juce::juce_audio_processors
+    juce::juce_core
+    juce::juce_data_structures
+    juce::juce_events
+    juce::juce_graphics
+    juce::juce_gui_basics
+    juce::juce_gui_extra
+    RenderHarnessData
+)
+
+if(APPLE)
+    target_link_libraries(dialog_harness PRIVATE
+        "-framework Foundation"
+        "-framework Cocoa"
+    )
+endif()
