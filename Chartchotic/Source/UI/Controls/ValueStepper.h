@@ -13,7 +13,17 @@ public:
     ValueStepper(const juce::String& labelText, const juce::String& unitSuffix = {})
         : name(labelText), unit(unitSuffix) {}
 
-    void setDisplayValue(const juce::String& val) { displayValue = val; repaint(); }
+    void setDisplayValue(const juce::String& val) { displayValue = val; mixed = false; repaint(); }
+
+    /** Selected items disagree. Stepping resolves them all to one value. */
+    void setMixed()
+    {
+        if (mixed) return;
+        mixed = true;
+        repaint();
+    }
+
+    bool isMixed() const { return mixed; }
     void setDisplayValue(int val) { setDisplayValue(juce::String(val) + unit); }
     void setDisplayValue(float val) { setDisplayValue(juce::String(val) + unit); }
     const juce::String& getDisplayValue() const { return displayValue; }
@@ -103,10 +113,19 @@ public:
         // Value text
         auto textRect = valueRect.withLeft(valueRect.getX() + Theme::arrowZone)
                                   .withRight(valueRect.getRight() - Theme::arrowZone);
-        g.setColour(valueClickOpensFolder ? accent.withAlpha(0.7f)
-                                          : juce::Colour(Theme::textWhite));
-        g.setFont(Theme::controlFont);
-        g.drawText(displayValue, textRect, juce::Justification::centred);
+        if (mixed)
+        {
+            g.setColour(juce::Colour(Theme::textDim));
+            g.setFont(Theme::getMixedFont(Theme::controlFont.getHeight()));
+            g.drawText(Theme::mixedText, textRect, juce::Justification::centred);
+        }
+        else
+        {
+            g.setColour(valueClickOpensFolder ? accent.withAlpha(0.7f)
+                                              : juce::Colour(Theme::textWhite));
+            g.setFont(Theme::controlFont);
+            g.drawText(displayValue, textRect, juce::Justification::centred);
+        }
     }
 
     void mouseUp(const juce::MouseEvent& e) override
@@ -214,6 +233,7 @@ private:
     float cornerRadius = -1.0f;
     bool atMin = false;
     bool atMax = false;
+    bool mixed = false;
 
     // TextEditor subclass that uses Desktop global mouse listener to detect
     // clicks outside and give away focus. This is the JUCE-recommended pattern —
