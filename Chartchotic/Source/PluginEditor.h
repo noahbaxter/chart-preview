@@ -27,7 +27,7 @@
 #include "UI/UpdateBannerComponent.h"
 #include "UI/FooterComponent.h"
 #include "Export/ChartExporter.h"
-#include "Export/ExportDialogComponent.h"
+#include "Export/ExportWindow.h"
 #include "Export/ChartSettings.h"
 #include "Editor/AssetController.h"
 #include "Editor/SessionController.h"
@@ -163,8 +163,9 @@ public:
 private:
     juce::ValueTree& state;
 
-    /** Opens the export overlay, filled in from the current time selection. */
+    /** Opens the export window, or brings it forward when already open. */
     void showExportDialog();
+    std::unique_ptr<ExportWindow> exportWindow;
 
     ChartchoticAudioProcessor& audioProcessor;
     AssetManager assetManager;

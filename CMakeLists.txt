@@ -112,6 +112,7 @@ target_sources(Chartchotic
         Chartchotic/Source/Export/ChartMidiWriter.h
         Chartchotic/Source/Export/ChartSettings.h
         Chartchotic/Source/Export/ExportDialogComponent.cpp
+        Chartchotic/Source/Export/ExportWindow.h
         Chartchotic/Source/Export/IconPreview.cpp
         Chartchotic/Source/Export/IconPreview.h
         Chartchotic/Source/Export/ExportDialogComponent.h

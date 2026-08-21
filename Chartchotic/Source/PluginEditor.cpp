@@ -251,6 +251,9 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
 
 ChartchoticAudioProcessorEditor::~ChartchoticAudioProcessorEditor()
 {
+    // Before anything else: it holds callbacks that capture this.
+    exportWindow.reset();
+
     // Shut down async bake thread before destroying members it references
     trackImageCache.shutdown();
 
@@ -1069,17 +1072,19 @@ void ChartchoticAudioProcessorEditor::resized()
 
 void ChartchoticAudioProcessorEditor::showExportDialog()
 {
+    // Already open: bring it forward rather than opening a second one.
+    if (exportWindow != nullptr)
+    {
+        exportWindow->toFront(true);
+        return;
+    }
+
     auto& provider = audioProcessor.getReaperMidiProvider();
     ChartExporter exporter(provider);
     exporter.logContext();
 
     auto range = exporter.timeSelection();
     auto regions = exporter.regions();
-    if (regions.empty() && !range.plausible())
-    {
-        ChartExporter::log("[export] aborted, no regions and no usable time selection");
-        return;
-    }
 
     // Drums are read off whichever range is to hand, since the answer is a
     // property of how the project is charted rather than of one song.
@@ -1088,34 +1093,68 @@ void ChartchoticAudioProcessorEditor::showExportDialog()
     ExportDialogComponent::Context context;
     context.selection = range;
     context.regions = regions;
-    context.inferred = exporter.inferChartName(range);
+    context.inferred = exporter.inferChartName(probe);
     context.trackNames = exporter.chartTrackNames();
     context.audioFormats = exporter.compressedSinks();
     context.destinationRoot = exporter.exportRoot();
-    context.artworkSearchPaths = exporter.artworkSearchPaths(regions.empty() ? range : probe);
+    context.artworkSearchPaths = exporter.artworkSearchPaths(probe);
     context.drums = exporter.drumProfile(probe);
     context.remembered = state.getChildWithName("exportDialog");
     context.charter = ChartSettings::charter();
     context.icon = ChartSettings::icon();
 
-    auto* dialog = new ExportDialogComponent(std::move(context));
-
-    auto dismiss = [this, dialog]()
+    // Opened even with nothing to export, because a button that does nothing
+    // at all reads as broken. The window says what is missing instead.
+    auto close = [this]()
     {
+        if (exportWindow == nullptr) return;
+
         // Kept in the project state rather than the settings file: a title and
         // a difficulty belong to this song, not to every song this machine
         // will ever export.
-        auto remembered = dialog->toValueTree();
+        auto remembered = exportWindow->content().toValueTree();
         state.removeChild(state.getChildWithName("exportDialog"), nullptr);
         state.appendChild(remembered, nullptr);
 
-        // Deferred: the click that dismissed it is still being delivered to
-        // one of the dialog's own children.
-        juce::MessageManager::callAsync([dialog]() { delete dialog; });
+        // Deferred: the click that closed it is still being delivered to one
+        // of the window's own children.
+        juce::MessageManager::callAsync([this]() { exportWindow.reset(); });
     };
 
-    dialog->onDismiss = dismiss;
-    dialog->onExport = [this, dismiss](const std::vector<ChartExporter::SongExport>& batch)
+    exportWindow = std::make_unique<ExportWindow>(std::move(context), close);
+    exportWindow->content().onDismiss = close;
+
+    // The project keeps being edited while this is open, so the window reads
+    // it rather than holding the snapshot it opened with.
+    exportWindow->content().pollProject = [this]()
+    {
+        ChartExporter live(audioProcessor.getReaperMidiProvider());
+        ExportDialogComponent::Snapshot snapshot;
+        snapshot.selection = live.timeSelection();
+        snapshot.regions = live.regions();
+        snapshot.trackNames = live.chartTrackNames();
+        return snapshot;
+    };
+
+    exportWindow->content().createRegion = [this](const ChartExporter::TimeRange& range,
+                                                  const juce::String& name)
+    {
+        ChartExporter live(audioProcessor.getReaperMidiProvider());
+        return live.createRegion(range, name);
+    };
+
+    exportWindow->content().setTimeSelection = [this](const ChartExporter::TimeRange& range)
+    {
+        ChartExporter live(audioProcessor.getReaperMidiProvider());
+        live.setTimeSelection(range);
+    };
+
+    exportWindow->content().analyseDrums = [this](const ChartExporter::TimeRange& probeRange)
+    {
+        ChartExporter live(audioProcessor.getReaperMidiProvider());
+        return live.drumProfile(probeRange);
+    };
+    exportWindow->content().onExport = [this, close](const std::vector<ChartExporter::SongExport>& batch)
     {
         // Persisted on export rather than per keystroke, so a half-typed name
         // never becomes the default for every future project.
@@ -1125,12 +1164,17 @@ void ChartchoticAudioProcessorEditor::showExportDialog()
             ChartSettings::setIcon(batch.front().options.icon);
         }
 
-        // A fresh exporter: the dialog may have been sitting open long enough
+        // A fresh exporter: the window may have been sitting open long enough
         // for the project to have moved on.
         ChartExporter runner(audioProcessor.getReaperMidiProvider());
         auto outcome = runner.runBatch(batch);
         ChartExporter::log(juce::String("[export] ")
                            + (outcome.ok ? "DONE " : "FAILED ") + outcome.message);
+
+        // Before close() saves them: settings key to the new regions, not to
+        // the time selection they were exported from.
+        if (exportWindow != nullptr)
+            exportWindow->content().adoptRegions(outcome.createdRegions);
         for (const auto& failure : outcome.failures)
             ChartExporter::log("[export] " + failure);
 
@@ -1139,13 +1183,8 @@ void ChartchoticAudioProcessorEditor::showExportDialog()
         if (outcome.ok && !outcome.outputs.isEmpty())
             outcome.outputs.getFirst().getParentDirectory().revealToUser();
 
-        dismiss();
+        close();
     };
-
-    addAndMakeVisible(dialog);
-    dialog->setBounds(getLocalBounds());
-    dialog->toFront(true);
-    dialog->grabKeyboardFocus();
 }
 
 void ChartchoticAudioProcessorEditor::updateDisplaySizeFromSpeedSlider()
