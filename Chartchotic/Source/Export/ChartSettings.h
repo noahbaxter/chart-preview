@@ -25,6 +25,36 @@ public:
     static juce::String icon()                    { return get("icon"); }
     static void setIcon(const juce::String& v)    { set("icon", v); }
 
+    /** Whether a cover dropped on a song with no background makes one. */
+    static bool autoBackground()
+    {
+        juce::PropertiesFile file(options());
+        return file.getBoolValue("autoBackground", true);
+    }
+
+    static void setAutoBackground(bool v)
+    {
+        juce::PropertiesFile file(options());
+        file.setValue("autoBackground", v);
+    }
+
+    /**
+        Which background template gets made from a cover, as a BackgroundGenerator
+        style index. Set once and it holds: picking a cover for a song with no
+        background makes one in this style without being asked again.
+    */
+    static int backgroundStyle()
+    {
+        juce::PropertiesFile file(options());
+        return file.getIntValue("backgroundStyle", 0);
+    }
+
+    static void setBackgroundStyle(int v)
+    {
+        juce::PropertiesFile file(options());
+        file.setValue("backgroundStyle", v);
+    }
+
     /** True when exports are packed into a single .sng rather than a folder. */
     static bool packAsSng()
     {
