@@ -76,6 +76,9 @@ public:
     /** The current time selection. Invalid when the user has not made one. */
     TimeRange timeSelection() const;
 
+    /** Move the project's time selection, so picking a song shows it. */
+    void setTimeSelection(const TimeRange& range) const;
+
     std::vector<Region> regions() const;
 
     /**
@@ -237,6 +240,8 @@ public:
         /** One entry per song that did not finish, named and explained. */
         juce::StringArray failures;
         juce::Array<juce::File> outputs;
+        /** Chart folder name to the GUID of the region created for it. */
+        juce::StringPairArray createdRegions;
     };
 
     /**
@@ -282,6 +287,14 @@ public:
 
     /** Chart tracks the project has right now, named as they will export. */
     juce::StringArray chartTrackNames();
+
+    /**
+        Makes a region out of `range`, so a chart exported from a bare time
+        selection becomes something you can re-export without setting the
+        selection up again. Returns its GUID, or empty when REAPER is too old
+        to have the call or the region could not be found afterwards.
+    */
+    juce::String createRegion(const TimeRange& range, const juce::String& name);
 
     /** Song audio already sitting in a chart folder, if any. */
     static juce::File existingAudio(const juce::File& folder);

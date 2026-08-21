@@ -1,5 +1,18 @@
 #include "ChartExporter.h"
 
+namespace
+{
+    /**
+        The audio names the games look for, which is also what we write.
+
+        The order is the order a game resolves them in, so a folder holding
+        both song.opus and song.mp3 plays the opus and ignores the mp3. That
+        is why a format change has to clear the old one rather than just write
+        the new one beside it.
+    */
+    const char* const kAudioFileNames[] = { "song.opus", "song.ogg", "song.mp3", "song.wav", nullptr };
+}
+
 ChartExporter::ChartExporter(ReaperMidiProvider& p)
     : provider(p), apis(p.getAPIs()), getReaperApi(p.getReaperGetFunc())
 {
@@ -115,6 +128,15 @@ ChartExporter::TimeRange ChartExporter::timeSelection() const
     return range;
 }
 
+void ChartExporter::setTimeSelection(const TimeRange& range) const
+{
+    void* proj = project();
+    if (!proj || !apis.GetSet_LoopTimeRange2 || !range.exists()) return;
+
+    double start = range.startSec, end = range.endSec;
+    apis.GetSet_LoopTimeRange2(proj, true, false, &start, &end, false);
+}
+
 std::vector<ChartExporter::Region> ChartExporter::regions() const
 {
     std::vector<Region> out;
@@ -139,14 +161,24 @@ std::vector<ChartExporter::Region> ChartExporter::regions() const
         region.endSec = rgnEnd;
         region.index = number;
 
-        if (apis.GetSetRegionOrMarkerInfo_String)
+        // The GUID lives on the marker, so look it up first. Null when this
+        // build indexes markers differently than the enumeration; the name
+        // fallback below covers that.
+        if (apis.GetRegionOrMarker && apis.GetSetRegionOrMarkerInfo_String)
         {
-            char guid[128] = {};
-            if (apis.GetSetRegionOrMarkerInfo_String(proj, i, true, "GUID", guid, sizeof(guid), false))
-                region.guid = juce::String(juce::CharPointer_UTF8(guid));
+            if (void* marker = apis.GetRegionOrMarker(proj, i, nullptr))
+            {
+                char guid[128] = {};
+                if (apis.GetSetRegionOrMarkerInfo_String(proj, marker, "GUID", guid, false))
+                    region.guid = juce::String(juce::CharPointer_UTF8(guid));
+            }
         }
         // Better than nothing, and stable as long as nobody renames it.
-        if (region.guid.isEmpty()) region.guid = "name:" + region.name;
+        // Unnamed regions fall back to the number instead: they would all
+        // share the key "name:" and stop being distinguishable at all.
+        if (region.guid.isEmpty())
+            region.guid = region.name.isNotEmpty() ? "name:" + region.name
+                                                   : "index:" + juce::String(region.index);
 
         out.push_back(region);
     }
@@ -535,12 +567,35 @@ ChartMidiWriter::DrumProfile ChartExporter::drumProfile(const TimeRange& range)
     return writer.analyseDrums(range.startSec, range.endSec);
 }
 
+juce::String ChartExporter::createRegion(const TimeRange& range, const juce::String& name)
+{
+    void* proj = project();
+    if (!proj || !apis.AddProjectMarker2 || !range.exists()) return {};
+
+    // wantidx -1 lets REAPER pick the number; colour 0 leaves it default so it
+    // looks like a region the user made, because from here on it is one.
+    if (apis.AddProjectMarker2(proj, true, range.startSec, range.endSec,
+                               name.toRawUTF8(), -1, 0) < 0)
+        return {};
+
+    if (apis.Undo_OnStateChange) apis.Undo_OnStateChange("Add chart region");
+
+    // AddProjectMarker2 hands back the displayed number, not the index the
+    // GUID lookup wants, so the new region is found by where it sits.
+    for (const auto& region : regions())
+        if (std::abs(region.startSec - range.startSec) < 0.001
+            && std::abs(region.endSec - range.endSec) < 0.001
+            && region.name == name)
+            return region.guid;
+
+    return {};
+}
+
 juce::File ChartExporter::existingAudio(const juce::File& folder)
 {
-    // The names the games look for, which is also what we write.
-    for (const auto* name : { "song.opus", "song.ogg", "song.mp3", "song.wav" })
+    for (int i = 0; kAudioFileNames[i] != nullptr; ++i)
     {
-        auto file = folder.getChildFile(name);
+        auto file = folder.getChildFile(kAudioFileNames[i]);
         if (file.existsAsFile()) return file;
     }
     return {};
@@ -603,6 +658,19 @@ ChartExporter::StagedChart ChartExporter::stageChart(const SongExport& song)
 
     staged.staging.createDirectory();
     log("=== export: " + options.folderName + (options.packAsSng ? " (.sng)" : " (folder)") + " ===");
+
+    // Folder mode writes into the destination without clearing it, so a
+    // format change would leave both files behind. Guarded on renderAudio:
+    // staging is the destination here, and the reuse path needs that file.
+    if (!options.packAsSng && options.renderAudio)
+    {
+        for (int i = 0; kAudioFileNames[i] != nullptr; ++i)
+        {
+            auto stale = staged.staging.getChildFile(kAudioFileNames[i]);
+            if (stale.existsAsFile() && stale.deleteFile())
+                log("[export] removed previous " + stale.getFileName());
+        }
+    }
 
     auto midi = writeNotesMidi(song.range, staged.staging, options.title);
     log(juce::String("[export] ") + (midi.ok ? "OK " : "FAILED ") + midi.message);
@@ -713,6 +781,20 @@ ChartExporter::BatchOutcome ChartExporter::runBatch(const std::vector<SongExport
         // A chart without its audio is still worth keeping, so this is
         // reported rather than treated as a failed export.
         else outcome.failures.add(chart.name + ": audio failed, " + result.message);
+    }
+
+    // A song exported from a bare time selection becomes a region, so the
+    // next export is a tickbox rather than setting the selection up again.
+    for (size_t i = 0; i < staged.size() && i < songs.size(); ++i)
+    {
+        if (!staged[i].ok() || songs[i].regionGuid.isNotEmpty()) continue;
+
+        auto guid = createRegion(songs[i].range, songs[i].options.title);
+        if (guid.isNotEmpty())
+        {
+            outcome.createdRegions.set(songs[i].options.folderName, guid);
+            log("[export] made a region for " + songs[i].options.title);
+        }
     }
 
     // Phase three: packing, which has to come after the audio exists.

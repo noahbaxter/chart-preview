@@ -117,11 +117,19 @@ struct ReaperAPIs
     void (*GetSet_LoopTimeRange2)(void* proj, bool isSet, bool isLoop,
                                   double* startOut, double* endOut, bool allowautoseek) = nullptr;
     int  (*CountProjectMarkers)(void* proj, int* num_markersOut, int* num_regionsOut) = nullptr;
+    // Regions are created on export so a bare time selection becomes
+    // something re-exportable. Optional: export still works without it.
+    int  (*AddProjectMarker2)(void* proj, bool isrgn, double pos, double rgnend,
+                              const char* name, int wantidx, int color) = nullptr;
     // Region identity that survives renaming and dragging. Newer than the
     // marker functions above, so it is allowed to be missing.
-    bool (*GetSetRegionOrMarkerInfo_String)(void* proj, int regionindex, bool isrgn,
-                                            const char* parmname, char* stringNeedBig,
-                                            int stringNeedBig_sz, bool setNewValue) = nullptr;
+    //
+    // Both take an opaque ProjectMarker*, not an index. Keep identical to
+    // reaper_plugin_functions.h: a mismatch here is dereferenced by REAPER.
+    void* (*GetRegionOrMarker)(void* proj, int index, const char* guidStr) = nullptr;
+    bool (*GetSetRegionOrMarkerInfo_String)(void* proj, void* regionOrMarker,
+                                            const char* parameterName,
+                                            char* stringNeedBig, bool setNewValue) = nullptr;
     int  (*EnumProjectMarkers3)(void* proj, int idx, bool* isrgnOut, double* posOut,
                                 double* rgnendOut, const char** nameOut,
                                 int* markrgnindexnumberOut, int* colorOut) = nullptr;
@@ -301,8 +309,12 @@ public:
         outAPIs.GetSet_LoopTimeRange2 = (void(*)(void*, bool, bool, double*, double*, bool))
             apiFunc("GetSet_LoopTimeRange2");
         outAPIs.CountProjectMarkers = (int(*)(void*, int*, int*))apiFunc("CountProjectMarkers");
+        outAPIs.AddProjectMarker2 = (int(*)(void*, bool, double, double, const char*, int, int))
+            apiFunc("AddProjectMarker2");
+        outAPIs.GetRegionOrMarker = (void*(*)(void*, int, const char*))
+            apiFunc("GetRegionOrMarker");
         outAPIs.GetSetRegionOrMarkerInfo_String =
-            (bool(*)(void*, int, bool, const char*, char*, int, bool))
+            (bool(*)(void*, void*, const char*, char*, bool))
             apiFunc("GetSetRegionOrMarkerInfo_String");
         outAPIs.EnumProjectMarkers3 = (int(*)(void*, int, bool*, double*, double*,
                                               const char**, int*, int*))
