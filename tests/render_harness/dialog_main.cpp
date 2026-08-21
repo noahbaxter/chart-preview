@@ -28,6 +28,7 @@ namespace
     bool becomesRegion = false;
     bool collapse = false;
     bool noSelection = false;
+    bool settingsOpen = false;
 
     ExportDialogComponent::Context makeContext()
     {
@@ -156,6 +157,7 @@ int main(int argc, char** argv)
         if (flag == "--becomes-region") becomesRegion = true;
         if (flag == "--collapse") collapse = true;
         if (flag == "--no-selection") noSelection = true;
+        if (flag == "--settings") settingsOpen = true;
     }
 
     // --background <art.png> <out.png> checks the generator instead of the dialog.
@@ -184,6 +186,7 @@ int main(int argc, char** argv)
     dialog.setBounds(0, 0, width, height);
 
     if (selectAll) dialog.selectAllForEditing();
+    if (settingsOpen) dialog.openSettingsForTests();
 
     // Present in every run: the button only shows when there is a provisional
     // song, and the dialog hides it when nothing can make a region.

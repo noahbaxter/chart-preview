@@ -597,6 +597,17 @@ ExportDialogComponent::ExportDialogComponent(Context ctx)
     cancelButton.setColour(juce::TextButton::textColourOffId, juce::Colour(Theme::textDim));
     cancelButton.onClick = [this]() { if (onDismiss) onDismiss(); };
 
+    settingsButton.setColour(juce::TextButton::buttonColourId, juce::Colour(Theme::darkBgLighter));
+    settingsButton.setColour(juce::TextButton::textColourOffId, juce::Colour(Theme::textDim));
+    settingsButton.onClick = [this]()
+    {
+        settingsOpen = !settingsOpen;
+        settingsButton.setButtonText(settingsOpen ? "Done" : "Edit");
+        resized();
+        repaint();
+    };
+    addAndMakeVisible(settingsButton);
+
     createRegionButton.setColour(juce::TextButton::buttonColourId,
                                  juce::Colour(Theme::coral).withAlpha(0.15f));
     createRegionButton.setColour(juce::TextButton::textColourOffId, juce::Colour(Theme::coral));
@@ -1544,21 +1555,52 @@ void ExportDialogComponent::paint(juce::Graphics& g)
     else if (editing.size() > 1) songHeading = juce::String((int)editing.size()) + " SONGS SELECTED";
     heading(songPanel.withHeight(kHeadingHeight), songHeading);
 
-    heading(albumPanel.withHeight(kHeadingHeight), "CHARTER");
+    if (!albumPanel.isEmpty())
+        heading(albumPanel.withHeight(kHeadingHeight), "CHARTER");
 
-    auto footer = footerBounds;
-    auto blocked = albumBlocker();
+    // Collapsed: who we are and where this lands, in one line. A missing
+    // charter is the one thing in here that stops an export, so it is what
+    // the line says instead when it is missing.
+    if (!settingsSummary.isEmpty())
+    {
+        auto blocked = albumBlocker();
 
-    g.setColour(juce::Colour(Theme::textDim));
-    g.setFont(Theme::getUIFont(10.5f));
-    auto outputRow = footer.removeFromTop(16);
-    g.drawText("OUTPUT", outputRow.removeFromLeft(kLabelWidth), juce::Justification::centredLeft);
+        juce::StringArray line;
+        if (charterField.text().isNotEmpty()) line.add(charterField.text());
+        if (iconField.text().isNotEmpty())    line.add(iconField.text());
+        line.add(packagingButtons.getSelectedIndex() == 1 ? ".sng" : "folder");
 
-    g.setColour(juce::Colour(blocked.isNotEmpty() ? Theme::coral : Theme::textWhite));
-    g.setFont(Theme::getUIFont(11.0f));
-    g.drawText(blocked.isNotEmpty() ? "every song " + blocked
-                                    : context.destinationRoot.getFullPathName(),
-               outputRow, juce::Justification::centredLeft, true);
+        // The tail of the path. The whole thing crowded out everything else
+        // on the line and the leading directories say nothing useful here.
+        auto parent = context.destinationRoot.getParentDirectory().getFileName();
+        line.add((parent.isNotEmpty() ? parent + "/" : juce::String())
+                   + context.destinationRoot.getFileName());
+
+        g.setColour(juce::Colour(blocked.isNotEmpty() ? Theme::coral : Theme::textDim));
+        g.setFont(Theme::getUIFont(11.0f));
+        g.drawText(blocked.isNotEmpty() ? "every song " + blocked
+                                        : line.joinIntoString(juce::String::fromUTF8("  \xc2\xb7  ")),
+                   settingsSummary, juce::Justification::centredLeft, true);
+    }
+
+    // Only when the settings are open; collapsed, the summary above says it.
+    if (!footerBounds.isEmpty())
+    {
+        auto footer = footerBounds;
+        auto blocked = albumBlocker();
+
+        g.setColour(juce::Colour(Theme::textDim));
+        g.setFont(Theme::getUIFont(10.5f));
+        auto outputRow = footer.removeFromTop(16);
+        g.drawText("OUTPUT", outputRow.removeFromLeft(kLabelWidth),
+                   juce::Justification::centredLeft);
+
+        g.setColour(juce::Colour(blocked.isNotEmpty() ? Theme::coral : Theme::textWhite));
+        g.setFont(Theme::getUIFont(11.0f));
+        g.drawText(blocked.isNotEmpty() ? "every song " + blocked
+                                        : context.destinationRoot.getFullPathName(),
+                   outputRow, juce::Justification::centredLeft, true);
+    }
 }
 
 void ExportDialogComponent::resized()
@@ -1593,40 +1635,57 @@ void ExportDialogComponent::resized()
     exportButton.setBounds(buttons.removeFromRight(140));
     inner.removeFromBottom(gap);
 
-    auto outputRow = inner.removeFromBottom(row);
+    // Collapsed, all of that is one line and a button. Open, it is the form.
+    const std::initializer_list<juce::Component*> settingsControls {
+        &charterField, &iconField, &iconPreview, &browseIconsButton,
+        &formatButtons, &packagingButtons, &renderAudioToggle
+    };
+    for (auto* component : settingsControls)
+        component->setVisible(settingsOpen);
+
+    if (settingsOpen)
     {
-        auto area = outputRow;
-        area.removeFromLeft(kLabelWidth);
+        auto outputRow = inner.removeFromBottom(row);
+        {
+            auto area = outputRow;
+            area.removeFromLeft(kLabelWidth);
 
-        // Sized to their content rather than stretched edge to edge, so two
-        // unrelated choices stop reading as one bar.
-        formatButtons.setBounds(area.removeFromLeft(200));
-        area.removeFromLeft(gap * 2);
-        packagingButtons.setBounds(area.removeFromLeft(140));
-        area.removeFromLeft(gap * 2);
+            // Sized to their content rather than stretched edge to edge, so
+            // two unrelated choices stop reading as one bar.
+            formatButtons.setBounds(area.removeFromLeft(200));
+            area.removeFromLeft(gap * 2);
+            packagingButtons.setBounds(area.removeFromLeft(140));
+            area.removeFromLeft(gap * 2);
+            renderAudioToggle.setBounds(area);
+        }
+        footerBounds = inner.removeFromBottom(18);   // destination line, painted
+        inner.removeFromBottom(gap);
 
-        // Whatever is left: a fixed width here truncated the label with the
-        // rest of the row standing empty.
-        renderAudioToggle.setBounds(area);
+        auto charterRow = inner.removeFromBottom(row);
+        {
+            auto area = charterRow;
+            charterField.setBounds(area.removeFromLeft(area.getWidth() / 2 - gap));
+            area.removeFromLeft(gap * 2);
+
+            browseIconsButton.setBounds(area.removeFromRight(96));
+            area.removeFromRight(gap);
+            iconPreview.setBounds(area.removeFromRight(110));
+            area.removeFromRight(gap);
+            iconField.setBounds(area);
+        }
+
+        inner.removeFromBottom(gap);
+        albumPanel = inner.removeFromBottom(kHeadingHeight);
+        settingsSummary = {};
     }
-    inner.removeFromBottom(18);                   // destination line, painted
-    inner.removeFromBottom(gap);
-
-    auto charterRow = inner.removeFromBottom(row);
+    else
     {
-        auto area = charterRow;
-        charterField.setBounds(area.removeFromLeft(area.getWidth() / 2 - gap));
-        area.removeFromLeft(gap * 2);
-
-        browseIconsButton.setBounds(area.removeFromRight(96));
-        area.removeFromRight(gap);
-        iconPreview.setBounds(area.removeFromRight(110));
-        area.removeFromRight(gap);
-        iconField.setBounds(area);
+        settingsSummary = inner.removeFromBottom(18);
+        settingsButton.setBounds(settingsSummary.removeFromRight(70));
+        settingsSummary.removeFromRight(gap);
+        albumPanel = {};
     }
 
-    inner.removeFromBottom(gap);
-    albumPanel = inner.removeFromBottom(kHeadingHeight);
     inner.removeFromBottom(kSectionGap);
 
     //==========================================================================
@@ -1745,8 +1804,6 @@ void ExportDialogComponent::resized()
     artRow.removeFromLeft(kSectionGap);
     backgroundArt.setBounds(artRow.removeFromLeft(backgroundWidth));
 
-    footerBounds = juce::Rectangle<int>(kPad, outputRow.getY() - 18 - gap,
-                                        getWidth() - kPad * 2, 18);
 }
 
 bool ExportDialogComponent::keyPressed(const juce::KeyPress& key)

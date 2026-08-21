@@ -134,6 +134,9 @@ public:
         snapshot tests, which cannot otherwise reach the mixed state. */
     void selectAllForEditing();
 
+    /** Open the settings form, as pressing Edit would. For snapshot tests. */
+    void openSettingsForTests() { settingsButton.triggerClick(); }
+
 private:
     /**
         A text box that can report that the selected songs disagree.
@@ -409,6 +412,19 @@ private:
     juce::TextButton exportButton { "Export" };
     juce::TextButton cancelButton { "Cancel" };
     juce::TextButton createRegionButton { "Create region" };
+
+    /**
+        Who we are and where the files go, folded into one line.
+
+        These are set once and then never touched, so as a form they were four
+        labelled rows of window spent on settings nobody is editing. Collapsed
+        they are a summary; the button opens them when something does change.
+    */
+    juce::TextButton settingsButton { "Edit" };
+    bool settingsOpen = false;
+
+    /** Where that summary line is drawn, when it is the one showing. */
+    juce::Rectangle<int> settingsSummary;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ExportDialogComponent)
 };
