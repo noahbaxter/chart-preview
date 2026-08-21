@@ -45,7 +45,17 @@ private:
     static juce::URL iconUrl(const juce::String& name);
     static juce::File cacheFile(const juce::String& name);
 
+    /**
+        The name the worker is looking for.
+
+        Written on the message thread as the user types and read on the worker
+        thread, so both go through requestLock. The stale-result guard in the
+        callAsync covers acting on an out-of-date answer; it does nothing about
+        reading the string while it is being reassigned.
+    */
     juce::String requested;
+    juce::CriticalSection requestLock;
+
     juce::String displayed;
     juce::Image icon;
     State state = State::empty;

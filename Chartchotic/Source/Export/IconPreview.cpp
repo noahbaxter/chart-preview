@@ -138,9 +138,11 @@ juce::URL IconPreview::browseUrl()
 void IconPreview::setIconName(const juce::String& name)
 {
     auto trimmed = name.trim();
-    if (trimmed == requested) return;
-
-    requested = trimmed;
+    {
+        const juce::ScopedLock lock(requestLock);
+        if (trimmed == requested) return;
+        requested = trimmed;
+    }
 
     if (trimmed.isEmpty())
     {
@@ -168,7 +170,11 @@ void IconPreview::timerCallback()
 
 void IconPreview::run()
 {
-    const auto name = requested;
+    juce::String name;
+    {
+        const juce::ScopedLock lock(requestLock);
+        name = requested;
+    }
     if (name.isEmpty()) return;
 
     auto index = loadIndex();
