@@ -203,8 +203,22 @@ if [ "$BUILD_VST3" = true ]; then
     if [ -d "$VST3_PATH" ]; then
         mkdir -p ~/Library/Audio/Plug-Ins/VST3/
         rm -rf ~/Library/Audio/Plug-Ins/VST3/Chart\ Preview.vst3
-        cp -R "$VST3_PATH" ~/Library/Audio/Plug-Ins/VST3/
+
+        # Unlink before copying. cp -R over a live bundle rewrites the binary
+        # in place, and a host holding it mapped ends up with a torn file:
+        # same size, broken signature, killed on next load. Removing first
+        # leaves the running host on the old inode. ditto keeps the signature.
+        rm -rf ~/Library/Audio/Plug-Ins/VST3/Chartchotic.vst3
+        ditto "$VST3_PATH" ~/Library/Audio/Plug-Ins/VST3/Chartchotic.vst3
         echo "  VST3 installed"
+
+        # A bad signature is a SIGKILL the moment the host maps it, with a
+        # crash log that points at dyld rather than at the install. Say so here.
+        if ! codesign --verify --deep --strict \
+                ~/Library/Audio/Plug-Ins/VST3/Chartchotic.vst3 2>/dev/null; then
+            echo "  WARNING: installed VST3 fails signature check; the host will refuse to load it."
+            echo "           Quit the host and run this again."
+        fi
     else
         echo "  VST3 build output not found at: $VST3_PATH"
         exit 1
@@ -220,7 +234,8 @@ if [ "$BUILD_AU" = true ]; then
     if [ -d "$AU_PATH" ]; then
         mkdir -p ~/Library/Audio/Plug-Ins/Components/
         rm -rf ~/Library/Audio/Plug-Ins/Components/Chart\ Preview.component
-        cp -R "$AU_PATH" ~/Library/Audio/Plug-Ins/Components/
+        rm -rf ~/Library/Audio/Plug-Ins/Components/Chartchotic.component
+        ditto "$AU_PATH" ~/Library/Audio/Plug-Ins/Components/Chartchotic.component
         echo "  AU installed"
     else
         echo "  AU build output not found at: $AU_PATH"
@@ -252,7 +267,8 @@ if [ "$BUILD_STD" = true ]; then
     STD_VST3_PATH="$STD_ARTIFACT_DIR/VST3/Chartchotic Std.vst3"
     if [ -d "$STD_VST3_PATH" ]; then
         mkdir -p ~/Library/Audio/Plug-Ins/VST3/
-        cp -R "$STD_VST3_PATH" ~/Library/Audio/Plug-Ins/VST3/
+        rm -rf ~/Library/Audio/Plug-Ins/VST3/Chartchotic\ Std.vst3
+        ditto "$STD_VST3_PATH" ~/Library/Audio/Plug-Ins/VST3/Chartchotic\ Std.vst3
         echo "  Standard VST3 installed"
     else
         echo "  Standard VST3 build output not found at: $STD_VST3_PATH"
@@ -266,7 +282,8 @@ if [ "$BUILD_STD" = true ]; then
     STD_AU_PATH="$STD_ARTIFACT_DIR/AU/Chartchotic Std.component"
     if [ -d "$STD_AU_PATH" ]; then
         mkdir -p ~/Library/Audio/Plug-Ins/Components/
-        cp -R "$STD_AU_PATH" ~/Library/Audio/Plug-Ins/Components/
+        rm -rf ~/Library/Audio/Plug-Ins/Components/Chartchotic\ Std.component
+        ditto "$STD_AU_PATH" ~/Library/Audio/Plug-Ins/Components/Chartchotic\ Std.component
         echo "  Standard AU installed"
     else
         echo "  Standard AU build output not found at: $STD_AU_PATH"
