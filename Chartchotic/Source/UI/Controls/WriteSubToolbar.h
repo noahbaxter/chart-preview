@@ -39,9 +39,12 @@ public:
         cymbalToggle.setToggleState(false, juce::dontSendNotification);
         addChildComponent(cymbalToggle);
 
+        flamToggle.setToggleState(false, juce::dontSendNotification);
+        addChildComponent(flamToggle);
+
         for (auto* seg : { &modeButtons, &guitarForceButtons, &drumDynamicButtons })
             seg->setCornerRadius(3.0f);
-        for (auto* pill : { &snapToggle, &barToggle, &cymbalToggle })
+        for (auto* pill : { &snapToggle, &barToggle, &cymbalToggle, &flamToggle })
             pill->setCornerRadius(3.0f);
         divisionStepper.setCornerRadius(3.0f);
         tupletStepper.setCornerRadius(3.0f);
@@ -56,6 +59,7 @@ public:
         addHoverZone(guitarForceButtons, {"A", "S", "D", "F"},     "force HOPO, strum, or tap (overrides auto)");
         addHoverZone(drumDynamicButtons, {"A", "S", "D"},          "ghost (soft) or accent (loud) hit");
         addHoverZone(cymbalToggle,       {"F"},                    "cymbal placement (PRO drums)");
+        addHoverZone(flamToggle,         {"F"},                    "flam: grace note before the hit, kicks place 1x + 2x");
     }
 
     std::function<void(SubMode)> onSubModeChanged;
@@ -66,6 +70,7 @@ public:
     std::function<void(GuitarForce)> onGuitarForceChanged;
     std::function<void(DrumDynamic)> onDrumDynamicChanged;
     std::function<void(bool)> onCymbalModeChanged;
+    std::function<void(bool)> onFlamModeChanged;
 
     std::function<void(const HelpText&)> onHoverHelp;
     std::function<void()> onHoverHelpClear;
@@ -109,6 +114,10 @@ public:
             if (onCymbalModeChanged) onCymbalModeChanged(cymbalToggle.getToggleState());
         };
 
+        flamToggle.onClick = [this]() {
+            if (onFlamModeChanged) onFlamModeChanged(flamToggle.getToggleState());
+        };
+
         for (auto& hz : hoverZones)
         {
             hz->onHelp = &onHoverHelp;
@@ -136,6 +145,7 @@ public:
         guitarForceButtons.setAccentColour(modeAccent);
         drumDynamicButtons.setAccentColour(modeAccent);
         cymbalToggle.setAccentColour(modeAccent);
+        flamToggle.setAccentColour(modeAccent);
 
         int modeIdx = drawMode ? 0 : 1;
         modeButtons.setSelectedIndex(modeIdx);
@@ -160,9 +170,15 @@ public:
         barToggle.setToggleState(interactionController.barMode());
         barToggle.setButtonText(drums ? "KICK" : "OPEN");
 
+        // Cym and Flam share one pill slot; no kit has both.
+        const auto* cfg = getAuthoringConfig(interactionController.activePart());
+        bool showCym  = drums && cfg && cfg->hasCymbalToggle;
+        bool showFlam = drums && cfg && cfg->hasFlamToggle;
+
         guitarForceButtons.setVisible(!drums);
         drumDynamicButtons.setVisible(drums);
-        cymbalToggle.setVisible(drums);
+        cymbalToggle.setVisible(showCym);
+        flamToggle.setVisible(showFlam);
 
         bool modifiersEnabled = drawMode || hasSel;
 
@@ -171,6 +187,7 @@ public:
             drumDynamicButtons.setAlpha(modifiersEnabled ? 1.0f : 0.35f);
             drumDynamicButtons.setInterceptsMouseClicks(modifiersEnabled, modifiersEnabled);
             cymbalToggle.setDisabled(!modifiersEnabled);
+            flamToggle.setDisabled(!modifiersEnabled);
 
             if (modifiersEnabled)
             {
@@ -180,6 +197,7 @@ public:
                 else if (dyn == DrumDynamic::Accent) dynIdx = 2;
                 drumDynamicButtons.setSelectedIndex(dynIdx);
                 cymbalToggle.setToggleState(interactionController.cymbalMode());
+                flamToggle.setToggleState(interactionController.flamMode());
             }
         }
         else
@@ -282,10 +300,13 @@ public:
 
         if (drums)
         {
+            // Cym and Flam are alternatives, never both, so they take the same rect.
             int cymW = (int)(u * SUBTOOLBAR_CYM_W);
             int dynW = modW - cymW - intraGap;
+            auto pillBounds = juce::Rectangle<int>(rightX + dynW + intraGap, controlY, cymW, rowH);
             drumDynamicButtons.setBounds(rightX, controlY, dynW, rowH);
-            cymbalToggle.setBounds(rightX + dynW + intraGap, controlY, cymW, rowH);
+            cymbalToggle.setBounds(pillBounds);
+            flamToggle.setBounds(pillBounds);
         }
         else
         {
@@ -355,6 +376,7 @@ private:
     SegmentedButtons guitarForceButtons;
     SegmentedButtons drumDynamicButtons;
     PillToggle       cymbalToggle   {"Cym"};
+    PillToggle       flamToggle     {"Flam"};
 
     std::vector<std::unique_ptr<HoverHelpZone>> hoverZones;
     HoverHelpZone* barHelpZone = nullptr;

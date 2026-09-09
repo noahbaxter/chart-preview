@@ -29,6 +29,7 @@ public:
     void setDrumDynamic(DrumDynamic d)             { currentDrumDynamic = d; }
     void setGuitarForce(GuitarForce f)             { currentGuitarForce = f; }
     void setCymbalMode(bool c)                     { cymbalModeFlag = c; }
+    void setFlamMode(bool f)                       { flamModeFlag = f; }
 
     Part        activePart()    const { return currentActivePart; }
     SkillLevel  activeSkill()   const { return currentActiveSkill; }
@@ -38,6 +39,7 @@ public:
     DrumDynamic drumDynamic()   const { return currentDrumDynamic; }
     GuitarForce guitarForce()   const { return currentGuitarForce; }
     bool        cymbalMode()    const { return cymbalModeFlag; }
+    bool        flamMode()      const { return flamModeFlag; }
 
     const OverlayState& getOverlayState() const { return overlayState; }
 
@@ -138,7 +140,7 @@ protected:
     void eraseConflictingKick(int trackIdx, double qn, int pitch)
     {
         const auto* cfg = authoring();
-        if (cfg == nullptr || !kick2xEnabled) return;
+        if (cfg == nullptr || !kick2xEnabled || placingKickFlam) return;
         if (!cfg->isKickPitch((uint)pitch, currentActiveSkill)) return;
         auto other = cfg->conflictingKick(pitch, currentActiveSkill);
         auto conflict = findNote(trackIdx, qn, other.pitch);
@@ -226,7 +228,24 @@ protected:
                    double duration = 0.0)
     {
         BatchScope batch(*this, kPlaceNoteUndo);
-        if (!createNote(trackIdx, qn, pitch, lane, velocity, duration)) return false;
+
+        // A kick flam is the pair sounding together, not a marker, so either kick places both
+        // and exclusivity stands down. Needs the 2x enabled to have a lane.
+        const auto* cfg = authoring();
+        bool kickFlam = flamModeFlag && kick2xEnabled && cfg != nullptr
+                     && cfg->isKickPitch((uint)pitch, currentActiveSkill);
+        placingKickFlam = kickFlam;
+
+        bool placed = createNote(trackIdx, qn, pitch, lane, velocity, duration);
+        if (placed && kickFlam)
+        {
+            auto other = cfg->conflictingKick(pitch, currentActiveSkill);
+            if (other.pitch >= 0 && findNote(trackIdx, qn, other.pitch).noteIndex < 0)
+                createNote(trackIdx, qn, other.pitch, other.lane, velocity, duration);
+        }
+
+        placingKickFlam = false;
+        if (!placed) return false;
         writeMarkers(trackIdx, qn, lane);
         return true;
     }
@@ -388,6 +407,14 @@ protected:
         }
     }
 
+    // Flam marker for this lane, or -1 where a flam cannot go. Elite only, and never on a
+    // kick: a kick flam is a stacked 1x + 2x pair, which placeNote handles itself.
+    int eliteFlamMarkerPitch(int lane) const
+    {
+        if (!isElite() || isDrumKick((uint)lane, currentActivePart)) return -1;
+        return InstrumentMapper::eliteFlamPitch(currentActiveSkill);
+    }
+
     // Every marker pitch that can qualify a note in this lane, in a stable
     // order. Note type is encoded by which of these sit alongside the note:
     // drums use a tom marker (present means tom, absent means cymbal), guitar
@@ -402,6 +429,14 @@ protected:
         std::vector<int> out;
         if (isDrums())
         {
+            // Elite's one marker is the flam, and it is per TICK, not per lane: same pitch
+            // whatever lane you clicked, resolver hands it to the leftmost hand gem.
+            if (isElite())
+            {
+                int p = eliteFlamMarkerPitch(lane);
+                if (p >= 0) out.push_back(p);
+                return out;
+            }
             int p = resolveTomMarkerPitch(lane);
             if (p >= 0) out.push_back(p);
             return out;
@@ -446,6 +481,9 @@ protected:
     // absence; guitar force is one-of.
     uint32_t currentMarkerMask(int lane) const
     {
+        if (isElite())
+            return (eliteFlamMarkerPitch(lane) >= 0 && flamModeFlag) ? 1u : 0u;
+
         if (isDrums())
             return (resolveTomMarkerPitch(lane) >= 0 && !cymbalModeFlag) ? 1u : 0u;
 
@@ -516,6 +554,8 @@ protected:
     DrumDynamic             currentDrumDynamic   = DrumDynamic::Normal;
     GuitarForce             currentGuitarForce   = GuitarForce::None;
     bool                    cymbalModeFlag       = false;
+    bool                    flamModeFlag         = false;
+    bool                    placingKickFlam      = false;   // set only inside placeNote
     CommandMapper           commandMapper;
     OverlayState            overlayState;
 

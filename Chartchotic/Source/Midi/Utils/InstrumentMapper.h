@@ -219,6 +219,19 @@ public:
         }
     }
 
+    // Inverse of eliteFlamSkillIndex: the flam marker pitch to write at this difficulty.
+    static int eliteFlamPitch(SkillLevel skill)
+    {
+        using ED = MidiPitchDefinitions::EliteDrums;
+        switch (skill) {
+        case SkillLevel::EXPERT: return (int)ED::EXPERT_FLAM;
+        case SkillLevel::HARD:   return (int)ED::HARD_FLAM;
+        case SkillLevel::MEDIUM: return (int)ED::MEDIUM_FLAM;
+        case SkillLevel::EASY:   return (int)ED::EASY_FLAM;
+        }
+        return -1;
+    }
+
     // Inverse of getGuitarColumn: given a lane the user clicked, return the
     // MIDI pitch to write. col 0 = open, col 1-5 = green/red/yellow/blue/orange.
     // Returns -1 for invalid (col, skill) combinations.

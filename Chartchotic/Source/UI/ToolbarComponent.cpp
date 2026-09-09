@@ -155,6 +155,12 @@ void ToolbarComponent::initTopBar()
         if (interactionController.subMode() == SubMode::Edit)
             interactionController.applyCymbalModeToSelection(on);
     };
+
+    writeSubToolbar.onFlamModeChanged = [this](bool on) {
+        interactionController.setFlamMode(on);
+        if (interactionController.subMode() == SubMode::Edit)
+            interactionController.applyFlamModeToSelection(on);
+    };
 }
 
 //==============================================================================

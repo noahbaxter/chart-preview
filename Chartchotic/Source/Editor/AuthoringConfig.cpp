@@ -59,21 +59,21 @@ namespace
     //==========================================================================
 
     const AuthoringConfig guitarFiveFret = {
-        5, 5, -1, false,
+        5, 5, -1, false, false,
         &guitarLaneToPitch,
         &guitarNoKick,
         &guitarNoConflict,
     };
 
     const AuthoringConfig drumsFourLane = {
-        4, DRUM_KICK_2X_COLUMN, DRUM_KICK_2X_COLUMN, true,
+        4, DRUM_KICK_2X_COLUMN, DRUM_KICK_2X_COLUMN, true, false,
         &drumLaneToPitch,
         &drumIsKickPitch,
         &drumConflictingKick,
     };
 
     const AuthoringConfig eliteDrums = {
-        8, ELITE_KICK_2X_COLUMN, ELITE_KICK_2X_COLUMN, false,
+        8, ELITE_KICK_2X_COLUMN, ELITE_KICK_2X_COLUMN, false, true,
         &eliteLaneToPitch,
         &InstrumentMapper::isEliteDrumKick,
         &InstrumentMapper::getConflictingEliteKick,

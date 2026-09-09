@@ -38,6 +38,9 @@ struct AuthoringConfig
     // toggle is inert and the write sub-toolbar omits the slot.
     bool hasCymbalToggle;
 
+    // Whether the Flam modifier means anything. Elite only: no other kit notates flams.
+    bool hasFlamToggle;
+
     // Lane the user clicked -> pitch to write. Handles this instrument's kicks itself, so
     // callers never need a kick special case. Returns -1 for an unauthorable lane.
     int (*laneToPitch)(SkillLevel skill, int lane, bool kick2xEnabled);

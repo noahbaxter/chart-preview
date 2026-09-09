@@ -26,6 +26,7 @@ public:
     void applyDrumDynamicToSelection(DrumDynamic dynamic);
     void applyGuitarForceToSelection(GuitarForce force);
     void applyCymbalModeToSelection(bool cymbal);
+    void applyFlamModeToSelection(bool flam);
 
 private:
     enum class DragMode { Idle, Marquee, Moving };
