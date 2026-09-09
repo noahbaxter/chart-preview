@@ -197,6 +197,15 @@ void ToolbarComponent::initChartPanel()
         if (onKick2xChanged) onKick2xChanged(kick2xToggle.getToggleState());
     };
 
+    exportButton.onClick = [this]() {
+        // Momentary: exporting is an action, not a state to sit in.
+        exportButton.setToggleState(false, juce::dontSendNotification);
+        // The settings panel would otherwise sit on top of the dialog it just
+        // opened, over the part of it you need to read.
+        settingsButton.dismissPanel();
+        if (onExportChart) onExportChart();
+    };
+
     cymbalsToggle.onClick = [this]() {
         // Cymbals ON = Pro (id 2), OFF = Normal (id 1)
         if (onDrumTypeChanged) onDrumTypeChanged(cymbalsToggle.getToggleState() ? 2 : 1);
@@ -510,6 +519,8 @@ void ToolbarComponent::initSettingsPanel()
     settingsButton.addPanelChild(&backgroundStepper);
     settingsButton.addPanelChild(&gemScaleStepper);
     settingsButton.addPanelChild(&barScaleStepper);
+    settingsButton.addPanelChild(&exportHeader);
+    settingsButton.addPanelChild(&exportButton);
     settingsButton.addPanelChild(&syncHeader);
     settingsButton.addPanelChild(&syncOffsetStepper);
     settingsButton.addPanelChild(&latencyStepper);
@@ -1030,6 +1041,18 @@ void ToolbarComponent::layoutSettingsPanel(juce::Component* panel)
     else
     {
         y += sectionGap - gap;
+    }
+
+    // --- Export ---
+    // Only REAPER can render the audio, so the section is meaningless without it.
+    exportHeader.setVisible(reaperMode);
+    exportButton.setVisible(reaperMode);
+    if (reaperMode)
+    {
+        exportHeader.setBounds(margin, y, w, headerH);
+        y += headerH + gap;
+        exportButton.setBounds(margin, y, w, stepperH);
+        y += stepperH + sectionGap;
     }
 
     // --- Sync ---

@@ -90,6 +90,50 @@ struct ReaperAPIs
                                     int type, const char* bytestr, int bytestr_sz) = nullptr;
     bool (*MIDI_DeleteTextSysexEvt)(void* take, int textsyxevtidx) = nullptr;
 
+    // Render/export. REAPER has no direct "render now" call, so exporting means
+    // writing the project's render settings, firing the render action, and
+    // putting the user's settings back.
+    double (*GetSetProjectInfo)(void* proj, const char* desc, double value, bool is_set) = nullptr;
+    bool (*GetSetProjectInfo_String)(void* proj, const char* desc,
+                                     char* valuestrNeedBig, bool is_set) = nullptr;
+    void (*GetProjectPathEx)(void* proj, char* bufOut, int bufOut_sz) = nullptr;
+    int  (*ResolveRenderPattern)(void* proj, const char* path, const char* pattern,
+                                 char* targets, int targets_sz) = nullptr;
+
+    // Sink enumeration: the fourcc a format wants for RENDER_FORMAT is
+    // discovered here rather than hardcoded, since which sinks exist depends on
+    // the install.
+    unsigned int (*PCM_Sink_Enum)(int idx, const char** descstrOut) = nullptr;
+    const char*  (*PCM_Sink_GetExtension)(const char* data, int data_sz) = nullptr;
+
+    // Source file behind a take. The audio item under the export range names
+    // the chart, so nothing has to be typed in.
+    void* (*GetMediaItemTake_Source)(void* take) = nullptr;
+    void  (*GetMediaSourceFileName)(void* source, char* buf, int buf_sz) = nullptr;
+    int   (*GetMediaFileMetadata)(void* source, const char* identifier,
+                                  char* bufOut, int bufOut_sz) = nullptr;
+
+    // Export bounds come from either the time selection or a region.
+    void (*GetSet_LoopTimeRange2)(void* proj, bool isSet, bool isLoop,
+                                  double* startOut, double* endOut, bool allowautoseek) = nullptr;
+    int  (*CountProjectMarkers)(void* proj, int* num_markersOut, int* num_regionsOut) = nullptr;
+    // Regions are created on export so a bare time selection becomes
+    // something re-exportable. Optional: export still works without it.
+    int  (*AddProjectMarker2)(void* proj, bool isrgn, double pos, double rgnend,
+                              const char* name, int wantidx, int color) = nullptr;
+    // Region identity that survives renaming and dragging. Newer than the
+    // marker functions above, so it is allowed to be missing.
+    //
+    // Both take an opaque ProjectMarker*, not an index. Keep identical to
+    // reaper_plugin_functions.h: a mismatch here is dereferenced by REAPER.
+    void* (*GetRegionOrMarker)(void* proj, int index, const char* guidStr) = nullptr;
+    bool (*GetSetRegionOrMarkerInfo_String)(void* proj, void* regionOrMarker,
+                                            const char* parameterName,
+                                            char* stringNeedBig, bool setNewValue) = nullptr;
+    int  (*EnumProjectMarkers3)(void* proj, int idx, bool* isrgnOut, double* posOut,
+                                double* rgnendOut, const char** nameOut,
+                                int* markrgnindexnumberOut, int* colorOut) = nullptr;
+
     // Undo — only OnStateChange works reliably from plugin GUI threads.
     // BeginBlock2/EndBlock2 open a block that never closes from plugin context.
     void (*Undo_OnStateChange)(const char* descchange) = nullptr;
@@ -246,6 +290,35 @@ public:
         outAPIs.MIDI_InsertTextSysexEvt = (bool(*)(void*, bool, bool, double, int, const char*, int))
             apiFunc("MIDI_InsertTextSysexEvt");
         outAPIs.MIDI_DeleteTextSysexEvt = (bool(*)(void*, int))apiFunc("MIDI_DeleteTextSysexEvt");
+
+        outAPIs.GetSetProjectInfo = (double(*)(void*, const char*, double, bool))
+            apiFunc("GetSetProjectInfo");
+        outAPIs.GetSetProjectInfo_String = (bool(*)(void*, const char*, char*, bool))
+            apiFunc("GetSetProjectInfo_String");
+        outAPIs.GetProjectPathEx = (void(*)(void*, char*, int))apiFunc("GetProjectPathEx");
+        outAPIs.ResolveRenderPattern = (int(*)(void*, const char*, const char*, char*, int))
+            apiFunc("ResolveRenderPattern");
+        outAPIs.GetMediaItemTake_Source = (void*(*)(void*))apiFunc("GetMediaItemTake_Source");
+        outAPIs.GetMediaSourceFileName = (void(*)(void*, char*, int))
+            apiFunc("GetMediaSourceFileName");
+        outAPIs.GetMediaFileMetadata = (int(*)(void*, const char*, char*, int))
+            apiFunc("GetMediaFileMetadata");
+        outAPIs.PCM_Sink_Enum = (unsigned int(*)(int, const char**))apiFunc("PCM_Sink_Enum");
+        outAPIs.PCM_Sink_GetExtension = (const char*(*)(const char*, int))
+            apiFunc("PCM_Sink_GetExtension");
+        outAPIs.GetSet_LoopTimeRange2 = (void(*)(void*, bool, bool, double*, double*, bool))
+            apiFunc("GetSet_LoopTimeRange2");
+        outAPIs.CountProjectMarkers = (int(*)(void*, int*, int*))apiFunc("CountProjectMarkers");
+        outAPIs.AddProjectMarker2 = (int(*)(void*, bool, double, double, const char*, int, int))
+            apiFunc("AddProjectMarker2");
+        outAPIs.GetRegionOrMarker = (void*(*)(void*, int, const char*))
+            apiFunc("GetRegionOrMarker");
+        outAPIs.GetSetRegionOrMarkerInfo_String =
+            (bool(*)(void*, void*, const char*, char*, bool))
+            apiFunc("GetSetRegionOrMarkerInfo_String");
+        outAPIs.EnumProjectMarkers3 = (int(*)(void*, int, bool*, double*, double*,
+                                              const char**, int*, int*))
+            apiFunc("EnumProjectMarkers3");
 
         outAPIs.Undo_OnStateChange = (void(*)(const char*))apiFunc("Undo_OnStateChange");
 

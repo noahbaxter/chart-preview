@@ -26,6 +26,9 @@
 #include "UI/Controls/WriteModeIcon.h"
 #include "UI/UpdateBannerComponent.h"
 #include "UI/FooterComponent.h"
+#include "Export/ChartExporter.h"
+#include "Export/ExportWindow.h"
+#include "Export/ChartSettings.h"
 #include "Editor/AssetController.h"
 #include "Editor/SessionController.h"
 #include "Editor/FrameDataBuilder.h"
@@ -159,6 +162,10 @@ public:
 
 private:
     juce::ValueTree& state;
+
+    /** Opens the export window, or brings it forward when already open. */
+    void showExportDialog();
+    std::unique_ptr<ExportWindow> exportWindow;
 
     ChartchoticAudioProcessor& audioProcessor;
     AssetManager assetManager;

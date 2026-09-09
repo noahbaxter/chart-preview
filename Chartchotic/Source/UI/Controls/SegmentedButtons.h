@@ -39,6 +39,10 @@ public:
     {
         if (items.isEmpty()) return;
 
+        // Drawn normally, then veiled below, which dims every segment without
+        // threading an alpha through each one.
+        const bool disabled = !isEnabled();
+
         auto bounds = getLocalBounds().toFloat().reduced(1.0f);
         auto cornerSize = (cornerRadius >= 0.0f) ? cornerRadius : Theme::pillCorner;
         int count = items.size();
@@ -131,10 +135,17 @@ public:
         // Overall outline
         g.setColour(accent.withAlpha(0.5f));
         g.drawRoundedRectangle(bounds, cornerSize, 1.0f);
+
+        if (disabled)
+        {
+            g.setColour(juce::Colour(Theme::darkBg).withAlpha(0.6f));
+            g.fillRoundedRectangle(bounds, cornerSize);
+        }
     }
 
     void mouseUp(const juce::MouseEvent& e) override
     {
+        if (!isEnabled()) return;
         if (!getLocalBounds().contains(e.getPosition()) || items.isEmpty()) return;
 
         int count = items.size();

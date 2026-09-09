@@ -28,6 +28,8 @@ target_sources(unit_tests PRIVATE
     test_gridline_generator.cpp
     test_instrument_mapper.cpp
     test_frame.cpp
+    test_sng_packer.cpp
+    ${SOURCE_ROOT}/Export/SngPacker.cpp
     ${SOURCE_ROOT}/Midi/Utils/GemCalculator.cpp
     ${SOURCE_ROOT}/Midi/Processing/MidiInterpreter.cpp
     ${SOURCE_ROOT}/Midi/Processing/TrackResolver.cpp

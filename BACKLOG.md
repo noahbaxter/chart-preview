@@ -6,6 +6,11 @@ Work from the top.
 
 ## Up Next
 
+- **Export dialog visual redesign**: the layout grew field by field and reads as a form dump. It is a song list plus two columns of unaligned label/box pairs, with dead space in the middle and controls of three different widths stacked at the bottom. Needs a deliberate design pass, not another field.
+- **Per-song data lives in the plugin, not the project**: it is the plugin's ValueTree keyed by region GUID, so removing and re-adding the plugin loses every title, rating and artwork path. `SetProjExtState` / `GetProjExtState` store key/value data in the .RPP under our own extname, keyed by the same GUID, and would survive that.
+- **A song can still exist without being a region**: the time selection gets a provisional row so metadata can be typed before committing, kept alive across selection changes by matching ranges. Every data-loss bug in the dialog so far has come from that one exception. Making a song always a region would delete the sentinel GUID, the range matching and the adopt path with it.
+- **Export: read artwork and audio back out of a `.sng`**: reuse needs the audio out of the container (parse the index, unmask one file), and the same parsing would let a re-opened chart show the artwork it already shipped. Reuse is force-disabled in `.sng` mode until then.
+- **Auto-rank chart difficulty**: `diff_drums` / `diff_drums_real` go into song.ini unrated (`-1`) and the export dialog makes the charter type a number. A rating is derivable from the chart itself: note density, kick rate, limb independence, tempo. Would fill the field instead of asking, and give a consistent scale across a whole album rather than one charter's guess per song.
 - **Test coverage expansion** — See details below in Test Coverage section.
 - **UI scale setting** — User-adjustable scale factor for toolbar, footer, and panel elements (not highway rendering). Lets users with high-DPI or small screens resize the chrome independently.
 - **All-difficulty overlay mode** — Show all 4 difficulties squeezed into the same highway. Each lane gets up to 4 notes stacked when all difficulties hit them. Color-code by difficulty instead of track color. All note data except specific pitches is shared across difficulties in the MIDI spec, so the data model supports this naturally.

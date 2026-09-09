@@ -104,6 +104,20 @@ target_sources(Chartchotic
         Chartchotic/Source/Editor/CommandMapper.cpp
         Chartchotic/Source/Editor/CommandMapper.h
         Chartchotic/Source/Editor/ModifierSlots.h
+        Chartchotic/Source/Export/BackgroundGenerator.cpp
+        Chartchotic/Source/Export/BackgroundGenerator.h
+        Chartchotic/Source/Export/ChartExporter.cpp
+        Chartchotic/Source/Export/ChartExporter.h
+        Chartchotic/Source/Export/ChartMidiWriter.cpp
+        Chartchotic/Source/Export/ChartMidiWriter.h
+        Chartchotic/Source/Export/ChartSettings.h
+        Chartchotic/Source/Export/ExportDialogComponent.cpp
+        Chartchotic/Source/Export/ExportWindow.h
+        Chartchotic/Source/Export/IconPreview.cpp
+        Chartchotic/Source/Export/IconPreview.h
+        Chartchotic/Source/Export/ExportDialogComponent.h
+        Chartchotic/Source/Export/SngPacker.cpp
+        Chartchotic/Source/Export/SngPacker.h
         Chartchotic/Source/Editor/EditController.cpp
         Chartchotic/Source/Editor/EditController.h
         Chartchotic/Source/Editor/InteractionController.cpp

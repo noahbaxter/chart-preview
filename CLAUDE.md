@@ -24,6 +24,11 @@ Build channel (`DEV`/`RELEASE`) is injected via preprocessor define `CHARTCHOTIC
 
 ## Watch Out
 
+**Line endings**: about half the tracked files are CRLF. Editing one through a script that
+does a read/write round-trip (python, sed) silently rewrites the whole file as LF and turns
+a small change into a whole-file diff. Use the editor tools, which preserve what is there.
+`file <path>` tells you which a file is.
+
 **Threading**: Audio thread processes MIDI, GUI thread renders. When updating `noteStateMapArray`,
 hold `noteStateMapLock` for the ENTIRE clear+write operation. Never split it — the renderer reads
 between calls and you'll get flicker/race conditions. (Burned us in v0.8.6.)

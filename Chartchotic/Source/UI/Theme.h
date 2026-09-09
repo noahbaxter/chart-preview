@@ -83,6 +83,17 @@ public:
         return juce::Font(getUITypeface()).withHeight(height * uiFontScale_);
     }
 
+    //==========================================================================
+    // Multi-selection editing. A control whose selected items disagree shows
+    // this marker, italic, instead of picking one value. Never written back:
+    // only an explicit edit resolves it.
+    static constexpr const char* mixedText = "mixed";
+
+    static inline juce::Font getMixedFont(float height)
+    {
+        return getUIFont(height).italicised();
+    }
+
 
     //==========================================================================
     // Scaled values — set once per resize, read everywhere like constants.
