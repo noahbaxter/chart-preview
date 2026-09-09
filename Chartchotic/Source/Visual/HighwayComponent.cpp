@@ -454,7 +454,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                 if (!alreadyExists && std::abs(windowSpan) > 1e-9)
                 {
                     float pos = (float)((sec - frameData.windowStartTime) / windowSpan);
-                    sceneRenderer.movePreviewGhosts.push_back({ patch.lane, pos });
+                    sceneRenderer.movePreviewGhosts.push_back({ patch.lane, pos, patch.gem });
                 }
             }
         }

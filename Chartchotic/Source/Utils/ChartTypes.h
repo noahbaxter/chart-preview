@@ -59,6 +59,16 @@ inline bool isEliteCymbalLane(uint gemColumn)
     return gemColumn == 2 || gemColumn == 3 || gemColumn == 7 || gemColumn == 8;
 }
 
+// Whether authoring on `lane` writes a cymbal. Elite is fixed by lane and ignores the Cym
+// toggle; 4-lane/5-lane put cymbals on 2..4 behind it. The write path MUST agree with what
+// TrackResolver decides on parse, or the ghost preview draws with gemZ while the note it
+// places lands on cymZ.
+inline bool authorsCymbal(uint lane, Part part, bool cymbalToggle)
+{
+    if (part == Part::ELITE_DRUMS) return isEliteCymbalLane(lane);
+    return lane >= 2 && lane <= 4 && cymbalToggle;
+}
+
 // The elite Hi-Hat lane (yellow cymbal) — the only lane that carries Open/Closed/Indifferent
 // pedal state (spec: Yellow defaults to Open, coincident Pedal Down = Closed, coincident
 // Indifferent marker = Indifferent).

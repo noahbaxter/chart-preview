@@ -1,5 +1,6 @@
 #include "test_helpers.h"
 #include "Midi/Utils/GemCalculator.h"
+#include "Editor/AuthoringTypes.h"
 
 // ============================================================================
 // resolveGuitarGem — pure function, no locks
@@ -106,5 +107,84 @@ TEST_CASE("resolveDrumGem - cymbal vs tom", "[gem_calculator][drums]")
     SECTION("cymbal, dynamics disabled, ghost velocity → CYM (dynamics ignored)")
     {
         REQUIRE(GemCalculator::resolveDrumGem(true, false, Dynamic::GHOST) == Gem::CYM);
+    }
+}
+
+// ============================================================================
+// authorsCymbal — which lanes a click should write as a cymbal, per part
+
+TEST_CASE("authorsCymbal - 4-lane drums", "[gem_calculator][drums]")
+{
+    SECTION("lanes 2-4 follow the Cym toggle")
+    {
+        for (uint lane : {2u, 3u, 4u})
+        {
+            REQUIRE(authorsCymbal(lane, Part::DRUMS, true));
+            REQUIRE(authorsCymbal(lane, Part::DRUMS, false) == false);
+        }
+    }
+
+    SECTION("kick and snare are never cymbals")
+    {
+        REQUIRE(authorsCymbal(0, Part::DRUMS, true) == false);
+        REQUIRE(authorsCymbal(1, Part::DRUMS, true) == false);
+    }
+}
+
+TEST_CASE("authorsCymbal - elite drums", "[gem_calculator][elite]")
+{
+    // Elite lanes are drum XOR cymbal, fixed by lane, so the toggle must not change
+    // the answer. TrackResolver decides the same way via isEliteCymbalLane, and the
+    // ghost preview has to agree with it or the preview lands somewhere else.
+    SECTION("hi-hat, L-crash, ride and R-crash are cymbals regardless of the toggle")
+    {
+        for (uint lane : {2u, 3u, 7u, 8u})
+        {
+            REQUIRE(authorsCymbal(lane, Part::ELITE_DRUMS, false));
+            REQUIRE(authorsCymbal(lane, Part::ELITE_DRUMS, true));
+        }
+    }
+
+    SECTION("kick, snare and the toms are never cymbals regardless of the toggle")
+    {
+        for (uint lane : {0u, 1u, 4u, 5u, 6u, (uint)ELITE_KICK_2X_COLUMN})
+        {
+            REQUIRE(authorsCymbal(lane, Part::ELITE_DRUMS, false) == false);
+            REQUIRE(authorsCymbal(lane, Part::ELITE_DRUMS, true) == false);
+        }
+    }
+
+    SECTION("agrees with isEliteCymbalLane on every lane")
+    {
+        for (uint lane = 0; lane <= 8; ++lane)
+            REQUIRE(authorsCymbal(lane, Part::ELITE_DRUMS, false) == isEliteCymbalLane(lane));
+    }
+}
+
+// ============================================================================
+// OptimisticPatchBuffer carries the gem
+
+TEST_CASE("OptimisticPatchBuffer - adds carry their gem", "[patch_buffer]")
+{
+    // The optimistic add is what renders for the few frames between the click and the
+    // reparse. Without the gem it defaulted to NOTE, so placing a cymbal drew at gemZ
+    // and then jumped to cymZ when the real note arrived.
+    OptimisticPatchBuffer buf;
+
+    SECTION("the gem survives the round trip")
+    {
+        buf.addAdd(7, 4.0, Gem::CYM);
+        REQUIRE(buf.getAdds().size() == 1);
+        REQUIRE(buf.getAdds()[0].lane == 7);
+        REQUIRE(buf.getAdds()[0].startQN == 4.0);
+        REQUIRE(buf.getAdds()[0].gem == Gem::CYM);
+    }
+
+    SECTION("each add keeps its own gem")
+    {
+        buf.addAdd(1, 0.0, Gem::NOTE);
+        buf.addAdd(2, 0.0, Gem::CYM_ACCENT);
+        REQUIRE(buf.getAdds()[0].gem == Gem::NOTE);
+        REQUIRE(buf.getAdds()[1].gem == Gem::CYM_ACCENT);
     }
 }

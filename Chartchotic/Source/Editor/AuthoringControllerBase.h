@@ -62,9 +62,9 @@ protected:
     {
         if (isDrums())
         {
-            // Cymbal is the absence of the tom marker, which is slot 0.
-            bool canBeCymbal = (lane >= 2 && lane <= 4);
-            bool cymbal = canBeCymbal && (markerMask & 1u) == 0;
+            // Cymbal is the absence of the tom marker, which is slot 0. Elite has no tom
+            // marker at all (lane decides), so authorsCymbal ignores the mask there.
+            bool cymbal = authorsCymbal((uint)lane, currentActivePart, (markerMask & 1u) == 0);
             return GemCalculator::resolveDrumGem(cymbal, true, (Dynamic)velocity);
         }
         // Guitar slots follow modifierMarkerPitches order: hopo, strum, tap.
@@ -76,17 +76,13 @@ protected:
 
     Gem resolveGhostGem(int lane) const
     {
+        // Same GemCalculator call resolveCapturedGem and the parse pipeline use, fed the same
+        // velocity this click will write. The switch that used to live here duplicated
+        // resolveDrumGem exactly, which is how the preview drifted from what landed.
         if (isDrums())
-        {
-            bool canBeCymbal = (lane >= 2 && lane <= 4);
-            bool cymbal = canBeCymbal && cymbalModeFlag;
-            switch (currentDrumDynamic)
-            {
-                case DrumDynamic::Ghost:  return cymbal ? Gem::CYM_GHOST  : Gem::HOPO_GHOST;
-                case DrumDynamic::Accent: return cymbal ? Gem::CYM_ACCENT : Gem::TAP_ACCENT;
-                default:                  return cymbal ? Gem::CYM        : Gem::NOTE;
-            }
-        }
+            return GemCalculator::resolveDrumGem(
+                authorsCymbal((uint)lane, currentActivePart, cymbalModeFlag),
+                true, (Dynamic)resolveVelocity());
         switch (currentGuitarForce)
         {
             case GuitarForce::Hopo: return Gem::HOPO_GHOST;
@@ -170,7 +166,7 @@ protected:
             DBG("createNote: noteEditor rejected QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
             return false;
         }
-        patchAdd(lane, qn);
+        patchAdd(lane, qn, resolveGhostGem(lane));
         ensureChartDynamics(trackIdx, velocity);
         ensureEnhancedOpens(trackIdx, lane);
         return true;
@@ -269,7 +265,10 @@ protected:
     {
         if (!noteEditor.moveNote(trackIdx, oldQN, oldPitch, newQN, newEndQN, newPitch)) return false;
         patchRemove(oldLane, oldQN);
-        patchAdd(newLane, newQN);
+        // SelectedNote carries no gem, so the moved note's own dynamic isn't available here.
+        // The lane still decides cymbal-ness, which is what sets the Z offset, so the preview
+        // lands at the right height; only a moved ghost/accent previews as the toolbar's.
+        patchAdd(newLane, newQN, resolveGhostGem(newLane));
         return true;
     }
 
@@ -523,7 +522,7 @@ protected:
     OverlayState            overlayState;
 
 private:
-    void patchAdd(int lane, double qn)    { if (patchBuffer) patchBuffer->addAdd(lane, qn); }
+    void patchAdd(int lane, double qn, Gem gem) { if (patchBuffer) patchBuffer->addAdd(lane, qn, gem); }
     void patchRemove(int lane, double qn) { if (patchBuffer) patchBuffer->addRemove(lane, qn); }
 
     NoteEditor              noteEditor;
