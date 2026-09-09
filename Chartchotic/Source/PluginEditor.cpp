@@ -43,18 +43,19 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     {
         slots[i].highway = std::make_unique<HighwayComponent>(state, assetManager);
         slots[i].highway->setTrackImageCache(&trackImageCache);
-        slots[i].highway->setPatchBuffer(&interactionController.getPatchBuffer());
         slots[i].highway->setVisible(false);
 
         // Wire mouse dispatch into the interaction controller.
         auto& hw = *slots[i].highway;
-        hw.setOnPointerMove       ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerMove(p, c); });
-        hw.setOnPointerDown       ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerDown(p, c); });
+        // Claim focus before dispatching so the edit lands on the highway the
+        // mouse is over. Drags do not re-claim, that would retarget the stroke.
+        hw.setOnPointerMove       ([this, i](const AuthoringPoint& p, const AuthoringContext& c) { focusSlot(i); interactionController.onPointerMove(p, c); });
+        hw.setOnPointerDown       ([this, i](const AuthoringPoint& p, const AuthoringContext& c) { focusSlot(i); interactionController.onPointerDown(p, c); });
         hw.setOnPointerDrag       ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerDrag(p, c); });
         hw.setOnPointerUp         ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerUp(p, c); });
         hw.setOnPointerExit       ([this]() { interactionController.onPointerExit(); });
         hw.setOnPointerCancel     ([this]() { interactionController.onPointerCancel(); });
-        hw.setOnPointerDoubleClick([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerDoubleClick(p, c); });
+        hw.setOnPointerDoubleClick([this, i](const AuthoringPoint& p, const AuthoringContext& c) { focusSlot(i); interactionController.onPointerDoubleClick(p, c); });
         hw.onMouseWheel = [this](const juce::MouseEvent& e, const juce::MouseWheelDetails& w) { handleHighwayScroll(e, w); };
 
         // Coordinate-domain conversion: HitTestMapper returns "seconds offset
@@ -101,8 +102,10 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
             return (projectQN - cursorQN) * (60.0 / bpm);
         });
 
-        hw.setOverlayStateGetter([this]() -> const OverlayState& {
-            return interactionController.getOverlayState();
+        // One controller feeds every slot, so gate it or the cursor mirrors.
+        hw.setOverlayStateGetter([this, i]() -> const OverlayState& {
+            static const OverlayState blank;
+            return i == effectiveFocusSlot() ? interactionController.getOverlayState() : blank;
         });
 
         // Format a project QN as "M.B" for the ghost cursor position label.
@@ -238,6 +241,20 @@ ChartchoticAudioProcessorEditor::~ChartchoticAudioProcessorEditor()
     ChartchoticLogo::clearTypefaces();
 }
 
+// The sub-toolbar follows focus, so the modifier buttons always describe the
+// instrument the next click writes to.
+void ChartchoticAudioProcessorEditor::focusSlot(int index)
+{
+    if (index < 0 || index >= activeSlotCount || index == focusedSlot) return;
+
+    focusedSlot = index;
+    const auto& slot = slots[index];
+    interactionController.setActivePart(slot.part);
+    interactionController.setActiveSkill(slot.skillLevel);
+    toolbar.refreshFromWriteController();
+    repaint();
+}
+
 void ChartchoticAudioProcessorEditor::onFrame()
 {
     if (targetFrameInterval > 0.0)
@@ -287,15 +304,23 @@ void ChartchoticAudioProcessorEditor::onFrame()
     // part, skill into both sub-controllers, then ticks frame timers.
     if (activeSlotCount > 0)
     {
-        const int skillId = state.hasProperty("skillLevel")
-            ? (int)state.getProperty("skillLevel")
-            : (int)SkillLevel::EXPERT;
+        // Multi-difficulty layouts share a part across slots and differ only by
+        // skill, so take both from the slot rather than the global setting.
+        // Patches are keyed by lane and QN with no track, so an unfocused
+        // highway reading them flashes the note. Routed per frame: the layout
+        // changes in too many places to hook each one.
+        const int fs = effectiveFocusSlot();
+        for (int i = 0; i < MAX_HIGHWAY_SLOTS; i++)
+            slots[i].highway->setPatchBuffer(
+                i == fs ? &interactionController.getPatchBuffer() : nullptr);
+
+        const auto& focus = slots[fs];
         interactionController.onFrame(
             audioProcessor.getReaperMidiProvider().getWriter(),
             audioProcessor.getInstrumentSession(),
             &lastPlayingState,
-            slots[0].part,
-            (SkillLevel)skillId,
+            focus.part,
+            focus.skillLevel,
             lastKnownPosition.toDouble());
     }
 

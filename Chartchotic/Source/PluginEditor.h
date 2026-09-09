@@ -167,6 +167,14 @@ private:
     std::array<HighwaySlot, MAX_HIGHWAY_SLOTS> slots;
     int activeSlotCount = 0;
 
+    // The highway the mouse is working in. Authoring and the ghost both follow
+    // it, so a multi-highway layout edits one chart at a time.
+    int focusedSlot = 0;
+    void focusSlot(int index);
+    // Layout changes can retire the focused slot, so every read clamps.
+    int effectiveFocusSlot() const
+    { return juce::jlimit(0, juce::jmax(0, activeSlotCount - 1), focusedSlot); }
+
     // Shared track image cache (guitar + drums baked once at full resolution)
     TrackImageCache trackImageCache;
     std::unique_ptr<TrackRenderer> cacheRenderer;
