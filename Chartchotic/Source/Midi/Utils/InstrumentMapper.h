@@ -161,6 +161,36 @@ public:
     }
     static bool isEliteRollLane(uint pitch) { return getEliteRollLaneColumn(pitch) != INVALID_COLUMN; }
 
+    // Hi-hat pedal-state modifiers, returning the SkillLevel index (0 Easy .. 3 Expert) the
+    // modifier belongs to, or -1 if the pitch is not that modifier. Pedal Down and Indifferent
+    // sit a fixed -24 per difficulty (Expert 72/88, Hard 48/64, Medium 24/40, Easy 0/16).
+    static int eliteHiHatPedalSkillIndex(uint pitch)
+    {
+        using ED = MidiPitchDefinitions::EliteDrums;
+        switch (pitch) {
+        case (uint)ED::EASY_PEDAL:   return 0;
+        case (uint)ED::MEDIUM_PEDAL: return 1;
+        case (uint)ED::HARD_PEDAL:   return 2;
+        case (uint)ED::EXPERT_PEDAL: return 3;
+        default: return -1;
+        }
+    }
+    static int eliteHiHatIndifferentSkillIndex(uint pitch)
+    {
+        using ED = MidiPitchDefinitions::EliteDrums;
+        switch (pitch) {
+        case (uint)ED::EASY_INDIFFERENT:   return 0;
+        case (uint)ED::MEDIUM_INDIFFERENT: return 1;
+        case (uint)ED::HARD_INDIFFERENT:   return 2;
+        case (uint)ED::EXPERT_INDIFFERENT: return 3;
+        default: return -1;
+        }
+    }
+    static bool isEliteHiHatModifier(uint pitch)
+    {
+        return eliteHiHatPedalSkillIndex(pitch) >= 0 || eliteHiHatIndifferentSkillIndex(pitch) >= 0;
+    }
+
     // Inverse of getGuitarColumn: given a lane the user clicked, return the
     // MIDI pitch to write. col 0 = open, col 1-5 = green/red/yellow/blue/orange.
     // Returns -1 for invalid (col, skill) combinations.
@@ -397,11 +427,12 @@ public:
 
         // Elite drums own the whole 72-82 note octave (kick..R-crash), which overlaps
         // guitar's MEDIUM_HOPO (77) / MEDIUM_STRUM (78) etc. Those are ELITE NOTES, not
-        // modifiers, so for elite only its genuine modifiers count: Star Power (104) and
-        // the roll/tremolo lanes (110-118). Flam/hi-hat modifiers (upper octave) are not
-        // parsed yet and fall through as non-playable.
+        // modifiers, so for elite only its genuine modifiers count: Star Power (104), the
+        // roll/tremolo lanes (110-118), and the hi-hat pedal-state modifiers (Pedal Down +
+        // Indifferent, all four difficulties). Flam/disco markers are still not parsed.
         if (isElite)
-            return pitch == (uint)MidiPitchDefinitions::EliteDrums::SP || isEliteRollLane(pitch);
+            return pitch == (uint)MidiPitchDefinitions::EliteDrums::SP || isEliteRollLane(pitch)
+                || isEliteHiHatModifier(pitch);
 
         // Guitar modifiers (all sustained)
         if (pitch == (uint)Guitar::SP ||

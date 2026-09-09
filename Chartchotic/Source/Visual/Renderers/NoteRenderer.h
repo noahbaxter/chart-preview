@@ -113,7 +113,11 @@ private:
     void drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, float position,
                        double frameTime, juce::Image* glyphImage, bool barNote, float opacity);
 
-    const PositionConstants::OverlayAdjust& getOverlayAdjustForGem(Gem gem, bool isDrums) const;
+    const PositionConstants::OverlayAdjust& getOverlayAdjustForGem(Gem gem, bool isDrums, bool hiHat, bool hiHatOpen) const;
+
+    // True when this gem renders the elite Hi-Hat gem art (col 2, not star-power, not Indifferent)
+    // -- mirrors getDrumGlyphImage's hi-hat branch so the overlay adjust matches the drawn glyph.
+    bool isEliteHiHatGlyph(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive) const;
 
     // Replace gem (and optional overlay) sprite images with cached curved variants
     // and adjust their height/offsetY accordingly. Shared between perspective and

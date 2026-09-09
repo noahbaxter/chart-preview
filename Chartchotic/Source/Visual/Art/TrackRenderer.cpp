@@ -20,6 +20,12 @@ using namespace PositionConstants;
 // arc = curv * fretboardWidth * (1 - dist^2); up at centre.
 static int strikeGroupKey(Part part, int lane);   // defined below; used by lane-lines + pads
 
+// Per-lane strikeline pad colours: {top (duller), bottom (brighter)}, sampled from the reference
+// PNG's vertical gradient. Declared here so BOTH the bemani overlay and the baked perspective
+// strikeline colour their pads from the one part-aware (elite-aware) source.
+struct PadColours { juce::Colour top, bottom; };
+static PadColours strikePadColours(Part part, int lane);   // defined below
+
 static float strikelineArcY(const LaneCorners& e, float x)
 {
     const float arcFrac = -NOTE_CURVATURE;   // +0.02, magnitude of the bar curve
@@ -107,35 +113,30 @@ void TrackRenderer::paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int
         float inset = colW * 0.08f;
         float corner = colW * 0.15f;
 
-        // Guitar: Green Red Yellow Blue Orange
-        // Drums:  Red Yellow Blue Green
-        static const juce::Colour guitarCols[] = {
-            juce::Colours::green, juce::Colours::red, juce::Colours::yellow,
-            juce::Colours::blue, juce::Colours::orange
-        };
-        static const juce::Colour drumCols[] = {
-            juce::Colours::red, juce::Colours::yellow, juce::Colours::blue, juce::Colours::green
-        };
-        const juce::Colour* cols = isDrums ? drumCols : guitarCols;
-
         for (int i = 0; i < numCols; i++)
         {
+            // Pad i is the i-th playable lane; column i+1 skips the kick/open bar lane (col 0).
+            // strikePadColours is part-aware -- elite reads its 8-lane tint table -- so it colours
+            // all 8 elite pads correctly and matches the gems. (Was a hardcoded 4/5-colour array
+            // indexed by i, which read out of bounds past lane 3 for elite's 8 lanes.)
+            juce::Colour padCol = strikePadColours(activePart, i + 1).bottom;
+
             float cx = leftX + ((float)i + 0.5f) / (float)numCols * fbWidth;
             float pw = colW - inset * 2.0f;
             auto padRect = juce::Rectangle<float>(cx - pw * 0.5f, padY, pw, padH);
 
             // Outer rounded square — gem color, semi-transparent
-            g.setColour(cols[i].withAlpha(strikeAlpha * 0.5f));
+            g.setColour(padCol.withAlpha(strikeAlpha * 0.5f));
             g.fillRoundedRectangle(padRect, corner);
 
             // Darker inner rectangle — darker center chunk
             float innerInset = pw * 0.15f;
             auto innerRect = padRect.reduced(innerInset, padH * 0.2f);
-            g.setColour(cols[i].darker(0.6f).withAlpha(strikeAlpha * 0.7f));
+            g.setColour(padCol.darker(0.6f).withAlpha(strikeAlpha * 0.7f));
             g.fillRoundedRectangle(innerRect, corner * 0.5f);
 
             // Thin bright border
-            g.setColour(cols[i].withAlpha(strikeAlpha * 0.8f));
+            g.setColour(padCol.withAlpha(strikeAlpha * 0.8f));
             g.drawRoundedRectangle(padRect, corner, 1.0f);
         }
 
@@ -485,7 +486,14 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
         // Strikeline pads are drawn procedurally for every part (they replaced the
         // fixed strikeline PNGs).
         bakeStrikelinePadsPerspective(width, totalH, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
-        bakeLayerImage(layerImages[CONNECTORS], isDrums ? kickSmashersImage : strikelineConnectorsImage, layers[CONNECTORS],
+        // Kick smashers (CONNECTORS) are a fixed-width PNG scaled to the RENDER width, so unlike
+        // the procedural rails/lanes/strikeline they don't follow the wider elite board coords.
+        // Widen the transform by the same board factor so the end-caps sit on the elite board edge
+        // instead of floating inside it.
+        LayerTransform connectors = layers[CONNECTORS];
+        if (activePart == Part::ELITE_DRUMS)
+            connectors.scale *= PositionConstants::ELITE_BOARD_WIDTH_SCALE;
+        bakeLayerImage(layerImages[CONNECTORS], isDrums ? kickSmashersImage : strikelineConnectorsImage, connectors,
                        width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
     }
 
@@ -575,10 +583,6 @@ void TrackRenderer::bakeSidebarRailsPerspective(int w, int h, int overflow, bool
     applyFarFade(out, w, h, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
                  posEnd);
 }
-
-// Per-lane strikeline pad colours: {top (duller), bottom (brighter)}, sampled from
-// the reference PNG, which draws each pad as a vertical gradient.
-struct PadColours { juce::Colour top, bottom; };
 
 // Strikeline pad colours. The lane hues come from the shared LaneColours table (single
 // source of truth, also drives gem tints); pad top = lane dark, bottom = lane bright.

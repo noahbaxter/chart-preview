@@ -35,6 +35,7 @@ inline bool isPart(juce::ValueTree &state, Part part)
 constexpr int DRUM_KICK_COLUMN     = 0;
 constexpr int DRUM_KICK_2X_COLUMN  = 6;   // 4-lane: 2x kick shares the kick lane
 constexpr int ELITE_KICK_2X_COLUMN = 9;   // elite: col 6 is a real hand lane (Tom 3), so 2x kick moves to a virtual column
+constexpr int ELITE_HIHAT_COLUMN   = 2;   // elite: the yellow cymbal lane, the only lane with open/closed/indifferent state
 
 inline bool isDrumKick(uint gemColumn, Part part = Part::DRUMS)
 {
@@ -56,6 +57,14 @@ inline uint drumColumnIndex(uint gemColumn, Part part = Part::DRUMS)
 inline bool isEliteCymbalLane(uint gemColumn)
 {
     return gemColumn == 2 || gemColumn == 3 || gemColumn == 7 || gemColumn == 8;
+}
+
+// The elite Hi-Hat lane (yellow cymbal) — the only lane that carries Open/Closed/Indifferent
+// pedal state (spec: Yellow defaults to Open, coincident Pedal Down = Closed, coincident
+// Indifferent marker = Indifferent).
+inline bool isEliteHiHatLane(uint gemColumn)
+{
+    return gemColumn == (uint)ELITE_HIHAT_COLUMN;
 }
 
 inline bool isBarNote(uint gemColumn, Part part)
@@ -86,13 +95,26 @@ enum class Gem
     SPLASH,         // Elite hi-hat pedal: "splash" (same bar; also a hi-hat sustain generator)
 };
 
+// Elite hi-hat pedal state, orthogonal to the gem's ghost/accent type. Only meaningful on the
+// Hi-Hat (yellow cymbal) lane. Open is the spec default; Closed needs a coincident pedal-down;
+// Indifferent renders as an ordinary cymbal.
+enum class HiHatState
+{
+    None,
+    Open,
+    Closed,
+    Indifferent,
+};
+
 struct GemWrapper
 {
     Gem gem;
     bool starPower;
+    HiHatState hihat;
 
-    GemWrapper() : gem(Gem::NONE), starPower(false) {}
-    GemWrapper(Gem g, bool sp = false) : gem(g), starPower(sp) {}
+    GemWrapper() : gem(Gem::NONE), starPower(false), hihat(HiHatState::None) {}
+    GemWrapper(Gem g, bool sp = false, HiHatState hh = HiHatState::None)
+        : gem(g), starPower(sp), hihat(hh) {}
 };
 
 enum class Gridline

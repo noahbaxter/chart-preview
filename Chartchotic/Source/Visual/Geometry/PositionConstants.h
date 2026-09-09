@@ -170,6 +170,10 @@ namespace PositionConstants
         OVERLAY_DRUM_NOTE_ACCENT,
         OVERLAY_DRUM_CYM_GHOST,
         OVERLAY_DRUM_CYM_ACCENT,
+        OVERLAY_DRUM_HIHAT_GHOST,
+        OVERLAY_DRUM_HIHAT_ACCENT,
+        OVERLAY_DRUM_HIHAT_OPEN_GHOST,
+        OVERLAY_DRUM_HIHAT_OPEN_ACCENT,
         NUM_OVERLAY_TYPES
     };
 
@@ -179,6 +183,16 @@ namespace PositionConstants
         { 0.0f, -0.10f, 1.0f, 1.0f, 1.0f },  // DRUM_NOTE_ACCENT
         { 0.0f, -0.04f, 1.0f, 1.0f, 1.33f }, // DRUM_CYM_GHOST
         { 0.0f, -0.08f, 1.0f, 1.0f, 1.0f },  // DRUM_CYM_ACCENT
+        // Hi-Hat gem art sits higher in its (taller) sprite than a standard cymbal cone, so the
+        // ghost ring / accent chevron must ride up to hug the cone base instead of sitting on the
+        // lower disc. The OPEN sprite is taller still (cone lifted, disc separated below a gap), so
+        // its cone sits higher again and needs its own (larger) up-shift -- one value can't serve
+        // both. Dialed in render_harness against a reference cymbal at matching depth (col 2 vs 3).
+        // NOTE: the open-hat art fits an overlay poorly at best; new open-hat assets are wanted.
+        { 0.0f, -0.10f, 1.0f, 1.0f, 1.33f }, // DRUM_HIHAT_GHOST        (closed)
+        { 0.0f, -0.14f, 1.0f, 1.0f, 1.0f },  // DRUM_HIHAT_ACCENT       (closed)
+        { 0.0f, -0.24f, 1.0f, 1.0f, 1.33f }, // DRUM_HIHAT_OPEN_GHOST
+        { 0.0f, -0.28f, 1.0f, 1.0f, 1.0f },  // DRUM_HIHAT_OPEN_ACCENT
     };
 
     //==============================================================================
@@ -226,20 +240,29 @@ namespace PositionConstants
         {0.16f, 0.34f, 0.73f, 0.234f, 0.68f, 0.32f};
     constexpr NormalizedCoordinates drumFretboardCoords =
         {0.16f, 0.34f, 0.735f, 0.239f, 0.68f, 0.32f};
-    // Elite drums reuse the drum board shape for now (getFretboardEdge is not yet
-    // config-aware, so this MUST match drumFretboardCoords or lanes/fill diverge).
-    constexpr NormalizedCoordinates eliteDrumFretboardCoords =
-        {0.16f, 0.34f, 0.735f, 0.239f, 0.68f, 0.32f};
+    // Elite drums get a genuinely WIDER board so its 8 lanes have room. The whole normalized-X
+    // coordinate system (fretboard edge AND every lane) is scaled around centre (0.5) by this
+    // factor. Because getColumnPosition places each lane as a FRACTION of the fretboard, scaling
+    // the board and the lanes by the same factor preserves that fraction -- so lanes spread and
+    // gems widen proportionally, and every consumer (edge, fill, lanes, gems, rails, click zones)
+    // stays consistent since they all read these coords. Replaces the old "wider canvas" trick,
+    // which could not widen a solo highway (a canvas is display-scale-invariant: a wider buffer
+    // shown in the same slot just scales back down). Sized so the board plus its NATURAL side
+    // rails (rails add ~1.067x outside the board) still fit inside the render width -- ~1.07 is the
+    // widest the board fraction can go before the rails would touch the border. The rails are never
+    // warped to fit; a genuinely wider elite highway comes from giving it a wider SLOT in the
+    // layout (see the elite width weight in PluginEditor), where natural board + rails have room.
+    constexpr float ELITE_BOARD_WIDTH_SCALE = 1.07f;
+    // Scale one normalized-X coordinate around centre 0.5 by the elite board width (X only; the
+    // Y/slant terms are untouched). Left edges move out and widths grow, span stays centred.
+    constexpr float eliteWidenX(float x) { return 0.5f + (x - 0.5f) * ELITE_BOARD_WIDTH_SCALE; }
+    constexpr NormalizedCoordinates eliteWidenBoard(NormalizedCoordinates c)
+    {
+        return { eliteWidenX(c.normX1), eliteWidenX(c.normX2), c.normY1, c.normY2,
+                 c.normWidth1 * ELITE_BOARD_WIDTH_SCALE, c.normWidth2 * ELITE_BOARD_WIDTH_SCALE };
+    }
+    constexpr NormalizedCoordinates eliteDrumFretboardCoords = eliteWidenBoard(drumFretboardCoords);
     constexpr float FRETBOARD_SCALE = 1.25f;
-
-    // Elite drums render into a wider box than the other parts so its 8 lanes get more
-    // horizontal room (same slant/height, just wider). Because the whole board is a
-    // fixed fraction of the render width, scaling the box scales EVERYTHING with it --
-    // fretboard edge, lanes, strikeline, rails, gems. Single knob for the elite span.
-    // Elite highway CANVAS width vs a normal one. The elite highway renders into a wider
-    // slot/canvas (wider aspect) by this factor; the board stays a fixed fraction of that
-    // width, so it never clips no matter how wide you make this. Tune freely.
-    constexpr float ELITE_BOARD_WIDTH_SCALE = 1.3f;
 
     //==============================================================================
     // Highway Range (bezier system defaults)
@@ -323,6 +346,10 @@ namespace PositionConstants
             nx += nw + ELITE_LANE_GAP_NEAR;
             fx += fw + ELITE_LANE_GAP_FAR;
         }
+        // Widen the whole lane table by the same factor as the fretboard so lanes stay a fixed
+        // fraction of the (now wider) board -- they spread and their gems grow with it.
+        for (auto& c : out)
+            c = eliteWidenBoard(c);
         return out;
     }
     constexpr std::array<NormalizedCoordinates, 9> eliteDrumBezierLaneCoords = buildEliteDrumLaneCoords();

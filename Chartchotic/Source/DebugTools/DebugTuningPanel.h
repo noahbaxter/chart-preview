@@ -392,7 +392,7 @@ private:
     SectionHeader overlayAdjustHeader;
     static constexpr int NUM_OVERLAY_TYPES = PositionConstants::NUM_OVERLAY_TYPES;
     static constexpr int OVERLAY_PARAMS = 5;
-    static constexpr const char* overlayRowNames[NUM_OVERLAY_TYPES] = {"GTap", "DGho", "DAcc", "CGho", "CAcc"};
+    static constexpr const char* overlayRowNames[NUM_OVERLAY_TYPES] = {"GTap", "DGho", "DAcc", "CGho", "CAcc", "HGho", "HAcc", "HOGh", "HOAc"};
     static constexpr const char* overlayColNames[OVERLAY_PARAMS] = {"X", "Y", "W", "H", "S"};
     juce::Label overlayColHeaderLabels[OVERLAY_PARAMS];
     juce::Label overlayRowNameLabels[NUM_OVERLAY_TYPES];
@@ -403,12 +403,13 @@ private:
     //     Rows pull from baseScale (gem/bar), gemTypeScales, and overlayAdjusts.
     //     Cells for data that doesn't exist render as "—" and do nothing.
     SectionHeader adjustHeader;
-    static constexpr int ADJUST_ROWS = 11;
+    static constexpr int ADJUST_ROWS = 15;
     static constexpr int ADJUST_COLS = 5;
     static constexpr const char* adjustRowNames[ADJUST_ROWS] = {
         "Note", "Cymbal", "HOPO", "Bar",
         "Gtr Tap", "Drm Gho", "Drm Acc", "Cym Gho", "Cym Acc",
-        "SP Gem", "SP Bar"
+        "SP Gem", "SP Bar",
+        "Hat Gho", "Hat Acc", "Hat OGho", "Hat OAcc"
     };
     static constexpr const char* adjustColNames[ADJUST_COLS] = {"X", "Y", "W", "H", "S"};
 

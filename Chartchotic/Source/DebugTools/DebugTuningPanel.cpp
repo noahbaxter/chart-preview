@@ -1135,8 +1135,8 @@ void DebugTuningPanel::fireChanged()
 
 float* DebugTuningPanel::getAdjustPtr(int r, int c)
 {
-    // Overlay rows (4-8) map to OVERLAY_* enums — columns are X/Y/W/H/S in order.
-    if (r >= 4 && r <= 8)
+    // Overlay rows (4-8 = tap/drum/cym, 11-14 = hi-hat closed/open) map to OVERLAY_* enums; cols X/Y/W/H/S.
+    if ((r >= 4 && r <= 8) || (r >= 11 && r <= 14))
     {
         static constexpr int overlayIdx[5] = {
             PositionConstants::OVERLAY_GUITAR_TAP,
@@ -1145,7 +1145,14 @@ float* DebugTuningPanel::getAdjustPtr(int r, int c)
             PositionConstants::OVERLAY_DRUM_CYM_GHOST,
             PositionConstants::OVERLAY_DRUM_CYM_ACCENT
         };
-        auto& ov = overlayAdjusts[overlayIdx[r - 4]];
+        static constexpr int hiHatIdx[4] = {
+            PositionConstants::OVERLAY_DRUM_HIHAT_GHOST,       // r 11
+            PositionConstants::OVERLAY_DRUM_HIHAT_ACCENT,      // r 12
+            PositionConstants::OVERLAY_DRUM_HIHAT_OPEN_GHOST,  // r 13
+            PositionConstants::OVERLAY_DRUM_HIHAT_OPEN_ACCENT  // r 14
+        };
+        int idx = (r <= 8) ? overlayIdx[r - 4] : hiHatIdx[r - 11];
+        auto& ov = overlayAdjusts[idx];
         switch (c) {
         case 0: return &ov.offsetX;
         case 1: return &ov.offsetY;
@@ -1207,6 +1214,10 @@ void DebugTuningPanel::setAssetManager(AssetManager& am)
         am.getOverlayCymAccentImage(),    // Cym Accent
         am.getNoteWhiteImage(),           // SP Gem (white = star power)
         am.getBarWhiteImage(),            // SP Bar
+        am.getCymHiHatClosedImage(),      // Hat Gho  (closed hi-hat art)
+        am.getCymHiHatClosedImage(),      // Hat Acc  (closed)
+        am.getCymHiHatOpenImage(),        // Hat OGho (open hi-hat art)
+        am.getCymHiHatOpenImage(),        // Hat OAcc (open)
     };
     for (int r = 0; r < ADJUST_ROWS; r++)
     {

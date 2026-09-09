@@ -21,7 +21,10 @@ namespace
     // coloured body takes the target hue/saturation at its own brightness -- so the metallic
     // shading and the silver (or SP-gold, kept via the white PNGs) framing survive, and only the
     // colour changes. One master per family recolours to any lane; alpha is preserved.
-    juce::Image recolorGem(const juce::Image& master, juce::Colour target)
+    // valueScale < 1 darkens the recoloured body (leaves neutral framing alone). Green is the most
+    // luminant hue, so the bright metallic cymbal master reads too neon in green even at the right
+    // saturation; pull its value down without touching the other colours or the square notes.
+    juce::Image recolorGem(const juce::Image& master, juce::Colour target, float valueScale = 1.0f)
     {
         const float th = target.getHue();
         const float ts = target.getSaturation();
@@ -34,7 +37,8 @@ namespace
                 // Weight the recolour by how saturated the source pixel is: neutral framing
                 // stays put, the colour body swaps hue. Ramp (not a hard cut) avoids a seam.
                 float w = juce::jlimit(0.0f, 1.0f, (px.getSaturation() - 0.18f) / 0.30f);
-                auto reh = juce::Colour::fromHSV(th, ts, px.getBrightness(), px.getFloatAlpha());
+                float v = juce::jlimit(0.0f, 1.0f, px.getBrightness() * valueScale);
+                auto reh = juce::Colour::fromHSV(th, ts, v, px.getFloatAlpha());
                 bmp.setPixelColour(x, y, px.interpolatedWith(reh, w));
             }
         return out;
@@ -102,9 +106,14 @@ void AssetManager::initAssets()
         cymBlueImage   = recolorGem(cymMaster, LaneColours::bright(LaneColours::blue));
         cymRedImage    = recolorGem(cymMaster, LaneColours::bright(LaneColours::red));
         cymYellowImage = recolorGem(cymMaster, LaneColours::bright(LaneColours::yellow));
-        cymGreenImage  = recolorGem(cymMaster, LaneColours::bright(LaneColours::green));
+        cymGreenImage  = recolorGem(cymMaster, LaneColours::bright(LaneColours::green), 0.68f);   // tuned to the deep green of cym_green.png (body brightness ~148, vs ~218 at full value)
         cymPurpleImage = recolorGem(cymMaster, LaneColours::bright(LaneColours::purple));
     }
+    // Elite hi-hat: extracted gold/metallic art, drawn as-is (NOT tinted) on the Hi-Hat lane.
+    // Closed is the default; the open variant hooks in once open/closed parsing (upper octave
+    // 84-90) lands to pick a gem type.
+    cymHiHatClosedImage = juce::ImageCache::getFromMemory(BinaryData::cym_hihat_closed_png, BinaryData::cym_hihat_closed_pngSize);
+    cymHiHatOpenImage   = juce::ImageCache::getFromMemory(BinaryData::cym_hihat_open_png,   BinaryData::cym_hihat_open_pngSize);
 
     // Notes + HOPOs: same greyscale-master + LaneColours tint as cymbals. One master per
     // family (a mid-tone colour PNG collapsed to luminance) recolours to every lane, so a
@@ -226,6 +235,7 @@ void AssetManager::initAssets()
         {&cymBlueImage, cymBlueImage}, {&cymGreenImage, cymGreenImage},
         {&cymRedImage, cymRedImage}, {&cymWhiteImage, cymWhiteImage},
         {&cymYellowImage, cymYellowImage}, {&cymPurpleImage, cymPurpleImage},
+        {&cymHiHatClosedImage, cymHiHatClosedImage}, {&cymHiHatOpenImage, cymHiHatOpenImage},
         // HOPOs
         {&hopoBlueImage, hopoBlueImage}, {&hopoGreenImage, hopoGreenImage},
         {&hopoOrangeImage, hopoOrangeImage}, {&hopoRedImage, hopoRedImage},
@@ -463,7 +473,19 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
                 if (shouldBeWhite) return getCymWhiteImage();
                 switch (style.tint)
                 {
-                case T::Yellow: return getCymYellowImage();
+                // Hi-Hat (col 2, the only Yellow cymbal lane): the gem art follows the pedal
+                // state (spec: Yellow defaults to Open, Closed via coincident pedal-down,
+                // Indifferent looks like an ordinary cymbal). Open is the default when no
+                // state is set (e.g. before MIDI parsing populates it).
+                case T::Yellow:
+                    switch (gemWrapper.hihat)
+                    {
+                    case HiHatState::Closed:      return getCymHiHatClosedImage();
+                    case HiHatState::Indifferent: return getCymYellowImage();
+                    case HiHatState::Open:
+                    case HiHatState::None:
+                    default:                      return getCymHiHatOpenImage();
+                    }
                 case T::Blue:   return getCymBlueImage();
                 case T::Green:  return getCymGreenImage();
                 case T::Red:    return getCymRedImage();
