@@ -239,6 +239,8 @@ void AssetManager::initAssets()
 
     // Register all per-frame drawable assets for viewport-aware pre-scaling.
     // Full-res originals are copied now; rescaleForWidth() overwrites the active members.
+    // Entries default to the Lane width class; FULL marks the ones drawn board-wide.
+    constexpr auto FULL = AssetWidthClass::FullBoard;
     scalableAssets = {
         // Notes
         {&noteBlueImage, noteBlueImage}, {&noteGreenImage, noteGreenImage},
@@ -255,14 +257,14 @@ void AssetManager::initAssets()
         {&hopoOrangeImage, hopoOrangeImage}, {&hopoRedImage, hopoRedImage},
         {&hopoWhiteImage, hopoWhiteImage}, {&hopoYellowImage, hopoYellowImage},
         {&hopoPurpleImage, hopoPurpleImage},
-        // Bars
-        {&barKickImage, barKickImage}, {&barKick2xImage, barKick2xImage},
-        {&barOpenImage, barOpenImage}, {&barWhiteImage, barWhiteImage},
-        {&barKickEliteImage, barKickEliteImage}, {&barKick2xEliteImage, barKick2xEliteImage},
-        {&barWhiteEliteImage, barWhiteEliteImage},
-        {&barKickAccentImage, barKickAccentImage}, {&barKick2xAccentImage, barKick2xAccentImage},
-        {&barWhiteAccentImage, barWhiteAccentImage},
-        {&barStompImage, barStompImage},
+        // Bars — full board width, so they keep a full-width master
+        {&barKickImage, barKickImage, FULL}, {&barKick2xImage, barKick2xImage, FULL},
+        {&barOpenImage, barOpenImage, FULL}, {&barWhiteImage, barWhiteImage, FULL},
+        {&barKickEliteImage, barKickEliteImage, FULL}, {&barKick2xEliteImage, barKick2xEliteImage, FULL},
+        {&barWhiteEliteImage, barWhiteEliteImage, FULL},
+        {&barKickAccentImage, barKickAccentImage, FULL}, {&barKick2xAccentImage, barKick2xAccentImage, FULL},
+        {&barWhiteAccentImage, barWhiteAccentImage, FULL},
+        {&barStompImage, barStompImage, FULL},
         // Overlays
         {&overlayCymAccentImage, overlayCymAccentImage}, {&overlayCymGhostImage, overlayCymGhostImage},
         {&overlayNoteAccentImage, overlayNoteAccentImage}, {&overlayNoteGhostImage, overlayNoteGhostImage},
@@ -273,24 +275,24 @@ void AssetManager::initAssets()
         {&hitAnimationFrames[4], hitAnimationFrames[4]},
         // Hit flare: only the greyscale master is scaled; lane tints derive from it.
         {&hitFlareWhite, hitFlareWhite},
-        // Kick animation frames
-        {&kickAnimationFrames[0], kickAnimationFrames[0]}, {&kickAnimationFrames[1], kickAnimationFrames[1]},
-        {&kickAnimationFrames[2], kickAnimationFrames[2]}, {&kickAnimationFrames[3], kickAnimationFrames[3]},
-        {&kickAnimationFrames[4], kickAnimationFrames[4]}, {&kickAnimationFrames[5], kickAnimationFrames[5]},
-        {&kickAnimationFrames[6], kickAnimationFrames[6]},
-        // Open animation frames
-        {&openAnimationFrames[0], openAnimationFrames[0]}, {&openAnimationFrames[1], openAnimationFrames[1]},
-        {&openAnimationFrames[2], openAnimationFrames[2]}, {&openAnimationFrames[3], openAnimationFrames[3]},
-        {&openAnimationFrames[4], openAnimationFrames[4]}, {&openAnimationFrames[5], openAnimationFrames[5]},
-        {&openAnimationFrames[6], openAnimationFrames[6]},
-        // Gridline markers
-        {&markerBeatImage, markerBeatImage}, {&markerHalfBeatImage, markerHalfBeatImage},
-        {&markerMeasureImage, markerMeasureImage},
-        {&markerMeasureWriteImage, markerMeasureWriteImage},
-        {&markerBeatWriteImage,    markerBeatWriteImage},
-        // Ghost cursor blanks
+        // Kick animation frames — the kick flash spans the board like its bar
+        {&kickAnimationFrames[0], kickAnimationFrames[0], FULL}, {&kickAnimationFrames[1], kickAnimationFrames[1], FULL},
+        {&kickAnimationFrames[2], kickAnimationFrames[2], FULL}, {&kickAnimationFrames[3], kickAnimationFrames[3], FULL},
+        {&kickAnimationFrames[4], kickAnimationFrames[4], FULL}, {&kickAnimationFrames[5], kickAnimationFrames[5], FULL},
+        {&kickAnimationFrames[6], kickAnimationFrames[6], FULL},
+        // Open animation frames — same, they follow the open bar
+        {&openAnimationFrames[0], openAnimationFrames[0], FULL}, {&openAnimationFrames[1], openAnimationFrames[1], FULL},
+        {&openAnimationFrames[2], openAnimationFrames[2], FULL}, {&openAnimationFrames[3], openAnimationFrames[3], FULL},
+        {&openAnimationFrames[4], openAnimationFrames[4], FULL}, {&openAnimationFrames[5], openAnimationFrames[5], FULL},
+        {&openAnimationFrames[6], openAnimationFrames[6], FULL},
+        // Gridline markers — drawn across the whole fretboard
+        {&markerBeatImage, markerBeatImage, FULL}, {&markerHalfBeatImage, markerHalfBeatImage, FULL},
+        {&markerMeasureImage, markerMeasureImage, FULL},
+        {&markerMeasureWriteImage, markerMeasureWriteImage, FULL},
+        {&markerBeatWriteImage,    markerBeatWriteImage, FULL},
+        // Ghost cursor blanks (the bar blank follows the bars)
         {&noteBlankImage, noteBlankImage}, {&hopoBlankImage, hopoBlankImage},
-        {&cymBlankImage, cymBlankImage}, {&barBlankImage, barBlankImage},
+        {&cymBlankImage, cymBlankImage}, {&barBlankImage, barBlankImage, FULL},
     };
 #endif // CHARTCHOTIC_NO_BINARY_DATA
 }
@@ -335,20 +337,27 @@ juce::Image AssetManager::downscale(const juce::Image& src, int targetWidth)
 
 void AssetManager::rescaleForWidth(int viewportWidth)
 {
-    // Target: half the viewport width — generous headroom for strikeline-sized notes
-    int targetWidth = std::max(200, viewportWidth / 2);
-
-    if (targetWidth == lastScaledWidth)
+    if (viewportWidth == lastScaledWidth)
         return;
 
+    // Two masters, because JUCE's image blit costs scale with the SOURCE size, not the
+    // destination: resampling a half-viewport gem master down to a 9-lane elite gem cost
+    // ~230us a sprite, against ~36us from a lane-sized master. Bars and gridline markers
+    // really are drawn board-wide, so they keep the wide master and stay sharp; gems and
+    // their overlays never exceed one lane's gem box, whose widest case is 4-lane drums at
+    // roughly a third of the board once GEM_SIZE and the gem-scale slider are in.
+    const int fullBoardWidth = std::max(200, viewportWidth / 2);
+    const int laneWidth      = std::max(200, viewportWidth / 3);
+
     for (auto& asset : scalableAssets)
-        *asset.target = downscale(asset.fullRes, targetWidth);
+        *asset.target = downscale(asset.fullRes,
+            asset.widthClass == AssetWidthClass::FullBoard ? fullBoardWidth : laneWidth);
 
     // Flare tints derive from the (now rescaled) smoke master — drop them so they
     // regenerate at the new scale on next use.
     flareTintCache.clear();
 
-    lastScaledWidth = targetWidth;
+    lastScaledWidth = viewportWidth;
 }
 
 // Tint the smoke master by an arbitrary lane colour, memoized per colour. Node-based

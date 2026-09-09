@@ -27,6 +27,24 @@ namespace
         return isDrum2xKick(gemColumn, part) ? Render::ClipHalf::Left
                                              : Render::ClipHalf::Right;
     }
+
+    // A flam draws two gems inside one lane. Rather than offsetting a copy by hand, split the
+    // lane into two sub-lanes and run each half through the normal lane math, so it lands on
+    // the arc, foreshortens and warps like a gem that genuinely sat there. `width` is each
+    // sub-lane's share of the parent, `spread` the gap between their centres, both fractions
+    // of the parent's width; spread = 1 - width puts them flush with the lane's outer edges.
+    PositionConstants::NormalizedCoordinates flamSubLane(
+        const PositionConstants::NormalizedCoordinates& lane, bool leftHalf,
+        float width, float spread)
+    {
+        float centreFrac = 0.5f + (leftHalf ? -0.5f : 0.5f) * spread;
+        auto half = lane;
+        half.normWidth1 = lane.normWidth1 * width;
+        half.normWidth2 = lane.normWidth2 * width;
+        half.normX1 = lane.normX1 + lane.normWidth1 * centreFrac - half.normWidth1 * 0.5f;
+        half.normX2 = lane.normX2 + lane.normWidth2 * centreFrac - half.normWidth2 * 0.5f;
+        return half;
+    }
 }
 
 using namespace PositionConstants;
@@ -52,6 +70,20 @@ namespace {
         case Gem::CYM_GHOST:   return s.cymbal * s.cGhost;
         case Gem::CYM_ACCENT:  return s.cymbal * s.cAccent;
         default: return 1.0f;
+        }
+    }
+
+    // How far a flam narrows this glyph, as a fraction of the lane. Same gem-type split as
+    // gemTypeScale above, so the two stay readable side by side.
+    float flamWidthForGem(Gem gem, const FlamTypeWidths& w)
+    {
+        switch (gem) {
+        case Gem::HOPO_GHOST:  return w.ghost;
+        case Gem::TAP_ACCENT:  return w.accent;
+        case Gem::CYM:         return w.cymbal;
+        case Gem::CYM_GHOST:   return w.cymGhost;
+        case Gem::CYM_ACCENT:  return w.cymAccent;
+        default:               return w.note;
         }
     }
 }
@@ -89,23 +121,29 @@ bool NoteRenderer::isEliteHiHatGlyph(const GemWrapper& gemWrapper, uint gemColum
 void NoteRenderer::applyCurvedImageSwap(Frame& frame, int gemIdx, int ovlIdx,
                                          const CurvedSwapArgs& args)
 {
-    const auto& gemEntry = getCurvedImage(args.glyphImage, args.gemColumn, args.isDrums);
-    float gemCurvedAspect = (float)gemEntry.image.getWidth()
-                          / (float)gemEntry.image.getHeight();
     auto& gemSprite = frame.sprites[gemIdx];
+    const auto& gemEntry = getCurvedImage(args.glyphImage, args.gemColumn, args.isDrums,
+                                          gemSprite.width * args.pixelScale);
+    // Size the glyph content, then grow the sprite to cover the arc padding around it. Going
+    // via the padded image's aspect instead lets the bake's integer padding leak into the
+    // gem's height.
+    float srcAspect = (float)args.glyphImage->getWidth() / (float)args.glyphImage->getHeight();
+    float gemContentH = (args.gemBaseW / srcAspect) * args.hScale;
     gemSprite.image  = const_cast<juce::Image*>(&gemEntry.image);
-    gemSprite.height = (args.gemBaseW / gemCurvedAspect) * args.hScale;
+    gemSprite.height = gemContentH / gemEntry.contentFraction;
     gemSprite.offsetY += gemEntry.yOffsetFraction * args.gemBaseH;
 
     if (args.overlayImage && args.overlayAdj && ovlIdx >= 0)
     {
-        const auto& ovlEntry = getCurvedImage(args.overlayImage, args.gemColumn, args.isDrums);
-        float ovlCurvedAspect = (float)ovlEntry.image.getWidth()
-                              / (float)ovlEntry.image.getHeight();
         auto& ovlSprite = frame.sprites[ovlIdx];
+        const auto& ovlEntry = getCurvedImage(args.overlayImage, args.gemColumn, args.isDrums,
+                                              ovlSprite.width * args.pixelScale);
+        float ovlSrcAspect = (float)args.overlayImage->getWidth()
+                           / (float)args.overlayImage->getHeight();
         float ovlRectSX = args.overlayAdj->scaleX * args.overlayAdj->scale;
         float ovlRectSY = args.overlayAdj->scaleY * args.overlayAdj->scale;
-        float ovlCurvedH = (args.gemBaseW * ovlRectSX) / ovlCurvedAspect * args.hScale;
+        float ovlContentH = (args.overlayBaseW * ovlRectSX) / ovlSrcAspect * args.hScale;
+        float ovlCurvedH = ovlContentH / ovlEntry.contentFraction;
         float ovlContentYBase = args.gemBaseH * ovlRectSY;
 
         ovlSprite.image  = const_cast<juce::Image*>(&ovlEntry.image);
@@ -211,7 +249,18 @@ void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, 
         if (gems[gemColumn].gem != Gem::NONE)
         {
             int spriteStart = (int)composite.sprites.size();
-            appendGemSprites(gemColumn, gems[gemColumn], position, frameTime, ctx, composite);
+            if (gems[gemColumn].flam)
+            {
+                // Grace note first so the main hit draws over it.
+                appendGemSprites(gemColumn, gems[gemColumn], position, frameTime, ctx, composite,
+                                 nullptr, -1.0f, FlamHalf::Left);
+                appendGemSprites(gemColumn, gems[gemColumn], position, frameTime, ctx, composite,
+                                 nullptr, -1.0f, FlamHalf::Right);
+            }
+            else
+            {
+                appendGemSprites(gemColumn, gems[gemColumn], position, frameTime, ctx, composite);
+            }
 
             bool selected = false;
             for (const auto& sg : selectedGems)
@@ -244,7 +293,8 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
                                      double frameTime, const SharedFrameContext& ctx,
                                      Render::Frame& outFrame,
                                      juce::Image* imageOverride,
-                                     float opacityOverride)
+                                     float opacityOverride,
+                                     FlamHalf flamHalf)
 {
     juce::Image* glyphImage;
     bool barNote;
@@ -296,6 +346,9 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
 
     if (PositionMath::bemaniMode)
     {
+        // Bemani has no flam treatment yet, so the two halves would stack as one gem drawn
+        // twice. Draw the left call only and skip its twin.
+        if (flamHalf == FlamHalf::Right) return;
         drawGemBemani(gemColumn, gemWrapper, position, frameTime, glyphImage, barNote, opacity);
         return;
     }
@@ -345,6 +398,26 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     if (barNote)
         strikeColHeight /= currentConfig->boardWidthScale;
 
+    // Flam: re-place this copy in its own half of the lane. Width and centre come from the
+    // sub-lane's own edges, so the copy is squished AND shifted by the same projection that
+    // positions a real gem. strikeColHeight above keeps the full-lane value, so the pair is
+    // squished, not shrunk. laneOffsetX / laneStrikeWidth remember the parent lane for the
+    // hit box, which stays full width.
+    float laneOffsetX = strikeOffsetX;
+    float laneStrikeWidth = strikeColWidth;
+    PositionConstants::NormalizedCoordinates flamCoords;
+    if (flamHalf != FlamHalf::None)
+    {
+        flamCoords = flamSubLane(laneCoords[resolveLaneIndex(gemColumn)],
+                                 flamHalf == FlamHalf::Left,
+                                 flamWidthForGem(gemWrapper.gem, flamTypeWidths),
+                                 flamSubLaneSpread);
+        auto flamEdge = getColumnEdge(0.0f, flamCoords, PositionConstants::GEM_SIZE,
+                                      PositionConstants::FRETBOARD_SCALE);
+        strikeColWidth = flamEdge.rightX - flamEdge.leftX;
+        strikeOffsetX = (flamEdge.leftX + flamEdge.rightX) * 0.5f - ctx.fbStrikeCenterX;
+    }
+
     // userScale (settings popup) — sprite-size multiplier; center stays at lane
     float userScale = barNote
         ? (state.hasProperty("barScale") ? (float)state["barScale"] : 1.0f)
@@ -392,13 +465,17 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     // current pixels at draw time, matching legacy current-pixel-space arc).
     // Kick/open bars stay flat. Pedal bars (Stomp/Splash) instead curve like gems so they sit
     // along the tilted gridline over their off-centre span; their arc offset uses the hi-hat
-    // lane's distance (the pedal zone is centred on the hi-hat).
+    // lane's distance (the pedal zone is centred on the hi-hat). A flam half uses its own
+    // sub-lane's distance, which is what lifts the two copies onto the arc separately instead
+    // of parking both at the parent lane's height.
     constexpr int ELITE_HIHAT_COLUMN = 2;
     float curvature = (barNote && !pedalBar) ? PositionConstants::BAR_CURVATURE : currentNoteCurvature;
     float arcOffsetStrike = 0.0f;
     if (curvature != 0.0f && (!barNote || pedalBar))
     {
-        float dist = getColumnDistFromCenter(pedalBar ? ELITE_HIHAT_COLUMN : (int)gemColumn, isDrums);
+        float dist = (flamHalf != FlamHalf::None)
+                   ? getColumnDistFromCenter(flamCoords, isDrums)
+                   : getColumnDistFromCenter(pedalBar ? ELITE_HIHAT_COLUMN : (int)gemColumn, isDrums);
         // fbStrikeWidth is inflated on elite's wider canvas; the arc is a VERTICAL lift, and
         // elite is wider not taller, so divide the width factor back down (1.0 for non-wide
         // types) or the centre lanes bow up too far and read as sitting behind their row.
@@ -436,6 +513,12 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         gemWrapper.gem, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS);
     const OverlayAdjust* overlayAdjPtr = nullptr;
     int ovlIdx = -1;
+    // Single-overlay flams: the left copy draws no overlay, and the right one draws it centred
+    // on the whole lane at full-lane width, so a flam shows one ghost ring / accent chevron
+    // instead of two crossing in the overlap.
+    bool flamOneOverlay = (flamHalf != FlamHalf::None) && flamSingleOverlay;
+    if (flamOneOverlay && flamHalf == FlamHalf::Left)
+        overlayImage = nullptr;
     if (overlayImage != nullptr)
     {
         bool hiHat = isEliteHiHatGlyph(gemWrapper, gemColumn, starPowerActive);
@@ -445,12 +528,14 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
 
         float ovlRectSX = overlayAdj.scaleX * overlayAdj.scale;
         float ovlRectSY = overlayAdj.scaleY * overlayAdj.scale;
+        float ovlBaseW  = flamOneOverlay ? laneStrikeWidth : strikeColWidth;
+        float ovlAnchorX = flamOneOverlay ? laneOffsetX : strikeOffsetX;
 
         Render::FrameSprite s;
         s.image     = overlayImage;
-        s.width     = strikeColWidth  * wScale * ovlRectSX;
+        s.width     = ovlBaseW        * wScale * ovlRectSX;
         s.height    = strikeColHeight * hScale * ovlRectSY;
-        s.offsetX   = strikeOffsetX + overlayAdj.offsetX * s.width;
+        s.offsetX   = ovlAnchorX + overlayAdj.offsetX * s.width;
         s.offsetY   = zOff + arcOffsetStrike + overlayAdj.offsetY * s.height;
         s.drawOrder = (int)DrawOrder::OVERLAY;
         s.drawColumn = (int)gemColumn;
@@ -476,24 +561,40 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
             curveCoordsOverride = &pedalZone;
             curveScaleOverride  = PositionConstants::ELITE_PEDAL_CURVE_GAIN;
         }
+        // Flam half: warp across the PARENT lane. The warp is a shear and a sheared sprite
+        // paints taller, so baking over the squished sub-lane let the width sliders drive
+        // height. flamTilt scales the lean, 0 = level.
+        else if (flamHalf != FlamHalf::None)
+            curveScaleOverride = flamTilt;
         CurvedSwapArgs args{
             glyphImage, overlayImage, overlayAdjPtr,
             pedalBar ? PEDAL_CURVE_COLUMN : (int)gemColumn, isDrums,
-            strikeColWidth, strikeColHeight, hScale,
-            strikeOffsetX, zOff + arcOffsetStrike,
+            // gemBaseW drives the curved sprite's HEIGHT, so a flam half passes the full lane
+            // width here, not its own squished width. Passing the squished width made the
+            // curved path scale the gem down instead of squishing it, which is what turned
+            // flams into two small gems rather than one gem split in two.
+            laneStrikeWidth, strikeColHeight, hScale,
+            flamOneOverlay ? laneStrikeWidth : strikeColWidth,
+            flamOneOverlay ? laneOffsetX     : strikeOffsetX,
+            zOff + arcOffsetStrike,
+            ctx.frameScale.x,
         };
         applyCurvedImageSwap(outFrame, gemIdx, ovlIdx, args);
         curveCoordsOverride = nullptr;
         curveScaleOverride  = 1.0f;
     }
 
-    // Capture hit box from final gem sprite (uses same transform as drawFrame)
-    if (imageOverride == nullptr)
+    // Capture hit box from final gem sprite (uses same transform as drawFrame).
+    // A flam is two sprites but one note: the box comes off the left copy only, widened back
+    // out to the full lane so the seam between the halves isn't a dead zone.
+    if (imageOverride == nullptr && flamHalf != FlamHalf::Right)
     {
         const auto& gs = outFrame.sprites[gemIdx];
-        float cx = ctx.anchor.x + gs.offsetX * ctx.frameScale.x;
+        bool flam = (flamHalf != FlamHalf::None);
+        float cx = ctx.anchor.x + (flam ? laneOffsetX : gs.offsetX) * ctx.frameScale.x;
         float cy = ctx.anchor.y + gs.offsetY * ctx.frameScale.y;
-        float sw = gs.width  * ctx.frameScale.x;
+        float sw = (flam ? laneStrikeWidth * (gs.width / strikeColWidth) : gs.width)
+                 * ctx.frameScale.x;
         float sh = gs.height * ctx.frameScale.y;
         auto hbRect = juce::Rectangle<float>(cx - sw * 0.5f, cy - sh * 0.5f, sw, sh);
         if (barClipHalf == Render::ClipHalf::Left)
@@ -628,7 +729,8 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
             glyphImage, overlayImage, overlayAdjPtr,
             (int)gemColumn, isDrums,
             glyphRect.getWidth(), glyphRect.getHeight(), hScale,
-            0.0f, 0.0f,
+            glyphRect.getWidth(), 0.0f, 0.0f,
+            1.0f,
         };
         applyCurvedImageSwap(frame, gemIdx, ovlIdx, args);
     }
@@ -651,27 +753,49 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
 
 float NoteRenderer::getColumnDistFromCenter(int column, bool isDrums)
 {
+    return getColumnDistFromCenter(laneCoords[resolveLaneIndex((uint)column)], isDrums);
+}
+
+// Coords overload: for spans that aren't a whole lane, like a flam's half-lane.
+float NoteRenderer::getColumnDistFromCenter(
+    const PositionConstants::NormalizedCoordinates& colCoords, bool isDrums)
+{
     const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
-    const auto& colCoords = laneCoords[resolveLaneIndex((uint)column)];
     return PositionMath::columnDistFromCenter(fbCoords, colCoords);
 }
 
+// Snap a drawn width up to the next power of two, bounded by the source (never bake bigger
+// than the art) and by a floor (a 4px bake would alias into mush at the far end).
+int NoteRenderer::curveSizeBucket(float drawnWidthPx, int sourceWidth)
+{
+    int want = juce::jmax(CURVE_BAKE_MIN_WIDTH, (int)std::ceil(drawnWidthPx));
+    int bucket = CURVE_BAKE_MIN_WIDTH;
+    while (bucket < want && bucket < sourceWidth)
+        bucket *= 2;
+    return juce::jmin(bucket, juce::jmax(1, sourceWidth));
+}
+
 const NoteRenderer::CurvedImageEntry& NoteRenderer::getCurvedImage(
-    juce::Image* src, int column, bool isDrums)
+    juce::Image* src, int column, bool isDrums, float drawnWidthPx)
 {
     float curv = (isDrums ? noteCurvatureDrums : noteCurvatureGuitar) * curveScaleOverride;
-    CurveKey key{src, column, isDrums, (int)std::lround(curv * 10000.0f)};
+    int bucket = curveSizeBucket(drawnWidthPx, src->getWidth());
+    CurveKey key{src, column, isDrums, (int)std::lround(curv * 10000.0f), bucket};
     auto it = curvedCache.find(key);
     if (it != curvedCache.end())
         return it->second;
 
-    // Bound cache so dragging the curvature slider can't grow unbounded.
-    // 100 entries ≈ 3 curvatures × all (src,column,isDrums) combos.
-    if (curvedCache.size() >= 100)
+    // Bound cache so dragging the curvature slider can't grow unbounded. The working set is
+    // now (src x column x curvature x size bucket): flams add one warp per elite lane at their
+    // own tilt, and each gem holds a few size buckets as it travels down the highway. A cache that
+    // clears mid-frame re-bakes everything on screen, so the bound has to sit well above it.
+    if (curvedCache.size() >= 1200)
         curvedCache.clear();
 
-    int srcW = src->getWidth() / NOTE_CACHE_DOWNSAMPLE;
-    int srcH = src->getHeight() / NOTE_CACHE_DOWNSAMPLE;
+    // Bake at the size bucket, i.e. roughly what this gem is drawn at, rather than a fixed
+    // fraction of the art.
+    int srcW = bucket;
+    int srcH = (int)std::lround((double)src->getHeight() * bucket / (double)src->getWidth());
     if (srcW < 1) srcW = 1;
     if (srcH < 1) srcH = 1;
 
@@ -765,6 +889,9 @@ const NoteRenderer::CurvedImageEntry& NoteRenderer::getCurvedImage(
     float destCenter = (float)destH * 0.5f;
     float yOffsetFraction = (srcCenterInDest - destCenter) / (float)srcH;
 
-    auto [insertIt, _] = curvedCache.emplace(key, CurvedImageEntry{std::move(dest), yOffsetFraction});
+    float contentFraction = (float)srcH / (float)destH;
+
+    auto [insertIt, _] = curvedCache.emplace(
+        key, CurvedImageEntry{std::move(dest), yOffsetFraction, contentFraction});
     return insertIt->second;
 }

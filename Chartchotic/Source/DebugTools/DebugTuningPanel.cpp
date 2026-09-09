@@ -278,6 +278,36 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
                            [this]() { fireChanged(); });
     }
 
+    // --- Flam section (elite): how far each copy is squished, per glyph type, plus the gap
+    // between their centres. All fractions of the lane; Spread = 1 - Width sits a pair flush
+    // with the lane's edges. Height is never scaled, so these squish rather than shrink. ---
+    setupSectionHeader(flamHeader, "Flam");
+    flamHeader.setExpanded(true);
+    {
+        static constexpr const char* names[FLAM_COUNT] = {
+            "W Note", "W Ghost", "W Accent", "W Cym", "W CymGh", "W CymAc", "Spread", "Tilt"
+        };
+        float* ptrs[FLAM_COUNT] = {
+            &flamTypeWidths.note, &flamTypeWidths.ghost, &flamTypeWidths.accent,
+            &flamTypeWidths.cymbal, &flamTypeWidths.cymGhost, &flamTypeWidths.cymAccent,
+            &flamSubLaneSpread, &flamTilt
+        };
+        static constexpr float lo[FLAM_COUNT]    = {0.20f, 0.20f, 0.20f, 0.20f, 0.20f, 0.20f, 0.00f, 0.00f};
+        static constexpr float hi[FLAM_COUNT]    = {1.00f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f};
+        static constexpr float steps[FLAM_COUNT] = {0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f};
+        static constexpr int   dec[FLAM_COUNT]   = {2, 2, 2, 2, 2, 2, 2, 2};
+
+        for (int i = 0; i < FLAM_COUNT; i++)
+            flamTunables[i] = {names[i], ptrs[i], lo[i], hi[i], steps[i], dec[i]};
+
+        initTunableSliders(flamLabels, flamTunables, FLAM_COUNT,
+                           [this]() { fireChanged(); });
+    }
+    flamOneOverlayToggle.setButtonText("One Overlay");
+    flamOneOverlayToggle.setToggleState(PositionConstants::FLAM_SINGLE_OVERLAY,
+                                        juce::dontSendNotification);
+    flamOneOverlayToggle.onClick = [this]() { fireChanged(); };
+
     // --- Base Scale table (Gem/Bar x W/H) ---
     setupSectionHeader(baseScaleHeader, "Base Scale");
 
@@ -872,6 +902,10 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     tuningButton.addPanelChild(&curvatureHeader);
     addTunableChildren(curvatureLabels, CURVATURE_COUNT);
 
+    tuningButton.addPanelChild(&flamHeader);
+    addTunableChildren(flamLabels, FLAM_COUNT);
+    tuningButton.addPanelChild(&flamOneOverlayToggle);
+
     // Base Scale table
     tuningButton.addPanelChild(&baseScaleHeader);
     for (int c = 0; c < BASE_SCALE_COLS; c++)
@@ -1014,6 +1048,10 @@ void DebugTuningPanel::applyTo(SceneRenderer& sr) const
 {
     sr.noteCurvatureGuitar = guitarCurvature;
     sr.noteCurvatureDrums = drumCurvature;
+    sr.flamTypeWidths    = flamTypeWidths;
+    sr.flamSubLaneSpread = flamSubLaneSpread;
+    sr.flamTilt          = flamTilt;
+    sr.flamSingleOverlay = flamOneOverlayToggle.getToggleState();
     sr.guitarGemScale = guitarGemScale;
     sr.drumGemScale   = drumGemScale;
     sr.guitarBarScale = guitarBarScale;
@@ -1260,6 +1298,9 @@ void DebugTuningPanel::refreshLabels()
     // Curvature labels
     refreshTunableLabels(curvatureLabels, curvatureTunables, CURVATURE_COUNT);
 
+    // Flam labels
+    refreshTunableLabels(flamLabels, flamTunables, FLAM_COUNT);
+
     // Base Scale table — reflects the active instrument's scales
     for (int r = 0; r < BASE_SCALE_ROWS; r++)
     {
@@ -1430,6 +1471,13 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     curvatureHeader.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
     layoutTunableRows(curvatureLabels, CURVATURE_COUNT, curvatureHeader.expanded, margin, w, rowHeight, gap, y);
+    y += headerGap;
+
+    // --- Flam (elite sub-lane width / spread) ---
+    flamHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    layoutTunableRows(flamLabels, FLAM_COUNT, flamHeader.expanded, margin, w, rowHeight, gap, y);
+    layoutRow(flamOneOverlayToggle, flamHeader.expanded);
     y += headerGap;
 
     // --- Lane Width sliders (always visible — quick tune) ---

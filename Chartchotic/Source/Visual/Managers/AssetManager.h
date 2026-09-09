@@ -139,11 +139,23 @@ private:
     // Downscale helper: returns src unchanged if already smaller than targetWidth
     static juce::Image downscale(const juce::Image& src, int targetWidth);
 
+    // How wide an asset is ever actually drawn, as a fraction of the viewport. Scaling
+    // everything to one size made every gem blit resample a source many times larger than
+    // its destination, and JUCE's cost scales with the SOURCE, not the destination: on elite
+    // that was ~230us per gem against ~36us from a lane-sized source. Bars really do span the
+    // board, so they keep a full-width master and stay sharp.
+    enum class AssetWidthClass
+    {
+        FullBoard,   // kick / open / star-power bars: drawn edge to edge
+        Lane,        // gems, overlays, hit flashes: never wider than one lane's gem box
+    };
+
     // Full-resolution originals (kept for re-scaling on window resize)
     struct ScalableAsset
     {
         juce::Image* target;   // pointer to the active (scaled) member
         juce::Image fullRes;   // original full-res copy
+        AssetWidthClass widthClass = AssetWidthClass::Lane;
     };
     std::vector<ScalableAsset> scalableAssets;
     int lastScaledWidth = 0;

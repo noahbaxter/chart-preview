@@ -292,6 +292,16 @@ private:
     ScrollableLabel curvatureLabels[CURVATURE_COUNT];
     DebugTunable curvatureTunables[CURVATURE_COUNT];
 
+    // --- Flam section (elite): per-glyph-type squish widths, centre spread, overlay toggle ---
+    SectionHeader flamHeader;
+    static constexpr int FLAM_COUNT = 8;   // 6 per-type widths + spread + tilt
+    PositionConstants::FlamTypeWidths flamTypeWidths = PositionConstants::FLAM_TYPE_WIDTHS;
+    float flamSubLaneSpread = PositionConstants::FLAM_SUBLANE_SPREAD;
+    float flamTilt = PositionConstants::FLAM_TILT;
+    ScrollableLabel flamLabels[FLAM_COUNT];
+    DebugTunable flamTunables[FLAM_COUNT];
+    juce::ToggleButton flamOneOverlayToggle;
+
     // --- Base Scale table (2 rows x 2 cols: W, H) ---
     SectionHeader baseScaleHeader;
     static constexpr int BASE_SCALE_ROWS = 2;

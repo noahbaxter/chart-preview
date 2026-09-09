@@ -24,6 +24,9 @@
 #include <iostream>
 #include <cmath>
 #include <algorithm>
+#include <chrono>
+#include <cstdio>
+#include <vector>
 
 #include "Utils/ChartTypes.h"
 #include "UI/ControlConstants.h"
@@ -145,6 +148,24 @@ static FakeScene makeEliteScene(float farEnd)
     putHat(11, Gem::CYM_ACCENT, HiHatState::Closed);
     putHat(13, Gem::CYM,        HiHatState::Indifferent);
 
+    // Flams, up front where the two squished copies are big enough to judge. A drum lane
+    // (snare) and a cymbal lane (ride), each flam / plain / ghost flam / accent flam, so the
+    // pair can be compared straight across against its plain twin. Beat 16 is an Open Ghost
+    // Flam: flam, dynamic and hat state all at once, which the spec calls a legal combination.
+    auto putFlam = [&](int b, int col, Dyn d, HiHatState hh = HiHatState::None) {
+        s.track[b * BEAT][col] = GemWrapper(gemFor(col, d), false, hh, /*flam=*/true);
+    };
+    // Odd beats only: the kick dynamics below sit on 2/4/6 and their full-width bars draw
+    // over a hand gem sharing the beat.
+    for (int lane : { 1, 7 })
+    {
+        putFlam(1, lane, NORMAL);
+        put(3, lane, gemFor(lane, NORMAL));   // plain control
+        putFlam(5, lane, GHOST);
+        putFlam(7, lane, ACCENT);
+    }
+    putFlam(16, 2, GHOST, HiHatState::Open);
+
     // Kick dynamics up front, where they are big enough to eyeball: ghost / normal / accent.
     // The permutation block below also charts kicks, but it sits past the visible window.
     s.track[2 * BEAT][0]  = GemWrapper(Gem::HOPO_GHOST);
@@ -200,6 +221,15 @@ int main(int argc, char** argv)
     float  scroll = 0.0f;
     float  length = 3.0f;        // highway length multiplier (3.0 = 300%); scales farFadeEnd
     float  fretWidth = PositionConstants::ELITE_BOARD_WIDTH_SCALE;   // elite box width multiplier (wider render box, same drum slant)
+    // >0: repaint this many times and print per-phase timings instead of comparing PNGs.
+    // The plugin's own benchmark target can't build (its asset list predates the repo
+    // reorganisation), and this path already links the real renderers with real assets.
+    int    benchIters = 0;
+    // Elite flam shape, the same two knobs as the debug panel's Flam section.
+    PositionConstants::FlamTypeWidths flamWidths = PositionConstants::FLAM_TYPE_WIDTHS;
+    float  flamSpread = PositionConstants::FLAM_SUBLANE_SPREAD;
+    bool   flamOneOverlay = PositionConstants::FLAM_SINGLE_OVERLAY;
+    float  flamTilt = PositionConstants::FLAM_TILT;
     bool   railsOnly = false;    // alias for --only sidebars
     // Render only the named parts in isolation (empty = all). Parts:
     // board gridlines gems sidebars lanes strikeline connectors
@@ -219,6 +249,14 @@ int main(int argc, char** argv)
         else if (a == "--length" && i + 1 < argc) length = juce::String(argv[++i]).getFloatValue();
         else if (a == "--fret-width" && i + 1 < argc) fretWidth = juce::String(argv[++i]).getFloatValue();
         else if (a == "--scroll" && i + 1 < argc) scroll = juce::String(argv[++i]).getFloatValue();
+        else if (a == "--bench" && i + 1 < argc) benchIters = juce::String(argv[++i]).getIntValue();
+        else if (a == "--flam-width"  && i + 1 < argc) {
+            float v = juce::String(argv[++i]).getFloatValue();   // sets every glyph type
+            flamWidths = { v, v, v, v, v, v };
+        }
+        else if (a == "--flam-spread" && i + 1 < argc) flamSpread = juce::String(argv[++i]).getFloatValue();
+        else if (a == "--flam-tilt" && i + 1 < argc) flamTilt = juce::String(argv[++i]).getFloatValue();
+        else if (a == "--flam-two-overlays") flamOneOverlay = false;
         else if (a == "--rails-only") railsOnly = true;
         else if (a == "--bemani") bemani = true;
         else if (a == "--only" && i + 1 < argc) onlyParts.addTokens(argv[++i], ",", "");
@@ -304,6 +342,10 @@ int main(int argc, char** argv)
     // cover it. Set before overflow/rebuild so all baking uses the extended board.
     scene.farFadeEnd    = FAR_FADE_DEFAULT * length;
     scene.highwayPosEnd = std::max(PositionConstants::HIGHWAY_POS_END, scene.farFadeEnd);
+    scene.flamTypeWidths    = flamWidths;
+    scene.flamSubLaneSpread = flamSpread;
+    scene.flamSingleOverlay = flamOneOverlay;
+    scene.flamTilt          = flamTilt;
 
     scene.rescaleAssets(renderWidth);
     if (isElite)
@@ -357,6 +399,63 @@ int main(int argc, char** argv)
     // depth units directly, out past 1.0 into the extended board.
     const double windowStart = 0.0;
     const double windowEnd   = 1.0;
+
+    if (benchIters > 0)
+    {
+        scene.collectPhaseTiming = true;
+        struct Acc { double notes = 0, sustains = 0, grid = 0, anim = 0, exec = 0, total = 0, board = 0; } acc;
+        std::vector<double> totals;
+        totals.reserve((size_t)benchIters);
+
+        // Warmup has to cover every first-frame bake (curved-gem cache, flare tints, texture
+        // prebake) or they land in the mean and swamp the steady-state cost.
+        constexpr int kWarmup = 15;
+        // One canvas reused across iterations: a fresh 1440x1462 ARGB is ~8 MB to allocate
+        // and zero, which is several times the frame cost being measured.
+        juce::Image benchCanvas(juce::Image::ARGB, renderWidth, totalH, true);
+        for (int i = 0; i < benchIters + kWarmup; i++)
+        {
+            benchCanvas.clear(benchCanvas.getBounds());
+            juce::Graphics g(benchCanvas);
+            auto t0 = std::chrono::high_resolution_clock::now();
+            if (showBoard)
+            {
+                track.paint(g, renderWidth, totalH);
+                track.paintTexture(g, scroll, renderWidth, totalH);
+            }
+            auto t1 = std::chrono::high_resolution_clock::now();
+            if (overflow > 0)
+                g.addTransform(juce::AffineTransform::translation(0.0f, (float)overflow));
+            scene.paint(g, renderWidth, renderHeight, trackWindow, sustainWindow, gridlines,
+                        flipRegions, eventMarkers, windowStart, windowEnd, false);
+            if (i < kWarmup) continue;
+
+            const auto& pt = scene.lastPhaseTiming;
+            double boardUs = std::chrono::duration<double, std::micro>(t1 - t0).count();
+            acc.notes += pt.notes_us;     acc.sustains += pt.sustains_us;
+            acc.grid  += pt.gridlines_us; acc.anim     += pt.animation_us;
+            acc.exec  += pt.execute_us;   acc.board    += boardUs;
+            acc.total += pt.total_us + boardUs;
+            totals.push_back(pt.total_us + boardUs);
+        }
+
+        std::sort(totals.begin(), totals.end());
+        double n = (double)benchIters;
+        std::printf("%-6s %dx%d  %d iters\n", partName.toRawUTF8(), renderWidth, totalH, benchIters);
+        std::printf("  board(track+texture) %8.0f us\n", acc.board / n);
+        std::printf("  notes                %8.0f us\n", acc.notes / n);
+        std::printf("  sustains             %8.0f us\n", acc.sustains / n);
+        std::printf("  gridlines            %8.0f us\n", acc.grid / n);
+        std::printf("  animation            %8.0f us\n", acc.anim / n);
+        std::printf("  execute              %8.0f us  (%d draw calls, %.1f us each)\n",
+                    acc.exec / n, scene.lastPhaseTiming.drawCalls,
+                    scene.lastPhaseTiming.drawCalls > 0
+                        ? (acc.exec / n) / scene.lastPhaseTiming.drawCalls : 0.0);
+        std::printf("  TOTAL mean           %8.0f us   p95 %.0f   (%.0f%% of a 60fps frame)\n",
+                    acc.total / n, totals[(size_t)(totals.size() * 0.95)],
+                    (acc.total / n) / 16666.7 * 100.0);
+        return 0;
+    }
 
     juce::Image canvas(juce::Image::ARGB, renderWidth, totalH, true);
     {

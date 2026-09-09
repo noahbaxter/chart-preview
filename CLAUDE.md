@@ -33,6 +33,15 @@ between calls and you'll get flicker/race conditions. (Burned us in v0.8.6.)
 `GlyphRenderer` only handles overlay positioning (drum accent scale). Fretboard width scales
 are tunable via debug sliders on `SceneRenderer` and passed through to `AnimationRenderer`.
 
+**Render perf**: JUCE's `g.drawImage` cost tracks the SOURCE image size, not the destination
+(a big source blows the cache-line budget per destination pixel). Blitting a half-viewport gem
+master into a small 9-lane elite gem cost ~230us a sprite against ~36us from a right-sized
+source. So keep every blit source close to its drawn size: `AssetManager::rescaleForWidth`
+splits masters into full-board vs lane width classes, and `NoteRenderer::curveSizeBucket` bakes
+curved gems at roughly their drawn width. Measure with `render_harness --bench N` (prints
+per-phase timings plus draw-call count). Note `./test.sh bench` does NOT build: its asset list
+still points at the pre-rename `Chartchotic/Assets/`, which is now empty.
+
 **Chart format specs**: `.mid` note types, modifiers, MIDI mappings live at
 `../_refs/midi/` (quick reference) and `../chart-formats/docs/Chart-File-Formats/mid-format/`
 (full docs). Covers 5-fret guitar, drums, 6-fret, pro guitar, vocals.

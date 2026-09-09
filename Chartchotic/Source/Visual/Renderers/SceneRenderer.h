@@ -101,6 +101,11 @@ class SceneRenderer
         // Note curvature and scaling (runtime-adjustable for debug UI)
         float noteCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
         float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE_DRUMS;
+        // Elite flam: how wide each of the two copies is, and how far apart their centres sit.
+        PositionConstants::FlamTypeWidths flamTypeWidths = PositionConstants::FLAM_TYPE_WIDTHS;
+        float flamSubLaneSpread = PositionConstants::FLAM_SUBLANE_SPREAD;
+        bool  flamSingleOverlay = PositionConstants::FLAM_SINGLE_OVERLAY;
+        float flamTilt = PositionConstants::FLAM_TILT;
         // Per-instrument base scales — paint() picks the active one.
         PositionConstants::ElementScale guitarGemScale = PositionConstants::GUITAR_GEM_SCALE;
         PositionConstants::ElementScale drumGemScale   = PositionConstants::DRUM_GEM_SCALE;

@@ -109,6 +109,41 @@ namespace PositionConstants
     // Size & Scale Factors
     constexpr float GEM_SIZE = 1.252f;                   // Regular gem/note scaling factor (1.089 × 1.15 — the 1.15 is a baked default size bump; user-facing scales sit on top of this)
     constexpr float BAR_SIZE = 1.026f;                  // Bar note (kick/open) scaling factor
+    // Elite flam placeholder treatment (real art later): the gem draws twice inside its own
+    // lane, each copy placed as if the lane were split into two narrower lanes, so both go
+    // through the ordinary lane math and pick up the perspective, arc and curvature warp of
+    // where they actually sit. Two independent knobs, both fractions of the parent lane's
+    // width and both live on the debug panel's Flam section:
+    //   WIDTH  — how wide each copy is, so how big the gems read.
+    //   SPREAD — distance between the two copies' centres, so how much they overlap.
+    // At SPREAD = 1 - WIDTH the pair sits flush with the lane's outer edges. Above that they
+    // pull apart (and eventually past the lane), below it they bury each other.
+    // Per glyph type, because the art squishes differently: a wide flat snare/tom reads fine
+    // narrowed hard, a round cymbal distorts, and ghosts are already drawn small so they need
+    // more width to stay legible. Height is never touched: a flam is one gem's height split
+    // into two narrower copies, not two smaller gems.
+    // Values dialled in on the highway. Ghosts want much more width than anything else (they
+    // are already drawn small, so squishing compounds), and the flat note art takes the most
+    // squish.
+    struct FlamTypeWidths
+    {
+        float note      = 0.46f;   // snare / toms
+        float ghost     = 0.78f;   // drum note ghost
+        float accent    = 0.46f;   // drum note accent
+        float cymbal    = 0.50f;
+        float cymGhost  = 0.50f;
+        float cymAccent = 0.50f;
+    };
+    constexpr FlamTypeWidths FLAM_TYPE_WIDTHS = {};
+    constexpr float FLAM_SUBLANE_SPREAD = 0.45f;
+    // How much of its lane's curvature warp a flam copy bakes in. 1 = the lean a plain gem in
+    // that lane carries, 0 = level. Baked over the PARENT lane, never the squished sub-lane:
+    // the warp is a shear and a sheared sprite paints taller, so tying it to the sub-lane put
+    // the width sliders in charge of height. Level reads best at these widths.
+    constexpr float FLAM_TILT = 0.0f;
+    // Ghost/accent overlays are per-gem, so a flam draws two and they cross in the overlap.
+    // On, one overlay is drawn centred on the whole lane instead of one per half.
+    constexpr bool  FLAM_SINGLE_OVERLAY = false;
     constexpr float GRIDLINE_WIDTH_SCALE = 1.12f;       // Gridline width relative to fretboard
     constexpr float TEXT_EVENT_WIDTH_SCALE = 1.00f;    // Text event marker width relative to fretboard
     constexpr float GRIDLINE_POS_OFFSET = -0.020f;      // Nudge gridlines forward in position space
@@ -372,7 +407,8 @@ namespace PositionConstants
     constexpr float ELITE_PEDAL_Z_NUDGE    = 1.5f;
     // Vertical scale of the baked Stomp/Splash bar (taller = easier to read on the highway).
     constexpr float ELITE_PEDAL_THICKNESS  = 2.0f;
-    constexpr int NOTE_CACHE_DOWNSAMPLE = 2;       // Source resolution divisor (2 = 1/2 res)
+    // Curved gems used to bake at a fixed fraction of the source art; they now bake at the
+    // size they are drawn (NoteRenderer::curveSizeBucket), so there is no fixed divisor.
 
     //==============================================================================
     // Per-instrument Z offsets (reference pixels at 720px height, positive = down)
