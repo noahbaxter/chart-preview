@@ -35,6 +35,7 @@ public:
 
     bool showGems = true;
     bool showBars = true;
+    float barModeDim = 1.0f;
     float noteCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
     float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE;
     PositionConstants::ElementScale gemScale = PositionConstants::GEM_SCALE;
@@ -72,6 +73,15 @@ public:
 
     struct SelectedGem { int lane; double time; };
     std::vector<SelectedGem> selectedGems;
+    std::vector<SelectedGem> eraseTargets;
+
+    struct NoteHitBox
+    {
+        int   lane = -1;
+        double timeSec = 0.0;
+        juce::Rectangle<float> rect;
+    };
+    const std::vector<NoteHitBox>& getHitBoxes() const { return hitBoxes; }
 
 private:
     juce::ValueTree& state;
@@ -127,7 +137,7 @@ private:
     // Frame directly (anchor at gem's screen position, scale 1.0). Doesn't
     // contribute to the shared composite — bemani has no chord-stack drift.
     void drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, float position,
-                       juce::Image* glyphImage, bool barNote, float opacity);
+                       double frameTime, juce::Image* glyphImage, bool barNote, float opacity);
 
     const PositionConstants::OverlayAdjust& getOverlayAdjustForGem(Gem gem, bool isDrums) const;
 
@@ -175,4 +185,6 @@ private:
 
     const CurvedImageEntry& getCurvedImage(juce::Image* src, int column, bool isDrums);
     float getColumnDistFromCenter(int column, bool isDrums);
+
+    std::vector<NoteHitBox> hitBoxes;
 };

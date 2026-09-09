@@ -43,8 +43,7 @@ private:
 
     // Marquee state
     juce::Point<float> marqueeScreenStart;
-    int    marqueeLaneStart = 0;
-    double marqueeQNStart   = 0.0;
+    MarqueeRect marqueeRect;
 
     // Move state
     juce::Point<float> moveScreenStart;

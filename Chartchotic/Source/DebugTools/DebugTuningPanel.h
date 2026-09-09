@@ -53,6 +53,7 @@ public:
     std::function<void(float)> onTextureOpacityChanged;
     std::function<void()> onPolyShadeChanged;
     std::function<void(bool)> onDebugColourChanged;
+    std::function<void(bool)> onClickZonesChanged;
     std::function<void(bool)> onStretchChanged;
     std::function<void(bool)> onBemaniToggled;
     std::function<void(float, float)> onHwyScaleChanged;
@@ -266,6 +267,7 @@ private:
     // Debug visualization toggles
     juce::ToggleButton polyShadeToggle;
     juce::ToggleButton debugColourToggle;
+    juce::ToggleButton clickZonesToggle;
     juce::ToggleButton stretchToggle;
     juce::ToggleButton bemaniToggle;
 

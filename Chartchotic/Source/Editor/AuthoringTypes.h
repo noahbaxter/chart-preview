@@ -8,6 +8,12 @@
 // Authoring types shared between HighwayComponent (event dispatcher),
 // WriteController (state owner), and GridlineGenerator (step grid).
 
+namespace AuthoringColours
+{
+    static const juce::Colour selectTint = juce::Colour(180, 220, 255).withAlpha((uint8)140);
+    static const juce::Colour eraseTint  = juce::Colour(255, 80, 80).withAlpha((uint8)160);
+}
+
 struct AuthoringPoint
 {
     juce::Point<float> screenPos;
@@ -29,10 +35,48 @@ struct AuthoringContext
 
 struct SelectedNote
 {
-    int    trackIdx = -1;
-    double startQN  = 0.0;
-    int    pitch    = -1;
-    int    lane     = -1;
+    int    trackIdx    = -1;
+    double startQN     = 0.0;
+    int    pitch       = -1;
+    int    lane        = -1;
+    bool   sustainOnly = false;
+};
+
+struct MarqueeRect
+{
+    double startQN = 0.0;
+    int    startLane = 0;
+    double qnLo = 0.0, qnHi = 0.0;
+    int    laneLo = 0, laneHi = 0;
+
+    void begin(double qn, int lane)
+    {
+        startQN = qn; startLane = lane;
+        qnLo = qnHi = qn;
+        laneLo = laneHi = lane;
+    }
+
+    void update(double qn, int lane, bool barMode, bool isDrums)
+    {
+        qnLo = std::min(startQN, qn);
+        qnHi = std::max(startQN, qn);
+        if (barMode)
+        {
+            laneLo = 0;
+            laneHi = isDrums ? 4 : 5;
+        }
+        else
+        {
+            laneLo = std::min(startLane, lane);
+            laneHi = std::max(startLane, lane);
+        }
+    }
+
+    bool contains(double qn, int lane) const
+    {
+        return qn >= qnLo - 0.001 && qn <= qnHi + 0.001
+            && lane >= laneLo && lane <= laneHi;
+    }
 };
 
 struct OverlayState
@@ -73,12 +117,16 @@ struct OverlayState
     bool                     moveDragVisible = false;
     std::vector<PreviewNote> movePreviewNotes;
 
-    // Marquee selection (edit mode) — highway-space coordinates
-    bool   marqueeVisible = false;
-    int    marqueeLaneStart = 0;
-    int    marqueeLaneEnd   = 0;
-    double marqueeQNStart   = 0.0;
-    double marqueeQNEnd     = 0.0;
+    // Marquee (select or erase) — highway-space coordinates
+    bool        marqueeVisible = false;
+    bool        marqueeErase   = false;
+    MarqueeRect marqueeRect;
+    double      eraseClickedNoteQN    = -1.0;
+    int         eraseClickedLane     = -1;
+    double      eraseClickedSustainQN = -1.0;
+    int         eraseClickedSustainLane = -1;
+
+    bool   barMode = false;
 };
 
 //==============================================================================
@@ -162,9 +210,12 @@ enum class WriteCommand {
     StepUp,
     DeleteSelection,
     DeselectAll,
+    ToggleBarMode,
 };
 
 enum class SubMode { Draw, Edit };
+enum class DrumDynamic { Normal, Ghost, Accent };
+enum class GuitarForce { None, Hopo, Strum, Tap };
 
 //==============================================================================
 // Step grid math — shared between WriteController (click snap) and

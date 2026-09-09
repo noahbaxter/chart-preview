@@ -126,6 +126,12 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     bool shouldBeWhite = starPowerActive && sustain.gemType.starPower;
     auto colour = assetManager.getLaneColour(sustain.gemColumn, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS, shouldBeWhite);
 
+    for (const auto& ts : tintedSustains)
+        if (ts.lane == (int)sustain.gemColumn
+            && sustain.endTime > ts.startTime - 0.002
+            && sustain.startTime < ts.endTime + 0.002)
+        { colour = ts.colour; break; }
+
     float opacity, sustainWidth;
     DrawOrder sustainDrawOrder;
     bool isKickCol = isDrumKick(sustain.gemColumn);

@@ -24,12 +24,16 @@ public:
     void onPointerUp     (const AuthoringPoint& p, const AuthoringContext& ctx);
     void onPointerExit   ()    { lastPointValid = false; recomputeGhost(); }
     void onPointerCancel ()    {}
+    void stateDidChange();
     bool onKeyPress      (const juce::KeyPress& key);
+    WriteCommand resolveKeyCommand(const juce::KeyPress& key) const
+    {
+        return commandMapper.resolveKey(writeModeActive(), key);
+    }
     void onFrameTick     (double currentProjectQN, bool isPlaying);
 
 private:
     void loadPersistedState();
-    void stateDidChange();
 
     juce::ValueTree& state;
 
@@ -39,9 +43,13 @@ private:
     AuthoringPoint lastPoint;
     bool           lastPointValid = false;
 
-    // Erase drag state
-    bool eraseDragActive   = false;
-    int  eraseDragTrackIdx = -1;
+    // Erase drag state (deferred — notes tinted red, erased on commit)
+    bool        eraseDragActive    = false;
+    int         eraseDragTrackIdx  = -1;
+    MarqueeRect eraseRect;
+    double      eraseClickedNoteQN = -1.0;
+    double      eraseClickedSustainQN = -1.0;
+    int         eraseClickedSustainLane = -1;
 
     // Sustain drag state
     bool   sustainDragActive   = false;
@@ -49,7 +57,8 @@ private:
     double sustainDragStartQN  = 0.0;
     int    sustainDragLane     = -1;
     int    sustainDragPitch     = -1;
-    bool   sustainDragChainMode = false;
+    bool   sustainPendingClick    = false;
+    double sustainPendingClickQN  = 0.0;
 
     // Paint drag state
     bool   paintDragActive   = false;
@@ -64,7 +73,7 @@ private:
 
     bool   canWrite(const AuthoringPoint& p) const;
     void   recomputeGhost();
-    void   enterSustainDrag(int trackIdx, double startQN, int lane, int pitch, bool chainMode);
+    void   enterSustainDrag(int trackIdx, double startQN, int lane, int pitch);
     void   clearSustainDrag();
 
     void handleBeginSustain  (const AuthoringPoint& p, int trackIdx, int pitch, bool drums);

@@ -130,6 +130,22 @@ public:
 
         g.setColour(tuplColour);
         g.drawText(tuplText, x, 0, tuplW, h, juce::Justification::centred);
+        x += tuplW + gap;
+
+        if (interactionController.barMode())
+        {
+            const juce::String barLabel = "BAR";
+            int barW = juce::jmax(32, g.getCurrentFont().getStringWidth(barLabel) + snapPadX * 2);
+            int barH = snapH;
+            int barY = (h - barH) / 2;
+            auto barBounds = juce::Rectangle<float>(
+                (float)x, (float)barY, (float)barW, (float)barH).reduced(1.0f);
+            g.setColour(juce::Colour(Theme::yellow));
+            g.fillRoundedRectangle(barBounds, Theme::pillCorner);
+            g.setColour(juce::Colour(Theme::darkBg));
+            g.setFont(Theme::smallFont);
+            g.drawText(barLabel, x, barY, barW, barH, juce::Justification::centred);
+        }
     }
 
 private:

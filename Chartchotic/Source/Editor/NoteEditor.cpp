@@ -18,16 +18,8 @@ bool NoteEditor::createNote(int trackIdx, double startQN, int pitch)
 {
     if (!midiWriter || !instrumentSession) return false;
 
-    auto existing = midiWriter->findNote(trackIdx, startQN, pitch);
-    if (existing.noteIndex >= 0 && existing.startQN < startQN)
-    {
-        if (batchActive)
-            midiWriter->batchMoveNote(trackIdx, existing.noteIndex, existing.startQN, startQN, pitch);
-        else
-            midiWriter->moveNote(trackIdx, existing.noteIndex, existing.startQN, startQN, pitch);
-    }
+    double endQN = resolveOverlaps(trackIdx, startQN, startQN + kShortNoteDurationQN, pitch);
 
-    double endQN = startQN + kShortNoteDurationQN;
     bool ok = batchActive
         ? midiWriter->batchInsertNote(trackIdx, startQN, endQN, 0, pitch, 100)
         : midiWriter->insertNote(trackIdx, startQN, endQN, 0, pitch, 100);
@@ -75,32 +67,32 @@ bool NoteEditor::truncateNote(int trackIdx, double noteStartQN, int pitch)
     return ok;
 }
 
-bool NoteEditor::extendNote(int trackIdx, double startQN, double endQN, int pitch)
-{
-    if (!midiWriter || !instrumentSession) return false;
-
-    auto note = midiWriter->findNote(trackIdx, startQN, pitch);
-    if (note.noteIndex < 0) return false;
-
-    bool ok = batchActive
-        ? midiWriter->batchMoveNote(trackIdx, note.noteIndex, note.startQN, endQN, pitch)
-        : midiWriter->moveNote(trackIdx, note.noteIndex, note.startQN, endQN, pitch);
-
-    if (ok) instrumentSession->invalidateTrack(trackIdx);
-    return ok;
-}
-
 bool NoteEditor::chainExtendNotes(int trackIdx, double startQN, double endQN, int pitch)
 {
     if (!midiWriter || !instrumentSession) return false;
 
+    auto prev = midiWriter->findNote(trackIdx, startQN, pitch);
+    if (prev.noteIndex >= 0 && prev.startQN < startQN - 0.001)
+    {
+        if (batchActive)
+            midiWriter->batchMoveNote(trackIdx, prev.noteIndex, prev.startQN, startQN, pitch);
+        else
+            midiWriter->moveNote(trackIdx, prev.noteIndex, prev.startQN, startQN, pitch);
+    }
+
     auto notes = midiWriter->findNotesInRange(trackIdx, startQN, endQN, pitch);
     if (notes.empty()) return false;
+
+    double lastNoteEnd = endQN;
+    auto tail = midiWriter->findNote(trackIdx, endQN, pitch);
+    if (tail.noteIndex >= 0 && tail.startQN > notes.back().startQN + 0.001
+        && tail.startQN < endQN + 0.001)
+        lastNoteEnd = tail.startQN;
 
     bool changed = false;
     for (int i = (int)notes.size() - 1; i >= 0; --i)
     {
-        double noteEnd = (i + 1 < (int)notes.size()) ? notes[i + 1].startQN : endQN;
+        double noteEnd = (i + 1 < (int)notes.size()) ? notes[i + 1].startQN : lastNoteEnd;
         if (noteEnd <= notes[i].startQN) continue;
 
         auto note = midiWriter->findNote(trackIdx, notes[i].startQN, pitch);
@@ -131,6 +123,11 @@ bool NoteEditor::moveNote(int trackIdx, double oldStartQN, int oldPitch,
     auto note = midiWriter->findNote(trackIdx, oldStartQN, oldPitch);
     if (note.noteIndex < 0) return false;
 
+    newEndQN = resolveOverlaps(trackIdx, newStartQN, newEndQN, newPitch);
+
+    note = midiWriter->findNote(trackIdx, oldStartQN, oldPitch);
+    if (note.noteIndex < 0) return false;
+
     bool ok = batchActive
         ? midiWriter->batchMoveNote(trackIdx, note.noteIndex, newStartQN, newEndQN, newPitch)
         : midiWriter->moveNote(trackIdx, note.noteIndex, newStartQN, newEndQN, newPitch);
@@ -144,6 +141,32 @@ std::vector<MidiWriter::NoteInfo> NoteEditor::findNotesInRange(int trackIdx, dou
 {
     if (!midiWriter) return {};
     return midiWriter->findNotesInRange(trackIdx, startQN, endQN, pitch);
+}
+
+double NoteEditor::resolveOverlaps(int trackIdx, double startQN, double endQN, int pitch)
+{
+    if (!midiWriter) return endQN;
+
+    auto prev = midiWriter->findNote(trackIdx, startQN, pitch);
+    if (prev.noteIndex >= 0 && prev.startQN < startQN - 0.001)
+    {
+        if (batchActive)
+            midiWriter->batchMoveNote(trackIdx, prev.noteIndex, prev.startQN, startQN, pitch);
+        else
+            midiWriter->moveNote(trackIdx, prev.noteIndex, prev.startQN, startQN, pitch);
+    }
+
+    auto inRange = midiWriter->findNotesInRange(trackIdx, startQN, endQN, pitch);
+    for (const auto& n : inRange)
+    {
+        if (n.startQN > startQN + 0.001)
+        {
+            endQN = n.startQN;
+            break;
+        }
+    }
+
+    return endQN;
 }
 
 void NoteEditor::beginBatch(const char* description)

@@ -200,6 +200,10 @@ private:
 #ifdef DEBUG
 public:
     bool showDebugColour = false;
+    bool showClickZones = false;
+    mutable float debugLastHitY = -1.0f;
+    mutable double debugLastResolvedQN = 0.0;
+    mutable int debugLastLane = -1;
     double debugTrackRender_us = 0.0;
     double debugHighwayPaint_us = 0.0;
 private:

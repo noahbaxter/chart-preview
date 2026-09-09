@@ -30,6 +30,9 @@ public:
 
     PositionConstants::LaneShapeConfig laneShape;
 
+    struct TintedSustain { int lane; double startTime; double endTime; juce::Colour colour; };
+    std::vector<TintedSustain> tintedSustains;
+
     void populate(DrawCallMap& drawCallMap, const TimeBasedSustainWindow& sustainWindow,
                   double windowStartTime, double windowEndTime,
                   uint width, uint height, bool showLanes, bool showSustains,
