@@ -12,6 +12,16 @@
 constexpr double kQNEpsilon   = 0.001;
 constexpr double kTimeEpsilon = 0.002;
 
+// Length given to a note that carries no sustain of its own. Placement, copy
+// capture and the drag preview all read it here so they cannot disagree about
+// how long an unmeasured note is.
+constexpr double kShortNoteDurationQN = 0.1;
+
+// How far back to search for a sustain whose body reaches the point tested.
+// Heuristic, not a derived bound: 8 bars of 4/4, and a longer sustain is
+// invisible to overlap resolution and to erase. See BACKLOG.
+constexpr double kSustainLookbackQN = 32.0;
+
 namespace AuthoringColours
 {
     static const juce::Colour selectTint = juce::Colour(180, 220, 255).withAlpha((uint8)140);
@@ -84,6 +94,10 @@ struct OverlayState
         double startQN = 0.0;
         double endQN = 0.0;
         int    pitch = -1;
+        // What the note actually is. Faded previews have to show the real
+        // gem, otherwise dragging a ghost or a cymbal makes it look like it
+        // turned into a plain note for the duration of the drag.
+        Gem    gem = Gem::NOTE;
     };
 
     // Hover ghost
@@ -92,7 +106,9 @@ struct OverlayState
     double ghostQN = 0.0;
     bool   ghostShowsErase = false;
     Gem    ghostGem = Gem::NOTE;
-    struct StampGhost { int lane; double qnOffset; double duration; };
+    // Transient hint for a modifier-held mode, e.g. alternating kick paint.
+    juce::String ghostModeLabel;
+    struct StampGhost { int lane; double qnOffset; double duration; Gem gem = Gem::NOTE; };
     std::vector<StampGhost> stampGhosts;
 
     // Draw stroke preview
@@ -172,6 +188,10 @@ enum class ModifierFlags : int {
     Shift = 1 << 0,
     Ctrl  = 1 << 1,
     Alt   = 1 << 2,
+    // Never bound to anything: the host owns Cmd. Tracked only so a bare-key
+    // binding refuses to fire while Cmd is held, leaving Cmd+S and friends to
+    // reach REAPER.
+    Cmd   = 1 << 3,
 };
 inline ModifierFlags operator|(ModifierFlags a, ModifierFlags b) {
     return static_cast<ModifierFlags>(static_cast<int>(a) | static_cast<int>(b));
@@ -205,9 +225,16 @@ enum class WriteCommand {
     ToggleWriteMode,
     ToggleSubMode,
     ToggleSnap,
+    ToggleTuplet,
     CycleTuplet,
     StepDown,
     StepUp,
+    // Home-row note-type slots; meaning is per-instrument, see ModifierSlots.h
+    ModifierSlot1,
+    ModifierSlot2,
+    ModifierSlot3,
+    ModifierSlot4,
+    ModifierSlot5,
     DeleteSelection,
     DeselectAll,
     ToggleBarMode,

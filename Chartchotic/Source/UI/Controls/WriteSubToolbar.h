@@ -47,13 +47,15 @@ public:
         tupletStepper.setCornerRadius(3.0f);
 
         addHoverZone(modeButtons,        {"Q"},      "draw places notes, edit selects & modifies");
+        // Modifier hints run in the same order as the segments they sit under,
+        // matching the home-row slots in ModifierSlots.h.
         barHelpZone = addHoverZone(barToggle, {"B"}, "only interact with open notes");
-        addHoverZone(snapToggle,         {"S"},      "lock note placement to grid");
-        addHoverZone(divisionStepper,    {"[", "]"}, "grid spacing (1/4, 1/8, 1/16...)");
-        addHoverZone(tupletStepper,      {"T"},      "tuplet subdivision (3, 5, 7)");
-        addHoverZone(guitarForceButtons, {},         "force HOPO, strum, or tap (overrides auto)");
-        addHoverZone(drumDynamicButtons, {},         "ghost (soft) or accent (loud) hit");
-        addHoverZone(cymbalToggle,       {},         "cymbal placement (PRO drums)");
+        addHoverZone(snapToggle,         {"E"},                    "lock note placement to grid");
+        addHoverZone(divisionStepper,    {"[", "]", "⌥scroll"},    "grid spacing (1/4, 1/8, 1/16...)");
+        addHoverZone(tupletStepper,      {"T", "⇧T"},              "tuplet on/off, shift cycles 3/5/7");
+        addHoverZone(guitarForceButtons, {"A", "S", "D", "F"},     "force HOPO, strum, or tap (overrides auto)");
+        addHoverZone(drumDynamicButtons, {"A", "S", "D"},          "ghost (soft) or accent (loud) hit");
+        addHoverZone(cymbalToggle,       {"F"},                    "cymbal placement (PRO drums)");
     }
 
     std::function<void(SubMode)> onSubModeChanged;

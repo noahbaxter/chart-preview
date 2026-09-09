@@ -78,6 +78,7 @@ void WriteController::recomputeGhost()
     overlayState.ghostQN         = 0.0;
     overlayState.ghostShowsErase = false;
     overlayState.ghostGem        = Gem::NOTE;
+    overlayState.ghostModeLabel  = {};
     overlayState.stampGhosts.clear();
 
     if (!lastPointValid)                                  return;
@@ -91,22 +92,30 @@ void WriteController::recomputeGhost()
     overlayState.ghostVisible = true;
     overlayState.ghostQN      = qn;
 
+    // Outside the drag guard below: the mode is still in force while you are
+    // painting, so the hint stays up for as long as shift is held.
+    if (altKickArmed)
+        overlayState.ghostModeLabel = "ALTERNATE KICKS";
+
     if (currentSubMode == SubMode::Draw
         && !sustainDragActive && !paintDragActive && !eraseDragActive
         && !stampCaptureActive)
     {
         if (!stamp.empty())
         {
-            int minLane = stamp[0].lane, maxStampLane = stamp[0].lane;
+            // The stamp holds the lanes it was copied from. The mouse moves it
+            // in time only; left/right arrows are the only way to move it
+            // across lanes, via shiftStampLanes.
             for (const auto& sn : stamp)
-            {
-                minLane = std::min(minLane, sn.lane);
-                maxStampLane = std::max(maxStampLane, sn.lane);
-            }
-            stampMouseLaneOffset = juce::jlimit(-minLane, maxLane() - maxStampLane,
-                                                lastPoint.laneIndex - minLane);
-            for (const auto& sn : stamp)
-                overlayState.stampGhosts.push_back({ sn.lane + stampMouseLaneOffset, sn.qnOffset, sn.duration });
+                overlayState.stampGhosts.push_back({ sn.lane, sn.qnOffset, sn.duration, sn.gem });
+        }
+        else if (altKickArmed)
+        {
+            // A shift-drag from here lays an alternating roll that always opens
+            // on 1x, so preview the 1x lane rather than whichever side the
+            // mouse is on.
+            overlayState.ghostLane = DRUM_KICK_COLUMN;
+            overlayState.ghostGem  = resolveGhostGem(DRUM_KICK_COLUMN);
         }
         else
         {
@@ -131,10 +140,12 @@ void WriteController::clearStamp()
 void WriteController::shiftStampLanes(int delta)
 {
     if (stamp.empty()) return;
-    int maxLane = isDrums() ? 4 : 5;
 
+    // maxLane() rather than a local count: arrows are now the only way to move
+    // a stamp sideways, so they have to reach every lane the mouse used to,
+    // kick lanes included when kick2x is on.
     for (const auto& sn : stamp)
-        if (sn.lane + delta < 0 || sn.lane + delta > maxLane) return;
+        if (sn.lane + delta < 0 || sn.lane + delta > maxLane()) return;
 
     for (auto& sn : stamp)
         sn.lane += delta;
@@ -212,15 +223,27 @@ void WriteController::setTuplet(int t)
     stateDidChange();
 }
 
+void WriteController::toggleTuplet()
+{
+    if (currentTuplet != 0)
+    {
+        lastTuplet = currentTuplet;
+        setTuplet(0);
+        return;
+    }
+    setTuplet(lastTuplet);
+}
+
 void WriteController::cycleTuplet()
 {
+    // Always lands on a live tuplet, so this doubles as "turn it on" when off.
     switch (currentTuplet)
     {
-        case 0: setTuplet(3); break;
-        case 3: setTuplet(5); break;
-        case 5: setTuplet(7); break;
-        default: setTuplet(0); break;
+        case 3:  lastTuplet = 5; break;
+        case 5:  lastTuplet = 7; break;
+        default: lastTuplet = 3; break;
     }
+    setTuplet(lastTuplet);
 }
 
 void WriteController::setSnapEnabled(bool enabled)
@@ -291,12 +314,14 @@ void WriteController::onPointerUp(const AuthoringPoint& p,
     if (sustainPendingClick)
     {
         sustainPendingClick = false;
-        createNote(sustainDragTrackIdx, sustainPendingClickQN,
-                   sustainDragPitch, sustainDragLane, resolveVelocity());
-        if (isDrums())
-            writeTomMarker(sustainDragTrackIdx, sustainPendingClickQN, sustainDragLane);
-        else
-            writeGuitarForceMarker(sustainDragTrackIdx, sustainPendingClickQN);
+        // Replacing a note's type must not destroy its sustain, so carry the
+        // existing duration across when we land on the same note.
+        auto existing = findNote(sustainDragTrackIdx, sustainPendingClickQN, sustainDragPitch);
+        double duration = (existing.noteIndex >= 0
+                           && std::abs(existing.startQN - sustainPendingClickQN) < kQNEpsilon)
+                        ? existing.endQN - existing.startQN : 0.0;
+        placeNote(sustainDragTrackIdx, sustainPendingClickQN,
+                  sustainDragPitch, sustainDragLane, resolveVelocity(), duration);
         endBatch();
         clearSustainDrag();
         recomputeGhost();
@@ -307,9 +332,26 @@ void WriteController::onPointerUp(const AuthoringPoint& p,
     if (eraseDragActive)     { handleEndErase();        return; }
 }
 
+bool WriteController::altKickAvailable() const
+{
+    return writeModeActive()
+        && currentSubMode == SubMode::Draw
+        && barModeFlag
+        && isDrums()
+        && kick2xEnabled;
+}
+
 void WriteController::onFrameTick([[maybe_unused]] double currentProjectQN,
                                   [[maybe_unused]] bool isPlaying)
 {
+    bool armed = altKickAvailable()
+              && juce::ModifierKeys::getCurrentModifiers().isShiftDown();
+    if (armed != altKickArmed)
+    {
+        altKickArmed = armed;
+        recomputeGhost();
+    }
+
     if (stampCaptureActive && !juce::KeyPress::isKeyCurrentlyDown('C'))
     {
         stampCaptureActive = false;
@@ -324,8 +366,11 @@ void WriteController::onFrameTick([[maybe_unused]] double currentProjectQN,
         for (const auto& cn : classified)
         {
             if (cn.sustainOnly) continue;
+            uint32_t mask = captureMarkerMask(stampCaptureTrackIdx, cn.note.startQN, cn.lane);
             notes.push_back({ cn.lane, cn.note.startQN - minQN,
-                              cn.note.endQN - cn.note.startQN });
+                              cn.note.endQN - cn.note.startQN,
+                              cn.note.velocity, mask,
+                              resolveCapturedGem(cn.lane, cn.note.velocity, mask) });
         }
         if (notes.size() >= 2)
             setStamp(std::move(notes));
@@ -348,15 +393,16 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
         beginBatch("Chartchotic: Stamp notes");
         for (const auto& sn : stamp)
         {
-            int lane = sn.lane + stampMouseLaneOffset;
+            int lane = sn.lane;
             int sp = resolvePitch(lane, drums);
             if (sp >= 0)
             {
-                createNote(trackIdx, clickQN + sn.qnOffset, sp, lane, resolveVelocity(), sn.duration);
-                if (drums)
-                    writeTomMarker(trackIdx, clickQN + sn.qnOffset, lane);
-                else
-                    writeGuitarForceMarker(trackIdx, clickQN + sn.qnOffset);
+                // Velocity and markers come from the captured note, not the
+                // current toolbar state, so a paste round-trips drum dynamics
+                // and note type exactly as copied. One path for both
+                // instruments: the mask says which markers to reproduce.
+                placeStampNote(trackIdx, clickQN + sn.qnOffset, sp, lane,
+                               sn.velocity, sn.duration, sn.markerMask);
             }
         }
         if (drums) { endBatch(); return; }
@@ -369,11 +415,19 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
 
     if (drums)
     {
-        if (!onExistingNote)
+        // No guard on an existing note: clicking one re-applies the current
+        // type, so dropping an accent on a normal note upgrades it instead of
+        // silently doing nothing. createNote erases and recreates at the same
+        // QN, which makes this a replace. Targeting clickQN rather than the
+        // hit note also means clicking further along a sustain body creates a
+        // new note at that step, which previously fell through and did nothing.
+        double duration = 0.0;
+        if (onExistingNote && std::abs(p.hitNoteStartQN - clickQN) < kQNEpsilon)
         {
-            createNote(trackIdx, clickQN, pitch, p.laneIndex, resolveVelocity());
-            writeTomMarker(trackIdx, clickQN, p.laneIndex);
+            auto found = findNote(trackIdx, p.hitNoteStartQN, pitch);
+            if (found.noteIndex >= 0) duration = found.endQN - found.startQN;
         }
+        placeNote(trackIdx, clickQN, pitch, p.laneIndex, resolveVelocity(), duration);
         return;
     }
 
@@ -381,8 +435,7 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
 
     if (!onExistingNote)
     {
-        createNote(trackIdx, clickQN, pitch, p.laneIndex, resolveVelocity());
-        writeGuitarForceMarker(trackIdx, clickQN);
+        placeNote(trackIdx, clickQN, pitch, p.laneIndex, resolveVelocity());
         enterSustainDrag(trackIdx, clickQN, p.laneIndex, pitch);
         return;
     }
@@ -410,7 +463,7 @@ void WriteController::handleUpdateSustain(const AuthoringPoint& p)
         bool drums = isDrums();
         for (const auto& sn : stamp)
         {
-            int lane = sn.lane + stampMouseLaneOffset;
+            int lane = sn.lane;
             overlayState.drawPreviewNotes.push_back({
                 lane, sustainDragStartQN + sn.qnOffset, dragQN, resolvePitch(lane, drums)
             });
@@ -435,7 +488,7 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
             bool drums = isDrums();
             for (const auto& sn : stamp)
             {
-                int lane = sn.lane + stampMouseLaneOffset;
+                int lane = sn.lane;
                 int sp = resolvePitch(lane, drums);
                 if (sp >= 0)
                     chainExtendNotes(sustainDragTrackIdx,
@@ -511,6 +564,10 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
 {
     bool drums = isDrums();
 
+    // Paint is only ever reached by shift-dragging, so kick mode needs no
+    // extra modifier to mean "alternate": being here is the request.
+    bool alternatingKicks = drums && barModeFlag && kick2xEnabled;
+
     double spacing = stepSpacingQN(currentStepDivision, currentTuplet);
     if (spacing <= 0.0) return;
 
@@ -533,30 +590,42 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
         {
             for (const auto& sn : stamp)
             {
-                int lane = sn.lane + stampMouseLaneOffset;
+                int lane = sn.lane;
                 int sp = resolvePitch(lane, drums);
                 if (sp >= 0)
                 {
-                    createNote(paintDragTrackIdx, snapped + sn.qnOffset, sp, lane, resolveVelocity());
-                    if (drums)
-                        writeTomMarker(paintDragTrackIdx, snapped + sn.qnOffset, lane);
-                    else
-                        writeGuitarForceMarker(paintDragTrackIdx, snapped + sn.qnOffset);
+                    // Painting a stamp is still a paste, so it carries the
+                    // captured velocity and markers like the click path does.
+                    placeStampNote(paintDragTrackIdx, snapped + sn.qnOffset, sp, lane,
+                                   sn.velocity, 0.0, sn.markerMask);
                 }
             }
         }
         else
         {
-            int pitch = resolveActivePitch(lane);
+            // Painting kicks lays down an alternating 1x/2x roll rather than a
+            // run of one pitch, so a 1x-only player still gets a playable
+            // half-speed version of the pattern. Parity is anchored to
+            // paintStartQN so it stays put when the drag reverses or refills,
+            // and the run always opens on 1x.
+            int paintLane = lane;
+            if (alternatingKicks)
+            {
+                long long step = std::llround((snapped - paintStartQN) / spacing);
+                bool offbeat = ((step % 2) + 2) % 2 == 1;
+                paintLane = offbeat ? DRUM_KICK_2X_COLUMN : DRUM_KICK_COLUMN;
+            }
+
+            int pitch = alternatingKicks
+                ? InstrumentMapper::resolveKickPitch(currentActiveSkill, paintLane, kick2xEnabled)
+                : resolveActivePitch(lane);
             if (pitch < 0) continue;
             auto pre = findNote(paintDragTrackIdx, snapped, pitch);
             if (pre.noteIndex >= 0 && std::abs(pre.startQN - snapped) < 0.001)
                 continue;
-            createNote(paintDragTrackIdx, snapped, pitch, lane, resolveVelocity());
-            if (drums)
-                writeTomMarker(paintDragTrackIdx, snapped, lane);
-            else
-                writeGuitarForceMarker(paintDragTrackIdx, snapped);
+            placeNote(paintDragTrackIdx, snapped, pitch, paintLane, resolveVelocity());
+            paintedNotes.push_back({ snapped, paintLane });
+            continue;
         }
         paintedNotes.push_back({ snapped, lane });
     }
@@ -573,7 +642,7 @@ void WriteController::paintShrinkTo(double lo, double hi)
             {
                 for (const auto& sn : stamp)
                 {
-                    int lane = sn.lane + stampMouseLaneOffset;
+                    int lane = sn.lane;
                     int sp = resolvePitch(lane, drums);
                     if (sp >= 0)
                         eraseNote(paintDragTrackIdx, it->qn + sn.qnOffset, sp, drums, lane, currentActiveSkill);
@@ -635,7 +704,16 @@ void WriteController::handleEndErase()
     for (const auto& cn : classifyNotesInRect(eraseDragTrackIdx, eraseRect))
     {
         if (cn.sustainOnly)
+        {
+            // A predecessor trimmed to butt against the note being clicked ends
+            // exactly where the click is, so the raw cursor QN can land a hair
+            // inside it. Erasing a head is not a reason to shorten its
+            // neighbour.
+            if (eraseClickedNoteQN >= 0.0
+                && std::abs(cn.note.endQN - eraseClickedNoteQN) < kQNEpsilon)
+                continue;
             truncateNote(eraseDragTrackIdx, cn.note.startQN, cn.note.pitch);
+        }
         else
             eraseNote(eraseDragTrackIdx, cn.note.startQN, cn.note.pitch,
                       drums, cn.lane, currentActiveSkill);
@@ -698,6 +776,7 @@ bool WriteController::onKeyPress(const juce::KeyPress& key)
         case WriteCommand::ToggleSnap:      setSnapEnabled(!snapEnabled());                   return true;
         case WriteCommand::StepDown:        setStepDivision(std::max(1, stepDivision() / 2)); return true;
         case WriteCommand::StepUp:          setStepDivision(stepDivision() * 2);              return true;
+        case WriteCommand::ToggleTuplet:    toggleTuplet();                                   return true;
         case WriteCommand::CycleTuplet:     cycleTuplet();                                    return true;
         default: return false;
     }

@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include <string>
 #include <vector>
 
 /**
@@ -32,6 +33,14 @@ public:
     /** Returns true if the writer is connected and can accept mutations. */
     virtual bool isAvailable() const = 0;
 
+    /**
+        Adds a text event at the start of a track's first item unless an
+        identical one is already there. Used for chart-level switches like
+        [ENABLE_CHART_DYNAMICS], which have to exist for the data already in
+        the track to mean anything.
+    */
+    virtual bool ensureTrackTextEvent(int, const std::string&) { return false; }
+
     // --- Single-note operations (each creates its own undo point) ---
 
     virtual bool insertNote(int trackIndex, double startQN, double endQN,
@@ -45,6 +54,9 @@ public:
         double startQN = 0;
         double endQN = 0;
         int    pitch = -1;
+        // Drum dynamics live in velocity (ghost 1, accent 127, normal 100), so
+        // anything that copies a note has to carry this across.
+        int    velocity = 100;
     };
 
     virtual NoteInfo findNote(int trackIndex, double positionQN, int pitch)

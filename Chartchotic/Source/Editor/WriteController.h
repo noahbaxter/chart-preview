@@ -11,7 +11,19 @@ public:
     bool       writeModeActive() const { return writeModeActiveFlag; }
     SubMode    subMode()         const { return currentSubMode; }
 
-    struct StampNote { int lane; double qnOffset; double duration; };
+    // Everything worth preserving about a copied note. velocity carries drum
+    // dynamics, markerMask carries note type (cymbal/tom, HOPO/strum/tap) as
+    // slot flags over modifierMarkerPitches(). Both are per note so a paste
+    // reproduces what was copied, not whatever the toolbar is set to.
+    struct StampNote
+    {
+        int      lane;
+        double   qnOffset;
+        double   duration;
+        int      velocity   = 100;
+        uint32_t markerMask = 0;
+        Gem      gem        = Gem::NOTE;   // preview art, derived at capture
+    };
     void setStamp(std::vector<StampNote> s);
     void clearStamp();
     void shiftStampLanes(int delta);
@@ -24,6 +36,7 @@ public:
     void setSubMode(SubMode mode);
     void setStepDivision(int division);
     void setTuplet(int t);
+    void toggleTuplet();
     void cycleTuplet();
     void setSnapEnabled(bool enabled);
 
@@ -81,9 +94,17 @@ private:
     void paintShrinkTo(double lo, double hi);
 
     std::vector<StampNote> stamp;
-    int stampMouseLaneOffset = 0;
 
     // Stamp capture (hold C + drag in draw mode)
+    // Value T restores when toggling the tuplet grid back on. Triplet until
+    // Shift+T picks something else.
+    int         lastTuplet = 3;
+
+    // Shift in kick mode arms the alternating 1x/2x paint. Polled per frame so
+    // the hint appears the moment the key goes down, with no mouse move.
+    bool        altKickArmed = false;
+    bool        altKickAvailable() const;
+
     bool        stampCaptureActive = false;
     int         stampCaptureTrackIdx = -1;
     MarqueeRect stampCaptureRect;

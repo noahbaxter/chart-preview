@@ -9,6 +9,7 @@
 #include "../Midi/InstrumentSession.h"
 #include "../Midi/Utils/InstrumentMapper.h"
 #include "../Midi/Utils/MidiConstants.h"
+#include "../Midi/Utils/GemCalculator.h"
 
 class AuthoringControllerBase
 {
@@ -45,6 +46,26 @@ protected:
     bool isPlaying() const { return playingStatePtr && *playingStatePtr; }
     bool isDrums()   const { return isDrumLike(currentActivePart); }
     int  maxLane()   const { return isDrums() ? (kick2xEnabled ? 6 : 4) : 5; }
+
+    // Gem for a note whose properties we already hold, as opposed to
+    // resolveGhostGem which reads the current toolbar state. Routed through
+    // GemCalculator with the same (Dynamic)velocity cast the render pipeline
+    // uses, so a copied note previews as exactly what it will paste as.
+    Gem resolveCapturedGem(int lane, int velocity, uint32_t markerMask) const
+    {
+        if (isDrums())
+        {
+            // Cymbal is the absence of the tom marker, which is slot 0.
+            bool canBeCymbal = (lane >= 2 && lane <= 4);
+            bool cymbal = canBeCymbal && (markerMask & 1u) == 0;
+            return GemCalculator::resolveDrumGem(cymbal, true, (Dynamic)velocity);
+        }
+        // Guitar slots follow modifierMarkerPitches order: hopo, strum, tap.
+        return GemCalculator::resolveGuitarGem(false, false,
+                                               (markerMask & (1u << 0)) != 0,
+                                               (markerMask & (1u << 1)) != 0,
+                                               (markerMask & (1u << 2)) != 0);
+    }
 
     Gem resolveGhostGem(int lane) const
     {
@@ -132,6 +153,84 @@ protected:
             return false;
         }
         patchAdd(lane, qn);
+        ensureChartDynamics(trackIdx, velocity);
+        ensureEnhancedOpens(trackIdx, lane);
+        return true;
+    }
+
+    // Feature-flag text events: the notes are inert until the chart carries the
+    // flag, so placing one writes it rather than leaving the charter to
+    // remember. Cached per track, since the check costs a REAPER scan.
+    //
+    // Written bare despite the spec tables showing brackets. For dynamics every
+    // chart that carries it writes it bare (17 of 17 across three independent
+    // sources); for opens the spec itself allows either.
+    void ensureTrackFlag(int trackIdx, const char* event, int& ensuredTrack)
+    {
+        if (ensuredTrack == trackIdx) return;
+        if (auto* writer = noteEditor.getMidiWriter())
+            if (writer->ensureTrackTextEvent(trackIdx, event))
+                ensuredTrack = trackIdx;
+    }
+
+    void ensureChartDynamics(int trackIdx, int velocity)
+    {
+        if (!isDrums()) return;
+        if (velocity != (int)Dynamic::GHOST && velocity != (int)Dynamic::ACCENT) return;
+        ensureTrackFlag(trackIdx, "ENABLE_CHART_DYNAMICS", dynamicsEnsuredTrack);
+    }
+
+    // Note-based opens are off by default because note 59 is left-hand
+    // animation data in GH2/RB charts. 5-fret only: 6-fret opens have been
+    // note-based from the start and need no flag.
+    void ensureEnhancedOpens(int trackIdx, int lane)
+    {
+        if (lane != 0 || !isGuitarLike(currentActivePart)) return;
+        ensureTrackFlag(trackIdx, "ENHANCED_OPENS", opensEnsuredTrack);
+    }
+
+    static constexpr const char* kPlaceNoteUndo = "Chartchotic: Place note";
+
+    // Opens a batch only when one is not already open, and closes only what it
+    // opened. A lone placement is its own undo point; the same call inside a
+    // paint or paste stroke folds into that stroke instead of splitting it.
+    class BatchScope
+    {
+    public:
+        BatchScope(AuthoringControllerBase& c, const char* desc) : owner(c)
+        {
+            opened = !owner.noteEditor.isBatching();
+            if (opened) owner.beginBatch(desc);
+        }
+        ~BatchScope() { if (opened) owner.endBatch(); }
+        BatchScope(const BatchScope&) = delete;
+        BatchScope& operator=(const BatchScope&) = delete;
+
+    private:
+        AuthoringControllerBase& owner;
+        bool opened = false;
+    };
+
+    // Every placement goes through here. A note and its tom/cymbal or guitar
+    // force marker are separate MIDI notes, so they share one undo block and
+    // one placement never costs two undos.
+    bool placeNote(int trackIdx, double qn, int pitch, int lane, int velocity,
+                   double duration = 0.0)
+    {
+        BatchScope batch(*this, kPlaceNoteUndo);
+        if (!createNote(trackIdx, qn, pitch, lane, velocity, duration)) return false;
+        writeMarkers(trackIdx, qn, lane);
+        return true;
+    }
+
+    // Paste variant: markers come from the captured note's mask rather than
+    // the current toolbar state, so a round trip reproduces the original.
+    bool placeStampNote(int trackIdx, double qn, int pitch, int lane, int velocity,
+                        double duration, uint32_t markerMask)
+    {
+        BatchScope batch(*this, kPlaceNoteUndo);
+        if (!createNote(trackIdx, qn, pitch, lane, velocity, duration)) return false;
+        writeMarkerMask(trackIdx, qn, lane, markerMask);
         return true;
     }
 
@@ -184,38 +283,14 @@ protected:
     {
         std::vector<ClassifiedNote> result;
 
-        if (barModeFlag)
+        // Bar mode walks the rect's two edge lanes, everything else walks the
+        // range, but the head/body test is the same either way, so it lives
+        // here once and cannot drift between the two.
+        auto collect = [&](int lane, int pitch)
         {
-            for (int barLane : {rect.laneLo, rect.laneHi})
-            {
-                int barPitch = resolveBarPitch(barLane);
-                if (barPitch < 0) continue;
-                auto notes = findNotesInRange(trackIdx,
-                                              std::max(0.0, rect.qnLo - 32.0),
-                                              rect.qnHi, barPitch);
-                for (const auto& n : notes)
-                {
-                    bool headIn = n.startQN >= rect.qnLo - kQNEpsilon
-                               && n.startQN <= rect.qnHi + kQNEpsilon;
-                    bool hasSustain = (n.endQN - n.startQN) >= double(MIDI_MIN_SUSTAIN_LENGTH);
-                    bool bodyOverlaps = hasSustain
-                                     && n.endQN > rect.qnLo + kQNEpsilon
-                                     && n.startQN < rect.qnLo - kQNEpsilon;
-                    if (headIn)
-                        result.push_back({ n, barLane, false });
-                    else if (bodyOverlaps)
-                        result.push_back({ n, barLane, true });
-                }
-            }
-            return result;
-        }
-
-        for (int lane = rect.laneLo; lane <= rect.laneHi; ++lane)
-        {
-            int pitch = resolveActivePitch(lane);
-            if (pitch < 0) continue;
+            if (pitch < 0) return;
             auto notes = findNotesInRange(trackIdx,
-                                          std::max(0.0, rect.qnLo - 32.0),
+                                          std::max(0.0, rect.qnLo - kSustainLookbackQN),
                                           rect.qnHi, pitch);
             for (const auto& n : notes)
             {
@@ -230,7 +305,17 @@ protected:
                 else if (bodyOverlaps)
                     result.push_back({ n, lane, true });
             }
+        };
+
+        if (barModeFlag)
+        {
+            for (int barLane : {rect.laneLo, rect.laneHi})
+                collect(barLane, resolveBarPitch(barLane));
+            return result;
         }
+
+        for (int lane = rect.laneLo; lane <= rect.laneHi; ++lane)
+            collect(lane, resolveActivePitch(lane));
         return result;
     }
 
@@ -285,22 +370,83 @@ protected:
         }
     }
 
-    void writeTomMarker(int trackIdx, double qn, int lane)
+    // Every marker pitch that can qualify a note in this lane, in a stable
+    // order. Note type is encoded by which of these sit alongside the note:
+    // drums use a tom marker (present means tom, absent means cymbal), guitar
+    // uses the force markers. Copying a note means copying this whole set.
+    //
+    // Both capture and paste resolve this list fresh, and record only WHICH
+    // slots were filled, never the raw pitches. That keeps a paste correct
+    // across difficulties, since the guitar pitches are skill-dependent
+    // (EXPERT_HOPO vs HARD_HOPO) but their slot positions are not.
+    std::vector<int> modifierMarkerPitches(int lane) const
     {
-        int markerPitch = resolveTomMarkerPitch(lane);
-        if (markerPitch < 0) return;
+        std::vector<int> out;
+        if (isDrums())
+        {
+            int p = resolveTomMarkerPitch(lane);
+            if (p >= 0) out.push_back(p);
+            return out;
+        }
+        for (auto force : { GuitarForce::Hopo, GuitarForce::Strum, GuitarForce::Tap })
+        {
+            int p = resolveGuitarForcePitchFor(force);
+            if (p >= 0) out.push_back(p);
+        }
+        return out;
+    }
 
-        auto existing = findNote(trackIdx, qn, markerPitch);
-        if (cymbalModeFlag)
+    // Bit i is set when modifierMarkerPitches(lane)[i] is present at qn.
+    uint32_t captureMarkerMask(int trackIdx, double qn, int lane)
+    {
+        uint32_t mask = 0;
+        auto candidates = modifierMarkerPitches(lane);
+        for (size_t i = 0; i < candidates.size(); ++i)
+            if (findNote(trackIdx, qn, candidates[i]).noteIndex >= 0)
+                mask |= (1u << i);
+        return mask;
+    }
+
+    // Reproduces a captured mask exactly, creating missing markers and erasing
+    // stray ones, so a pasted note ends up the type it was copied from rather
+    // than inheriting whatever the toolbar is set to.
+    void writeMarkerMask(int trackIdx, double qn, int lane, uint32_t mask)
+    {
+        auto candidates = modifierMarkerPitches(lane);
+        for (size_t i = 0; i < candidates.size(); ++i)
         {
-            if (existing.noteIndex >= 0)
-                eraseNote(trackIdx, qn, markerPitch, true, lane, currentActiveSkill);
+            bool want = (mask & (1u << i)) != 0;
+            auto existing = findNote(trackIdx, qn, candidates[i]);
+            if (want && existing.noteIndex < 0)
+                createMarkerNote(trackIdx, qn, candidates[i]);
+            else if (!want && existing.noteIndex >= 0)
+                eraseNote(trackIdx, qn, candidates[i], isDrums(), lane, currentActiveSkill);
         }
-        else
+    }
+
+    // Markers the toolbar asks for. Drums have one slot and cymbal is its
+    // absence; guitar force is one-of.
+    uint32_t currentMarkerMask(int lane) const
+    {
+        if (isDrums())
+            return (resolveTomMarkerPitch(lane) >= 0 && !cymbalModeFlag) ? 1u : 0u;
+
+        uint32_t mask = 0;
+        int slot = 0;
+        for (auto force : { GuitarForce::Hopo, GuitarForce::Strum, GuitarForce::Tap })
         {
-            if (existing.noteIndex < 0)
-                createMarkerNote(trackIdx, qn, markerPitch);
+            if (resolveGuitarForcePitchFor(force) < 0) continue;
+            if (force == currentGuitarForce) mask |= (1u << slot);
+            ++slot;
         }
+        return mask;
+    }
+
+    // One path for every instrument, and it clears what it does not want, so
+    // re-placing a note as a plainer type actually plains it.
+    void writeMarkers(int trackIdx, double qn, int lane)
+    {
+        writeMarkerMask(trackIdx, qn, lane, currentMarkerMask(lane));
     }
 
     int resolveGuitarForcePitchFor(GuitarForce force) const
@@ -338,16 +484,6 @@ protected:
         return resolveGuitarForcePitchFor(currentGuitarForce);
     }
 
-    void writeGuitarForceMarker(int trackIdx, double qn)
-    {
-        int forcePitch = resolveGuitarForcePitch();
-        if (forcePitch < 0) return;
-
-        auto existing = findNote(trackIdx, qn, forcePitch);
-        if (existing.noteIndex < 0)
-            createMarkerNote(trackIdx, qn, forcePitch);
-    }
-
     InstrumentSession*      instrumentSession    = nullptr;
     const bool*             playingStatePtr      = nullptr;
     Part                    currentActivePart    = Part::GUITAR;
@@ -357,6 +493,8 @@ protected:
     bool                    snapEnabledFlag      = true;
     bool                    barModeFlag          = false;
     bool                    kick2xEnabled        = false;
+    int                     dynamicsEnsuredTrack = -1;
+    int                     opensEnsuredTrack    = -1;
     DrumDynamic             currentDrumDynamic   = DrumDynamic::Normal;
     GuitarForce             currentGuitarForce   = GuitarForce::None;
     bool                    cymbalModeFlag       = false;
