@@ -40,7 +40,7 @@ public:
     // Extract SharedWindow from NoteStateMapArray (caller holds lock)
     static SharedWindow extract(const NoteStateMapArray& notes,
                                 PPQ windowStart, PPQ windowEnd, PPQ latencyEnd,
-                                bool bemaniMode = false);
+                                bool bemaniMode = false, bool isElite = false);
 
 private:
     // Per-difficulty context used during resolution

@@ -9,6 +9,7 @@
 
 #include "TrackRenderer.h"
 #include "../Utils/RenderTypeConfig.h"
+#include "../Utils/LaneColours.h"
 #include "ProceduralTrackArt.h"
 
 using namespace PositionConstants;
@@ -227,7 +228,7 @@ void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targ
         if (!textureEnabled || !sourceTexture.isValid()) return;
 
         bool isDrums = isDrumLike(activePart);
-        auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, targetW, targetH,
+        auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, targetW, targetH,
                         HIGHWAY_POS_START, cached.posEnd);
         float leftX = edge.leftX;
         float hwyW = edge.rightX - edge.leftX;
@@ -408,7 +409,7 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     if (width == cached.width && height == cached.height && overflow == cached.overflow &&
         posEnd == cached.posEnd && farFadeEnd == cached.fadeEnd &&
         farFadeLen == cached.fadeLen && farFadeCurve == cached.fadeCurve &&
-        (isDrumLike(activePart)) == cached.isDrums)
+        getRenderType(activePart) == cached.renderType)
         return;
 
     bool isDrums = isDrumLike(activePart);
@@ -421,6 +422,7 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
         cached.height = height;
         cached.overflow = overflow;
         cached.isDrums = isDrums;
+        cached.renderType = getRenderType(activePart);
         cached.posEnd = posEnd;
         cached.fadeEnd = farFadeEnd;
         cached.fadeLen = farFadeLen;
@@ -437,9 +439,9 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     float effectiveEnd = std::max(posEnd, farFadeEnd);
     float posRange = effectiveEnd - HIGHWAY_POS_START;
 
-    auto edgeNear = PositionMath::getFretboardEdge(isDrums, HIGHWAY_POS_START, width, height,
+    auto edgeNear = PositionMath::getFretboardEdge(getRenderType(activePart), HIGHWAY_POS_START, width, height,
                                                     HIGHWAY_POS_START, posEnd);
-    auto edgeFar = PositionMath::getFretboardEdge(isDrums, effectiveEnd, width, height,
+    auto edgeFar = PositionMath::getFretboardEdge(getRenderType(activePart), effectiveEnd, width, height,
                                                    HIGHWAY_POS_START, posEnd);
     int pixelHeight = std::max(1, (int)(edgeNear.centerY - edgeFar.centerY));
     cached.stripCount = std::clamp(pixelHeight / PIXELS_PER_STRIP, MIN_STRIPS, MAX_STRIPS);
@@ -448,7 +450,7 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     for (int i = 0; i <= cached.stripCount; i++)
     {
         float pos = HIGHWAY_POS_START + posRange * (float)i / (float)cached.stripCount;
-        auto edge = PositionMath::getFretboardEdge(isDrums, pos, width, height,
+        auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), pos, width, height,
                                                     HIGHWAY_POS_START, posEnd);
         edge.centerY += (float)overflow;  // offset into taller bitmap
         cached.edges[i] = { edge, pos };
@@ -458,6 +460,7 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     cached.height = height;
     cached.overflow = overflow;
     cached.isDrums = isDrums;
+    cached.renderType = getRenderType(activePart);
     cached.posEnd = posEnd;
     cached.fadeEnd = farFadeEnd;
     cached.fadeLen = farFadeLen;
@@ -580,18 +583,19 @@ void TrackRenderer::bakeSidebarRailsPerspective(int w, int h, int overflow, bool
 // the reference PNG, which draws each pad as a vertical gradient.
 struct PadColours { juce::Colour top, bottom; };
 
-// The standard fret colours, sampled once from the reference PNGs and shared across
-// every part's lane table so the tables read as lane->colour maps with no magic hex.
+// Strikeline pad colours. The lane hues come from the shared LaneColours table (single
+// source of truth, also drives gem tints); pad top = lane dark, bottom = lane bright.
 namespace FretColour
 {
+    static PadColours pad(const LaneColours::Lane& l) { return { LaneColours::dark(l), LaneColours::bright(l) }; }
     const PadColours none     { juce::Colour(0),          juce::Colour(0) };          // kick / open lane (undrawn)
-    const PadColours red      { juce::Colour(0xFFA91E1A), juce::Colour(0xFFEB1C22) };
-    const PadColours yellow   { juce::Colour(0xFF987F0B), juce::Colour(0xFFFFD800) };
-    const PadColours blue     { juce::Colour(0xFF0D447F), juce::Colour(0xFF1678E4) };
-    const PadColours green    { juce::Colour(0xFF226D2C), juce::Colour(0xFF36B047) };
-    const PadColours orange   { juce::Colour(0xFFA85A14), juce::Colour(0xFFE88A20) };
-    const PadColours purple   { juce::Colour(0xFF5B2A8C), juce::Colour(0xFF9B47D6) };
-    const PadColours white    { juce::Colour(0xFFAEAEAE), juce::Colour(0xFFEAEAEA) };
+    const PadColours red      = pad(LaneColours::red);
+    const PadColours yellow   = pad(LaneColours::yellow);
+    const PadColours blue     = pad(LaneColours::blue);
+    const PadColours green    = pad(LaneColours::green);
+    const PadColours orange   = pad(LaneColours::orange);
+    const PadColours purple   = pad(LaneColours::purple);
+    const PadColours white    = pad(LaneColours::white);
     const PadColours fallback { juce::Colour(0xFF888888), juce::Colour(0xFFBBBBBB) };  // unmapped lane
 }
 

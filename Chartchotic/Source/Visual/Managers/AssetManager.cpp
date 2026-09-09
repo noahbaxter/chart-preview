@@ -10,6 +10,59 @@
 
 #include "AssetManager.h"
 #include "../Utils/PositionConstants.h"
+#include "../Utils/LaneColours.h"
+
+namespace
+{
+    // Collapse a colour gem to its luminance: keeps the metallic light/shade structure,
+    // discards the hue. This is the greyscale "master" every lane colour tints from.
+    juce::Image toGreyMaster(const juce::Image& src)
+    {
+        juce::Image out = src.createCopy();
+        juce::Image::BitmapData bmp(out, juce::Image::BitmapData::readWrite);
+        for (int y = 0; y < bmp.height; ++y)
+            for (int x = 0; x < bmp.width; ++x)
+            {
+                auto px = bmp.getPixelColour(x, y);
+                float lum = 0.3f * px.getFloatRed() + 0.59f * px.getFloatGreen() + 0.11f * px.getFloatBlue();
+                bmp.setPixelColour(x, y, juce::Colour::fromFloatRGBA(lum, lum, lum, px.getFloatAlpha()));
+            }
+        return out;
+    }
+
+    // Greyscale master -> lane-tinted cymbal. Each pixel's luminance runs through a 5-stop
+    // metallic ramp derived from the lane's {dark,bright} (shared LaneColours): near-black
+    // shadow, dark, bright, a highlight, then white. So every cymbal colour, preset or fully
+    // custom, comes from ONE master plus ONE colour constant. Alpha is preserved.
+    juce::Image tintCymbal(const juce::Image& master, const LaneColours::Lane& lane)
+    {
+        const juce::Colour d = LaneColours::dark(lane);
+        const juce::Colour b = LaneColours::bright(lane);
+        const int   n = 5;
+        const float rampL[n] = { 0.0f, 0.20f, 0.48f, 0.78f, 1.0f };
+        const juce::Colour rampC[n] = {
+            d.withMultipliedBrightness(0.22f), d, b, b.brighter(0.6f), juce::Colour(0xffffffff) };
+
+        juce::Image out = master.createCopy();
+        juce::Image::BitmapData bmp(out, juce::Image::BitmapData::readWrite);
+        for (int y = 0; y < bmp.height; ++y)
+            for (int x = 0; x < bmp.width; ++x)
+            {
+                auto px = bmp.getPixelColour(x, y);
+                float lum = px.getFloatRed();   // master is greyscale: R == G == B == luminance
+                juce::Colour c = rampC[n - 1];
+                for (int i = 1; i < n; ++i)
+                    if (lum <= rampL[i])
+                    {
+                        float f = (lum - rampL[i - 1]) / (rampL[i] - rampL[i - 1]);
+                        c = rampC[i - 1].interpolatedWith(rampC[i], f);
+                        break;
+                    }
+                bmp.setPixelColour(x, y, c.withAlpha(px.getFloatAlpha()));
+            }
+        return out;
+    }
+}
 
 AssetManager::AssetManager()
 {
@@ -28,11 +81,20 @@ void AssetManager::initAssets()
     barOpenImage = juce::ImageCache::getFromMemory(BinaryData::bar_open_png, BinaryData::bar_open_pngSize);
     barWhiteImage = juce::ImageCache::getFromMemory(BinaryData::bar_white_png, BinaryData::bar_white_pngSize);
 
-    cymBlueImage = juce::ImageCache::getFromMemory(BinaryData::cym_blue_png, BinaryData::cym_blue_pngSize);
-    cymGreenImage = juce::ImageCache::getFromMemory(BinaryData::cym_green_png, BinaryData::cym_green_pngSize);
-    cymRedImage = juce::ImageCache::getFromMemory(BinaryData::cym_red_png, BinaryData::cym_red_pngSize);
+    // Cymbals: one greyscale metallic master (the blue cymbal collapsed to luminance) drives
+    // every lane colour through a LaneColours tint ramp, presets AND any custom hue alike, so
+    // a colour changes in one place (the constant) with no per-colour PNG. The white / star
+    // power cymbal keeps its PNG (its gold rim is not a greyscale tint).
     cymWhiteImage = juce::ImageCache::getFromMemory(BinaryData::cym_white_png, BinaryData::cym_white_pngSize);
-    cymYellowImage = juce::ImageCache::getFromMemory(BinaryData::cym_yellow_png, BinaryData::cym_yellow_pngSize);
+    {
+        const juce::Image cymMaster = toGreyMaster(
+            juce::ImageCache::getFromMemory(BinaryData::cym_blue_png, BinaryData::cym_blue_pngSize));
+        cymBlueImage   = tintCymbal(cymMaster, LaneColours::blue);
+        cymRedImage    = tintCymbal(cymMaster, LaneColours::red);
+        cymYellowImage = tintCymbal(cymMaster, LaneColours::yellow);
+        cymGreenImage  = tintCymbal(cymMaster, LaneColours::green);
+        cymPurpleImage = tintCymbal(cymMaster, LaneColours::purple);
+    }
 
     hopoBlueImage = juce::ImageCache::getFromMemory(BinaryData::hopo_blue_png, BinaryData::hopo_blue_pngSize);
     hopoGreenImage = juce::ImageCache::getFromMemory(BinaryData::hopo_green_png, BinaryData::hopo_green_pngSize);
@@ -150,7 +212,7 @@ void AssetManager::initAssets()
         // Cymbals
         {&cymBlueImage, cymBlueImage}, {&cymGreenImage, cymGreenImage},
         {&cymRedImage, cymRedImage}, {&cymWhiteImage, cymWhiteImage},
-        {&cymYellowImage, cymYellowImage},
+        {&cymYellowImage, cymYellowImage}, {&cymPurpleImage, cymPurpleImage},
         // HOPOs
         {&hopoBlueImage, hopoBlueImage}, {&hopoGreenImage, hopoGreenImage},
         {&hopoOrangeImage, hopoOrangeImage}, {&hopoRedImage, hopoRedImage},
@@ -360,20 +422,23 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
                 case T::Blue:   return getCymBlueImage();
                 case T::Green:  return getCymGreenImage();
                 case T::Red:    return getCymRedImage();
-                case T::Purple: return getOverlayNoteTapImage();   // placeholder: no purple cymbal art yet
+                case T::Purple: return getCymPurpleImage();
                 default:        return getCymWhiteImage();
                 }
             }
-            if (shouldBeWhite) return getNoteWhiteImage();
+            // Note lanes: a ghost uses the short HOPO glyph (same cue as 4-lane drums);
+            // normal and accent use the full note glyph (accent adds its chevron overlay).
+            const bool ghost = (gemWrapper.gem == Gem::HOPO_GHOST);
+            if (shouldBeWhite) return ghost ? getHopoWhiteImage() : getNoteWhiteImage();
             switch (style.tint)
             {
-            case T::Red:    return getNoteRedImage();
-            case T::Orange: return getNoteOrangeImage();
-            case T::Blue:   return getNoteBlueImage();
-            case T::Yellow: return getNoteYellowImage();
-            case T::Green:  return getNoteGreenImage();
+            case T::Red:    return ghost ? getHopoRedImage()    : getNoteRedImage();
+            case T::Orange: return ghost ? getHopoOrangeImage() : getNoteOrangeImage();
+            case T::Blue:   return ghost ? getHopoBlueImage()   : getNoteBlueImage();
+            case T::Yellow: return ghost ? getHopoYellowImage() : getNoteYellowImage();
+            case T::Green:  return ghost ? getHopoGreenImage()  : getNoteGreenImage();
             case T::Purple: return getOverlayNoteTapImage();       // placeholder: no purple note art yet
-            default:        return getNoteWhiteImage();
+            default:        return ghost ? getHopoWhiteImage()  : getNoteWhiteImage();
             }
         }
         if (gemColumn == 9) return shouldBeWhite ? getBarWhiteImage() : getBarKick2xImage();  // 2x Kick

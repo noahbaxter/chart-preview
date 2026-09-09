@@ -54,6 +54,7 @@ public:
 
     /** Whether the cached geometry was built for drums (used to detect instrument change). */
     bool getCachedIsDrums() const { return cached.isDrums; }
+    RenderType getCachedRenderType() const { return cached.renderType; }
 
     /** Set the source texture for highway overlay. */
     void setTexture(const juce::Image& texture);
@@ -137,6 +138,7 @@ private:
         int width = 0, height = 0;   // viewport dimensions
         int overflow = 0;            // extra pixels above viewport
         bool isDrums = false;
+        RenderType renderType = RenderType::FIVE_FRET;   // distinguishes elite from 4-lane drums
         float posEnd = 0, fadeEnd = 0, fadeLen = 0, fadeCurve = 0;
         int totalHeight() const { return height + overflow; }
     } cached;

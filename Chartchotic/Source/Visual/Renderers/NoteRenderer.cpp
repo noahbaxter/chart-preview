@@ -145,8 +145,8 @@ void NoteRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow
 NoteRenderer::SharedFrameContext NoteRenderer::buildFrameContext(float position)
 {
     bool isDrums = isDrumLike(activePart);
-    auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height, HIGHWAY_POS_START, posEnd);
-    auto fbCur    = PositionMath::getFretboardEdge(isDrums, position, width, height, HIGHWAY_POS_START, posEnd);
+    auto fbStrike = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, width, height, HIGHWAY_POS_START, posEnd);
+    auto fbCur    = PositionMath::getFretboardEdge(getRenderType(activePart), position, width, height, HIGHWAY_POS_START, posEnd);
     float fbSW = fbStrike.rightX - fbStrike.leftX;
     float wRatio = (fbSW > 0.0f) ? ((fbCur.rightX - fbCur.leftX) / fbSW) : 1.0f;
 
@@ -309,6 +309,13 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     }
     float strikeColHeight = strikeColWidth / imageAspect;
 
+    // Elite renders into a wider canvas (currentConfig->boardWidthScale), so a full-width
+    // bar comes out proportionally taller too. Bars should stretch WIDER to span the extra
+    // lanes, not get thicker, so divide the height back down by that factor (1.0 for the
+    // non-widened guitar / 4-lane types, so this is a no-op there).
+    if (barNote)
+        strikeColHeight /= currentConfig->boardWidthScale;
+
     // userScale (settings popup) — sprite-size multiplier; center stays at lane
     float userScale = barNote
         ? (state.hasProperty("barScale") ? (float)state["barScale"] : 1.0f)
@@ -357,8 +364,12 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     if (curvature != 0.0f && !barNote)
     {
         float dist = getColumnDistFromCenter(gemColumn, isDrums);
+        // fbStrikeWidth is inflated on elite's wider canvas; the arc is a VERTICAL lift, and
+        // elite is wider not taller, so divide the width factor back down (1.0 for non-wide
+        // types) or the centre lanes bow up too far and read as sitting behind their row.
         arcOffsetStrike = ctx.fbStrikeWidth * PositionConstants::FRETBOARD_SCALE
-                        * curvature * (1.0f - dist * dist);
+                        * curvature * (1.0f - dist * dist)
+                        / currentConfig->boardWidthScale;
     }
 
     // --- Append gem sprite ---

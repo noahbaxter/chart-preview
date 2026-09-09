@@ -43,6 +43,12 @@ namespace PositionConstants
         float (*bemaniBarLaneEndPx)();
         float (*bemaniHwyScale)();
         float (*bemaniHitBarNudge)();
+
+        // How much wider this render style's highway CANVAS is vs a normal one. 1.0 for
+        // guitar / 4-lane drums; elite is wider so its 8 lanes get more room. Used by the
+        // highway layout (wider slot / aspect) and the render harness to size the render
+        // width -- the board itself stays a fixed fraction of that width, so nothing clips.
+        float boardWidthScale = 1.0f;
     };
 
     // Returns nullptr for unsupported RenderTypes. Currently supplies

@@ -48,7 +48,7 @@ private:
                               float sizeScale, float fretboardScale = 1.0f)
     {
         bool isDrums = isDrumLike(activePart);
-        return PositionMath::getColumnPosition(isDrums, position, width, height,
+        return PositionMath::getColumnPosition(getRenderType(activePart), position, width, height,
                                                PositionConstants::HIGHWAY_POS_START, posEnd,
                                                colCoords, sizeScale, fretboardScale);
     }

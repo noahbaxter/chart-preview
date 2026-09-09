@@ -97,7 +97,7 @@ private:
                                                   int bemaniLaneIdx = -1)
     {
         bool isDrums = isDrumLike(activePart);
-        return PositionMath::getColumnPosition(isDrums, position, cachedWidth, cachedHeight,
+        return PositionMath::getColumnPosition(getRenderType(activePart), position, cachedWidth, cachedHeight,
                                                PositionConstants::HIGHWAY_POS_START, posEnd,
                                                colCoords, sizeScale, fretboardScale, bemaniLaneIdx);
     }

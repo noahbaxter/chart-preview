@@ -91,7 +91,7 @@ void TextEventRenderer::drawMarker(juce::Graphics& g, float position, const juce
     if (PositionMath::bemaniMode)
     {
         // Flat horizontal marker matching Bemani gridline style
-        auto edge = PositionMath::getFretboardEdge(isDrums, position, width, height,
+        auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), position, width, height,
                         PositionConstants::HIGHWAY_POS_START, posEnd);
         float leftX = edge.leftX;
         float rightX = edge.rightX;

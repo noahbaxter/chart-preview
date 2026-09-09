@@ -17,6 +17,7 @@
 #include <JuceHeader.h>
 #include "PositionConstants.h"
 #include "BemaniConfig.h"
+#include "../../UI/ControlConstants.h"   // RenderType
 
 // Windows compatibility
 #if defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(_MSC_VER)
@@ -44,17 +45,40 @@ public:
 #endif
 
     //==============================================================================
-    // Bezier positioning system
+    // Bezier positioning system. Primary signatures take a RenderType so each
+    // instrument (guitar / 4-lane drums / elite drums) gets its own fretboard
+    // geometry (elite is wider). The bool overloads (guitar vs drums, no elite) are
+    // kept for bemani/legacy call sites that never see elite.
+    static PositionConstants::LaneCorners getFretboardEdge(
+        RenderType renderType, float position, uint width, uint height,
+        float posStart, float posEnd);
+
+    static PositionConstants::LaneCorners getColumnPosition(
+        RenderType renderType, float position, uint width, uint height,
+        float posStart, float posEnd,
+        const PositionConstants::NormalizedCoordinates& colCoords,
+        float sizeScale, float fretboardScale = 1.0f,
+        int bemaniLaneIdx = -1);
+
     static PositionConstants::LaneCorners getFretboardEdge(
         bool isDrums, float position, uint width, uint height,
-        float posStart, float posEnd);
+        float posStart, float posEnd)
+    {
+        return getFretboardEdge(isDrums ? RenderType::FOUR_LANE_DRUMS : RenderType::FIVE_FRET,
+                                position, width, height, posStart, posEnd);
+    }
 
     static PositionConstants::LaneCorners getColumnPosition(
         bool isDrums, float position, uint width, uint height,
         float posStart, float posEnd,
         const PositionConstants::NormalizedCoordinates& colCoords,
         float sizeScale, float fretboardScale = 1.0f,
-        int bemaniLaneIdx = -1);
+        int bemaniLaneIdx = -1)
+    {
+        return getColumnPosition(isDrums ? RenderType::FOUR_LANE_DRUMS : RenderType::FIVE_FRET,
+                                 position, width, height, posStart, posEnd,
+                                 colCoords, sizeScale, fretboardScale, bemaniLaneIdx);
+    }
 
     // Distance of a column center from the fretboard center, normalized to half
     // the fretboard width. Range [-1, 1] — used by curvature math (arc = curv*(1-d²)).

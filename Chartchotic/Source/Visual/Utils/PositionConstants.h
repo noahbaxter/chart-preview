@@ -236,6 +236,9 @@ namespace PositionConstants
     // horizontal room (same slant/height, just wider). Because the whole board is a
     // fixed fraction of the render width, scaling the box scales EVERYTHING with it --
     // fretboard edge, lanes, strikeline, rails, gems. Single knob for the elite span.
+    // Elite highway CANVAS width vs a normal one. The elite highway renders into a wider
+    // slot/canvas (wider aspect) by this factor; the board stays a fixed fraction of that
+    // width, so it never clips no matter how wide you make this. Tune freely.
     constexpr float ELITE_BOARD_WIDTH_SCALE = 1.3f;
 
     //==============================================================================
