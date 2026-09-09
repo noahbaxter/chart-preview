@@ -46,8 +46,7 @@ void TrackRenderer::paint(juce::Graphics& g, int viewportWidth, int viewportHeig
         bool showTrack = !state.hasProperty("showTrack") || (bool)state["showTrack"];
         if (showTrack)
         {
-            bool isDrums = isDrumLike(activePart);
-            auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+            auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, viewportWidth, viewportHeight,
                             HIGHWAY_POS_START, cached.posEnd);
             g.setColour(juce::Colour(0xFF111111));
             g.fillRect(edge.leftX, 0.0f, edge.rightX - edge.leftX, (float)viewportHeight);
@@ -71,7 +70,7 @@ void TrackRenderer::paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int
 
     bool isDrums = isDrumLike(activePart);
     const auto* config = getRenderTypeConfig(getRenderType(activePart));
-    auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+    auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, viewportWidth, viewportHeight,
                     HIGHWAY_POS_START, cached.posEnd);
     float leftX = edge.leftX;
     float rightX = edge.rightX;
@@ -151,8 +150,7 @@ void TrackRenderer::paintBemaniSidebars(juce::Graphics& g, int viewportWidth, in
 {
     if (!PositionMath::bemaniMode) return;
 
-    bool isDrums = isDrumLike(activePart);
-    auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+    auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, viewportWidth, viewportHeight,
                     HIGHWAY_POS_START, cached.posEnd);
     float leftX = edge.leftX;
     float rightX = edge.rightX;
@@ -175,8 +173,7 @@ void TrackRenderer::paintBemaniRails(juce::Graphics& g, int viewportWidth, int v
 {
     if (!PositionMath::bemaniMode) return;
 
-    bool isDrums = isDrumLike(activePart);
-    auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+    auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, viewportWidth, viewportHeight,
                     HIGHWAY_POS_START, cached.posEnd);
     float leftX = edge.leftX;
     float rightX = edge.rightX;

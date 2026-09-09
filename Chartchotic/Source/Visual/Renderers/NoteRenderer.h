@@ -23,15 +23,14 @@
 #include "../Utils/DrawingConstants.h"
 #include "../Utils/Frame.h"
 #include "../Utils/FrameRenderer.h"
+#include "HighwayRenderer.h"
 
 namespace PositionConstants { struct RenderTypeConfig; }
 
-class NoteRenderer
+class NoteRenderer : public HighwayRenderer
 {
 public:
     NoteRenderer(juce::ValueTree& state, AssetManager& assetManager);
-
-    Part activePart = Part::GUITAR;
 
     bool showGems = true;
     bool showBars = true;
@@ -47,11 +46,8 @@ public:
     const PositionConstants::OverlayAdjust* overlayAdjusts = PositionConstants::OVERLAY_DEFAULTS;
     const PositionConstants::ColumnAdjust* guitarColAdjust = PositionConstants::GUITAR_COL_ADJUST;
     const PositionConstants::ColumnAdjust* drumColAdjust   = PositionConstants::DRUM_COL_ADJUST;
-    const PositionConstants::NormalizedCoordinates* laneCoordsGuitar = nullptr;
-    const PositionConstants::NormalizedCoordinates* laneCoordsDrums = nullptr;
-    // Z values in ColumnAdjust are tuned at REFERENCE_HEIGHT — multiply by
-    // resScale at the read site instead of pre-baking per-frame.
-    float resScale = 1.0f;
+    // Active highway's lane coords are held by HighwayRenderer (set per-part by
+    // SceneRenderer); resScale (ColumnAdjust::z reads) too.
     float gemZOffset = 0.0f;
     float cymZOffset = 0.0f;  // Drums only — cymbals tuned separately from toms
     float barZOffset = 0.0f;
@@ -88,34 +84,11 @@ private:
     juce::ValueTree& state;
     AssetManager& assetManager;
 
-    // Cached per-populate call
+    // Cached per-populate call (frame geometry state lives in HighwayRenderer)
     DrawCallMap* currentDrawCallMap = nullptr;
-    const PositionConstants::RenderTypeConfig* currentConfig = nullptr;
     float currentVpDepth = 1.0f;
     float currentNoteCurvature = PositionConstants::NOTE_CURVATURE;
-    uint width = 0, height = 0;
-    float posEnd = 0;
-    float farFadeEnd = 0, farFadeLen = 0, farFadeCurve = 0;
     double cachedNoteClipTime = 0, cachedBarClipTime = 0;
-
-    using LaneCorners = PositionConstants::LaneCorners;
-    using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
-
-    LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
-                              float sizeScale, float fretboardScale = 1.0f,
-                              int bemaniLaneIdx = -1)
-    {
-        bool isDrums = isDrumLike(activePart);
-        return PositionMath::getColumnPosition(getRenderType(activePart), position, width, height,
-                                               PositionConstants::HIGHWAY_POS_START, posEnd,
-                                               colCoords, sizeScale, fretboardScale, bemaniLaneIdx);
-    }
-
-    float calculateOpacity(float position)
-    {
-        if (PositionMath::bemaniMode) return 1.0f;
-        return calculateFarFade(position, farFadeEnd, farFadeLen, farFadeCurve);
-    }
 
     // Per-time-slice composite context: one anchor + one scale shared by every
     // sprite in the row, so the bar and its stacked gems can't drift apart.

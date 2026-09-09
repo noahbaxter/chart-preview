@@ -107,15 +107,9 @@ void NoteRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow
 {
     hitBoxes.clear();
     currentDrawCallMap = &drawCallMap;
-    currentConfig = getRenderTypeConfig(getRenderType(activePart));
+    setFrame(activePart, width, height, posEnd, farFadeEnd, farFadeLen, farFadeCurve);
     currentVpDepth = currentConfig->getPerspectiveParams().vanishingPointDepth;
     currentNoteCurvature = isDrumLike(activePart) ? noteCurvatureDrums : noteCurvatureGuitar;
-    this->width = width;
-    this->height = height;
-    this->posEnd = posEnd;
-    this->farFadeEnd = farFadeEnd;
-    this->farFadeLen = farFadeLen;
-    this->farFadeCurve = farFadeCurve;
 
     double windowTimeSpan = windowEndTime - windowStartTime;
     bool hitAnimationsOn = state.getProperty("hitIndicators");
@@ -299,9 +293,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     }
     else
     {
-        const auto& colCoordsRef = isGuitarLike(activePart)
-            ? laneCoordsGuitar[(gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1]
-            : laneCoordsDrums[drumColumnIndex(gemColumn, activePart)];
+        const auto& colCoordsRef = laneCoords[resolveLaneIndex(gemColumn)];
         auto strikeEdge = getColumnEdge(0.0f, colCoordsRef, PositionConstants::GEM_SIZE,
                                          PositionConstants::FRETBOARD_SCALE);
         strikeColWidth = strikeEdge.rightX - strikeEdge.leftX;
@@ -463,20 +455,9 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
     }
     else
     {
-        const NormalizedCoordinates* colCoordsPtr = nullptr;
-        int bemaniIdx = -1;
-        if (isGuitarLike(activePart))
-        {
-            int idx = (gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1;
-            colCoordsPtr = &laneCoordsGuitar[idx];
-            bemaniIdx = idx - 1;
-        }
-        else
-        {
-            uint drumIdx = drumColumnIndex(gemColumn, activePart);
-            colCoordsPtr = &laneCoordsDrums[drumIdx];
-            bemaniIdx = (int)drumIdx - 1;
-        }
+        uint laneIdx = resolveLaneIndex(gemColumn);
+        const NormalizedCoordinates* colCoordsPtr = &laneCoords[laneIdx];
+        int bemaniIdx = (int)laneIdx - 1;
         auto edge = getColumnEdge(position, *colCoordsPtr, 1.0f,
                                   PositionConstants::FRETBOARD_SCALE, bemaniIdx);
         float laneWidth = edge.rightX - edge.leftX;
@@ -601,9 +582,7 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
 float NoteRenderer::getColumnDistFromCenter(int column, bool isDrums)
 {
     const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
-    const auto& colCoords = isDrums
-        ? laneCoordsDrums[drumColumnIndex(column, activePart) < (activePart == Part::ELITE_DRUMS ? ELITE_DRUM_LANE_COUNT : DRUM_LANE_COUNT) ? drumColumnIndex(column, activePart) : 1]
-        : laneCoordsGuitar[(column < (int)GUITAR_LANE_COUNT) ? column : 1];
+    const auto& colCoords = laneCoords[resolveLaneIndex((uint)column)];
     return PositionMath::columnDistFromCenter(fbCoords, colCoords);
 }
 
@@ -638,9 +617,7 @@ const NoteRenderer::CurvedImageEntry& NoteRenderer::getCurvedImage(
     float fbCenterNorm = fbCoords.normX1 + fbCoords.normWidth1 * 0.5f;
     float fbHalfWNorm = fbCoords.normWidth1 * 0.5f;
 
-    const auto& colCoords = isDrums
-        ? laneCoordsDrums[drumColumnIndex(column, activePart) < (activePart == Part::ELITE_DRUMS ? ELITE_DRUM_LANE_COUNT : DRUM_LANE_COUNT) ? drumColumnIndex(column, activePart) : 1]
-        : laneCoordsGuitar[(column < (int)GUITAR_LANE_COUNT) ? column : 1];
+    const auto& colCoords = laneCoords[resolveLaneIndex((uint)column)];
 
     float fbWidthInCache = (float)srcW * (fbCoords.normWidth1 / colCoords.normWidth1);
     float arcHeight = fbWidthInCache * curv;

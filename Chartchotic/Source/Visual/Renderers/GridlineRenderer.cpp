@@ -49,12 +49,10 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
                                 float gridlinePosOffset, float gridZOffset,
                                 float farFadeEnd, float farFadeLen, float farFadeCurve)
 {
-    this->width = width;
-    this->height = height;
-    this->posEnd = posEnd;
+    setFrame(activePart, width, height, posEnd);
 
     bool isDrums = isDrumLike(activePart);
-    const auto* config = getRenderTypeConfig(getRenderType(activePart));
+    const auto* config = currentConfig;   // resolved by setFrame() from the active part
     const auto& fbCoords = *config->fretboardCoords;
     auto perspParams = config->getPerspectiveParams();
 
