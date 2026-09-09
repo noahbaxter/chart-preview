@@ -374,6 +374,10 @@ protected:
     int resolveTomMarkerPitch(int lane) const
     {
         if (!isDrums()) return -1;
+        // Elite has no tom markers: cymbal-ness is fixed by lane. Its lanes 2/3/4 are real
+        // hand lanes, and 110/111/112 are its ROLL LANES, so answering here would have
+        // every placement on those lanes write a stray roll.
+        if (isElite()) return -1;
         using Drums = MidiPitchDefinitions::Drums;
         switch (lane)
         {
