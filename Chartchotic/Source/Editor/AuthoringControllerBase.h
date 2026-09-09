@@ -219,8 +219,7 @@ protected:
     {
         BatchScope batch(*this, kPlaceNoteUndo);
         if (!createNote(trackIdx, qn, pitch, lane, velocity, duration)) return false;
-        if (isDrums()) writeTomMarker(trackIdx, qn, lane);
-        else           writeGuitarForceMarker(trackIdx, qn);
+        writeMarkers(trackIdx, qn, lane);
         return true;
     }
 
@@ -421,26 +420,33 @@ protected:
             if (want && existing.noteIndex < 0)
                 createMarkerNote(trackIdx, qn, candidates[i]);
             else if (!want && existing.noteIndex >= 0)
-                eraseNote(trackIdx, qn, candidates[i], true, lane, currentActiveSkill);
+                eraseNote(trackIdx, qn, candidates[i], isDrums(), lane, currentActiveSkill);
         }
     }
 
-    void writeTomMarker(int trackIdx, double qn, int lane)
+    // Markers the toolbar asks for. Drums have one slot and cymbal is its
+    // absence; guitar force is one-of.
+    uint32_t currentMarkerMask(int lane) const
     {
-        int markerPitch = resolveTomMarkerPitch(lane);
-        if (markerPitch < 0) return;
+        if (isDrums())
+            return (resolveTomMarkerPitch(lane) >= 0 && !cymbalModeFlag) ? 1u : 0u;
 
-        auto existing = findNote(trackIdx, qn, markerPitch);
-        if (cymbalModeFlag)
+        uint32_t mask = 0;
+        int slot = 0;
+        for (auto force : { GuitarForce::Hopo, GuitarForce::Strum, GuitarForce::Tap })
         {
-            if (existing.noteIndex >= 0)
-                eraseNote(trackIdx, qn, markerPitch, true, lane, currentActiveSkill);
+            if (resolveGuitarForcePitchFor(force) < 0) continue;
+            if (force == currentGuitarForce) mask |= (1u << slot);
+            ++slot;
         }
-        else
-        {
-            if (existing.noteIndex < 0)
-                createMarkerNote(trackIdx, qn, markerPitch);
-        }
+        return mask;
+    }
+
+    // One path for every instrument, and it clears what it does not want, so
+    // re-placing a note as a plainer type actually plains it.
+    void writeMarkers(int trackIdx, double qn, int lane)
+    {
+        writeMarkerMask(trackIdx, qn, lane, currentMarkerMask(lane));
     }
 
     int resolveGuitarForcePitchFor(GuitarForce force) const
@@ -476,16 +482,6 @@ protected:
     int resolveGuitarForcePitch() const
     {
         return resolveGuitarForcePitchFor(currentGuitarForce);
-    }
-
-    void writeGuitarForceMarker(int trackIdx, double qn)
-    {
-        int forcePitch = resolveGuitarForcePitch();
-        if (forcePitch < 0) return;
-
-        auto existing = findNote(trackIdx, qn, forcePitch);
-        if (existing.noteIndex < 0)
-            createMarkerNote(trackIdx, qn, forcePitch);
     }
 
     InstrumentSession*      instrumentSession    = nullptr;

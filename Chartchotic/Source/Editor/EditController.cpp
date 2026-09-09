@@ -568,25 +568,10 @@ void EditController::applyGuitarForceToSelection(GuitarForce force)
     {
         if (sel.sustainOnly) continue;
 
-        int hopoPitch = resolveGuitarForcePitchFor(GuitarForce::Hopo);
-        int strumPitch = resolveGuitarForcePitchFor(GuitarForce::Strum);
-        int tapPitch = (int)MidiPitchDefinitions::Guitar::TAP;
-
-        for (int fp : {hopoPitch, strumPitch, tapPitch})
-        {
-            if (fp < 0) continue;
-            auto existing = findNote(trackIdx, sel.startQN, fp);
-            if (existing.noteIndex >= 0)
-                eraseNote(trackIdx, sel.startQN, fp, false, sel.lane, currentActiveSkill);
-        }
-
-        if (force != GuitarForce::None)
-        {
-            GuitarForce saved = currentGuitarForce;
-            currentGuitarForce = force;
-            writeGuitarForceMarker(trackIdx, sel.startQN);
-            currentGuitarForce = saved;
-        }
+        GuitarForce saved = currentGuitarForce;
+        currentGuitarForce = force;
+        writeMarkers(trackIdx, sel.startQN, sel.lane);
+        currentGuitarForce = saved;
     }
     endBatch();
 }
@@ -601,14 +586,10 @@ void EditController::applyCymbalModeToSelection(bool cymbal)
     for (const auto& sel : selection)
     {
         if (sel.sustainOnly) continue;
-        int markerPitch = resolveTomMarkerPitch(sel.lane);
-        if (markerPitch < 0) continue;
-
-        auto existing = findNote(trackIdx, sel.startQN, markerPitch);
-        if (cymbal && existing.noteIndex >= 0)
-            eraseNote(trackIdx, sel.startQN, markerPitch, true, sel.lane, currentActiveSkill);
-        else if (!cymbal && existing.noteIndex < 0)
-            createMarkerNote(trackIdx, sel.startQN, markerPitch);
+        bool saved = cymbalModeFlag;
+        cymbalModeFlag = cymbal;
+        writeMarkers(trackIdx, sel.startQN, sel.lane);
+        cymbalModeFlag = saved;
     }
     endBatch();
 }
