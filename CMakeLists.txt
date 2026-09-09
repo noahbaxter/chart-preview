@@ -205,6 +205,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Visual/Renderers/TextEventRenderer.cpp
         Chartchotic/Source/Visual/Renderers/TextEventRenderer.h
         Chartchotic/Source/Visual/Renderers/TrackRenderer.cpp
+
+        Chartchotic/Source/Visual/Renderers/ProceduralTrackArt.cpp
         Chartchotic/Source/Visual/Renderers/TrackRenderer.h
         Chartchotic/Source/Visual/HighwayComponent.cpp
         Chartchotic/Source/Visual/HighwayComponent.h
@@ -347,11 +349,8 @@ set(CHARTCHOTIC_ASSETS
         assets/generated/lanes/lane_mid.png
         assets/generated/lanes/lane_start.png
         # Track layers (generated from PDFs)
-        assets/generated/ui/sidebars.png
         assets/generated/ui/lane_lines_guitar.png
         assets/generated/ui/lane_lines_drums.png
-        assets/generated/ui/strikeline_guitar.png
-        assets/generated/ui/strikeline_drums.png
         assets/generated/ui/strikeline_connectors.png
         assets/generated/ui/kick_smashers.png
         # Hit animations — flares (generated from PDFs)

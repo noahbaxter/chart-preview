@@ -9,6 +9,7 @@
 */
 
 #include "AssetManager.h"
+#include "../Utils/PositionConstants.h"
 
 AssetManager::AssetManager()
 {
@@ -334,10 +335,50 @@ juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uin
     return nullptr;
 }
 
-juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive)
+juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive, bool elite)
 {
     // Use the gem's star power flag to determine if it should be white
     bool shouldBeWhite = starPowerActive && gemWrapper.starPower;
+
+    if (elite)
+    {
+        // Elite: each hand lane is drum XOR cymbal, and its colour comes from the shared
+        // ELITE_LANE_STYLES table (same source the strikeline pads use), so the gem and
+        // its pad always match. Kick / 2x-Kick are full-width bars. Purple (Left Crash)
+        // has no gem art yet, so it borrows the tap-note glyph as a placeholder until the
+        // procedural note glyph lands.
+        using T = PositionConstants::DrumLaneTint;
+        if (gemColumn >= 1 && gemColumn <= 8)
+        {
+            const auto& style = PositionConstants::ELITE_LANE_STYLES[gemColumn];
+            if (style.cymbal)
+            {
+                if (shouldBeWhite) return getCymWhiteImage();
+                switch (style.tint)
+                {
+                case T::Yellow: return getCymYellowImage();
+                case T::Blue:   return getCymBlueImage();
+                case T::Green:  return getCymGreenImage();
+                case T::Red:    return getCymRedImage();
+                case T::Purple: return getOverlayNoteTapImage();   // placeholder: no purple cymbal art yet
+                default:        return getCymWhiteImage();
+                }
+            }
+            if (shouldBeWhite) return getNoteWhiteImage();
+            switch (style.tint)
+            {
+            case T::Red:    return getNoteRedImage();
+            case T::Orange: return getNoteOrangeImage();
+            case T::Blue:   return getNoteBlueImage();
+            case T::Yellow: return getNoteYellowImage();
+            case T::Green:  return getNoteGreenImage();
+            case T::Purple: return getOverlayNoteTapImage();       // placeholder: no purple note art yet
+            default:        return getNoteWhiteImage();
+            }
+        }
+        if (gemColumn == 9) return shouldBeWhite ? getBarWhiteImage() : getBarKick2xImage();  // 2x Kick
+        return shouldBeWhite ? getBarWhiteImage() : getBarKickImage();                        // Kick / other
+    }
 
     if (shouldBeWhite)
     {

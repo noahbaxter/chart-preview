@@ -12,7 +12,7 @@
 //==============================================================================
 // CONSTANTS
 
-constexpr uint LANE_COUNT = 7;  // Number of playable lanes (0-6)
+constexpr uint LANE_COUNT = 12;  // Max playable columns: 4-lane uses 0-6; elite uses kick(0) + 8 hand lanes(1-8) + kick2x(9) + stomp(10) + splash(11)
 
 //==============================================================================
 // State helpers
@@ -32,16 +32,21 @@ inline bool isPart(juce::ValueTree &state, Part part)
     return (int)state.getProperty("part") == (int)part;
 }
 
-constexpr int DRUM_KICK_COLUMN    = 0;
-constexpr int DRUM_KICK_2X_COLUMN = 6;
+constexpr int DRUM_KICK_COLUMN     = 0;
+constexpr int DRUM_KICK_2X_COLUMN  = 6;   // 4-lane: 2x kick shares the kick lane
+constexpr int ELITE_KICK_2X_COLUMN = 9;   // elite: col 6 is a real hand lane (Tom 3), so 2x kick moves to a virtual column
 
-inline bool isDrumKick(uint gemColumn)
+inline bool isDrumKick(uint gemColumn, Part part = Part::DRUMS)
 {
+    if (part == Part::ELITE_DRUMS)
+        return gemColumn == DRUM_KICK_COLUMN || gemColumn == ELITE_KICK_2X_COLUMN;
     return gemColumn == DRUM_KICK_COLUMN || gemColumn == DRUM_KICK_2X_COLUMN;
 }
 
-inline uint drumColumnIndex(uint gemColumn)
+inline uint drumColumnIndex(uint gemColumn, Part part = Part::DRUMS)
 {
+    if (part == Part::ELITE_DRUMS)
+        return (gemColumn == ELITE_KICK_2X_COLUMN) ? DRUM_KICK_COLUMN : gemColumn;
     return (gemColumn == DRUM_KICK_2X_COLUMN) ? DRUM_KICK_COLUMN : gemColumn;
 }
 
@@ -50,7 +55,7 @@ inline bool isBarNote(uint gemColumn, Part part)
     if (part == Part::GUITAR)
         return gemColumn == 0;
     else
-        return isDrumKick(gemColumn);
+        return isDrumKick(gemColumn, part);
 }
 
 //==============================================================================

@@ -14,6 +14,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <array>
 
 // Windows compatibility
 #if defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(_MSC_VER)
@@ -184,6 +185,7 @@ namespace PositionConstants
     // Lane Counts
     constexpr size_t GUITAR_LANE_COUNT = 6;             // Open + 5 frets
     constexpr size_t DRUM_LANE_COUNT = 5;               // Kick + 4 pads
+    constexpr size_t ELITE_DRUM_LANE_COUNT = 9;         // Kick + 8 hand lanes (Snare-Hat-LCrash-Tom1-Tom2-Tom3-Ride-RCrash)
 
     //==============================================================================
     // Animation Positioning & Scaling Factors
@@ -205,13 +207,36 @@ namespace PositionConstants
         {0.0f, 0.0f, 1.6f, 3.5f}    // Col 4 - Green
     };
 
+    // Elite drums: kick bar + 8 hand lanes (same anim shape as drums)
+    constexpr CoordinateOffset ELITE_DRUM_ANIMATION_OFFSETS[] = {
+        {0.0f, -8.0f, 1.4f, 10.0f}, // 0 Kick
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 1 Snare
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 2 Hi-Hat
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 3 Left Crash
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 4 Tom 1
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 5 Tom 2
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 6 Tom 3
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 7 Ride
+        {0.0f, 0.0f, 1.6f, 3.5f}    // 8 Right Crash
+    };
+
     //==============================================================================
     // Fretboard Boundary Coordinates (for bezier positioning system)
     constexpr NormalizedCoordinates guitarFretboardCoords =
         {0.16f, 0.34f, 0.73f, 0.234f, 0.68f, 0.32f};
     constexpr NormalizedCoordinates drumFretboardCoords =
         {0.16f, 0.34f, 0.735f, 0.239f, 0.68f, 0.32f};
+    // Elite drums reuse the drum board shape for now (getFretboardEdge is not yet
+    // config-aware, so this MUST match drumFretboardCoords or lanes/fill diverge).
+    constexpr NormalizedCoordinates eliteDrumFretboardCoords =
+        {0.16f, 0.34f, 0.735f, 0.239f, 0.68f, 0.32f};
     constexpr float FRETBOARD_SCALE = 1.25f;
+
+    // Elite drums render into a wider box than the other parts so its 8 lanes get more
+    // horizontal room (same slant/height, just wider). Because the whole board is a
+    // fixed fraction of the render width, scaling the box scales EVERYTHING with it --
+    // fretboard edge, lanes, strikeline, rails, gems. Single knob for the elite span.
+    constexpr float ELITE_BOARD_WIDTH_SCALE = 1.3f;
 
     //==============================================================================
     // Highway Range (bezier system defaults)
@@ -235,6 +260,69 @@ namespace PositionConstants
         {0.506f, 0.500f, 0.70f, 0.22f, 0.118f, 0.066f},      // Blue
         {0.636f, 0.564f, 0.70f, 0.22f, 0.124f, 0.060f}       // Green
     };
+    // Elite drums lane layout (kick + 8 hand lanes) -- single source of truth for BOTH
+    // colour and width, so the strikeline pads, the highway gems, and the lane geometry
+    // can never disagree.
+    //
+    // Per-lane colour (the canonical elite scheme):
+    //   Snare Red | Hi-Hat Yellow | L-Crash Purple | Tom1/2/3 Orange | Ride Blue | R-Crash Green
+    // `cymbal` marks the cymbal lanes (Hi-Hat, L/R-Crash, Ride); drums are Snare + Toms.
+    // Consumers: strikePadColours() (pad tint), getDrumGlyphImage() (which gem art), and
+    // the width generator below (cymbal-vs-drum lane width).
+    enum class DrumLaneTint { None, Red, Yellow, Purple, Orange, Blue, Green, White };
+    struct EliteLaneStyle { DrumLaneTint tint; bool cymbal; };
+    constexpr EliteLaneStyle ELITE_LANE_STYLES[9] = {
+        { DrumLaneTint::None,   false },  // 0 Kick   (full-width bar)
+        { DrumLaneTint::Red,    false },  // 1 Snare      drum
+        { DrumLaneTint::Yellow, true  },  // 2 Hi-Hat     cymbal
+        { DrumLaneTint::Purple, true  },  // 3 Left Crash cymbal
+        { DrumLaneTint::Orange, false },  // 4 Tom 1      drum
+        { DrumLaneTint::Orange, false },  // 5 Tom 2      drum
+        { DrumLaneTint::Orange, false },  // 6 Tom 3      drum
+        { DrumLaneTint::Blue,   true  },  // 7 Ride       cymbal
+        { DrumLaneTint::Green,  true  },  // 8 Right Crash cymbal
+    };
+
+    // Relative width weight per lane type. 1.0 for both = every lane equal width. Set
+    // cymbal to 1.5f to restore the old varied (wide-cymbal) look. Total span and gaps
+    // stay fixed; the lanes just redistribute the available width by weight.
+    constexpr float ELITE_DRUM_LANE_WIDTH   = 1.0f;
+    constexpr float ELITE_CYMBAL_LANE_WIDTH = 1.0f;
+
+    // Fixed span (within the normalized board) the 8 hand lanes fill, plus the constant
+    // inter-lane gaps, at the near (strikeline) and far ends. Widening the whole board
+    // is a separate lever (ELITE_BOARD_WIDTH_SCALE) since these are board-relative.
+    constexpr float ELITE_LANE_NEAR_START = 0.234f, ELITE_LANE_NEAR_END = 0.75326f;
+    constexpr float ELITE_LANE_FAR_START  = 0.376f, ELITE_LANE_FAR_END  = 0.621f;
+    constexpr float ELITE_LANE_GAP_NEAR = 0.00683f;
+    constexpr float ELITE_LANE_GAP_FAR  = 0.0030f;
+
+    // Build the 9-lane table from the style/width constants above.
+    constexpr std::array<NormalizedCoordinates, 9> buildEliteDrumLaneCoords()
+    {
+        std::array<NormalizedCoordinates, 9> out{};
+        out[0] = {0.212f, 0.354f, 0.735f, 0.239f, 0.574f, 0.290f};   // Kick (full width)
+
+        float wsum = 0.0f;
+        for (int i = 1; i <= 8; ++i)
+            wsum += ELITE_LANE_STYLES[i].cymbal ? ELITE_CYMBAL_LANE_WIDTH : ELITE_DRUM_LANE_WIDTH;
+
+        const float nearAvail = (ELITE_LANE_NEAR_END - ELITE_LANE_NEAR_START) - 7.0f * ELITE_LANE_GAP_NEAR;
+        const float farAvail  = (ELITE_LANE_FAR_END  - ELITE_LANE_FAR_START ) - 7.0f * ELITE_LANE_GAP_FAR;
+
+        float nx = ELITE_LANE_NEAR_START, fx = ELITE_LANE_FAR_START;
+        for (int i = 1; i <= 8; ++i)
+        {
+            float w  = ELITE_LANE_STYLES[i].cymbal ? ELITE_CYMBAL_LANE_WIDTH : ELITE_DRUM_LANE_WIDTH;
+            float nw = w / wsum * nearAvail;
+            float fw = w / wsum * farAvail;
+            out[i] = { nx, fx, 0.70f, 0.22f, nw, fw };
+            nx += nw + ELITE_LANE_GAP_NEAR;
+            fx += fw + ELITE_LANE_GAP_FAR;
+        }
+        return out;
+    }
+    constexpr std::array<NormalizedCoordinates, 9> eliteDrumBezierLaneCoords = buildEliteDrumLaneCoords();
 
     //==============================================================================
     // Curved Note Rendering (pre-baked image cache)
@@ -293,6 +381,17 @@ namespace PositionConstants
         {0, 1, 1, 1, 1},                // Yellow
         {0, 1, 1, 1, 1},                // Blue
         {0, 1, 1, 1, 1}                 // Green
+    };
+    constexpr ColumnAdjust ELITE_DRUM_COL_ADJUST[9] = {
+        {0, 1, 1, 1, 1},                // 0 Kick
+        {0, 1, 1, 1, 1},                // 1 Snare
+        {0, 1, 1, 1, 1},                // 2 Hi-Hat
+        {0, 1, 1, 1, 1},                // 3 Left Crash
+        {0, 1, 1, 1, 1},                // 4 Tom 1
+        {0, 1, 1, 1, 1},                // 5 Tom 2
+        {0, 1, 1, 1, 1},                // 6 Tom 3
+        {0, 1, 1, 1, 1},                // 7 Ride
+        {0, 1, 1, 1, 1}                 // 8 Right Crash
     };
 
     //==============================================================================

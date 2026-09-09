@@ -185,8 +185,15 @@ void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, 
 
     Render::Frame composite;
 
-    uint drawSequence[] = {0, 6, 1, 2, 3, 4, 5};
-    for (int i = 0; i < gems.size(); i++)
+    // Draw order: bar columns first (behind), then hand/fret lanes. 4-lane/guitar
+    // use kick(0)+2xkick(6)+pads. Elite uses kick(0)+2xkick(9)+stomp(10)+splash(11)
+    // as bars, then the 8 hand lanes 1..8.
+    static const uint drumSeq[]  = {0, 6, 1, 2, 3, 4, 5};
+    static const uint eliteSeq[] = {0, 9, 10, 11, 1, 2, 3, 4, 5, 6, 7, 8};
+    const bool elite = (activePart == Part::ELITE_DRUMS);
+    const uint* drawSequence = elite ? eliteSeq : drumSeq;
+    const int   seqLen       = elite ? (int)std::size(eliteSeq) : (int)std::size(drumSeq);
+    for (int i = 0; i < seqLen; i++)
     {
         int gemColumn = drawSequence[i];
         if (gems[gemColumn].gem != Gem::NONE)
@@ -232,11 +239,12 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
 
     bool starPowerActive = state.getProperty("starPower");
     bool isDrums = isDrumLike(activePart);
+    bool elite = (activePart == Part::ELITE_DRUMS);
 
     if (imageOverride)
     {
         glyphImage = imageOverride;
-        barNote = isBarNote(gemColumn, isDrums ? Part::DRUMS : Part::GUITAR);
+        barNote = isBarNote(gemColumn, isDrums ? activePart : Part::GUITAR);
     }
     else if (isGuitarLike(activePart))
     {
@@ -245,8 +253,8 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     }
     else
     {
-        barNote = isBarNote(gemColumn, Part::DRUMS);
-        glyphImage = assetManager.getDrumGlyphImage(gemWrapper, gemColumn, starPowerActive);
+        barNote = isBarNote(gemColumn, activePart);
+        glyphImage = assetManager.getDrumGlyphImage(gemWrapper, gemColumn, starPowerActive, elite);
     }
 
     if (!imageOverride)
@@ -293,7 +301,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     {
         const auto& colCoordsRef = isGuitarLike(activePart)
             ? laneCoordsGuitar[(gemColumn < GUITAR_LANE_COUNT) ? gemColumn : 1]
-            : laneCoordsDrums[drumColumnIndex(gemColumn)];
+            : laneCoordsDrums[drumColumnIndex(gemColumn, activePart)];
         auto strikeEdge = getColumnEdge(0.0f, colCoordsRef, PositionConstants::GEM_SIZE,
                                          PositionConstants::FRETBOARD_SCALE);
         strikeColWidth = strikeEdge.rightX - strikeEdge.leftX;
@@ -331,7 +339,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         const auto& ca = guitarColAdjust[gemColumn];
         colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
     } else if (isDrums) {
-        uint drumIdx = drumColumnIndex(gemColumn);
+        uint drumIdx = drumColumnIndex(gemColumn, activePart);
         const auto& ca = drumColAdjust[drumIdx];
         colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
         if (!barNote) zOff += ca.z * resScale;   // ca.z is at REFERENCE_HEIGHT
@@ -454,7 +462,7 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
         }
         else
         {
-            uint drumIdx = drumColumnIndex(gemColumn);
+            uint drumIdx = drumColumnIndex(gemColumn, activePart);
             colCoordsPtr = &laneCoordsDrums[drumIdx];
             bemaniIdx = (int)drumIdx - 1;
         }
@@ -583,7 +591,7 @@ float NoteRenderer::getColumnDistFromCenter(int column, bool isDrums)
 {
     const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
     const auto& colCoords = isDrums
-        ? laneCoordsDrums[drumColumnIndex(column) < DRUM_LANE_COUNT ? drumColumnIndex(column) : 1]
+        ? laneCoordsDrums[drumColumnIndex(column, activePart) < (activePart == Part::ELITE_DRUMS ? ELITE_DRUM_LANE_COUNT : DRUM_LANE_COUNT) ? drumColumnIndex(column, activePart) : 1]
         : laneCoordsGuitar[(column < (int)GUITAR_LANE_COUNT) ? column : 1];
     return PositionMath::columnDistFromCenter(fbCoords, colCoords);
 }
@@ -620,7 +628,7 @@ const NoteRenderer::CurvedImageEntry& NoteRenderer::getCurvedImage(
     float fbHalfWNorm = fbCoords.normWidth1 * 0.5f;
 
     const auto& colCoords = isDrums
-        ? laneCoordsDrums[drumColumnIndex(column) < DRUM_LANE_COUNT ? drumColumnIndex(column) : 1]
+        ? laneCoordsDrums[drumColumnIndex(column, activePart) < (activePart == Part::ELITE_DRUMS ? ELITE_DRUM_LANE_COUNT : DRUM_LANE_COUNT) ? drumColumnIndex(column, activePart) : 1]
         : laneCoordsGuitar[(column < (int)GUITAR_LANE_COUNT) ? column : 1];
 
     float fbWidthInCache = (float)srcW * (fbCoords.normWidth1 / colCoords.normWidth1);
