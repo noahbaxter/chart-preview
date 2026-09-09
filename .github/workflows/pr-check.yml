@@ -1,0 +1,26 @@
+name: PR check
+
+# Cheap pre-merge validation: build all three platforms via the reusable build.yml,
+# which also runs pluginval and the unit tests. Push-to-main and tags go to the hub
+# instead (see release-dispatch.yml), so this only runs on pull requests.
+#
+# Apple secrets are deliberately NOT passed: build.yml skips signing and the
+# multi-minute notarization wait when they are absent, and neither is worth doing
+# on a PR. SUBMODULE_PAT is passed because checkout needs it for the submodules.
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: pr-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      version_string: 0.0.0-ci
+      build_channel: DEV
+    secrets:
+      SUBMODULE_PAT: ${{ secrets.SUBMODULE_PAT }}
