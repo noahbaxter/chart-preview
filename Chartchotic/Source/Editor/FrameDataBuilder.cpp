@@ -4,7 +4,7 @@
 #include "../Midi/Utils/MidiConstants.h"
 #include "../UI/ControlConstants.h"
 #include "../Midi/Utils/TempoTimeSignatureEventHelper.h"
-#include "../Visual/Utils/PositionMath.h"
+#include "../Visual/Geometry/PositionMath.h"
 
 // Apply latency offset to raw cursor position.
 // In REAPER mode, uses the tempo map for accurate time-to-PPQ conversion
@@ -167,9 +167,14 @@ void FrameDataBuilder::buildReaperBatched(HighwayFrameData& primaryOut,
         SharedWindow shared;
         {
             const juce::ScopedLock lock(*lockPtr);
+            // Must pass isElite so elite pitches (72-118) parse via the elite mapping. The single-
+            // highway path (MidiInterpreter) does this; this multi-highway path omitted it, so it
+            // defaulted to false and every extra E-Drums highway parsed its notes as non-elite and
+            // silently dropped most gems (single elite was fine, multi was not).
+            bool isElite = getRenderType(cfg.part) == RenderType::ELITE_DRUMS;
             shared = TrackResolver::extract(firstInterp.noteStateMapArray,
                                             extendedStart, trackWindowEndPPQ, latencyBufferEnd,
-                                            cfg.bemaniMode);
+                                            cfg.bemaniMode, isElite);
         }
 
         PartWindow partWindow = TrackResolver::resolve(shared, cfg);

@@ -21,9 +21,7 @@ void TextEventRenderer::populate(DrawCallMap& drawCallMap,
                                  float posEnd,
                                  float farFadeEnd, float farFadeLen, float farFadeCurve)
 {
-    this->width = width;
-    this->height = height;
-    this->posEnd = posEnd;
+    setFrame(activePart, width, height, posEnd);
 
     double windowTimeSpan = windowEndTime - windowStartTime;
     if (windowTimeSpan <= 0.0) return;
@@ -61,9 +59,7 @@ void TextEventRenderer::populateEventMarkers(DrawCallMap& drawCallMap,
                                               float posEnd,
                                               float farFadeEnd, float farFadeLen, float farFadeCurve)
 {
-    this->width = width;
-    this->height = height;
-    this->posEnd = posEnd;
+    setFrame(activePart, width, height, posEnd);
 
     double windowTimeSpan = windowEndTime - windowStartTime;
     if (windowTimeSpan <= 0.0) return;
@@ -86,12 +82,10 @@ void TextEventRenderer::populateEventMarkers(DrawCallMap& drawCallMap,
 void TextEventRenderer::drawMarker(juce::Graphics& g, float position, const juce::String& label,
                                    float fadeOpacity)
 {
-    bool isDrums = isDrumLike(activePart);
-
     if (PositionMath::bemaniMode)
     {
         // Flat horizontal marker matching Bemani gridline style
-        auto edge = PositionMath::getFretboardEdge(isDrums, position, width, height,
+        auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), position, width, height,
                         PositionConstants::HIGHWAY_POS_START, posEnd);
         float leftX = edge.leftX;
         float rightX = edge.rightX;
@@ -127,7 +121,7 @@ void TextEventRenderer::drawMarker(juce::Graphics& g, float position, const juce
     // --- Perspective mode: curved force field ---
 
     // Width from fretboard coords, same scale as gridlines
-    const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
+    const auto& fbCoords = *currentConfig->fretboardCoords;
     auto laneEdge = getColumnEdge(position, fbCoords, TEXT_EVENT_WIDTH_SCALE);
     float leftX  = laneEdge.leftX;
     float rightX = laneEdge.rightX;

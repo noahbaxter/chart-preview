@@ -85,7 +85,8 @@ void HighwayComponent::paint(juce::Graphics& g)
     // Draw them in component coordinates (no translation needed).
     if (showHighway)
     {
-        bool useCache = trackImageCache && !PositionMath::bemaniMode;
+        bool useCache = trackImageCache && !PositionMath::bemaniMode
+                        && getRenderType(activePart) != RenderType::ELITE_DRUMS;
 #ifdef DEBUG
         {
             ScopedPhaseMeasure _trackMeasure(debugTrackRender_us, sceneRenderer.collectPhaseTiming);
@@ -503,7 +504,7 @@ void HighwayComponent::paint(juce::Graphics& g)
         auto laneEdges = [&](int lane, float pos, bool splitKick = false) -> PositionConstants::LaneCorners {
             if (isDrums && InstrumentMapper::isKickLane(lane))
             {
-                auto fb = PositionMath::getFretboardEdge(isDrums, pos, (uint)w, (uint)h,
+                auto fb = PositionMath::getFretboardEdge(getRenderType(activePart), pos, (uint)w, (uint)h,
                     PositionConstants::HIGHWAY_POS_START, posEnd);
                 if (splitKick)
                 {
@@ -519,7 +520,7 @@ void HighwayComponent::paint(juce::Graphics& g)
             const auto& coords = isDrums
                 ? PositionConstants::drumBezierLaneCoords[clampedLane]
                 : PositionConstants::guitarBezierLaneCoords[clampedLane];
-            return PositionMath::getColumnPosition(isDrums, pos, (uint)w, (uint)h,
+            return PositionMath::getColumnPosition(getRenderType(activePart), pos, (uint)w, (uint)h,
                 PositionConstants::HIGHWAY_POS_START, posEnd,
                 coords, 1.0f, PositionConstants::FRETBOARD_SCALE);
         };
@@ -546,8 +547,8 @@ void HighwayComponent::paint(juce::Graphics& g)
             marquee.lineTo(botLeft.leftX, botLeft.centerY);
             marquee.closeSubPath();
 
-            auto col = ov.marqueeErase ? juce::Colour(255, 80, 80)
-                                       : juce::Colour(100, 180, 255);
+            auto col = ov.marqueeErase ? AuthoringColours::marqueeErase
+                                       : AuthoringColours::marqueeSelect;
             g.setColour(col.withAlpha(0.15f));
             g.fillPath(marquee);
             g.setColour(col.withAlpha(0.5f));
@@ -729,7 +730,7 @@ void HighwayComponent::updateOverflow()
     if (PositionMath::bemaniMode) { topOverflow = 0; return; }
     bool isDrums = isDrumLike(activePart);
     auto farEdge = PositionMath::getFretboardEdge(
-        isDrums, sceneRenderer.farFadeEnd, renderWidth, renderHeight,
+        getRenderType(activePart), sceneRenderer.farFadeEnd, renderWidth, renderHeight,
         PositionConstants::HIGHWAY_POS_START, sceneRenderer.highwayPosEnd);
     topOverflow = std::max(0, (int)std::ceil(-farEdge.centerY));
 }
@@ -745,15 +746,26 @@ void HighwayComponent::rebuildTrack()
     updateOverflow();
 
     bool isDrums = isDrumLike(activePart);
-    bool useCache = trackImageCache && trackImageCache->isValid() && !PositionMath::bemaniMode;
+    bool isElite = getRenderType(activePart) == RenderType::ELITE_DRUMS;
+    // The shared track-art cache only bakes guitar + 4-lane drums. Elite (which is
+    // drum-like) would otherwise pull the drum bake and render as a 4-pad, 4-lane
+    // board with drum assets. Until the cache learns a third elite variant, render
+    // elite live through the non-cache path (same one bemani/standalone use), which
+    // honours the 9-lane elite geometry/assets.
+    bool useCache = trackImageCache && trackImageCache->isValid() && !PositionMath::bemaniMode && !isElite;
 
     sceneRenderer.rescaleAssets(w);
     sceneRenderer.overlayYOffset = topOverflow;
 
-    // Pass lane coords to TrackRenderer for perspective-projected lane lines
+    // Pass lane coords to TrackRenderer for perspective-projected lane lines. Elite
+    // has its own 9-lane table (kick + 8 hand lanes); isDrumLike() is true for elite
+    // too, so it must be checked first or elite would silently fall back to the
+    // 4-lane drum table.
     trackRenderer.setLaneCoords(
-        isDrums ? sceneRenderer.drumLaneCoordsLocal : sceneRenderer.guitarLaneCoordsLocal,
-        isDrums ? (int)PositionConstants::DRUM_LANE_COUNT : (int)PositionConstants::GUITAR_LANE_COUNT);
+        isElite ? sceneRenderer.eliteDrumLaneCoordsLocal
+                : isDrums ? sceneRenderer.drumLaneCoordsLocal : sceneRenderer.guitarLaneCoordsLocal,
+        isElite ? (int)PositionConstants::ELITE_DRUM_LANE_COUNT
+                : isDrums ? (int)PositionConstants::DRUM_LANE_COUNT : (int)PositionConstants::GUITAR_LANE_COUNT);
 
     if (useCache)
     {
@@ -761,7 +773,7 @@ void HighwayComponent::rebuildTrack()
         // Rebuild geometry + texture prebake when dimensions or instrument changed
         // (texture scanline LUT depends on fretboard edges which differ guitar vs drums).
         bool dimsChanged = w != bakedRenderW || h != bakedRenderH || topOverflow != bakedOverflow;
-        bool partChanged = isDrums != trackRenderer.getCachedIsDrums();
+        bool partChanged = getRenderType(activePart) != trackRenderer.getCachedRenderType();
         if (dimsChanged || partChanged)
             trackRenderer.rebuild(w, h, topOverflow,
                                   sceneRenderer.farFadeEnd, sceneRenderer.farFadeLen, sceneRenderer.farFadeCurve,
@@ -865,11 +877,18 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
 #endif
 
     bool isDrums = isDrumLike(activePart);
+    bool isElite = getRenderType(activePart) == RenderType::ELITE_DRUMS;
+    // Hit-test against the SAME (debug-tunable) lane coords the renderers use, so click
+    // zones can't drift from the rendered columns when the debug panel nudges coords.
+    const PositionConstants::NormalizedCoordinates* activeHitCoords =
+        isElite ? sceneRenderer.eliteDrumLaneCoordsLocal
+                : isDrums ? sceneRenderer.drumLaneCoordsLocal : sceneRenderer.guitarLaneCoordsLocal;
     auto hit = hitTestMapper.hitTest(renderPt.x, hitY,
                                      (uint)juce::jmax(0, renderWidth),
                                      (uint)juce::jmax(0, renderHeight),
                                      frameData.windowStartTime, frameData.windowEndTime,
-                                     isDrums, sceneRenderer.farFadeEnd);
+                                     activePart, sceneRenderer.farFadeEnd,
+                                     PositionConstants::FRETBOARD_SCALE, activeHitCoords);
 
     outPoint.screenPos = local;
     if (hit.valid && hit.laneIndex >= 0)
@@ -903,7 +922,8 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
                                             (uint)juce::jmax(0, renderWidth),
                                             (uint)juce::jmax(0, renderHeight),
                                             frameData.windowStartTime, frameData.windowEndTime,
-                                            isDrums, sceneRenderer.farFadeEnd);
+                                            activePart, sceneRenderer.farFadeEnd,
+                                            PositionConstants::FRETBOARD_SCALE, activeHitCoords);
         outPoint.rawProjectQN = secondsToProjectQN(barHit.timeFromCursor);
     }
     else

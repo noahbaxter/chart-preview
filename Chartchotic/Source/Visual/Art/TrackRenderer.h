@@ -17,7 +17,7 @@
 #include <JuceHeader.h>
 #include "../../Utils/ChartTypes.h"
 #include "TrackFade.h"
-#include "../Utils/PositionMath.h"
+#include "../Geometry/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
 
 class TrackRenderer
@@ -54,6 +54,7 @@ public:
 
     /** Whether the cached geometry was built for drums (used to detect instrument change). */
     bool getCachedIsDrums() const { return cached.isDrums; }
+    RenderType getCachedRenderType() const { return cached.renderType; }
 
     /** Set the source texture for highway overlay. */
     void setTexture(const juce::Image& texture);
@@ -119,9 +120,6 @@ private:
     juce::ValueTree& state;
 
     // Layer source images
-    juce::Image sidebarsImage;
-    juce::Image strikelineGuitarImage;
-    juce::Image strikelineDrumsImage;
     juce::Image strikelineConnectorsImage;
     juce::Image kickSmashersImage;
 
@@ -140,6 +138,7 @@ private:
         int width = 0, height = 0;   // viewport dimensions
         int overflow = 0;            // extra pixels above viewport
         bool isDrums = false;
+        RenderType renderType = RenderType::FIVE_FRET;   // distinguishes elite from 4-lane drums
         float posEnd = 0, fadeEnd = 0, fadeLen = 0, fadeCurve = 0;
         int totalHeight() const { return height + overflow; }
     } cached;
@@ -174,6 +173,19 @@ private:
     void bakeLaneLinesPerspective(int w, int h, int overflow, bool isDrums,
                                    float farFadeEnd, float farFadeLen, float farFadeCurve,
                                    float posEnd);
+
+    // Procedural side rails stroked along the board edges (cached.edges). Used
+    // instead of the fixed sidebar PNG for render types whose board width/aspect
+    // differ from the PNG's baked perspective (e.g. Elite drums' wider 8-lane board).
+    void bakeSidebarRailsPerspective(int w, int h, int overflow, bool isDrums,
+                                      float farFadeEnd, float farFadeLen, float farFadeCurve,
+                                      float posEnd);
+
+    // Procedural strikeline pads along the strike-plane lane geometry, baked into
+    // the STRIKELINE layer instead of the fixed strikeline PNG (Elite / A/B flag).
+    void bakeStrikelinePadsPerspective(int w, int h, int overflow, bool isDrums,
+                                        float farFadeEnd, float farFadeLen, float farFadeCurve,
+                                        float posEnd);
 
     static constexpr int PIXELS_PER_STRIP = 1;
     static constexpr int MIN_STRIPS = 40;

@@ -14,7 +14,7 @@
 
 #include <JuceHeader.h>
 #include "Visual/Renderers/SceneRenderer.h"
-#include "Visual/Renderers/TrackRenderer.h"
+#include "Visual/Art/TrackRenderer.h"
 #include "Midi/Processing/MidiInterpreter.h"
 #include "bench_helpers.h"
 

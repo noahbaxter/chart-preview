@@ -18,7 +18,7 @@
 #include <map>
 #include <vector>
 #include <functional>
-#include "BemaniConfig.h"
+#include "../Geometry/BemaniConfig.h"
 
 // Windows compatibility
 #if defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(_MSC_VER)

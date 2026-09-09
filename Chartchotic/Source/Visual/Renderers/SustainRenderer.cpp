@@ -10,7 +10,7 @@
 */
 
 #include "SustainRenderer.h"
-#include "../Utils/RenderTypeConfig.h"
+#include "../Geometry/RenderTypeConfig.h"
 #include "../../Editor/AuthoringTypes.h"
 
 using namespace PositionConstants;
@@ -25,21 +25,13 @@ void SustainRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedSustainW
                                uint width, uint height, bool showLanes, bool showSustains,
                                float posEnd,
                                float farFadeEnd, float farFadeLen, float farFadeCurve,
-                               const NormalizedCoordinates* laneCoordsGuitar,
-                               const NormalizedCoordinates* laneCoordsDrums)
+                               const NormalizedCoordinates* laneCoords)
 {
     currentDrawCallMap = &drawCallMap;
-    currentConfig = getRenderTypeConfig(getRenderType(activePart));
-    this->width = width;
-    this->height = height;
     this->showLanes = showLanes;
     this->showSustains = showSustains;
-    this->posEnd = posEnd;
-    this->farFadeEnd = farFadeEnd;
-    this->farFadeLen = farFadeLen;
-    this->farFadeCurve = farFadeCurve;
-    this->laneCoordsGuitar = laneCoordsGuitar;
-    this->laneCoordsDrums = laneCoordsDrums;
+    this->laneCoords = laneCoords;
+    setFrame(activePart, width, height, posEnd, farFadeEnd, farFadeLen, farFadeCurve);
 
     for (const auto& sustain : sustainWindow)
     {
@@ -125,7 +117,7 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     bool starPowerActive = state.getProperty("starPower");
     bool shouldBeWhite = starPowerActive && sustain.gemType.starPower;
-    auto colour = assetManager.getLaneColour(sustain.gemColumn, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS, shouldBeWhite);
+    auto colour = assetManager.getLaneColour(sustain.gemColumn, isGuitarLike(activePart) ? Part::GUITAR : activePart, shouldBeWhite);
 
     for (const auto& ts : tintedSustains)
     {
@@ -162,23 +154,21 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
 {
     bool isDrums = isDrumLike(activePart);
     const auto* config = currentConfig;
-    bool isBar = isBarNote(gemColumn, isDrums ? Part::DRUMS : Part::GUITAR);
+    // Guitar-like keeps GUITAR bar semantics (bar = col 0); drums pass the real
+    // part so elite's kick columns (0 and the 2x virtual col) resolve correctly.
+    bool isBar = isBarNote(gemColumn, isDrums ? activePart : Part::GUITAR);
 
     // Look up lane coords
     NormalizedCoordinates colCoords;
     float laneScale;
     int bemaniIdx = -1;
-    if (isDrums) {
-        bool isKick = isDrumKick(gemColumn);
-        uint dIdx = drumColumnIndex(gemColumn);
-        colCoords = laneCoordsDrums[dIdx];
-        laneScale = isKick ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
-        bemaniIdx = (int)dIdx - 1;
-    } else {
-        colCoords = laneCoordsGuitar[gemColumn];
+    uint laneCoordIdx = resolveLaneIndex(gemColumn);
+    colCoords = laneCoords[laneCoordIdx];
+    bemaniIdx = (int)laneCoordIdx - 1;
+    if (isDrums)
+        laneScale = isDrumKick(gemColumn, activePart) ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+    else
         laneScale = (gemColumn == 0) ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
-        bemaniIdx = (int)gemColumn - 1;
-    }
 
     int laneIdx = PositionMath::bemaniMode ? bemaniIdx : -1;
     auto startLane = getColumnEdge(startPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, laneIdx);
@@ -210,7 +200,7 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
 
         if (isBar)
         {
-            auto fb = PositionMath::getFretboardEdge(isDrums, startPosition, width, height,
+            auto fb = PositionMath::getFretboardEdge(getRenderType(activePart), startPosition, width, height,
                 PositionConstants::HIGHWAY_POS_START, posEnd);
             centerX = (fb.leftX + fb.rightX) * 0.5f;
             laneWidth = fb.rightX - fb.leftX;
@@ -331,9 +321,9 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
     if (endPosition > fadeStart)
     {
         float fadeStartClamped = std::max(fadeStart, startPosition);
-        auto fadeStartEdge = PositionMath::getFretboardEdge(isDrums, fadeStartClamped, width, height,
+        auto fadeStartEdge = PositionMath::getFretboardEdge(getRenderType(activePart), fadeStartClamped, width, height,
             PositionConstants::HIGHWAY_POS_START, posEnd);
-        auto fadeEndEdge = PositionMath::getFretboardEdge(isDrums, farFadeEnd, width, height,
+        auto fadeEndEdge = PositionMath::getFretboardEdge(getRenderType(activePart), farFadeEnd, width, height,
             PositionConstants::HIGHWAY_POS_START, posEnd);
 
         float gradStartY = fadeStartEdge.centerY;

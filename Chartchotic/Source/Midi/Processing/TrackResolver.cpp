@@ -16,7 +16,7 @@
 
 SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
                                     PPQ windowStart, PPQ windowEnd, PPQ latencyEnd,
-                                    bool bemaniMode)
+                                    bool bemaniMode, bool isElite)
 {
     using Guitar = MidiPitchDefinitions::Guitar;
     using Drums = MidiPitchDefinitions::Drums;
@@ -26,7 +26,7 @@ SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
     for (uint pitch = MIDI_PITCH_MIN; pitch < MIDI_PITCH_COUNT; pitch++)
     {
         const NoteStateMap& nsm = notes[pitch];
-        bool isMod = InstrumentMapper::isModifier(pitch);
+        bool isMod = InstrumentMapper::isModifier(pitch, isElite);
 
         if (isMod)
         {
@@ -41,7 +41,8 @@ SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
                 {
                     ModifierRange range{onPPQ, it->first};
 
-                    if (pitch == (uint)Guitar::SP || pitch == (uint)Drums::SP)
+                    if (pitch == (uint)Guitar::SP || pitch == (uint)Drums::SP
+                        || (isElite && pitch == (uint)MidiPitchDefinitions::EliteDrums::SP))
                         shared.modifiers.starPower.push_back(range);
                     else if (pitch == (uint)Guitar::TAP)
                         shared.modifiers.tap.push_back(range);
@@ -59,8 +60,13 @@ SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
                     else if (pitch == (uint)Guitar::MEDIUM_STRUM)  shared.modifiers.strumForce[1].push_back(range);
                     else if (pitch == (uint)Guitar::HARD_STRUM)    shared.modifiers.strumForce[2].push_back(range);
                     else if (pitch == (uint)Guitar::EXPERT_STRUM)  shared.modifiers.strumForce[3].push_back(range);
+                    else if (isElite && InstrumentMapper::eliteHiHatPedalSkillIndex(pitch) >= 0)
+                        shared.modifiers.hihatPedal[InstrumentMapper::eliteHiHatPedalSkillIndex(pitch)].push_back(range);
+                    else if (isElite && InstrumentMapper::eliteHiHatIndifferentSkillIndex(pitch) >= 0)
+                        shared.modifiers.hihatIndifferent[InstrumentMapper::eliteHiHatIndifferentSkillIndex(pitch)].push_back(range);
                     else if (pitch == (uint)Guitar::LANE_1 || pitch == (uint)Drums::LANE_1 ||
-                             pitch == (uint)Guitar::LANE_2 || pitch == (uint)Drums::LANE_2)
+                             pitch == (uint)Guitar::LANE_2 || pitch == (uint)Drums::LANE_2 ||
+                             (isElite && InstrumentMapper::isEliteRollLane(pitch)))
                     {
                         PPQ extStart = bemaniMode ? onPPQ : onPPQ - MIDI_LANE_EXTENSION_TIME;
                         auto onIt = nsm.find(onPPQ);
@@ -107,6 +113,7 @@ PartWindow TrackResolver::resolve(const SharedWindow& shared, const Config& cfg)
 {
     bool isGuitar = isGuitarLike(cfg.part);
     bool isDrums = isDrumLike(cfg.part);
+    bool isElite = getRenderType(cfg.part) == RenderType::ELITE_DRUMS;
 
     std::array<DiffContext, 4> diffs;
     for (int i = 0; i < 4; i++)
@@ -115,6 +122,8 @@ PartWindow TrackResolver::resolve(const SharedWindow& shared, const Config& cfg)
         diffs[i].idx = i;
         if (isGuitar)
             diffs[i].playablePitches = InstrumentMapper::getGuitarPitchesForSkill(diffs[i].skill);
+        else if (isElite)
+            diffs[i].playablePitches = InstrumentMapper::getEliteDrumPitchesForSkill(diffs[i].skill);
         else if (isDrums)
             diffs[i].playablePitches = InstrumentMapper::getDrumPitchesForSkill(diffs[i].skill);
     }
@@ -138,6 +147,7 @@ void TrackResolver::resolveNotes(PartWindow& result,
     using Drums = MidiPitchDefinitions::Drums;
     bool isGuitar = isGuitarLike(cfg.part);
     bool isDrums = isDrumLike(cfg.part);
+    bool isElite = getRenderType(cfg.part) == RenderType::ELITE_DRUMS;
 
     std::array<PrevNote, 4> prevNotes;
 
@@ -160,6 +170,8 @@ void TrackResolver::resolveNotes(PartWindow& result,
                 uint gemColumn;
                 if (isGuitar)
                     gemColumn = InstrumentMapper::getGuitarColumn(evt.pitch, dc.skill);
+                else if (isElite)
+                    gemColumn = InstrumentMapper::getEliteDrumColumn(evt.pitch, dc.skill, cfg.kick2x);
                 else
                     gemColumn = InstrumentMapper::getDrumColumn(evt.pitch, dc.skill, cfg.kick2x);
 
@@ -173,7 +185,12 @@ void TrackResolver::resolveNotes(PartWindow& result,
                 {
                     Dynamic dynamic = (Dynamic)evt.velocity;
                     bool cymbal = false;
-                    if (cfg.proDrums)
+                    if (isElite)
+                    {
+                        // Elite lanes are drum XOR cymbal, fixed by lane (no tom modifiers).
+                        cymbal = isEliteCymbalLane(gemColumn);
+                    }
+                    else if (cfg.proDrums)
                     {
                         Drums note = (Drums)evt.pitch;
                         if (note == Drums::EASY_YELLOW || note == Drums::MEDIUM_YELLOW ||
@@ -187,11 +204,13 @@ void TrackResolver::resolveNotes(PartWindow& result,
                             cymbal = !ModifierRanges::isActiveAt(shared.modifiers.tomGreen, position);
                     }
 
-                    bool canHaveDynamics = cfg.dynamics && !InstrumentMapper::isDrumKick(evt.pitch);
+                    bool isKick = isElite ? isDrumKick(gemColumn, cfg.part)
+                                          : InstrumentMapper::isDrumKick(evt.pitch);
+                    bool canHaveDynamics = cfg.dynamics && !isKick;
                     gemType = GemCalculator::resolveDrumGem(cymbal, canHaveDynamics, dynamic);
 
-                    // Disco flip
-                    if (cfg.discoFlipState && cfg.proDrums && cfg.discoFlip &&
+                    // Disco flip (4-lane only; elite has its own MIDI disco marker, deferred)
+                    if (!isElite && cfg.discoFlipState && cfg.proDrums && cfg.discoFlip &&
                         cfg.discoFlipState->isFlipped(position, dc.idx))
                     {
                         if (gemColumn == 1)
@@ -208,7 +227,21 @@ void TrackResolver::resolveNotes(PartWindow& result,
                     }
                 }
 
-                frame[gemColumn] = GemWrapper(gemType, spActive);
+                // Elite Hi-Hat (yellow cymbal) pedal state: default Open, coincident Pedal Down
+                // makes it Closed, a coincident Indifferent marker makes it Indifferent (which
+                // wins over Closed, per the ED spec's Appendix B interaction table).
+                HiHatState hihat = HiHatState::None;
+                if (isElite && isEliteHiHatLane(gemColumn))
+                {
+                    if (ModifierRanges::isActiveAt(shared.modifiers.hihatIndifferent[dc.idx], position))
+                        hihat = HiHatState::Indifferent;
+                    else if (ModifierRanges::isActiveAt(shared.modifiers.hihatPedal[dc.idx], position))
+                        hihat = HiHatState::Closed;
+                    else
+                        hihat = HiHatState::Open;
+                }
+
+                frame[gemColumn] = GemWrapper(gemType, spActive, hihat);
             }
 
             if (noteCount == 0) continue;
@@ -307,6 +340,7 @@ void TrackResolver::resolveLanes(PartWindow& result,
     using Guitar = MidiPitchDefinitions::Guitar;
     using Drums = MidiPitchDefinitions::Drums;
     bool isGuitar = isGuitarLike(cfg.part);
+    bool isElite = getRenderType(cfg.part) == RenderType::ELITE_DRUMS;
 
     for (auto& dc : diffs)
     {
@@ -317,6 +351,22 @@ void TrackResolver::resolveLanes(PartWindow& result,
             bool appliesToSkill = (dc.skill == SkillLevel::EXPERT) ||
                                   (dc.skill == SkillLevel::HARD && lane.laneVelocity >= 41 && lane.laneVelocity <= 50);
             if (!appliesToSkill) continue;
+
+            // Elite roll lanes carry their column in the pitch itself (110..118 -> 0..8),
+            // one lane per pitch, so map directly instead of inferring from underlying notes.
+            if (isElite)
+            {
+                uint col = InstrumentMapper::getEliteRollLaneColumn(lane.laneType);
+                if (col >= LANE_COUNT) continue;
+                SustainEvent laneEvent;
+                laneEvent.startPPQ = lane.startPPQ;
+                laneEvent.endPPQ = lane.endPPQ;
+                laneEvent.gemColumn = col;
+                laneEvent.sustainType = SustainType::LANE;
+                laneEvent.gemType = GemWrapper(Gem::NOTE, false);
+                sw.push_back(laneEvent);
+                continue;
+            }
 
             uint maxNotes = (lane.laneType == (uint8_t)Drums::LANE_2 ||
                              lane.laneType == (uint8_t)Guitar::LANE_2) ? 2u : 1u;

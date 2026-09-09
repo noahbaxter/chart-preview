@@ -18,20 +18,19 @@
 #include "../../Utils/ChartTypes.h"
 #include "../../Midi/Utils/TimeConverter.h"
 #include "../Managers/AssetManager.h"
-#include "../Utils/PositionConstants.h"
-#include "../Utils/PositionMath.h"
+#include "../Geometry/PositionConstants.h"
+#include "../Geometry/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
 #include "../Utils/Frame.h"
 #include "../Utils/FrameRenderer.h"
+#include "HighwayRenderer.h"
 
 namespace PositionConstants { struct RenderTypeConfig; }
 
-class NoteRenderer
+class NoteRenderer : public HighwayRenderer
 {
 public:
     NoteRenderer(juce::ValueTree& state, AssetManager& assetManager);
-
-    Part activePart = Part::GUITAR;
 
     bool showGems = true;
     bool showBars = true;
@@ -47,11 +46,8 @@ public:
     const PositionConstants::OverlayAdjust* overlayAdjusts = PositionConstants::OVERLAY_DEFAULTS;
     const PositionConstants::ColumnAdjust* guitarColAdjust = PositionConstants::GUITAR_COL_ADJUST;
     const PositionConstants::ColumnAdjust* drumColAdjust   = PositionConstants::DRUM_COL_ADJUST;
-    const PositionConstants::NormalizedCoordinates* laneCoordsGuitar = nullptr;
-    const PositionConstants::NormalizedCoordinates* laneCoordsDrums = nullptr;
-    // Z values in ColumnAdjust are tuned at REFERENCE_HEIGHT — multiply by
-    // resScale at the read site instead of pre-baking per-frame.
-    float resScale = 1.0f;
+    // Active highway's lane coords are held by HighwayRenderer (set per-part by
+    // SceneRenderer); resScale (ColumnAdjust::z reads) too.
     float gemZOffset = 0.0f;
     float cymZOffset = 0.0f;  // Drums only — cymbals tuned separately from toms
     float barZOffset = 0.0f;
@@ -88,34 +84,11 @@ private:
     juce::ValueTree& state;
     AssetManager& assetManager;
 
-    // Cached per-populate call
+    // Cached per-populate call (frame geometry state lives in HighwayRenderer)
     DrawCallMap* currentDrawCallMap = nullptr;
-    const PositionConstants::RenderTypeConfig* currentConfig = nullptr;
     float currentVpDepth = 1.0f;
     float currentNoteCurvature = PositionConstants::NOTE_CURVATURE;
-    uint width = 0, height = 0;
-    float posEnd = 0;
-    float farFadeEnd = 0, farFadeLen = 0, farFadeCurve = 0;
     double cachedNoteClipTime = 0, cachedBarClipTime = 0;
-
-    using LaneCorners = PositionConstants::LaneCorners;
-    using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
-
-    LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
-                              float sizeScale, float fretboardScale = 1.0f,
-                              int bemaniLaneIdx = -1)
-    {
-        bool isDrums = isDrumLike(activePart);
-        return PositionMath::getColumnPosition(isDrums, position, width, height,
-                                               PositionConstants::HIGHWAY_POS_START, posEnd,
-                                               colCoords, sizeScale, fretboardScale, bemaniLaneIdx);
-    }
-
-    float calculateOpacity(float position)
-    {
-        if (PositionMath::bemaniMode) return 1.0f;
-        return calculateFarFade(position, farFadeEnd, farFadeLen, farFadeCurve);
-    }
 
     // Per-time-slice composite context: one anchor + one scale shared by every
     // sprite in the row, so the bar and its stacked gems can't drift apart.
@@ -140,7 +113,11 @@ private:
     void drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, float position,
                        double frameTime, juce::Image* glyphImage, bool barNote, float opacity);
 
-    const PositionConstants::OverlayAdjust& getOverlayAdjustForGem(Gem gem, bool isDrums) const;
+    const PositionConstants::OverlayAdjust& getOverlayAdjustForGem(Gem gem, bool isDrums, bool hiHat, bool hiHatOpen) const;
+
+    // True when this gem renders the elite Hi-Hat gem art (col 2, not star-power, not Indifferent)
+    // -- mirrors getDrumGlyphImage's hi-hat branch so the overlay adjust matches the drawn glyph.
+    bool isEliteHiHatGlyph(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive) const;
 
     // Replace gem (and optional overlay) sprite images with cached curved variants
     // and adjust their height/offsetY accordingly. Shared between perspective and
@@ -183,6 +160,17 @@ private:
         }
     };
     std::map<CurveKey, CurvedImageEntry> curvedCache;
+
+    // When set, getCurvedImage warps across THESE coords instead of a single lane's — used by
+    // the elite Stomp/Splash bar, which spans the ~3-lane pedal zone (off-centre), so its warp
+    // picks up the gridline's tilt AND curve over that span. Paired with PEDAL_CURVE_COLUMN as
+    // the cache key. Reset to nullptr after each pedal-bar swap.
+    const PositionConstants::NormalizedCoordinates* curveCoordsOverride = nullptr;
+    // Multiplies the warp curvature for the current swap. 1.0 for everything except the pedal
+    // bar, which steepens its tilt (ELITE_PEDAL_CURVE_GAIN) so its warp matches the FRETBOARD_SCALE
+    // its whole-bar lift already carries. Reset to 1.0 after each pedal-bar swap.
+    float curveScaleOverride = 1.0f;
+    static constexpr int PEDAL_CURVE_COLUMN = -100;   // synthetic cache-key column for the pedal bar
 
     const CurvedImageEntry& getCurvedImage(juce::Image* src, int column, bool isDrums);
     float getColumnDistFromCenter(int column, bool isDrums);

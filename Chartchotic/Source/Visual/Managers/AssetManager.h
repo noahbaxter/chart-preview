@@ -11,6 +11,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <map>
 #include "../../Utils/ChartTypes.h"
 
 class AssetManager
@@ -25,7 +26,7 @@ public:
 
     // Image picker methods
     juce::Image* getGuitarGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive);
-    juce::Image* getDrumGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive);
+    juce::Image* getDrumGlyphImage(const GemWrapper& gem, uint gemColumn, bool starPowerActive, bool elite = false);
     juce::Image* getGridlineImage(Gridline gridlineType);
     juce::Image* getOverlayImage(Gem gem, Part part);
     juce::Colour getLaneColour(uint gemColumn, Part part, bool starPowerActive);
@@ -35,6 +36,8 @@ public:
     juce::Image* getBarKick2xImage() { return &barKick2xImage; }
     juce::Image* getBarOpenImage() { return &barOpenImage; }
     juce::Image* getBarWhiteImage() { return &barWhiteImage; }
+    // Elite pedal/stomp bar (extracted). Loaded but not yet drawn: col 10/11 stomp lane is unmapped.
+    juce::Image* getBarStompImage() { return &barStompImage; }
 
     // Cymbal notes
     juce::Image* getCymBlueImage() { return &cymBlueImage; }
@@ -42,6 +45,10 @@ public:
     juce::Image* getCymRedImage() { return &cymRedImage; }
     juce::Image* getCymWhiteImage() { return &cymWhiteImage; }
     juce::Image* getCymYellowImage() { return &cymYellowImage; }
+    juce::Image* getCymPurpleImage() { return &cymPurpleImage; }
+    // Elite hi-hat: extracted gold art used as-is (not tinted), replaces the yellow cym on the Hi-Hat lane.
+    juce::Image* getCymHiHatClosedImage() { return &cymHiHatClosedImage; }
+    juce::Image* getCymHiHatOpenImage() { return &cymHiHatOpenImage; }
 
     // HOPO notes
     juce::Image* getHopoBarOpenImage() { return &barWhiteImage; }   // TODO: create unique asset
@@ -52,6 +59,7 @@ public:
     juce::Image* getHopoRedImage() { return &hopoRedImage; }
     juce::Image* getHopoWhiteImage() { return &hopoWhiteImage; }
     juce::Image* getHopoYellowImage() { return &hopoYellowImage; }
+    juce::Image* getHopoPurpleImage() { return &hopoPurpleImage; }
 
     // Lane graphics
     juce::Image* getLaneEndImage() { return &laneEndImage; }
@@ -74,6 +82,7 @@ public:
     juce::Image* getNoteRedImage() { return &noteRedImage; }
     juce::Image* getNoteWhiteImage() { return &noteWhiteImage; }
     juce::Image* getNoteYellowImage() { return &noteYellowImage; }
+    juce::Image* getNotePurpleImage() { return &notePurpleImage; }
 
     // Ghost cursor blanks (write-mode hover preview)
     juce::Image* getNoteBlankImage() { return &noteBlankImage; }
@@ -101,22 +110,14 @@ public:
         if (frameNumber >= 1 && frameNumber <= 5) return &hitAnimationFrames[frameNumber - 1];
         return nullptr;
     }
-    juce::Image* getHitFlareWhiteImage() { return &hitFlareImages[5]; }
-    juce::Image* getHitFlarePurpleImage() { return &hitFlarePurpleImage; }
-    juce::Image* getHitFlareImage(uint gemColumn, Part part) {
-        // Map gemColumn to flare index based on color
-        // Flare array: [0]=green, [1]=red, [2]=yellow, [3]=blue, [4]=orange
-        // Guitar: 1=green, 2=red, 3=yellow, 4=blue, 5=orange -> direct mapping (column-1)
-        // Drums:  1=red, 2=yellow, 3=blue, 4=green -> needs remapping
-        if (part == Part::GUITAR && gemColumn >= 1 && gemColumn <= 5) {
-            return &hitFlareImages[gemColumn - 1];
-        } else if (part == Part::DRUMS && gemColumn >= 1 && gemColumn <= 4) {
-            // Drum mapping: 1=red->1, 2=yellow->2, 3=blue->3, 4=green->0
-            uint flareIndex = (gemColumn == 4) ? 0 : gemColumn;
-            return &hitFlareImages[flareIndex];
-        }
-        return nullptr;
-    }
+    // Star-power flare is the untinted greyscale "smoke" master itself.
+    juce::Image* getHitFlareWhiteImage() { return &hitFlareWhite; }
+    // Guitar tap flare — the shared purple.
+    juce::Image* getHitFlarePurpleImage();
+    // Per-lane flare: tint the one greyscale smoke master by the lane's colour
+    // (getLaneColour is part- and lane-count-generic), so any highway lights up
+    // in its own colour with no per-lane art. Cached per colour.
+    juce::Image* getHitFlareImage(uint gemColumn, Part part);
     juce::Image* getKickAnimationFrame(int frameNumber) {
         if (frameNumber >= 1 && frameNumber <= 7) return &kickAnimationFrames[frameNumber - 1];
         return nullptr;
@@ -146,6 +147,7 @@ private:
     juce::Image barKick2xImage;
     juce::Image barOpenImage;
     juce::Image barWhiteImage;
+    juce::Image barStompImage;           // Extracted elite pedal/stomp bar (col 10/11 still unmapped)
 
     // Cymbal notes
     juce::Image cymBlueImage;
@@ -153,14 +155,18 @@ private:
     juce::Image cymRedImage;
     juce::Image cymWhiteImage;
     juce::Image cymYellowImage;
+    juce::Image cymPurpleImage;          // Generated at runtime by recolouring the blue cymbal
+    juce::Image cymHiHatClosedImage;     // Extracted gold hi-hat art (elite Hi-Hat lane), used as-is
+    juce::Image cymHiHatOpenImage;       // Extracted open hi-hat; hooks in once open/closed parsing lands
 
-    // HOPO notes
+    // HOPO notes (colours generated by tinting a greyscale master; white is the SP PNG)
     juce::Image hopoBlueImage;
     juce::Image hopoGreenImage;
     juce::Image hopoOrangeImage;
     juce::Image hopoRedImage;
     juce::Image hopoWhiteImage;
     juce::Image hopoYellowImage;
+    juce::Image hopoPurpleImage;
 
     // Lane graphics
     juce::Image laneEndImage;
@@ -179,13 +185,14 @@ private:
     // write-mode marker variants without touching the source PNGs.
     static juce::Image makeAlphaBoostedCopy(const juce::Image& src);
 
-    // Regular notes
+    // Regular notes (colours generated by tinting a greyscale master; white is the SP PNG)
     juce::Image noteBlueImage;
     juce::Image noteGreenImage;
     juce::Image noteOrangeImage;
     juce::Image noteRedImage;
     juce::Image noteWhiteImage;
     juce::Image noteYellowImage;
+    juce::Image notePurpleImage;
 
     // Ghost cursor blanks
     juce::Image noteBlankImage;
@@ -209,8 +216,12 @@ private:
 
     // Hit animation graphics
     juce::Image hitAnimationFrames[5];   // hit_1.png through hit_5.png
-    juce::Image hitFlareImages[6];       // [0-4]=green/red/yellow/blue/orange, [5]=white
-    juce::Image hitFlarePurpleImage;     // Generated at runtime by tinting white flare
+    juce::Image hitFlareWhite;           // greyscale "smoke" master (was hit_flare_white)
+    // Lane-colour -> tinted smoke flare, generated on first use and cleared on
+    // rescale. Keyed by the lane colour's ARGB so any colour (preset or custom)
+    // is handled with no per-lane asset.
+    std::map<juce::uint32, juce::Image> flareTintCache;
+    juce::Image* flareTinted(juce::Colour colour);
     juce::Image kickAnimationFrames[7];  // hit_kick_1.png through hit_kick_7.png
     juce::Image openAnimationFrames[7];  // hit_open_1.png through hit_open_7.png
 };

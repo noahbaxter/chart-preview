@@ -14,6 +14,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <array>
 
 // Windows compatibility
 #if defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(_MSC_VER)
@@ -169,6 +170,10 @@ namespace PositionConstants
         OVERLAY_DRUM_NOTE_ACCENT,
         OVERLAY_DRUM_CYM_GHOST,
         OVERLAY_DRUM_CYM_ACCENT,
+        OVERLAY_DRUM_HIHAT_GHOST,
+        OVERLAY_DRUM_HIHAT_ACCENT,
+        OVERLAY_DRUM_HIHAT_OPEN_GHOST,
+        OVERLAY_DRUM_HIHAT_OPEN_ACCENT,
         NUM_OVERLAY_TYPES
     };
 
@@ -178,12 +183,23 @@ namespace PositionConstants
         { 0.0f, -0.10f, 1.0f, 1.0f, 1.0f },  // DRUM_NOTE_ACCENT
         { 0.0f, -0.04f, 1.0f, 1.0f, 1.33f }, // DRUM_CYM_GHOST
         { 0.0f, -0.08f, 1.0f, 1.0f, 1.0f },  // DRUM_CYM_ACCENT
+        // Hi-Hat gem art sits higher in its (taller) sprite than a standard cymbal cone, so the
+        // ghost ring / accent chevron must ride up to hug the cone base instead of sitting on the
+        // lower disc. The OPEN sprite is taller still (cone lifted, disc separated below a gap), so
+        // its cone sits higher again and needs its own (larger) up-shift -- one value can't serve
+        // both. Dialed in render_harness against a reference cymbal at matching depth (col 2 vs 3).
+        // NOTE: the open-hat art fits an overlay poorly at best; new open-hat assets are wanted.
+        { 0.0f, -0.10f, 1.0f, 1.0f, 1.33f }, // DRUM_HIHAT_GHOST        (closed)
+        { 0.0f, -0.14f, 1.0f, 1.0f, 1.0f },  // DRUM_HIHAT_ACCENT       (closed)
+        { 0.0f, -0.24f, 1.0f, 1.0f, 1.33f }, // DRUM_HIHAT_OPEN_GHOST
+        { 0.0f, -0.28f, 1.0f, 1.0f, 1.0f },  // DRUM_HIHAT_OPEN_ACCENT
     };
 
     //==============================================================================
     // Lane Counts
     constexpr size_t GUITAR_LANE_COUNT = 6;             // Open + 5 frets
     constexpr size_t DRUM_LANE_COUNT = 5;               // Kick + 4 pads
+    constexpr size_t ELITE_DRUM_LANE_COUNT = 9;         // Kick + 8 hand lanes (Snare-Hat-LCrash-Tom1-Tom2-Tom3-Ride-RCrash)
 
     //==============================================================================
     // Animation Positioning & Scaling Factors
@@ -205,12 +221,47 @@ namespace PositionConstants
         {0.0f, 0.0f, 1.6f, 3.5f}    // Col 4 - Green
     };
 
+    // Elite drums: kick bar + 8 hand lanes (same anim shape as drums)
+    constexpr CoordinateOffset ELITE_DRUM_ANIMATION_OFFSETS[] = {
+        {0.0f, -8.0f, 1.4f, 10.0f}, // 0 Kick
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 1 Snare
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 2 Hi-Hat
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 3 Left Crash
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 4 Tom 1
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 5 Tom 2
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 6 Tom 3
+        {0.0f, 0.0f, 1.6f, 3.5f},   // 7 Ride
+        {0.0f, 0.0f, 1.6f, 3.5f}    // 8 Right Crash
+    };
+
     //==============================================================================
     // Fretboard Boundary Coordinates (for bezier positioning system)
     constexpr NormalizedCoordinates guitarFretboardCoords =
         {0.16f, 0.34f, 0.73f, 0.234f, 0.68f, 0.32f};
     constexpr NormalizedCoordinates drumFretboardCoords =
         {0.16f, 0.34f, 0.735f, 0.239f, 0.68f, 0.32f};
+    // Elite drums get a genuinely WIDER board so its 8 lanes have room. The whole normalized-X
+    // coordinate system (fretboard edge AND every lane) is scaled around centre (0.5) by this
+    // factor. Because getColumnPosition places each lane as a FRACTION of the fretboard, scaling
+    // the board and the lanes by the same factor preserves that fraction -- so lanes spread and
+    // gems widen proportionally, and every consumer (edge, fill, lanes, gems, rails, click zones)
+    // stays consistent since they all read these coords. Replaces the old "wider canvas" trick,
+    // which could not widen a solo highway (a canvas is display-scale-invariant: a wider buffer
+    // shown in the same slot just scales back down). Sized so the board plus its NATURAL side
+    // rails (rails add ~1.067x outside the board) still fit inside the render width -- ~1.07 is the
+    // widest the board fraction can go before the rails would touch the border. The rails are never
+    // warped to fit; a genuinely wider elite highway comes from giving it a wider SLOT in the
+    // layout (see the elite width weight in PluginEditor), where natural board + rails have room.
+    constexpr float ELITE_BOARD_WIDTH_SCALE = 1.07f;
+    // Scale one normalized-X coordinate around centre 0.5 by the elite board width (X only; the
+    // Y/slant terms are untouched). Left edges move out and widths grow, span stays centred.
+    constexpr float eliteWidenX(float x) { return 0.5f + (x - 0.5f) * ELITE_BOARD_WIDTH_SCALE; }
+    constexpr NormalizedCoordinates eliteWidenBoard(NormalizedCoordinates c)
+    {
+        return { eliteWidenX(c.normX1), eliteWidenX(c.normX2), c.normY1, c.normY2,
+                 c.normWidth1 * ELITE_BOARD_WIDTH_SCALE, c.normWidth2 * ELITE_BOARD_WIDTH_SCALE };
+    }
+    constexpr NormalizedCoordinates eliteDrumFretboardCoords = eliteWidenBoard(drumFretboardCoords);
     constexpr float FRETBOARD_SCALE = 1.25f;
 
     //==============================================================================
@@ -235,12 +286,92 @@ namespace PositionConstants
         {0.506f, 0.500f, 0.70f, 0.22f, 0.118f, 0.066f},      // Blue
         {0.636f, 0.564f, 0.70f, 0.22f, 0.124f, 0.060f}       // Green
     };
+    // Elite drums lane layout (kick + 8 hand lanes) -- single source of truth for BOTH
+    // colour and width, so the strikeline pads, the highway gems, and the lane geometry
+    // can never disagree.
+    //
+    // Per-lane colour (the canonical elite scheme):
+    //   Snare Red | Hi-Hat Yellow | L-Crash Purple | Tom1/2/3 Orange | Ride Blue | R-Crash Green
+    // `cymbal` marks the cymbal lanes (Hi-Hat, L/R-Crash, Ride); drums are Snare + Toms.
+    // Consumers: strikePadColours() (pad tint), getDrumGlyphImage() (which gem art), and
+    // the width generator below (cymbal-vs-drum lane width).
+    enum class DrumLaneTint { None, Red, Yellow, Purple, Orange, Blue, Green, White };
+    struct EliteLaneStyle { DrumLaneTint tint; bool cymbal; };
+    constexpr EliteLaneStyle ELITE_LANE_STYLES[9] = {
+        { DrumLaneTint::None,   false },  // 0 Kick   (full-width bar)
+        { DrumLaneTint::Red,    false },  // 1 Snare      drum
+        { DrumLaneTint::Yellow, true  },  // 2 Hi-Hat     cymbal
+        { DrumLaneTint::Purple, true  },  // 3 Left Crash cymbal
+        { DrumLaneTint::Orange, false },  // 4 Tom 1      drum
+        { DrumLaneTint::Orange, false },  // 5 Tom 2      drum
+        { DrumLaneTint::Orange, false },  // 6 Tom 3      drum
+        { DrumLaneTint::Blue,   true  },  // 7 Ride       cymbal
+        { DrumLaneTint::Green,  true  },  // 8 Right Crash cymbal
+    };
+
+    // Relative width weight per lane type. 1.0 for both = every lane equal width. Set
+    // cymbal to 1.5f to restore the old varied (wide-cymbal) look. Total span and gaps
+    // stay fixed; the lanes just redistribute the available width by weight.
+    constexpr float ELITE_DRUM_LANE_WIDTH   = 1.0f;
+    constexpr float ELITE_CYMBAL_LANE_WIDTH = 1.0f;
+
+    // Fixed span (within the normalized board) the 8 hand lanes fill, plus the constant
+    // inter-lane gaps, at the near (strikeline) and far ends. Widening the whole board
+    // is a separate lever (ELITE_BOARD_WIDTH_SCALE) since these are board-relative.
+    constexpr float ELITE_LANE_NEAR_START = 0.234f, ELITE_LANE_NEAR_END = 0.75326f;
+    constexpr float ELITE_LANE_FAR_START  = 0.376f, ELITE_LANE_FAR_END  = 0.621f;
+    constexpr float ELITE_LANE_GAP_NEAR = 0.00683f;
+    constexpr float ELITE_LANE_GAP_FAR  = 0.0030f;
+
+    // Build the 9-lane table from the style/width constants above.
+    constexpr std::array<NormalizedCoordinates, 9> buildEliteDrumLaneCoords()
+    {
+        std::array<NormalizedCoordinates, 9> out{};
+        out[0] = {0.212f, 0.354f, 0.735f, 0.239f, 0.574f, 0.290f};   // Kick (full width)
+
+        float wsum = 0.0f;
+        for (int i = 1; i <= 8; ++i)
+            wsum += ELITE_LANE_STYLES[i].cymbal ? ELITE_CYMBAL_LANE_WIDTH : ELITE_DRUM_LANE_WIDTH;
+
+        const float nearAvail = (ELITE_LANE_NEAR_END - ELITE_LANE_NEAR_START) - 7.0f * ELITE_LANE_GAP_NEAR;
+        const float farAvail  = (ELITE_LANE_FAR_END  - ELITE_LANE_FAR_START ) - 7.0f * ELITE_LANE_GAP_FAR;
+
+        float nx = ELITE_LANE_NEAR_START, fx = ELITE_LANE_FAR_START;
+        for (int i = 1; i <= 8; ++i)
+        {
+            float w  = ELITE_LANE_STYLES[i].cymbal ? ELITE_CYMBAL_LANE_WIDTH : ELITE_DRUM_LANE_WIDTH;
+            float nw = w / wsum * nearAvail;
+            float fw = w / wsum * farAvail;
+            out[i] = { nx, fx, 0.70f, 0.22f, nw, fw };
+            nx += nw + ELITE_LANE_GAP_NEAR;
+            fx += fw + ELITE_LANE_GAP_FAR;
+        }
+        // Widen the whole lane table by the same factor as the fretboard so lanes stay a fixed
+        // fraction of the (now wider) board -- they spread and their gems grow with it.
+        for (auto& c : out)
+            c = eliteWidenBoard(c);
+        return out;
+    }
+    constexpr std::array<NormalizedCoordinates, 9> eliteDrumBezierLaneCoords = buildEliteDrumLaneCoords();
 
     //==============================================================================
     // Curved Note Rendering (pre-baked image cache)
     constexpr float NOTE_CURVATURE = -0.02f;        // Arc height as fraction of fretboard width (guitar)
     constexpr float NOTE_CURVATURE_DRUMS = -0.016f; // Drum default (slightly less bow than guitar)
     constexpr float BAR_CURVATURE = 0.0f;          // Bars stay flat (span full fretboard)
+    // Elite Stomp/Splash bar spans ~3 lanes (Snare-HiHat-LCrash) centred on the hi-hat: this is
+    // that span as a fraction of the fretboard width. The baked bar's arc uses it to match the
+    // gridline curvature over the bar's span: arch = |NOTE_CURVATURE_DRUMS| * width * fraction.
+    constexpr float ELITE_PEDAL_ZONE_WIDTH_FRACTION = 0.36f;
+    // Pedal (Stomp/Splash) bar fine-tune to sit ON the procedural gridline over its off-centre
+    // span. The whole-bar lift (arcOffsetStrike) carries FRETBOARD_SCALE but the internal warp
+    // tilt does not, so the bar over-lifts (worst on the far-left end) and the tilt runs a hair
+    // shallow. GAIN steepens the warp tilt; Z_NUDGE drops the whole bar (px at REFERENCE_HEIGHT,
+    // positive = down). Dialed against the gridline in render_harness (elite, beats 8/10).
+    constexpr float ELITE_PEDAL_CURVE_GAIN = 1.25f;
+    constexpr float ELITE_PEDAL_Z_NUDGE    = 1.5f;
+    // Vertical scale of the baked Stomp/Splash bar (taller = easier to read on the highway).
+    constexpr float ELITE_PEDAL_THICKNESS  = 2.0f;
     constexpr int NOTE_CACHE_DOWNSAMPLE = 2;       // Source resolution divisor (2 = 1/2 res)
 
     //==============================================================================
@@ -294,6 +425,17 @@ namespace PositionConstants
         {0, 1, 1, 1, 1},                // Blue
         {0, 1, 1, 1, 1}                 // Green
     };
+    constexpr ColumnAdjust ELITE_DRUM_COL_ADJUST[9] = {
+        {0, 1, 1, 1, 1},                // 0 Kick
+        {0, 1, 1, 1, 1},                // 1 Snare
+        {0, 1, 1, 1, 1},                // 2 Hi-Hat
+        {0, 1, 1, 1, 1},                // 3 Left Crash
+        {0, 1, 1, 1, 1},                // 4 Tom 1
+        {0, 1, 1, 1, 1},                // 5 Tom 2
+        {0, 1, 1, 1, 1},                // 6 Tom 3
+        {0, 1, 1, 1, 1},                // 7 Ride
+        {0, 1, 1, 1, 1}                 // 8 Right Crash
+    };
 
     //==============================================================================
     // Per-gem-type scales (applied uniformly to base + overlay in NoteRenderer)
@@ -327,7 +469,7 @@ namespace PositionConstants
     //==============================================================================
     // Gem/bar base scales (ElementScale: width, height) — per-instrument
     constexpr ElementScale GUITAR_GEM_SCALE = {0.9f, 1.035f};   // 0.9 × {1.0, 1.15}
-    constexpr ElementScale GUITAR_BAR_SCALE = {1.10f, 1.10f};
+    constexpr ElementScale GUITAR_BAR_SCALE = {1.06f, 1.10f};   // width trimmed so the open bar clears the side rails
     constexpr ElementScale DRUM_GEM_SCALE   = {0.9f, 1.035f};   // matches guitar
     constexpr ElementScale DRUM_BAR_SCALE   = {1.05f, 1.05f};
     // Legacy single-value aliases (still referenced by SceneRenderer/DebugTuningPanel)

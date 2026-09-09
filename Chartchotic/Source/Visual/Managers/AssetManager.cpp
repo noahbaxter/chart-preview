@@ -9,6 +9,60 @@
 */
 
 #include "AssetManager.h"
+#include "../Geometry/PositionConstants.h"
+#include "../Utils/LaneColours.h"
+#include "../Art/BarGemArt.h"
+
+namespace
+{
+    // Recolour a COLOURED gem master (note / hopo / cymbal / bar) to a target lane colour by
+    // re-hueing only the saturated part. A pixel's saturation is the mask: the neutral chrome
+    // caps, white rims and specular highlights (saturation ~0) pass through untouched, while the
+    // coloured body takes the target hue/saturation at its own brightness -- so the metallic
+    // shading and the silver (or SP-gold, kept via the white PNGs) framing survive, and only the
+    // colour changes. One master per family recolours to any lane; alpha is preserved.
+    // valueScale < 1 darkens the recoloured body (leaves neutral framing alone). Green is the most
+    // luminant hue, so the bright metallic cymbal master reads too neon in green even at the right
+    // saturation; pull its value down without touching the other colours or the square notes.
+    juce::Image recolorGem(const juce::Image& master, juce::Colour target, float valueScale = 1.0f)
+    {
+        const float th = target.getHue();
+        const float ts = target.getSaturation();
+        juce::Image out = master.createCopy();
+        juce::Image::BitmapData bmp(out, juce::Image::BitmapData::readWrite);
+        for (int y = 0; y < bmp.height; ++y)
+            for (int x = 0; x < bmp.width; ++x)
+            {
+                auto px = bmp.getPixelColour(x, y);
+                // Weight the recolour by how saturated the source pixel is: neutral framing
+                // stays put, the colour body swaps hue. Ramp (not a hard cut) avoids a seam.
+                float w = juce::jlimit(0.0f, 1.0f, (px.getSaturation() - 0.18f) / 0.30f);
+                float v = juce::jlimit(0.0f, 1.0f, px.getBrightness() * valueScale);
+                auto reh = juce::Colour::fromHSV(th, ts, v, px.getFloatAlpha());
+                bmp.setPixelColour(x, y, px.interpolatedWith(reh, w));
+            }
+        return out;
+    }
+
+    // Greyscale "smoke" master -> lane-coloured flare. A flare is an additive glow,
+    // not metal: recolour by a simple luminance * colour multiply (keeping the soft
+    // alpha falloff), the same recipe the old purple tap flare used, generalized to
+    // any lane colour. Nothing baked per lane.
+    juce::Image tintFlare(const juce::Image& master, juce::Colour tint)
+    {
+        const float tr = tint.getFloatRed(), tg = tint.getFloatGreen(), tb = tint.getFloatBlue();
+        juce::Image out = master.createCopy();
+        juce::Image::BitmapData bmp(out, juce::Image::BitmapData::readWrite);
+        for (int y = 0; y < bmp.height; ++y)
+            for (int x = 0; x < bmp.width; ++x)
+            {
+                auto px = bmp.getPixelColour(x, y);
+                float lum = 0.3f * px.getFloatRed() + 0.59f * px.getFloatGreen() + 0.11f * px.getFloatBlue();
+                bmp.setPixelColour(x, y, juce::Colour::fromFloatRGBA(lum * tr, lum * tg, lum * tb, px.getFloatAlpha()));
+            }
+        return out;
+    }
+}
 
 AssetManager::AssetManager()
 {
@@ -22,31 +76,90 @@ AssetManager::~AssetManager()
 void AssetManager::initAssets()
 {
 #ifndef CHARTCHOTIC_NO_BINARY_DATA
-    barKickImage = juce::ImageCache::getFromMemory(BinaryData::bar_kick_png, BinaryData::bar_kick_pngSize);
-    barKick2xImage = juce::ImageCache::getFromMemory(BinaryData::bar_kick_2x_png, BinaryData::bar_kick_2x_pngSize);
-    barOpenImage = juce::ImageCache::getFromMemory(BinaryData::bar_open_png, BinaryData::bar_open_pngSize);
-    barWhiteImage = juce::ImageCache::getFromMemory(BinaryData::bar_white_png, BinaryData::bar_white_pngSize);
+    // Bars: one greyscale tube master (bar_white) tinted per bar type. Kick = amber,
+    // 2x kick = a distinct red-orange (gameplay cue), open = the shared open/purple.
+    // White (star power) is the untinted master. No per-colour bar PNGs.
+    // Bars are procedurally baked from the tube geometry measured off the original art
+    // (BarGemArt): a glossy arc-bent tube + tilted end caps, with the vertical colour ramp
+    // sampled per bar from the source PNGs. Pixel-faithful and resolution-independent -- the
+    // 2432x152 bake is scaled to the highway width at draw time, so it renders at any length.
+    {
+        const auto canvas  = GemArt::barCanvas();
+        const auto content = GemArt::barContentBounds();
+        barWhiteImage  = GemArt::bakeBar(GemArt::barRampWhite(),  canvas, content);
+        barKickImage   = GemArt::bakeBar(GemArt::barRampKick(),   canvas, content);
+        barKick2xImage = GemArt::bakeBar(GemArt::barRampKick2x(), canvas, content);
+        barOpenImage   = GemArt::bakeBar(GemArt::barRampOpen(),   canvas, content);
+    }
+    // Elite Stomp/Splash pedal bar: procedurally baked FLAT (like the kick bars). The highway
+    // curve is applied at render time (over the bar's off-centre span) so it matches the tilted
+    // gridline exactly, rather than baking a symmetric bow that can't tilt.
+    barStompImage = GemArt::bakeStompBar(0.0f, PositionConstants::ELITE_PEDAL_THICKNESS);
 
-    cymBlueImage = juce::ImageCache::getFromMemory(BinaryData::cym_blue_png, BinaryData::cym_blue_pngSize);
-    cymGreenImage = juce::ImageCache::getFromMemory(BinaryData::cym_green_png, BinaryData::cym_green_pngSize);
-    cymRedImage = juce::ImageCache::getFromMemory(BinaryData::cym_red_png, BinaryData::cym_red_pngSize);
+    // Cymbals: one greyscale metallic master (the blue cymbal collapsed to luminance) drives
+    // every lane colour through a LaneColours tint ramp, presets AND any custom hue alike, so
+    // a colour changes in one place (the constant) with no per-colour PNG. The white / star
+    // power cymbal keeps its PNG (its gold rim is not a greyscale tint).
     cymWhiteImage = juce::ImageCache::getFromMemory(BinaryData::cym_white_png, BinaryData::cym_white_pngSize);
-    cymYellowImage = juce::ImageCache::getFromMemory(BinaryData::cym_yellow_png, BinaryData::cym_yellow_pngSize);
+    {
+        const juce::Image cymMaster = juce::ImageCache::getFromMemory(BinaryData::cym_blue_png, BinaryData::cym_blue_pngSize);
+        cymBlueImage   = recolorGem(cymMaster, LaneColours::bright(LaneColours::blue));
+        cymRedImage    = recolorGem(cymMaster, LaneColours::bright(LaneColours::red));
+        cymYellowImage = recolorGem(cymMaster, LaneColours::bright(LaneColours::yellow));
+        cymGreenImage  = recolorGem(cymMaster, LaneColours::bright(LaneColours::green), 0.68f);   // tuned to the deep green of cym_green.png (body brightness ~148, vs ~218 at full value)
+        cymPurpleImage = recolorGem(cymMaster, LaneColours::bright(LaneColours::purple));
+    }
+    // Elite hi-hat: extracted gold/metallic art, drawn as-is (NOT tinted) on the Hi-Hat lane.
+    // Closed is the default; the open variant hooks in once open/closed parsing (upper octave
+    // 84-90) lands to pick a gem type.
+    cymHiHatClosedImage = juce::ImageCache::getFromMemory(BinaryData::cym_hihat_closed_png, BinaryData::cym_hihat_closed_pngSize);
+    cymHiHatOpenImage   = juce::ImageCache::getFromMemory(BinaryData::cym_hihat_open_png,   BinaryData::cym_hihat_open_pngSize);
 
-    hopoBlueImage = juce::ImageCache::getFromMemory(BinaryData::hopo_blue_png, BinaryData::hopo_blue_pngSize);
-    hopoGreenImage = juce::ImageCache::getFromMemory(BinaryData::hopo_green_png, BinaryData::hopo_green_pngSize);
-    hopoOrangeImage = juce::ImageCache::getFromMemory(BinaryData::hopo_orange_png, BinaryData::hopo_orange_pngSize);
-    hopoRedImage = juce::ImageCache::getFromMemory(BinaryData::hopo_red_png, BinaryData::hopo_red_pngSize);
+    // Notes + HOPOs: same greyscale-master + LaneColours tint as cymbals. One master per
+    // family (a mid-tone colour PNG collapsed to luminance) recolours to every lane, so a
+    // new part/palette needs no per-colour note art and purple gets real art for free. The
+    // white (star power) glyphs keep their PNGs.
+    noteWhiteImage = juce::ImageCache::getFromMemory(BinaryData::note_white_png, BinaryData::note_white_pngSize);
+    {
+        const juce::Image noteMaster = juce::ImageCache::getFromMemory(BinaryData::note_blue_png, BinaryData::note_blue_pngSize);
+        noteBlueImage   = recolorGem(noteMaster, LaneColours::bright(LaneColours::blue));
+        noteRedImage    = recolorGem(noteMaster, LaneColours::bright(LaneColours::red));
+        noteYellowImage = recolorGem(noteMaster, LaneColours::bright(LaneColours::yellow));
+        noteGreenImage  = recolorGem(noteMaster, LaneColours::bright(LaneColours::green));
+        noteOrangeImage = recolorGem(noteMaster, LaneColours::bright(LaneColours::orange));
+        notePurpleImage = recolorGem(noteMaster, LaneColours::bright(LaneColours::purple));
+    }
     hopoWhiteImage = juce::ImageCache::getFromMemory(BinaryData::hopo_white_png, BinaryData::hopo_white_pngSize);
-    hopoYellowImage = juce::ImageCache::getFromMemory(BinaryData::hopo_yellow_png, BinaryData::hopo_yellow_pngSize);
+    {
+        const juce::Image hopoMaster = juce::ImageCache::getFromMemory(BinaryData::hopo_blue_png, BinaryData::hopo_blue_pngSize);
+        hopoBlueImage   = recolorGem(hopoMaster, LaneColours::bright(LaneColours::blue));
+        hopoRedImage    = recolorGem(hopoMaster, LaneColours::bright(LaneColours::red));
+        hopoYellowImage = recolorGem(hopoMaster, LaneColours::bright(LaneColours::yellow));
+        hopoGreenImage  = recolorGem(hopoMaster, LaneColours::bright(LaneColours::green));
+        hopoOrangeImage = recolorGem(hopoMaster, LaneColours::bright(LaneColours::orange));
+        hopoPurpleImage = recolorGem(hopoMaster, LaneColours::bright(LaneColours::purple));
+    }
 
     laneEndImage = juce::ImageCache::getFromMemory(BinaryData::lane_end_png, BinaryData::lane_end_pngSize);
     laneMidImage = juce::ImageCache::getFromMemory(BinaryData::lane_mid_png, BinaryData::lane_mid_pngSize);
     laneStartImage = juce::ImageCache::getFromMemory(BinaryData::lane_start_png, BinaryData::lane_start_pngSize);
 
-    markerBeatImage = juce::ImageCache::getFromMemory(BinaryData::marker_beat_png, BinaryData::marker_beat_pngSize);
-    markerHalfBeatImage = juce::ImageCache::getFromMemory(BinaryData::marker_half_beat_png, BinaryData::marker_half_beat_pngSize);
-    markerMeasureImage = juce::ImageCache::getFromMemory(BinaryData::marker_measure_png, BinaryData::marker_measure_pngSize);
+    // Gridline markers: procedurally baked (was baked-curve PNGs). The arc derives from the SAME
+    // curvature constant the notes / stomp bar use, so the gridline and the pedal (stomp/splash)
+    // bar curve from ONE source and pixel-match over their shared span, rather than the gridline
+    // baking a hand-guessed arc the stomp bar then chases. Thickness/alpha reproduce the old PNGs
+    // (measure = brightest; beat / half-beat dimmer; half-beat thinner). STEP reuses half-beat.
+    {
+        constexpr float gridMeasureThick  = 57.0f;
+        constexpr float gridHalfBeatThick  = 33.0f;
+        // Full-board parabola amplitude (peak-to-edge) in bake px = width * |curvature|, matching
+        // getCurvedImage's arcHeight = srcW * curv over the fretboard span.
+        const float gridArch = (float) GemArt::kGridlineWidth
+                             * std::abs(PositionConstants::NOTE_CURVATURE_DRUMS);
+        markerMeasureImage  = GemArt::bakeGridline(gridMeasureThick,  TrackColours::gridlineMeasure,  gridArch);
+        markerBeatImage     = GemArt::bakeGridline(gridMeasureThick,  TrackColours::gridlineBeat,     gridArch);
+        markerHalfBeatImage = GemArt::bakeGridline(gridHalfBeatThick, TrackColours::gridlineHalfBeat, gridArch);
+    }
 
     // Write-mode markers: copies of the same source PNGs with their alpha
     // amplified. The original PNGs bake alpha (~0.75 MEASURE / ~0.50 BEAT)
@@ -68,12 +181,6 @@ void AssetManager::initAssets()
     cymBlankImage  = juce::ImageCache::getFromMemory(BinaryData::cym_blank_png, BinaryData::cym_blank_pngSize);
     barBlankImage  = juce::ImageCache::getFromMemory(BinaryData::bar_blank_png, BinaryData::bar_blank_pngSize);
 
-    noteBlueImage = juce::ImageCache::getFromMemory(BinaryData::note_blue_png, BinaryData::note_blue_pngSize);
-    noteGreenImage = juce::ImageCache::getFromMemory(BinaryData::note_green_png, BinaryData::note_green_pngSize);
-    noteOrangeImage = juce::ImageCache::getFromMemory(BinaryData::note_orange_png, BinaryData::note_orange_pngSize);
-    noteRedImage = juce::ImageCache::getFromMemory(BinaryData::note_red_png, BinaryData::note_red_pngSize);
-    noteWhiteImage = juce::ImageCache::getFromMemory(BinaryData::note_white_png, BinaryData::note_white_pngSize);
-    noteYellowImage = juce::ImageCache::getFromMemory(BinaryData::note_yellow_png, BinaryData::note_yellow_pngSize);
 
     overlayCymAccentImage = juce::ImageCache::getFromMemory(BinaryData::overlay_cym_accent_png, BinaryData::overlay_cym_accent_pngSize);
     overlayCymGhostImage = juce::ImageCache::getFromMemory(BinaryData::overlay_cym_ghost_png, BinaryData::overlay_cym_ghost_pngSize);
@@ -93,33 +200,10 @@ void AssetManager::initAssets()
     hitAnimationFrames[3] = juce::ImageCache::getFromMemory(BinaryData::hit_flash_4_png, BinaryData::hit_flash_4_pngSize);
     hitAnimationFrames[4] = juce::ImageCache::getFromMemory(BinaryData::hit_flash_5_png, BinaryData::hit_flash_5_pngSize);
 
-    // Hit flare images (blue=4, green=1, orange=5, red=2, yellow=3)
-    hitFlareImages[0] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_green_png, BinaryData::hit_flare_green_pngSize);
-    hitFlareImages[1] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_red_png, BinaryData::hit_flare_red_pngSize);
-    hitFlareImages[2] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_yellow_png, BinaryData::hit_flare_yellow_pngSize);
-    hitFlareImages[3] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_blue_png, BinaryData::hit_flare_blue_pngSize);
-    hitFlareImages[4] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_orange_png, BinaryData::hit_flare_orange_pngSize);
-    hitFlareImages[5] = juce::ImageCache::getFromMemory(BinaryData::hit_flare_white_png, BinaryData::hit_flare_white_pngSize);
-
-    // Generate purple flare by tinting the white (grayscale) flare
-    // Purple color matched to tap overlay asset
-    {
-        auto& src = hitFlareImages[5];
-        hitFlarePurpleImage = src.createCopy();
-        juce::Image::BitmapData bmp(hitFlarePurpleImage, juce::Image::BitmapData::readWrite);
-        const float tintR = 0.55f, tintG = 0.05f, tintB = 1.0f;
-        for (int y = 0; y < bmp.height; ++y)
-        {
-            for (int x = 0; x < bmp.width; ++x)
-            {
-                auto px = bmp.getPixelColour(x, y);
-                float a = px.getFloatAlpha();
-                float lum = px.getFloatRed(); // grayscale source: R==G==B
-                bmp.setPixelColour(x, y, juce::Colour::fromFloatRGBA(
-                    lum * tintR, lum * tintG, lum * tintB, a));
-            }
-        }
-    }
+    // One greyscale "smoke" flare master. Every lane's flare is this tinted by the
+    // lane colour on demand (see getHitFlareImage), so there are no per-colour flare
+    // PNGs and any lane count / palette just works. Star power draws it untinted.
+    hitFlareWhite = juce::ImageCache::getFromMemory(BinaryData::hit_flare_white_png, BinaryData::hit_flare_white_pngSize);
 
     // Kick animation frames
     kickAnimationFrames[0] = juce::ImageCache::getFromMemory(BinaryData::hit_kick_1_png, BinaryData::hit_kick_1_pngSize);
@@ -146,17 +230,21 @@ void AssetManager::initAssets()
         {&noteBlueImage, noteBlueImage}, {&noteGreenImage, noteGreenImage},
         {&noteOrangeImage, noteOrangeImage}, {&noteRedImage, noteRedImage},
         {&noteWhiteImage, noteWhiteImage}, {&noteYellowImage, noteYellowImage},
+        {&notePurpleImage, notePurpleImage},
         // Cymbals
         {&cymBlueImage, cymBlueImage}, {&cymGreenImage, cymGreenImage},
         {&cymRedImage, cymRedImage}, {&cymWhiteImage, cymWhiteImage},
-        {&cymYellowImage, cymYellowImage},
+        {&cymYellowImage, cymYellowImage}, {&cymPurpleImage, cymPurpleImage},
+        {&cymHiHatClosedImage, cymHiHatClosedImage}, {&cymHiHatOpenImage, cymHiHatOpenImage},
         // HOPOs
         {&hopoBlueImage, hopoBlueImage}, {&hopoGreenImage, hopoGreenImage},
         {&hopoOrangeImage, hopoOrangeImage}, {&hopoRedImage, hopoRedImage},
         {&hopoWhiteImage, hopoWhiteImage}, {&hopoYellowImage, hopoYellowImage},
+        {&hopoPurpleImage, hopoPurpleImage},
         // Bars
         {&barKickImage, barKickImage}, {&barKick2xImage, barKick2xImage},
         {&barOpenImage, barOpenImage}, {&barWhiteImage, barWhiteImage},
+        {&barStompImage, barStompImage},
         // Overlays
         {&overlayCymAccentImage, overlayCymAccentImage}, {&overlayCymGhostImage, overlayCymGhostImage},
         {&overlayNoteAccentImage, overlayNoteAccentImage}, {&overlayNoteGhostImage, overlayNoteGhostImage},
@@ -165,11 +253,8 @@ void AssetManager::initAssets()
         {&hitAnimationFrames[0], hitAnimationFrames[0]}, {&hitAnimationFrames[1], hitAnimationFrames[1]},
         {&hitAnimationFrames[2], hitAnimationFrames[2]}, {&hitAnimationFrames[3], hitAnimationFrames[3]},
         {&hitAnimationFrames[4], hitAnimationFrames[4]},
-        // Hit flare images
-        {&hitFlareImages[0], hitFlareImages[0]}, {&hitFlareImages[1], hitFlareImages[1]},
-        {&hitFlareImages[2], hitFlareImages[2]}, {&hitFlareImages[3], hitFlareImages[3]},
-        {&hitFlareImages[4], hitFlareImages[4]}, {&hitFlareImages[5], hitFlareImages[5]},
-        {&hitFlarePurpleImage, hitFlarePurpleImage},
+        // Hit flare: only the greyscale master is scaled; lane tints derive from it.
+        {&hitFlareWhite, hitFlareWhite},
         // Kick animation frames
         {&kickAnimationFrames[0], kickAnimationFrames[0]}, {&kickAnimationFrames[1], kickAnimationFrames[1]},
         {&kickAnimationFrames[2], kickAnimationFrames[2]}, {&kickAnimationFrames[3], kickAnimationFrames[3]},
@@ -241,7 +326,34 @@ void AssetManager::rescaleForWidth(int viewportWidth)
     for (auto& asset : scalableAssets)
         *asset.target = downscale(asset.fullRes, targetWidth);
 
+    // Flare tints derive from the (now rescaled) smoke master — drop them so they
+    // regenerate at the new scale on next use.
+    flareTintCache.clear();
+
     lastScaledWidth = targetWidth;
+}
+
+// Tint the smoke master by an arbitrary lane colour, memoized per colour. Node-based
+// map => returned pointers stay valid as new colours are added within a frame.
+juce::Image* AssetManager::flareTinted(juce::Colour colour)
+{
+    auto key = colour.getARGB();
+    auto it = flareTintCache.find(key);
+    if (it == flareTintCache.end())
+        it = flareTintCache.emplace(key, tintFlare(hitFlareWhite, colour)).first;
+    return &it->second;
+}
+
+juce::Image* AssetManager::getHitFlarePurpleImage()
+{
+    return flareTinted(LaneColours::bright(LaneColours::purple));
+}
+
+juce::Image* AssetManager::getHitFlareImage(uint gemColumn, Part part)
+{
+    // Colour comes from the same generic source the gems/pads use, so the flare
+    // lights up in the lane's own colour for any part / lane count (elite included).
+    return flareTinted(getLaneColour(gemColumn, part, /*starPowerActive=*/false));
 }
 
 juce::Image* AssetManager::getGhostCursorImage(bool isDrums, int lane)
@@ -334,10 +446,71 @@ juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uin
     return nullptr;
 }
 
-juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive)
+juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive, bool elite)
 {
     // Use the gem's star power flag to determine if it should be white
     bool shouldBeWhite = starPowerActive && gemWrapper.starPower;
+
+    if (elite)
+    {
+        // Hi-hat pedal bars (Stomp / Splash): the raised-white mini kick-bar art. Same art
+        // for both (spec: both render as miniature kick bars); the renderer positions it
+        // centered on the hi-hat lane. Identified by gem type, not column.
+        if (gemWrapper.gem == Gem::STOMP || gemWrapper.gem == Gem::SPLASH)
+            return getBarStompImage();
+
+        // Elite: each hand lane is drum XOR cymbal, and its colour comes from the shared
+        // ELITE_LANE_STYLES table (same source the strikeline pads use), so the gem and
+        // its pad always match. Kick / 2x-Kick are full-width bars. Purple (Left Crash)
+        // has no gem art yet, so it borrows the tap-note glyph as a placeholder until the
+        // procedural note glyph lands.
+        using T = PositionConstants::DrumLaneTint;
+        if (gemColumn >= 1 && gemColumn <= 8)
+        {
+            const auto& style = PositionConstants::ELITE_LANE_STYLES[gemColumn];
+            if (style.cymbal)
+            {
+                if (shouldBeWhite) return getCymWhiteImage();
+                switch (style.tint)
+                {
+                // Hi-Hat (col 2, the only Yellow cymbal lane): the gem art follows the pedal
+                // state (spec: Yellow defaults to Open, Closed via coincident pedal-down,
+                // Indifferent looks like an ordinary cymbal). Open is the default when no
+                // state is set (e.g. before MIDI parsing populates it).
+                case T::Yellow:
+                    switch (gemWrapper.hihat)
+                    {
+                    case HiHatState::Closed:      return getCymHiHatClosedImage();
+                    case HiHatState::Indifferent: return getCymYellowImage();
+                    case HiHatState::Open:
+                    case HiHatState::None:
+                    default:                      return getCymHiHatOpenImage();
+                    }
+                case T::Blue:   return getCymBlueImage();
+                case T::Green:  return getCymGreenImage();
+                case T::Red:    return getCymRedImage();
+                case T::Purple: return getCymPurpleImage();
+                default:        return getCymWhiteImage();
+                }
+            }
+            // Note lanes: a ghost uses the short HOPO glyph (same cue as 4-lane drums);
+            // normal and accent use the full note glyph (accent adds its chevron overlay).
+            const bool ghost = (gemWrapper.gem == Gem::HOPO_GHOST);
+            if (shouldBeWhite) return ghost ? getHopoWhiteImage() : getNoteWhiteImage();
+            switch (style.tint)
+            {
+            case T::Red:    return ghost ? getHopoRedImage()    : getNoteRedImage();
+            case T::Orange: return ghost ? getHopoOrangeImage() : getNoteOrangeImage();
+            case T::Blue:   return ghost ? getHopoBlueImage()   : getNoteBlueImage();
+            case T::Yellow: return ghost ? getHopoYellowImage() : getNoteYellowImage();
+            case T::Green:  return ghost ? getHopoGreenImage()  : getNoteGreenImage();
+            case T::Purple: return ghost ? getHopoPurpleImage()  : getNotePurpleImage();
+            default:        return ghost ? getHopoWhiteImage()  : getNoteWhiteImage();
+            }
+        }
+        if (gemColumn == 9) return shouldBeWhite ? getBarWhiteImage() : getBarKick2xImage();  // 2x Kick
+        return shouldBeWhite ? getBarWhiteImage() : getBarKickImage();                        // Kick / other
+    }
 
     if (shouldBeWhite)
     {
@@ -460,28 +633,37 @@ juce::Colour AssetManager::getLaneColour(uint gemColumn, Part part, bool starPow
         return juce::Colours::white;
     }
 
+    // All lane colours come from the shared LaneColours palette (same source as the
+    // strikeline pads and cymbal tints), keyed by the lane's tint, so gems, roll lanes,
+    // strikeline pads and effects always agree on a lane's colour.
+    using T = PositionConstants::DrumLaneTint;
+    auto fromTint = [](T t) -> juce::Colour
+    {
+        switch (t)
+        {
+        case T::Red:    return LaneColours::bright(LaneColours::red);
+        case T::Yellow: return LaneColours::bright(LaneColours::yellow);
+        case T::Blue:   return LaneColours::bright(LaneColours::blue);
+        case T::Green:  return LaneColours::bright(LaneColours::green);
+        case T::Orange: return LaneColours::bright(LaneColours::orange);
+        case T::Purple: return LaneColours::bright(LaneColours::purple);
+        default:        return LaneColours::bright(LaneColours::white);
+        }
+    };
+
+    if (part == Part::ELITE_DRUMS)
+    {
+        if (gemColumn >= 1 && gemColumn <= 8)
+            return fromTint(PositionConstants::ELITE_LANE_STYLES[gemColumn].tint);
+        return fromTint(T::Orange);   // kick / 2x-kick lanes read as orange
+    }
     if (part == Part::GUITAR)
     {
-        juce::Colour guitarColors[] = {
-            juce::Colours::purple,
-            juce::Colours::green,
-            juce::Colours::red,
-            juce::Colours::yellow,
-            juce::Colours::blue,
-            juce::Colours::orange
-        };
-        return guitarColors[std::min(gemColumn, 5u)];
+        // 5-fret: col 0 = open (purple), 1-5 = GRYBO.
+        static const T g[6] = { T::Purple, T::Green, T::Red, T::Yellow, T::Blue, T::Orange };
+        return fromTint(g[std::min(gemColumn, 5u)]);
     }
-    else // if (part == Part::DRUMS)
-    {
-        juce::Colour drumColors[] = {
-            juce::Colours::orange,
-            juce::Colours::red,
-            juce::Colours::yellow,
-            juce::Colours::blue,
-            juce::Colours::green
-        };
-        uint idx = std::min(drumColumnIndex(gemColumn), 4u);
-        return drumColors[idx];
-    }
+    // 4-lane drums: kick(orange), red, yellow, blue, green.
+    static const T d[5] = { T::Orange, T::Red, T::Yellow, T::Blue, T::Green };
+    return fromTint(d[std::min(drumColumnIndex(gemColumn), 4u)]);
 }

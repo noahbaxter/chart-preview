@@ -83,6 +83,44 @@ struct MidiPitchDefinitions
         EASY_KICK = 60
     };
 
+    // Elite Drums (PART ELITE_DRUMS). Lower octave = gem placement; each lower
+    // difficulty is a fixed -24 from Expert (Expert 72-82). Gem placement (1x/2x kick +
+    // 8 hand lanes) plus the hi-hat pedal state modifiers: Pedal Down (lower-octave C,
+    // dual-purpose but wired as the Closed-hat modifier here; Stomp/Splash gem generation
+    // deferred) and the upper-octave Indifferent-hat marker. Flam + disco still deferred.
+    enum class EliteDrums
+    {
+        SP = 104,   // Overdrive / Star Power / Unison (pan-difficulty)
+
+        // Hi-hat pedal state modifiers (per difficulty, -24 offset like the gems):
+        //   Pedal Down (lower-octave C) — coincident under a Yellow note => Closed Hi-Hat.
+        //   Indifferent (upper-octave E) — coincident marker => Indifferent Yellow cymbal.
+        EXPERT_PEDAL = 72, HARD_PEDAL = 48, MEDIUM_PEDAL = 24, EASY_PEDAL = 0,
+        EXPERT_INDIFFERENT = 88, HARD_INDIFFERENT = 64, MEDIUM_INDIFFERENT = 40, EASY_INDIFFERENT = 16,
+
+        // Roll/tremolo lanes (pan-difficulty). Expert-only unless velocity in [41,50] -> Hard too.
+        // 110 kick .. 118 R-crash map linearly to columns 0..8; 109 unused (no 2x-kick roll lane).
+        ROLL_RCRASH = 118, ROLL_RIDE = 117, ROLL_TOM3  = 116, ROLL_TOM2  = 115,
+        ROLL_TOM1   = 114, ROLL_LCRASH = 113, ROLL_HIHAT = 112, ROLL_SNARE = 111,
+        ROLL_KICK   = 110, ROLL_STOMP  = 108,
+
+        EXPERT_RCRASH = 82, EXPERT_RIDE = 81, EXPERT_TOM3 = 80, EXPERT_TOM2 = 79,
+        EXPERT_TOM1 = 78,   EXPERT_LCRASH = 77, EXPERT_HIHAT = 76, EXPERT_SNARE = 75,
+        EXPERT_KICK = 74,   EXPERT_KICK_2X = 73,
+
+        HARD_RCRASH = 58, HARD_RIDE = 57, HARD_TOM3 = 56, HARD_TOM2 = 55,
+        HARD_TOM1 = 54,   HARD_LCRASH = 53, HARD_HIHAT = 52, HARD_SNARE = 51,
+        HARD_KICK = 50,   HARD_KICK_2X = 49,
+
+        MEDIUM_RCRASH = 34, MEDIUM_RIDE = 33, MEDIUM_TOM3 = 32, MEDIUM_TOM2 = 31,
+        MEDIUM_TOM1 = 30,   MEDIUM_LCRASH = 29, MEDIUM_HIHAT = 28, MEDIUM_SNARE = 27,
+        MEDIUM_KICK = 26,   MEDIUM_KICK_2X = 25,
+
+        EASY_RCRASH = 10, EASY_RIDE = 9, EASY_TOM3 = 8, EASY_TOM2 = 7,
+        EASY_TOM1 = 6,    EASY_LCRASH = 5, EASY_HIHAT = 4, EASY_SNARE = 3,
+        EASY_KICK = 2,    EASY_KICK_2X = 1,
+    };
+
     enum class Guitar
     {
         LANE_2 = 127,

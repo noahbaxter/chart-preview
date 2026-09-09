@@ -12,7 +12,7 @@
 //==============================================================================
 // CONSTANTS
 
-constexpr uint LANE_COUNT = 7;  // Number of playable lanes (0-6)
+constexpr uint LANE_COUNT = 12;  // Max playable columns: 4-lane uses 0-6; elite uses kick(0) + 8 hand lanes(1-8) + kick2x(9) + stomp(10) + splash(11)
 
 //==============================================================================
 // State helpers
@@ -32,17 +32,39 @@ inline bool isPart(juce::ValueTree &state, Part part)
     return (int)state.getProperty("part") == (int)part;
 }
 
-constexpr int DRUM_KICK_COLUMN    = 0;
-constexpr int DRUM_KICK_2X_COLUMN = 6;
+constexpr int DRUM_KICK_COLUMN     = 0;
+constexpr int DRUM_KICK_2X_COLUMN  = 6;   // 4-lane: 2x kick shares the kick lane
+constexpr int ELITE_KICK_2X_COLUMN = 9;   // elite: col 6 is a real hand lane (Tom 3), so 2x kick moves to a virtual column
+constexpr int ELITE_HIHAT_COLUMN   = 2;   // elite: the yellow cymbal lane, the only lane with open/closed/indifferent state
 
-inline bool isDrumKick(uint gemColumn)
+inline bool isDrumKick(uint gemColumn, Part part = Part::DRUMS)
 {
+    if (part == Part::ELITE_DRUMS)
+        return gemColumn == DRUM_KICK_COLUMN || gemColumn == ELITE_KICK_2X_COLUMN;
     return gemColumn == DRUM_KICK_COLUMN || gemColumn == DRUM_KICK_2X_COLUMN;
 }
 
-inline uint drumColumnIndex(uint gemColumn)
+inline uint drumColumnIndex(uint gemColumn, Part part = Part::DRUMS)
 {
+    if (part == Part::ELITE_DRUMS)
+        return (gemColumn == ELITE_KICK_2X_COLUMN) ? DRUM_KICK_COLUMN : gemColumn;
     return (gemColumn == DRUM_KICK_2X_COLUMN) ? DRUM_KICK_COLUMN : gemColumn;
+}
+
+// Elite hand lanes that are cymbals (Hi-Hat, L-Crash, Ride, R-Crash); the rest
+// (Snare, Toms) are drums. Each lane is drum XOR cymbal, fixed by lane, so this is
+// the chart-side source for gem type (mirrors ELITE_LANE_STYLES.cymbal on the visual side).
+inline bool isEliteCymbalLane(uint gemColumn)
+{
+    return gemColumn == 2 || gemColumn == 3 || gemColumn == 7 || gemColumn == 8;
+}
+
+// The elite Hi-Hat lane (yellow cymbal) — the only lane that carries Open/Closed/Indifferent
+// pedal state (spec: Yellow defaults to Open, coincident Pedal Down = Closed, coincident
+// Indifferent marker = Indifferent).
+inline bool isEliteHiHatLane(uint gemColumn)
+{
+    return gemColumn == (uint)ELITE_HIHAT_COLUMN;
 }
 
 inline bool isBarNote(uint gemColumn, Part part)
@@ -50,7 +72,7 @@ inline bool isBarNote(uint gemColumn, Part part)
     if (part == Part::GUITAR)
         return gemColumn == 0;
     else
-        return isDrumKick(gemColumn);
+        return isDrumKick(gemColumn, part);
 }
 
 //==============================================================================
@@ -69,15 +91,30 @@ enum class Gem
     CYM_GHOST,
     CYM,
     CYM_ACCENT,
+    STOMP,          // Elite hi-hat pedal: closed-pedal "stomp" (mini kick bar over the hi-hat zone)
+    SPLASH,         // Elite hi-hat pedal: "splash" (same bar; also a hi-hat sustain generator)
+};
+
+// Elite hi-hat pedal state, orthogonal to the gem's ghost/accent type. Only meaningful on the
+// Hi-Hat (yellow cymbal) lane. Open is the spec default; Closed needs a coincident pedal-down;
+// Indifferent renders as an ordinary cymbal.
+enum class HiHatState
+{
+    None,
+    Open,
+    Closed,
+    Indifferent,
 };
 
 struct GemWrapper
 {
     Gem gem;
     bool starPower;
+    HiHatState hihat;
 
-    GemWrapper() : gem(Gem::NONE), starPower(false) {}
-    GemWrapper(Gem g, bool sp = false) : gem(g), starPower(sp) {}
+    GemWrapper() : gem(Gem::NONE), starPower(false), hihat(HiHatState::None) {}
+    GemWrapper(Gem g, bool sp = false, HiHatState hh = HiHatState::None)
+        : gem(g), starPower(sp), hihat(hh) {}
 };
 
 enum class Gridline
