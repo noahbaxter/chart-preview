@@ -14,15 +14,15 @@ bool NoteEditor::isAvailable() const
     return midiWriter != nullptr && midiWriter->isAvailable();
 }
 
-bool NoteEditor::createNote(int trackIdx, double startQN, int pitch)
+bool NoteEditor::createNote(int trackIdx, double startQN, int pitch, int velocity)
 {
     if (!midiWriter || !instrumentSession) return false;
 
     double endQN = resolveOverlaps(trackIdx, startQN, startQN + kShortNoteDurationQN, pitch);
 
     bool ok = batchActive
-        ? midiWriter->batchInsertNote(trackIdx, startQN, endQN, 0, pitch, 100)
-        : midiWriter->insertNote(trackIdx, startQN, endQN, 0, pitch, 100);
+        ? midiWriter->batchInsertNote(trackIdx, startQN, endQN, 0, pitch, velocity)
+        : midiWriter->insertNote(trackIdx, startQN, endQN, 0, pitch, velocity);
 
     if (ok) instrumentSession->invalidateTrack(trackIdx);
     return ok;
@@ -62,6 +62,29 @@ bool NoteEditor::truncateNote(int trackIdx, double noteStartQN, int pitch)
     bool ok = batchActive
         ? midiWriter->batchMoveNote(trackIdx, note.noteIndex, note.startQN, shortEnd, pitch)
         : midiWriter->moveNote(trackIdx, note.noteIndex, note.startQN, shortEnd, pitch);
+
+    if (ok) instrumentSession->invalidateTrack(trackIdx);
+    return ok;
+}
+
+bool NoteEditor::setNoteVelocity(int trackIdx, double qn, int pitch, int velocity)
+{
+    if (!midiWriter || !instrumentSession) return false;
+
+    auto note = midiWriter->findNote(trackIdx, qn, pitch);
+    if (note.noteIndex < 0) return false;
+
+    double startQN = note.startQN;
+    double endQN = note.endQN;
+
+    bool ok = batchActive
+        ? midiWriter->batchDeleteNote(trackIdx, note.noteIndex, qn)
+        : midiWriter->deleteNoteAtQN(trackIdx, note.noteIndex, qn);
+    if (!ok) return false;
+
+    ok = batchActive
+        ? midiWriter->batchInsertNote(trackIdx, startQN, endQN, 0, pitch, velocity)
+        : midiWriter->insertNote(trackIdx, startQN, endQN, 0, pitch, velocity);
 
     if (ok) instrumentSession->invalidateTrack(trackIdx);
     return ok;

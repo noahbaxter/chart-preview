@@ -21,6 +21,8 @@ public:
 
     bool getToggleState() const { return on; }
     void setButtonText(const juce::String& text) { label = text; repaint(); }
+    void setAccentColour(juce::Colour c) { accent = c; repaint(); }
+    void setCornerRadius(float r) { cornerRadius = r; repaint(); }
 
     std::function<void()> onClick;
     std::function<void(bool modifierHeld)> onClickWithModifier;
@@ -28,7 +30,7 @@ public:
     void paint(juce::Graphics& g) override
     {
         auto bounds = getLocalBounds().toFloat().reduced(1.0f);
-        auto cornerSize = Theme::pillCorner;
+        auto cornerSize = (cornerRadius >= 0.0f) ? cornerRadius : Theme::pillCorner;
         bool hovering = !disabled && isMouseOver();
 
         if (disabled)
@@ -39,23 +41,38 @@ public:
         }
         else if (on)
         {
-            g.setColour(hovering ? juce::Colour(Theme::coral).brighter(0.15f)
-                                 : juce::Colour(Theme::coral));
+            g.setColour(hovering ? accent.brighter(0.15f) : accent);
             g.fillRoundedRectangle(bounds, cornerSize);
             g.setColour(juce::Colour(Theme::textWhite));
         }
         else
         {
-            g.setColour(hovering ? juce::Colour(Theme::coral).withAlpha(0.7f)
+            g.setColour(hovering ? accent.withAlpha(0.7f)
                                  : juce::Colour(Theme::textDim).withAlpha(0.5f));
             g.drawRoundedRectangle(bounds, cornerSize, 1.0f);
             g.setColour(hovering ? juce::Colour(Theme::textWhite)
                                  : juce::Colour(Theme::textDim));
         }
 
-        g.setFont(Theme::smallFont);
-        g.drawText(label, getLocalBounds(), juce::Justification::centred);
+        if (icon)
+        {
+            auto iconBounds = getLocalBounds().toFloat().reduced(getHeight() * 0.22f);
+            juce::Colour tint = disabled ? juce::Colour(Theme::textDim).withAlpha(0.25f)
+                               : on      ? juce::Colour(Theme::textWhite)
+                               : isMouseOver() ? juce::Colour(Theme::textWhite)
+                                               : juce::Colour(Theme::textDim);
+            auto tinted = icon->createCopy();
+            tinted->replaceColour(juce::Colours::black, tint);
+            tinted->drawWithin(g, iconBounds, juce::RectanglePlacement::centred, 1.0f);
+        }
+        else
+        {
+            g.setFont(Theme::smallFont);
+            g.drawText(label, getLocalBounds(), juce::Justification::centred);
+        }
     }
+
+    void setIcon(std::unique_ptr<juce::Drawable> d) { icon = std::move(d); repaint(); }
 
     void setDisabled(bool shouldBeDisabled)
     {
@@ -90,6 +107,9 @@ public:
 
 private:
     juce::String label;
+    std::unique_ptr<juce::Drawable> icon;
     bool on = true;
     bool disabled = false;
+    juce::Colour accent { Theme::coral };
+    float cornerRadius = -1.0f;
 };

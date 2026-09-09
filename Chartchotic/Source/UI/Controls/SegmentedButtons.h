@@ -32,12 +32,15 @@ public:
 
     std::function<void(int index)> onSelectionChanged;
 
+    void setAccentColour(juce::Colour c) { accent = c; repaint(); }
+    void setCornerRadius(float r) { cornerRadius = r; repaint(); }
+
     void paint(juce::Graphics& g) override
     {
         if (items.isEmpty()) return;
 
-        auto bounds = getLocalBounds().toFloat().reduced(0.5f);
-        auto cornerSize = Theme::pillCorner;
+        auto bounds = getLocalBounds().toFloat().reduced(1.0f);
+        auto cornerSize = (cornerRadius >= 0.0f) ? cornerRadius : Theme::pillCorner;
         int count = items.size();
         float segW = bounds.getWidth() / (float)count;
 
@@ -80,7 +83,7 @@ public:
 
                 g.saveState();
                 g.reduceClipRegion(clip);
-                g.setColour(juce::Colour(Theme::coral));
+                g.setColour(accent);
                 g.fillRect(segBounds);
                 g.restoreState();
 
@@ -126,7 +129,7 @@ public:
         }
 
         // Overall outline
-        g.setColour(juce::Colour(Theme::coral).withAlpha(0.5f));
+        g.setColour(accent.withAlpha(0.5f));
         g.drawRoundedRectangle(bounds, cornerSize, 1.0f);
     }
 
@@ -178,4 +181,6 @@ private:
     juce::StringArray items;
     int selectedIndex = 0;
     int hoverIndex = -1;
+    juce::Colour accent { Theme::coral };
+    float cornerRadius = -1.0f;
 };

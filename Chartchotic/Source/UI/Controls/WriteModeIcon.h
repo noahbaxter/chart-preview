@@ -2,7 +2,8 @@
 
 #include <JuceHeader.h>
 #include "../Theme.h"
-#include "../../Editor/AuthoringTypes.h"  // for SubMode
+#include "../HelpTypes.h"
+#include "../../Editor/AuthoringTypes.h"
 
 // Floating mode-status chip rendered over the highway (top-left). Reflects
 // WriteController state at a glance:
@@ -15,7 +16,12 @@
 class WriteModeIcon : public juce::Component
 {
 public:
-    WriteModeIcon() { setInterceptsMouseClicks(true, false); }
+    WriteModeIcon()
+    {
+        setInterceptsMouseClicks(true, false);
+        cursorIcon = juce::Drawable::createFromImageData(
+            BinaryData::icon_cursor_svg, BinaryData::icon_cursor_svgSize);
+    }
 
     void setState(bool writeModeActive, SubMode subMode)
     {
@@ -25,8 +31,9 @@ public:
         repaint();
     }
 
-    // Fired on click — wire to WriteController toggle in PluginEditor.
     std::function<void()> onClick;
+    std::function<void(const HelpText&)> onHoverHelp;
+    std::function<void()> onHoverHelpClear;
 
     void paint(juce::Graphics& g) override
     {
@@ -54,22 +61,42 @@ public:
         auto box = juce::Rectangle<float>(side, side).withCentre(inner.getCentre());
 
         const juce::Colour onColour = (mode == SubMode::Draw)
-            ? juce::Colour(Theme::green)
-            : juce::Colour(Theme::coral);
+            ? juce::Colour(Theme::purple)
+            : juce::Colour(Theme::blue);
         const juce::Colour glyphColour = active
             ? (hovering ? onColour.brighter(0.12f) : onColour)
             : juce::Colour(Theme::textDim).withAlpha(hovering ? 0.75f : 0.55f);
 
-        g.setColour(glyphColour);
-
         if (mode == SubMode::Draw)
+        {
+            g.setColour(glyphColour);
             drawPencil(g, box);
-        else
-            drawArrow(g, box);
+        }
+        else if (cursorIcon)
+        {
+            auto shrunk = box.reduced(box.getWidth() * 0.12f);
+            auto tinted = cursorIcon->createCopy();
+            tinted->replaceColour(juce::Colours::black, glyphColour);
+            tinted->drawWithin(g, shrunk, juce::RectanglePlacement::centred, 1.0f);
+        }
     }
 
-    void mouseEnter(const juce::MouseEvent&) override { repaint(); }
-    void mouseExit(const juce::MouseEvent&) override { repaint(); }
+    void mouseEnter(const juce::MouseEvent&) override
+    {
+        repaint();
+        if (onHoverHelp)
+        {
+            onHoverHelp(makeHelp({
+                key("W"), dim(active ? "exit authoring mode" : "enter authoring mode")
+            }));
+        }
+    }
+
+    void mouseExit(const juce::MouseEvent&) override
+    {
+        repaint();
+        if (onHoverHelpClear) onHoverHelpClear();
+    }
 
     void mouseUp(const juce::MouseEvent& e) override
     {
@@ -127,48 +154,7 @@ private:
         g.fillPath(p);
     }
 
-    // Mouse cursor / arrow glyph: classic OS pointer outline. A triangle that
-    // points up-and-to-the-left, plus a small tail on the bottom-right. Drawn
-    // as a single closed Path.
-    static void drawArrow(juce::Graphics& g, juce::Rectangle<float> box)
-    {
-        const float s = box.getWidth();
-        // Inset a little so the glyph doesn't kiss the bounding box.
-        const float pad = s * 0.12f;
-        const float left = box.getX() + pad;
-        const float top = box.getY() + pad;
-        const float size = s - pad * 2.0f;
-
-        // Standard cursor shape, drawn as if inside a unit box from the
-        // top-left tip outward. Coordinates are normalised then scaled.
-        // Points (in unit space):
-        //   tip:        (0.00, 0.00)
-        //   left edge:  (0.00, 0.78)  — straight down the left side
-        //   notch in:   (0.30, 0.62)  — concave step inward
-        //   tail base1: (0.42, 0.92)
-        //   tail base2: (0.58, 0.86)
-        //   notch out:  (0.46, 0.56)
-        //   right edge: (0.78, 0.46)  — diagonal back up to near-tip
-        struct P { float x, y; };
-        const P pts[] = {
-            { 0.00f, 0.00f },
-            { 0.00f, 0.78f },
-            { 0.30f, 0.62f },
-            { 0.42f, 0.92f },
-            { 0.58f, 0.86f },
-            { 0.46f, 0.56f },
-            { 0.78f, 0.46f },
-        };
-
-        juce::Path p;
-        p.startNewSubPath(left + pts[0].x * size, top + pts[0].y * size);
-        for (int i = 1; i < (int)(sizeof(pts) / sizeof(pts[0])); ++i)
-            p.lineTo(left + pts[i].x * size, top + pts[i].y * size);
-        p.closeSubPath();
-
-        g.fillPath(p);
-    }
-
     bool    active = false;
     SubMode mode   = SubMode::Draw;
+    std::unique_ptr<juce::Drawable> cursorIcon;
 };

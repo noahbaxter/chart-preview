@@ -22,14 +22,18 @@ public:
     void onPointerCancel();
     bool onKeyPress(const juce::KeyPress& key);
 
-    bool       writeModeActive() const { return writeController.writeModeActive(); }
-    SubMode    subMode()         const { return writeController.subMode(); }
-    int        stepDivision()    const { return writeController.stepDivision(); }
-    int        tuplet()          const { return writeController.tuplet(); }
-    bool       snapEnabled()     const { return writeController.snapEnabled(); }
-    bool       barMode()         const { return barModeFlag; }
-    Part       activePart()      const { return writeController.activePart(); }
-    SkillLevel activeSkill()     const { return writeController.activeSkill(); }
+    bool        writeModeActive() const { return writeController.writeModeActive(); }
+    SubMode     subMode()         const { return writeController.subMode(); }
+    int         stepDivision()    const { return writeController.stepDivision(); }
+    int         tuplet()          const { return writeController.tuplet(); }
+    bool        snapEnabled()     const { return writeController.snapEnabled(); }
+    bool        barMode()         const { return barModeFlag; }
+    Part        activePart()      const { return writeController.activePart(); }
+    SkillLevel  activeSkill()     const { return writeController.activeSkill(); }
+    DrumDynamic drumDynamic()     const { return writeController.drumDynamic(); }
+    GuitarForce guitarForce()     const { return writeController.guitarForce(); }
+    bool        cymbalMode()      const { return writeController.cymbalMode(); }
+    bool        hasStamp()        const { return writeController.hasStamp(); }
 
     void setWriteModeActive(bool v) { writeController.setWriteModeActive(v); }
     void setSubMode(SubMode m)      { writeController.setSubMode(m); }
@@ -37,9 +41,17 @@ public:
     void setTuplet(int t)           { writeController.setTuplet(t); }
     void cycleTuplet()              { writeController.cycleTuplet(); }
     void setSnapEnabled(bool v)     { writeController.setSnapEnabled(v); }
+    void clearEditSelection()       { editController.clearSelection(); }
     void setBarMode(bool v);
-    void setActivePart(Part p)       { writeController.setActivePart(p); editController.setActivePart(p); }
-    void setActiveSkill(SkillLevel s){ writeController.setActiveSkill(s); editController.setActiveSkill(s); }
+    void setActivePart(Part p)        { writeController.setActivePart(p); editController.setActivePart(p); }
+    void setActiveSkill(SkillLevel s) { writeController.setActiveSkill(s); editController.setActiveSkill(s); }
+    void setDrumDynamic(DrumDynamic d){ writeController.setDrumDynamic(d); editController.setDrumDynamic(d); }
+    void setGuitarForce(GuitarForce f){ writeController.setGuitarForce(f); editController.setGuitarForce(f); }
+    void setCymbalMode(bool c)        { writeController.setCymbalMode(c);  editController.setCymbalMode(c); }
+
+    void applyDrumDynamicToSelection(DrumDynamic d) { editController.applyDrumDynamicToSelection(d); }
+    void applyGuitarForceToSelection(GuitarForce f) { editController.applyGuitarForceToSelection(f); }
+    void applyCymbalModeToSelection(bool c)         { editController.applyCymbalModeToSelection(c); }
 
     const OverlayState& getOverlayState() const;
     const OptimisticPatchBuffer& getPatchBuffer() const { return patchBuffer; }

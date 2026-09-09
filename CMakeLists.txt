@@ -264,6 +264,8 @@ juce_add_binary_data(ChartchoticData
         assets/static/icons/icon_keys.png
         assets/static/icons/icon_vocals.png
         assets/static/icons/icon_drums.png
+        assets/static/icons/icon_snap_magnet.svg
+        assets/static/icons/icon_cursor.svg
         assets/static/icons/discoball.jpg
         assets/static/logo-reaper.svg
         # Default highway textures

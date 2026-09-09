@@ -18,6 +18,12 @@ public:
 
     void clearSelection();
     void onFrameTick();
+    const std::vector<SelectedNote>& getSelection() const { return selection; }
+    MidiWriter::NoteInfo lookupNote(int trackIdx, double qn, int pitch) { return findNote(trackIdx, qn, pitch); }
+
+    void applyDrumDynamicToSelection(DrumDynamic dynamic);
+    void applyGuitarForceToSelection(GuitarForce force);
+    void applyCymbalModeToSelection(bool cymbal);
 
 private:
     enum class DragMode { Idle, Marquee, Moving };
@@ -33,6 +39,8 @@ private:
     void handleCommitMove     (const AuthoringPoint& p);
     void handleDoubleClick    (const AuthoringPoint& p);
     void handleDeleteSelection();
+    void handleArrowMove(int deltaLane, double deltaQN);
+    void updateCursorLabel(const AuthoringPoint& p);
 
     // Selection
     std::vector<SelectedNote> selection;

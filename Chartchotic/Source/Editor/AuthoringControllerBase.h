@@ -24,12 +24,18 @@ public:
     void setSnapEnabled(bool s)                    { snapEnabledFlag = s; }
     void setBarMode(bool b)                        { barModeFlag = b; overlayState.barMode = b; }
     void setKick2x(bool k)                         { kick2xEnabled = k; }
+    void setDrumDynamic(DrumDynamic d)             { currentDrumDynamic = d; }
+    void setGuitarForce(GuitarForce f)             { currentGuitarForce = f; }
+    void setCymbalMode(bool c)                     { cymbalModeFlag = c; }
 
-    Part       activePart()    const { return currentActivePart; }
-    SkillLevel activeSkill()   const { return currentActiveSkill; }
-    int        stepDivision()  const { return currentStepDivision; }
-    int        tuplet()        const { return currentTuplet; }
-    bool       snapEnabled()   const { return snapEnabledFlag; }
+    Part        activePart()    const { return currentActivePart; }
+    SkillLevel  activeSkill()   const { return currentActiveSkill; }
+    int         stepDivision()  const { return currentStepDivision; }
+    int         tuplet()        const { return currentTuplet; }
+    bool        snapEnabled()   const { return snapEnabledFlag; }
+    DrumDynamic drumDynamic()   const { return currentDrumDynamic; }
+    GuitarForce guitarForce()   const { return currentGuitarForce; }
+    bool        cymbalMode()    const { return cymbalModeFlag; }
 
     const OverlayState& getOverlayState() const { return overlayState; }
 
@@ -38,6 +44,17 @@ public:
 protected:
     bool isPlaying() const { return playingStatePtr && *playingStatePtr; }
     bool isDrums()   const { return isDrumLike(currentActivePart); }
+
+    int resolveVelocity() const
+    {
+        if (!isDrums()) return 100;
+        switch (currentDrumDynamic)
+        {
+            case DrumDynamic::Ghost:  return 1;
+            case DrumDynamic::Accent: return 127;
+            default:                  return 100;
+        }
+    }
 
     int resolvePitch(int laneIndex, bool drums) const
     {
@@ -67,7 +84,7 @@ protected:
 
     // Patch-aware note operations — patching is automatic, sub-controllers
     // never touch OptimisticPatchBuffer directly.
-    bool createNote(int trackIdx, double qn, int pitch, int lane)
+    bool createNote(int trackIdx, double qn, int pitch, int lane, int velocity = 100)
     {
         auto existing = findNote(trackIdx, qn, pitch);
         if (existing.noteIndex >= 0 && std::abs(existing.startQN - qn) < 0.001)
@@ -75,7 +92,7 @@ protected:
             DBG("createNote: duplicate at QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
             return false;
         }
-        if (!noteEditor.createNote(trackIdx, qn, pitch))
+        if (!noteEditor.createNote(trackIdx, qn, pitch, velocity))
         {
             DBG("createNote: noteEditor rejected QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
             return false;
@@ -192,6 +209,92 @@ protected:
     void beginBatch(const char* desc) { noteEditor.beginBatch(desc); }
     void endBatch() { noteEditor.endBatch(); }
 
+    bool createMarkerNote(int trackIdx, double qn, int pitch)
+    {
+        return noteEditor.createNote(trackIdx, qn, pitch);
+    }
+
+    bool setNoteVelocity(int trackIdx, double qn, int pitch, int velocity)
+    {
+        return noteEditor.setNoteVelocity(trackIdx, qn, pitch, velocity);
+    }
+
+    int resolveTomMarkerPitch(int lane) const
+    {
+        if (!isDrums()) return -1;
+        using Drums = MidiPitchDefinitions::Drums;
+        switch (lane)
+        {
+            case 2: return (int)Drums::TOM_YELLOW;
+            case 3: return (int)Drums::TOM_BLUE;
+            case 4: return (int)Drums::TOM_GREEN;
+            default: return -1;
+        }
+    }
+
+    void writeTomMarker(int trackIdx, double qn, int lane)
+    {
+        int markerPitch = resolveTomMarkerPitch(lane);
+        if (markerPitch < 0) return;
+
+        auto existing = findNote(trackIdx, qn, markerPitch);
+        if (cymbalModeFlag)
+        {
+            if (existing.noteIndex >= 0)
+                eraseNote(trackIdx, qn, markerPitch, true, lane, currentActiveSkill);
+        }
+        else
+        {
+            if (existing.noteIndex < 0)
+                createMarkerNote(trackIdx, qn, markerPitch);
+        }
+    }
+
+    int resolveGuitarForcePitchFor(GuitarForce force) const
+    {
+        if (isDrums()) return -1;
+        using Guitar = MidiPitchDefinitions::Guitar;
+        switch (force)
+        {
+            case GuitarForce::Hopo:
+                switch (currentActiveSkill) {
+                    case SkillLevel::EXPERT: return (int)Guitar::EXPERT_HOPO;
+                    case SkillLevel::HARD:   return (int)Guitar::HARD_HOPO;
+                    case SkillLevel::MEDIUM: return (int)Guitar::MEDIUM_HOPO;
+                    case SkillLevel::EASY:   return (int)Guitar::EASY_HOPO;
+                }
+                break;
+            case GuitarForce::Strum:
+                switch (currentActiveSkill) {
+                    case SkillLevel::EXPERT: return (int)Guitar::EXPERT_STRUM;
+                    case SkillLevel::HARD:   return (int)Guitar::HARD_STRUM;
+                    case SkillLevel::MEDIUM: return (int)Guitar::MEDIUM_STRUM;
+                    case SkillLevel::EASY:   return (int)Guitar::EASY_STRUM;
+                }
+                break;
+            case GuitarForce::Tap:
+                return (int)Guitar::TAP;
+            default:
+                return -1;
+        }
+        return -1;
+    }
+
+    int resolveGuitarForcePitch() const
+    {
+        return resolveGuitarForcePitchFor(currentGuitarForce);
+    }
+
+    void writeGuitarForceMarker(int trackIdx, double qn)
+    {
+        int forcePitch = resolveGuitarForcePitch();
+        if (forcePitch < 0) return;
+
+        auto existing = findNote(trackIdx, qn, forcePitch);
+        if (existing.noteIndex < 0)
+            createMarkerNote(trackIdx, qn, forcePitch);
+    }
+
     InstrumentSession*      instrumentSession    = nullptr;
     const bool*             playingStatePtr      = nullptr;
     Part                    currentActivePart    = Part::GUITAR;
@@ -201,6 +304,9 @@ protected:
     bool                    snapEnabledFlag      = true;
     bool                    barModeFlag          = false;
     bool                    kick2xEnabled        = false;
+    DrumDynamic             currentDrumDynamic   = DrumDynamic::Normal;
+    GuitarForce             currentGuitarForce   = GuitarForce::None;
+    bool                    cymbalModeFlag       = false;
     CommandMapper           commandMapper;
     OverlayState            overlayState;
 

@@ -12,7 +12,7 @@ public:
 
     bool isAvailable() const;
 
-    bool createNote  (int trackIdx, double startQN, int pitch);
+    bool createNote  (int trackIdx, double startQN, int pitch, int velocity = 100);
     bool eraseNoteAt (int trackIdx, double rawQN, int pitch,
                       bool drums, int lane, SkillLevel skill);
     bool truncateNote(int trackIdx, double noteStartQN, int pitch);
@@ -21,6 +21,8 @@ public:
                   double newStartQN, double newEndQN, int newPitch);
     std::vector<MidiWriter::NoteInfo> findNotesInRange(int trackIdx, double startQN,
                                                         double endQN, int pitch);
+
+    bool setNoteVelocity(int trackIdx, double qn, int pitch, int velocity);
 
     bool chainExtendNotes(int trackIdx, double startQN, double endQN, int pitch);
 

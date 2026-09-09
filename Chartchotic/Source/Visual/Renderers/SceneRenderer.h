@@ -66,6 +66,8 @@ class SceneRenderer
             juce::Image* image = nullptr;  // null = use real colored note asset
             float  opacity = 0.5f;
             juce::String positionLabel;    // "37.2" style label shown in write mode
+            struct StampGhostEntry { int lane; float position; };
+            std::vector<StampGhostEntry> stampGhosts;
         };
         GhostCursor ghostCursor;
         static constexpr bool useColoredGhostCursor = true;

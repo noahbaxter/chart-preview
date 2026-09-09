@@ -33,4 +33,8 @@ between calls and you'll get flicker/race conditions. (Burned us in v0.8.6.)
 `GlyphRenderer` only handles overlay positioning (drum accent scale). Fretboard width scales
 are tunable via debug sliders on `SceneRenderer` and passed through to `AnimationRenderer`.
 
+**Chart format specs**: `.mid` note types, modifiers, MIDI mappings live at
+`../_refs/midi/` (quick reference) and `../chart-formats/docs/Chart-File-Formats/mid-format/`
+(full docs). Covers 5-fret guitar, drums, 6-fret, pro guitar, vocals.
+
 **Roadmap & Bugs**: `BACKLOG.md` — check before starting work to avoid duplicating known issues.

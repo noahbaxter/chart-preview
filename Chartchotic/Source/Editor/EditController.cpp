@@ -57,8 +57,9 @@ void EditController::recomputeOverlay()
 //==============================================================================
 // Input handlers
 
-void EditController::onPointerMove(const AuthoringPoint&, const AuthoringContext&)
+void EditController::onPointerMove(const AuthoringPoint& p, const AuthoringContext&)
 {
+    updateCursorLabel(p);
 }
 
 void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
@@ -217,10 +218,23 @@ void EditController::onPointerDoubleClick(const AuthoringPoint& p, const Authori
 
 void EditController::onPointerExit()
 {
+    overlayState.ghostVisible = false;
+    overlayState.ghostLane = -1;
+    overlayState.ghostQN = 0.0;
 }
 
 bool EditController::onKeyPress(const juce::KeyPress& key)
 {
+    int code = key.getKeyCode();
+    if (!selection.empty())
+    {
+        double step = stepSpacingQN(currentStepDivision, currentTuplet);
+        if (code == juce::KeyPress::upKey)    { handleArrowMove(0,  step); return true; }
+        if (code == juce::KeyPress::downKey)  { handleArrowMove(0, -step); return true; }
+        if (code == juce::KeyPress::leftKey)  { handleArrowMove(-1, 0.0);  return true; }
+        if (code == juce::KeyPress::rightKey) { handleArrowMove(1,  0.0);  return true; }
+    }
+
     auto cmd = commandMapper.resolveKey(true, key);
     switch (cmd)
     {
@@ -429,4 +443,133 @@ void EditController::handleDeleteSelection()
     selection.clear();
     recomputeOverlay();
     if (onStateChanged) onStateChanged();
+}
+
+void EditController::handleArrowMove(int deltaLane, double deltaQN)
+{
+    if (selection.empty()) return;
+
+    bool drums = isDrums();
+    int maxLane = drums ? 4 : 5;
+
+    for (const auto& n : selection)
+    {
+        int newLane = n.lane + deltaLane;
+        if (newLane < 0 || newLane > maxLane) return;
+        if (n.startQN + deltaQN < 0.0) return;
+    }
+
+    beginBatch("Chartchotic: Move notes");
+
+    std::vector<SelectedNote> moved;
+    for (const auto& n : selection)
+    {
+        auto found = findNote(n.trackIdx, n.startQN, n.pitch);
+        if (found.noteIndex < 0) continue;
+
+        int newLane = n.lane + deltaLane;
+        double newStartQN = n.startQN + deltaQN;
+        double duration = found.endQN - found.startQN;
+        int newPitch = resolvePitch(newLane, drums);
+
+        moveNote(n.trackIdx, n.startQN, n.pitch, n.lane,
+                 newStartQN, newStartQN + duration, newPitch, newLane);
+        moved.push_back({ n.trackIdx, newStartQN, newPitch, newLane });
+    }
+
+    endBatch();
+    selection = std::move(moved);
+    recomputeOverlay();
+    if (onStateChanged) onStateChanged();
+}
+
+void EditController::applyDrumDynamicToSelection(DrumDynamic dynamic)
+{
+    if (selection.empty() || !noteEditorAvailable()) return;
+    int trackIdx = resolveTrackIdx();
+    if (trackIdx < 0) return;
+
+    int velocity = 100;
+    if (dynamic == DrumDynamic::Ghost) velocity = 1;
+    else if (dynamic == DrumDynamic::Accent) velocity = 127;
+
+    beginBatch("Set drum dynamic");
+    for (const auto& sel : selection)
+    {
+        if (sel.sustainOnly) continue;
+        setNoteVelocity(trackIdx, sel.startQN, sel.pitch, velocity);
+    }
+    endBatch();
+}
+
+void EditController::applyGuitarForceToSelection(GuitarForce force)
+{
+    if (selection.empty() || !noteEditorAvailable()) return;
+    int trackIdx = resolveTrackIdx();
+    if (trackIdx < 0) return;
+
+    beginBatch("Set guitar force");
+    for (const auto& sel : selection)
+    {
+        if (sel.sustainOnly) continue;
+
+        int hopoPitch = resolveGuitarForcePitchFor(GuitarForce::Hopo);
+        int strumPitch = resolveGuitarForcePitchFor(GuitarForce::Strum);
+        int tapPitch = (int)MidiPitchDefinitions::Guitar::TAP;
+
+        for (int fp : {hopoPitch, strumPitch, tapPitch})
+        {
+            if (fp < 0) continue;
+            auto existing = findNote(trackIdx, sel.startQN, fp);
+            if (existing.noteIndex >= 0)
+                eraseNote(trackIdx, sel.startQN, fp, false, sel.lane, currentActiveSkill);
+        }
+
+        if (force != GuitarForce::None)
+        {
+            GuitarForce saved = currentGuitarForce;
+            currentGuitarForce = force;
+            writeGuitarForceMarker(trackIdx, sel.startQN);
+            currentGuitarForce = saved;
+        }
+    }
+    endBatch();
+}
+
+void EditController::applyCymbalModeToSelection(bool cymbal)
+{
+    if (selection.empty() || !noteEditorAvailable()) return;
+    int trackIdx = resolveTrackIdx();
+    if (trackIdx < 0) return;
+
+    beginBatch("Set cymbal/tom");
+    for (const auto& sel : selection)
+    {
+        if (sel.sustainOnly) continue;
+        int markerPitch = resolveTomMarkerPitch(sel.lane);
+        if (markerPitch < 0) continue;
+
+        auto existing = findNote(trackIdx, sel.startQN, markerPitch);
+        if (cymbal && existing.noteIndex >= 0)
+            eraseNote(trackIdx, sel.startQN, markerPitch, true, sel.lane, currentActiveSkill);
+        else if (!cymbal && existing.noteIndex < 0)
+            createMarkerNote(trackIdx, sel.startQN, markerPitch);
+    }
+    endBatch();
+}
+
+void EditController::updateCursorLabel(const AuthoringPoint& p)
+{
+    overlayState.ghostVisible = false;
+    overlayState.ghostLane    = -1;
+    overlayState.ghostQN      = 0.0;
+
+    if (isPlaying()) return;
+    if (!p.onHighway || p.laneIndex < 0) return;
+
+    double qn = snapQN(p.rawProjectQN);
+    if (qn < 0.0) qn = 0.0;
+
+    overlayState.ghostVisible = true;
+    overlayState.ghostQN      = qn;
 }

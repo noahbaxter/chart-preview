@@ -65,12 +65,14 @@ public:
             return true;
 #endif
 
+        if (forwardToReaper(key))
+            return true;
+
         return false;
     }
 
-    void mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override
+    void handleHighwayScroll(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
     {
-
 #ifdef DEBUG
         if (debug.mouseWheelMove(wheel, event.mods.isShiftDown(),
                                             SCROLL_NORMAL_BEATS, SCROLL_SHIFT_BEATS))
@@ -84,6 +86,8 @@ public:
             noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, noteSpeed + (wheelDelta > 0 ? 1 : -1));
             state.setProperty("noteSpeed", noteSpeed, nullptr);
             toolbar.getNoteSpeedStepper().setDisplayValue(noteSpeed);
+            toolbar.getNoteSpeedStepper().setAtMin(noteSpeed <= NOTE_SPEED_MIN);
+            toolbar.getNoteSpeedStepper().setAtMax(noteSpeed >= NOTE_SPEED_MAX);
             if (toolbar.onNoteSpeedChanged) toolbar.onNoteSpeedChanged(noteSpeed);
             return;
         }
@@ -100,11 +104,39 @@ public:
                 double jumpAmount = wheelDelta * jumpBeats;
 
                 double newPPQ = currentPPQ + jumpAmount;
-                newPPQ = std::max(0.0, newPPQ);  // Clamp to 0
+                newPPQ = std::max(0.0, newPPQ);
 
                 audioProcessor.requestTimelinePositionChange(PPQ(newPPQ));
             }
         }
+    }
+
+    bool forwardToReaper(const juce::KeyPress& key)
+    {
+        auto& apis = audioProcessor.getReaperMidiProvider().getAPIs();
+        if (!apis.Main_OnCommand) return false;
+
+        int code = key.getKeyCode();
+        bool cmd = key.getModifiers().isCommandDown();
+        bool shift = key.getModifiers().isShiftDown();
+
+        // Transport
+        if (code == juce::KeyPress::spaceKey)
+            { apis.Main_OnCommand(40044, 0); return true; }
+
+        if (!cmd) return false;
+
+        // Undo / redo
+        if (code == 'Z' && !shift)
+            { apis.Main_OnCommand(40029, 0); interactionController.clearEditSelection(); return true; }
+        if (code == 'Z' && shift)
+            { apis.Main_OnCommand(40030, 0); interactionController.clearEditSelection(); return true; }
+
+        // Save
+        if (code == 'S')
+            { apis.Main_OnCommand(40026, 0); return true; }
+
+        return false;
     }
 
 private:
@@ -199,6 +231,59 @@ private:
     void initBottomBar();
     void loadState();
     void updateTrackInfoDisplay();
+    void updateFooterHelpText()
+    {
+        if (!interactionController.writeModeActive())
+        {
+            footer.setModeAccent(juce::Colour(Theme::coral));
+            footer.setDefaultHelpText(makeHelp({
+                key("Scroll"), dim("navigate"),
+                key("Cmd+Scroll"), dim("adjust speed")
+            }));
+            return;
+        }
+
+        bool drawMode = interactionController.subMode() == SubMode::Draw;
+        footer.setModeAccent(drawMode ? juce::Colour(Theme::purple) : juce::Colour(Theme::blue));
+
+        bool stamp = drawMode && interactionController.hasStamp();
+        bool bar = interactionController.barMode();
+        HelpText h;
+
+        if (drawMode)
+        {
+            if (stamp)
+                h = makeHelp({
+                    key("Click"), dim("place stamp"),
+                    key("Shift+drag"), dim("paint"),
+                    key("Left/Right"), dim("shift lanes"),
+                    key("Esc"), dim("clear stamp")
+                });
+            else
+                h = makeHelp({
+                    key("Click"), dim("place note"),
+                    key("Shift+drag"), dim("paint"),
+                    key("Right-click"), dim("erase")
+                });
+        }
+        else
+        {
+            h = makeHelp({
+                key("Click"), dim("select"),
+                key("Drag"), dim("marquee"),
+                key("Double-click"), dim("create/delete"),
+                key("Arrows"), dim("move")
+            });
+        }
+
+        if (bar)
+        {
+            h.push_back(key("B"));
+            h.push_back(dim("exit bar mode"));
+        }
+
+        footer.setDefaultHelpText(h);
+    }
 #ifdef DEBUG
     void rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart);
 #endif

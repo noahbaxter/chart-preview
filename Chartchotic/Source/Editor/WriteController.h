@@ -11,6 +11,15 @@ public:
     bool       writeModeActive() const { return writeModeActiveFlag; }
     SubMode    subMode()         const { return currentSubMode; }
 
+    struct StampNote { int lane; double qnOffset; double duration; };
+    void setStamp(std::vector<StampNote> s);
+    void clearStamp();
+    void shiftStampLanes(int delta);
+    bool hasStamp() const { return !stamp.empty(); }
+    const std::vector<StampNote>& getStamp() const { return stamp; }
+
+    void beginStampCapture();
+
     void setWriteModeActive(bool active);
     void setSubMode(SubMode mode);
     void setStepDivision(int division);
@@ -70,6 +79,13 @@ private:
     std::vector<PaintedNote> paintedNotes;
     void paintFillRange(double fromQN, double toQN, int lane);
     void paintShrinkTo(double lo, double hi);
+
+    std::vector<StampNote> stamp;
+
+    // Stamp capture (hold C + drag in draw mode)
+    bool        stampCaptureActive = false;
+    int         stampCaptureTrackIdx = -1;
+    MarqueeRect stampCaptureRect;
 
     bool   canWrite(const AuthoringPoint& p) const;
     void   recomputeGhost();
