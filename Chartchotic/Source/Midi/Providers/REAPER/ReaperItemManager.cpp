@@ -161,7 +161,7 @@ MidiWriter::NoteInfo ReaperItemManager::findNote(void* project, int trackIndex,
                 best = { i,
                          apis.MIDI_GetProjQNFromPPQPos(it.take, startPPQ),
                          apis.MIDI_GetProjQNFromPPQPos(it.take, endPPQ),
-                         p };
+                         p, vel };
                 lastFoundTake = it.take;
             }
         }
@@ -205,7 +205,7 @@ ReaperItemManager::findNotesInRange(void* project, int trackIndex,
 
             double noteStartQN = apis.MIDI_GetProjQNFromPPQPos(it.take, nStart);
             double noteEndQN   = apis.MIDI_GetProjQNFromPPQPos(it.take, nEnd);
-            results.push_back({ i, noteStartQN, noteEndQN, p });
+            results.push_back({ i, noteStartQN, noteEndQN, p, vel });
         }
     }
 

@@ -8,6 +8,7 @@ class NoteEditor
 {
 public:
     void setMidiWriter(MidiWriter* w)            { midiWriter = w; }
+    MidiWriter* getMidiWriter() const            { return midiWriter; }
     void setInstrumentSession(InstrumentSession* s) { instrumentSession = s; }
 
     bool isAvailable() const;

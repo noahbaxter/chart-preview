@@ -9,6 +9,7 @@
 #include "../Midi/InstrumentSession.h"
 #include "../Midi/Utils/InstrumentMapper.h"
 #include "../Midi/Utils/MidiConstants.h"
+#include "../Midi/Utils/GemCalculator.h"
 
 class AuthoringControllerBase
 {
@@ -45,6 +46,26 @@ protected:
     bool isPlaying() const { return playingStatePtr && *playingStatePtr; }
     bool isDrums()   const { return isDrumLike(currentActivePart); }
     int  maxLane()   const { return isDrums() ? (kick2xEnabled ? 6 : 4) : 5; }
+
+    // Gem for a note whose properties we already hold, as opposed to
+    // resolveGhostGem which reads the current toolbar state. Routed through
+    // GemCalculator with the same (Dynamic)velocity cast the render pipeline
+    // uses, so a copied note previews as exactly what it will paste as.
+    Gem resolveCapturedGem(int lane, int velocity, uint32_t markerMask) const
+    {
+        if (isDrums())
+        {
+            // Cymbal is the absence of the tom marker, which is slot 0.
+            bool canBeCymbal = (lane >= 2 && lane <= 4);
+            bool cymbal = canBeCymbal && (markerMask & 1u) == 0;
+            return GemCalculator::resolveDrumGem(cymbal, true, (Dynamic)velocity);
+        }
+        // Guitar slots follow modifierMarkerPitches order: hopo, strum, tap.
+        return GemCalculator::resolveGuitarGem(false, false,
+                                               (markerMask & (1u << 0)) != 0,
+                                               (markerMask & (1u << 1)) != 0,
+                                               (markerMask & (1u << 2)) != 0);
+    }
 
     Gem resolveGhostGem(int lane) const
     {
@@ -132,7 +153,27 @@ protected:
             return false;
         }
         patchAdd(lane, qn);
+        ensureChartDynamics(trackIdx, velocity);
         return true;
+    }
+
+    // Ghost and accent velocities mean nothing to the game unless the chart
+    // carries ENABLE_CHART_DYNAMICS, so writing a dynamic note guarantees it
+    // rather than leaving the charter to remember. Cached per track: it only
+    // ever needs doing once, and the check costs a REAPER scan.
+    //
+    // Written bare despite the spec table showing it bracketed, because every
+    // chart that carries the event at all writes it bare (17 of 17 across three
+    // independent sources). Official Rock Band charts cannot settle it: their
+    // drums are a flat velocity 96 and predate dynamics entirely.
+    void ensureChartDynamics(int trackIdx, int velocity)
+    {
+        if (!isDrums() || dynamicsEnsuredTrack == trackIdx) return;
+        if (velocity != (int)Dynamic::GHOST && velocity != (int)Dynamic::ACCENT) return;
+
+        if (auto* writer = noteEditor.getMidiWriter())
+            if (writer->ensureTrackTextEvent(trackIdx, "ENABLE_CHART_DYNAMICS"))
+                dynamicsEnsuredTrack = trackIdx;
     }
 
     bool eraseNote(int trackIdx, double qn, int pitch, bool drums, int lane, SkillLevel skill)
@@ -285,6 +326,60 @@ protected:
         }
     }
 
+    // Every marker pitch that can qualify a note in this lane, in a stable
+    // order. Note type is encoded by which of these sit alongside the note:
+    // drums use a tom marker (present means tom, absent means cymbal), guitar
+    // uses the force markers. Copying a note means copying this whole set.
+    //
+    // Both capture and paste resolve this list fresh, and record only WHICH
+    // slots were filled, never the raw pitches. That keeps a paste correct
+    // across difficulties, since the guitar pitches are skill-dependent
+    // (EXPERT_HOPO vs HARD_HOPO) but their slot positions are not.
+    std::vector<int> modifierMarkerPitches(int lane) const
+    {
+        std::vector<int> out;
+        if (isDrums())
+        {
+            int p = resolveTomMarkerPitch(lane);
+            if (p >= 0) out.push_back(p);
+            return out;
+        }
+        for (auto force : { GuitarForce::Hopo, GuitarForce::Strum, GuitarForce::Tap })
+        {
+            int p = resolveGuitarForcePitchFor(force);
+            if (p >= 0) out.push_back(p);
+        }
+        return out;
+    }
+
+    // Bit i is set when modifierMarkerPitches(lane)[i] is present at qn.
+    uint32_t captureMarkerMask(int trackIdx, double qn, int lane)
+    {
+        uint32_t mask = 0;
+        auto candidates = modifierMarkerPitches(lane);
+        for (size_t i = 0; i < candidates.size(); ++i)
+            if (findNote(trackIdx, qn, candidates[i]).noteIndex >= 0)
+                mask |= (1u << i);
+        return mask;
+    }
+
+    // Reproduces a captured mask exactly, creating missing markers and erasing
+    // stray ones, so a pasted note ends up the type it was copied from rather
+    // than inheriting whatever the toolbar is set to.
+    void writeMarkerMask(int trackIdx, double qn, int lane, uint32_t mask)
+    {
+        auto candidates = modifierMarkerPitches(lane);
+        for (size_t i = 0; i < candidates.size(); ++i)
+        {
+            bool want = (mask & (1u << i)) != 0;
+            auto existing = findNote(trackIdx, qn, candidates[i]);
+            if (want && existing.noteIndex < 0)
+                createMarkerNote(trackIdx, qn, candidates[i]);
+            else if (!want && existing.noteIndex >= 0)
+                eraseNote(trackIdx, qn, candidates[i], true, lane, currentActiveSkill);
+        }
+    }
+
     void writeTomMarker(int trackIdx, double qn, int lane)
     {
         int markerPitch = resolveTomMarkerPitch(lane);
@@ -357,6 +452,7 @@ protected:
     bool                    snapEnabledFlag      = true;
     bool                    barModeFlag          = false;
     bool                    kick2xEnabled        = false;
+    int                     dynamicsEnsuredTrack = -1;
     DrumDynamic             currentDrumDynamic   = DrumDynamic::Normal;
     GuitarForce             currentGuitarForce   = GuitarForce::None;
     bool                    cymbalModeFlag       = false;

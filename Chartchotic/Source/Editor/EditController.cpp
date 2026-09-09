@@ -317,7 +317,11 @@ void EditController::handleContinueMove(const AuthoringPoint& p)
         int newPitch = resolvePitch(newLane, isDrums());
         auto info = findNote(n.trackIdx, n.startQN, n.pitch);
         double duration = (info.noteIndex >= 0) ? (info.endQN - info.startQN) : 0.1;
-        overlayState.movePreviewNotes.push_back({ newLane, newQN, newQN + duration, newPitch });
+        // Velocity and markers come from the source note, resolved against the
+        // lane it is moving to, so the drag preview looks like the real note.
+        uint32_t mask = captureMarkerMask(n.trackIdx, n.startQN, n.lane);
+        overlayState.movePreviewNotes.push_back({ newLane, newQN, newQN + duration, newPitch,
+                                                  resolveCapturedGem(newLane, info.velocity, mask) });
     }
 
     if (onStateChanged) onStateChanged();
@@ -474,11 +478,17 @@ void EditController::updateArrowPreview()
     for (const auto& n : arrowOriginalPositions)
     {
         int newLane = juce::jlimit(0, maxLane(), n.lane + arrowDeltaLane);
-        double newQN = n.startQN + arrowDeltaQN;
+        // Snap the absolute destination, not just the delta. A note that was
+        // already off-grid gets pulled onto it, instead of carrying its offset
+        // forever. snapQN is a no-op while snap is disabled.
+        double newQN = snapQN(n.startQN + arrowDeltaQN);
         if (newQN < 0.0) newQN = 0.0;
         int newPitch = resolvePitch(newLane, isDrums());
         double duration = n.endQN - n.startQN;
-        overlayState.movePreviewNotes.push_back({ newLane, newQN, newQN + duration, newPitch });
+        auto info = findNote(n.trackIdx, n.startQN, n.pitch);
+        uint32_t mask = captureMarkerMask(n.trackIdx, n.startQN, n.lane);
+        overlayState.movePreviewNotes.push_back({ newLane, newQN, newQN + duration, newPitch,
+                                                  resolveCapturedGem(newLane, info.velocity, mask) });
     }
     notifyChanged();
 }
@@ -496,7 +506,9 @@ void EditController::commitArrowMoves()
         if (found.noteIndex < 0) continue;
 
         int newLane = juce::jlimit(0, maxLane(), n.lane + arrowDeltaLane);
-        double newStartQN = n.startQN + arrowDeltaQN;
+        // Matches updateArrowPreview: snap the destination so the commit lands
+        // exactly where the preview showed it.
+        double newStartQN = snapQN(n.startQN + arrowDeltaQN);
         if (newStartQN < 0.0) newStartQN = 0.0;
         double duration = found.endQN - found.startQN;
         double newEndQN = newStartQN + duration;

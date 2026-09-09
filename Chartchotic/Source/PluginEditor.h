@@ -73,6 +73,24 @@ public:
 
     void handleHighwayScroll(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
     {
+        // Alt+wheel owns the write grid unconditionally. It never falls through
+        // to seeking: moving the playhead when you meant to change the grid is
+        // worse than doing nothing, so this consumes the event either way.
+        // Sits ahead of the debug playhead nudge so it works in standalone too.
+        // Ctrl is deliberately unused: macOS takes Ctrl+wheel for system zoom.
+        if (event.mods.isAltDown())
+        {
+            double wheelDelta = wheel.deltaY != 0.0 ? wheel.deltaY : wheel.deltaX;
+            if (wheelDelta != 0.0)
+            {
+                int div = interactionController.stepDivision();
+                // Up is finer, matching ']'. setStepDivision clamps to 1..64.
+                interactionController.setStepDivision(wheelDelta > 0 ? div * 2
+                                                                     : div / 2);
+            }
+            return;
+        }
+
 #ifdef DEBUG
         if (debug.mouseWheelMove(wheel, event.mods.isShiftDown(),
                                             SCROLL_NORMAL_BEATS, SCROLL_SHIFT_BEATS))
@@ -336,8 +354,8 @@ private:
     juce::String lastDisplayedTrackName;
 
     // Scroll wheel timeline control
-    static constexpr double SCROLL_NORMAL_BEATS = 2.0;   // Normal scroll: quarter note
-    static constexpr double SCROLL_SHIFT_BEATS = 0.5;     // Shift+scroll: full beat
+    static constexpr double SCROLL_NORMAL_BEATS = 2.0;
+    static constexpr double SCROLL_SHIFT_BEATS  = 8.0;   // Shift+scroll: 4x normal
 
 #ifdef DEBUG
     DebugEditorController debug;

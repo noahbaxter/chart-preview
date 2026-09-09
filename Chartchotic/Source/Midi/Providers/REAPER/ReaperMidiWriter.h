@@ -43,7 +43,10 @@ public:
                       double newStartQN, double newEndQN, int newPitch) override;
     void endBatch() override;
 
+    bool ensureTrackTextEvent(int trackIndex, const std::string& text) override;
+
 private:
+
     const ReaperAPIs& apis;
     std::function<void*(const char*)> getReaperApi;
     ReaperItemManager itemManager;

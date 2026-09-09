@@ -226,3 +226,52 @@ void ReaperMidiWriter::endBatch()
     batchTakes.clear();
     batchDescription.clear();
 }
+
+//==============================================================================
+// Text events
+
+namespace
+{
+    constexpr int kTextEventType = 1;   // FF 01
+}
+
+bool ReaperMidiWriter::ensureTrackTextEvent(int trackIndex, const std::string& text)
+{
+    juce::ScopedLock lock(writeLock);
+
+    void* project = ReaperApiHelpers::getProject(getReaperApi);
+    if (!project || !apis.GetTrack || !apis.CountTrackMediaItems || !apis.GetTrackMediaItem
+        || !apis.GetActiveTake || !apis.MIDI_CountEvts || !apis.MIDI_GetTextSysexEvt
+        || !apis.MIDI_InsertTextSysexEvt)
+        return false;
+
+    void* track = apis.GetTrack(project, trackIndex);
+    if (!track || apis.CountTrackMediaItems(track) <= 0) return false;
+
+    void* item = apis.GetTrackMediaItem(track, 0);
+    void* take = item ? apis.GetActiveTake(item) : nullptr;
+    if (!take) return false;
+
+    int noteCount = 0, ccCount = 0, textCount = 0;
+    apis.MIDI_CountEvts(take, &noteCount, &ccCount, &textCount);
+    for (int i = 0; i < textCount; ++i)
+    {
+        bool selected = false, muted = false;
+        double ppq = 0.0;
+        int type = 0;
+        char msg[1024] = {};
+        int msgSize = sizeof(msg);
+
+        if (!apis.MIDI_GetTextSysexEvt(take, i, &selected, &muted, &ppq, &type, msg, &msgSize))
+            continue;
+        if (type != kTextEventType) continue;
+        if (std::string(msg, (size_t)msgSize) == text) return true;   // already present
+    }
+
+    // ppq 0 is the start of the item, which is where charts conventionally put
+    // switches like this.
+    apis.MIDI_InsertTextSysexEvt(take, false, false, 0.0, kTextEventType,
+                                 text.c_str(), (int)text.size());
+    if (apis.MIDI_Sort) apis.MIDI_Sort(take);
+    return true;
+}

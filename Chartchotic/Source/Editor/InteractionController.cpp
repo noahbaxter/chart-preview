@@ -1,4 +1,5 @@
 #include "InteractionController.h"
+#include "../UI/ControlConstants.h"
 #include <limits>
 
 InteractionController::InteractionController(juce::ValueTree& st)
@@ -105,6 +106,21 @@ bool InteractionController::onKeyPress(const juce::KeyPress& key)
         return true;
     }
 
+    // Note-type slots live here rather than in WriteController because the
+    // dynamic/force/cymbal setters have to reach both controllers, and edit
+    // mode applies them to the selection the same way the sub-toolbar does.
+    if (cmd >= WriteCommand::ModifierSlot1 && cmd <= WriteCommand::ModifierSlot5)
+    {
+        int index = (int)cmd - (int)WriteCommand::ModifierSlot1;
+        auto slots = modifierSlotsFor(getRenderType(activePart()));
+        if (index >= (int)slots.size())
+            return false;
+
+        applyModifierSlot(slots[(size_t)index]);
+        writeController.stateDidChange();
+        return true;
+    }
+
     int code = key.getKeyCode();
 
     if (code == 'C' && !key.getModifiers().isCommandDown()
@@ -128,7 +144,9 @@ bool InteractionController::onKeyPress(const juce::KeyPress& key)
                 if (n.sustainOnly) continue;
                 auto info = editController.lookupNote(n.trackIdx, n.startQN, n.pitch);
                 double dur = (info.noteIndex >= 0) ? (info.endQN - info.startQN) : 0.1;
-                notes.push_back({ n.lane, n.startQN - minQN, dur });
+                uint32_t mask = editController.markerMaskAt(n.trackIdx, n.startQN, n.lane);
+                notes.push_back({ n.lane, n.startQN - minQN, dur, info.velocity, mask,
+                                  editController.capturedGem(n.lane, info.velocity, mask) });
             }
             if (notes.size() >= 2)
             {
@@ -157,6 +175,40 @@ bool InteractionController::onKeyPress(const juce::KeyPress& key)
             return true;
     }
     return writeController.onKeyPress(key);
+}
+
+void InteractionController::applyModifierSlot(const ModifierSlot& slot)
+{
+    // Pressing the slot that is already active drops its group back to the
+    // group default, so "normal"/"auto" get a key without needing a rule.
+    switch (slot.group)
+    {
+        case ModifierGroup::Dynamic:
+        {
+            auto target = (DrumDynamic)slot.value;
+            auto next = writeController.drumDynamic() == target ? DrumDynamic::Normal
+                                                                : target;
+            setDrumDynamic(next);
+            if (isEditActive()) applyDrumDynamicToSelection(next);
+            break;
+        }
+        case ModifierGroup::Cymbal:
+        {
+            bool next = !writeController.cymbalMode();
+            setCymbalMode(next);
+            if (isEditActive()) applyCymbalModeToSelection(next);
+            break;
+        }
+        case ModifierGroup::Force:
+        {
+            auto target = (GuitarForce)slot.value;
+            auto next = writeController.guitarForce() == target ? GuitarForce::None
+                                                                : target;
+            setGuitarForce(next);
+            if (isEditActive()) applyGuitarForceToSelection(next);
+            break;
+        }
+    }
 }
 
 void InteractionController::setBarMode(bool v)

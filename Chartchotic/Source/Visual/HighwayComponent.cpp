@@ -123,6 +123,7 @@ void HighwayComponent::paint(juce::Graphics& g)
     // Ghost cursor: set before paint so it renders through the note pipeline.
     sceneRenderer.ghostCursor.visible = false;
     sceneRenderer.ghostCursor.positionLabel = {};
+    sceneRenderer.ghostCursor.modeLabel = {};
     if (overlayStateGetter)
     {
         const auto& ov = overlayStateGetter();
@@ -136,6 +137,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                 sceneRenderer.ghostCursor.position = pos;
                 sceneRenderer.ghostCursor.positionLabel = formatPositionQN
                     ? formatPositionQN(ov.ghostQN) : juce::String();
+                sceneRenderer.ghostCursor.modeLabel = ov.ghostModeLabel;
 
                 sceneRenderer.ghostCursor.stampGhosts.clear();
                 if (!ov.stampGhosts.empty())
@@ -144,7 +146,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                     {
                         double sgSec = projectQNToSeconds(ov.ghostQN + sg.qnOffset);
                         float sgPos = (float)((sgSec - frameData.windowStartTime) / windowSpan);
-                        sceneRenderer.ghostCursor.stampGhosts.push_back({ sg.lane, sgPos });
+                        sceneRenderer.ghostCursor.stampGhosts.push_back({ sg.lane, sgPos, sg.gem });
                     }
                 }
                 else if (ov.ghostLane >= 0)
@@ -195,8 +197,11 @@ void HighwayComponent::paint(juce::Graphics& g)
                     double sec = projectQNToSeconds(pn.startQN);
                     float pos = (float)((sec - frameData.windowStartTime) / windowSpan);
 
-                    Gem gem = Gem::NOTE;
-                    if (autoHopo && secondsToProjectQN)
+                    // Start from what the note actually is. Auto-HOPO may only
+                    // upgrade a plain note, since an explicit force marker
+                    // wins, matching GemCalculator's priority order.
+                    Gem gem = pn.gem;
+                    if (autoHopo && gem == Gem::NOTE && secondsToProjectQN)
                     {
                         double qn = secondsToProjectQN(sec);
                         auto it = frameData.trackWindow.lower_bound(sec);

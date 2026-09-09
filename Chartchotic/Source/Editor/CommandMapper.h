@@ -15,6 +15,7 @@ struct Binding
 struct KeyBinding
 {
     int           keyCode;
+    ModifierFlags modifiers;
     bool          requiresWriteMode;
     WriteCommand  command;
 };
@@ -36,4 +37,5 @@ private:
 
     static MouseButton   buttonFromContext(const AuthoringContext& ctx);
     static ModifierFlags modifiersFromContext(const AuthoringContext& ctx);
+    static ModifierFlags modifiersFromKeyPress(const juce::KeyPress& key);
 };
