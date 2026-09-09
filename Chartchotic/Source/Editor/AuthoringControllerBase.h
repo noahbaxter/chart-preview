@@ -45,7 +45,14 @@ public:
 protected:
     bool isPlaying() const { return playingStatePtr && *playingStatePtr; }
     bool isDrums()   const { return isDrumLike(currentActivePart); }
-    int  maxLane()   const { return isDrums() ? (kick2xEnabled ? 6 : 4) : 5; }
+    bool isElite()   const { return getRenderType(currentActivePart) == RenderType::ELITE_DRUMS; }
+    int  maxLane()   const
+    {
+        // Elite's 2x kick is a virtual column ABOVE its 8 hand lanes, where 4-lane's sits
+        // inside the range at column 6, so the two can't share one expression.
+        if (isElite()) return kick2xEnabled ? ELITE_KICK_2X_COLUMN : 8;
+        return isDrums() ? (kick2xEnabled ? 6 : 4) : 5;
+    }
 
     // Gem for a note whose properties we already hold, as opposed to
     // resolveGhostGem which reads the current toolbar state. Routed through
@@ -101,6 +108,13 @@ protected:
 
     int resolvePitch(int laneIndex, bool drums) const
     {
+        // Elite first: isKickLane() tests the 4-lane 2x column (6), which on elite is a real
+        // hand lane (Tom 3), so a part-blind check writes a kick for a tom.
+        if (drums && isElite())
+        {
+            if (laneIndex == ELITE_KICK_2X_COLUMN && !kick2xEnabled) return -1;
+            return InstrumentMapper::columnToEliteDrumPitch(currentActiveSkill, laneIndex);
+        }
         if (drums && InstrumentMapper::isKickLane(laneIndex))
             return InstrumentMapper::resolveKickPitch(currentActiveSkill, laneIndex, kick2xEnabled);
         return drums
@@ -131,12 +145,16 @@ protected:
     // never touch OptimisticPatchBuffer directly.
     void eraseConflictingKick(int trackIdx, double qn, int pitch)
     {
-        if (!isDrums() || !kick2xEnabled || !InstrumentMapper::isDrumKick((uint)pitch)) return;
-        auto other = InstrumentMapper::getConflictingKick(pitch);
+        if (!isDrums() || !kick2xEnabled) return;
+        const bool elite = isElite();
+        if (elite ? !InstrumentMapper::isEliteDrumKick((uint)pitch, currentActiveSkill)
+                  : !InstrumentMapper::isDrumKick((uint)pitch)) return;
+        auto other = elite ? InstrumentMapper::getConflictingEliteKick(pitch, currentActiveSkill)
+                           : InstrumentMapper::getConflictingKick(pitch);
         auto conflict = findNote(trackIdx, qn, other.pitch);
         if (conflict.noteIndex >= 0 && std::abs(conflict.startQN - qn) < kQNEpsilon)
         {
-            noteEditor.eraseNoteAt(trackIdx, qn, other.pitch, true, other.lane, currentActiveSkill);
+            noteEditor.eraseNoteAt(trackIdx, qn, other.pitch, currentActivePart, other.lane, currentActiveSkill);
             patchRemove(other.lane, qn);
         }
     }
@@ -145,7 +163,7 @@ protected:
     {
         auto existing = findNote(trackIdx, qn, pitch);
         if (existing.noteIndex >= 0 && std::abs(existing.startQN - qn) < kQNEpsilon)
-            eraseNote(trackIdx, qn, pitch, isDrums(), lane, currentActiveSkill);
+            eraseNote(trackIdx, qn, pitch, lane, currentActiveSkill);
         eraseConflictingKick(trackIdx, qn, pitch);
         if (!noteEditor.createNote(trackIdx, qn, pitch, velocity, duration))
         {
@@ -234,9 +252,12 @@ protected:
         return true;
     }
 
-    bool eraseNote(int trackIdx, double qn, int pitch, bool drums, int lane, SkillLevel skill)
+    // The part comes from currentActivePart rather than a caller-passed flag: every caller
+    // was forwarding its own isDrums(), and threading instrument facts by hand is what put
+    // elite's 2x kick on the 4-lane column in the first place.
+    bool eraseNote(int trackIdx, double qn, int pitch, int lane, SkillLevel skill)
     {
-        if (!noteEditor.eraseNoteAt(trackIdx, qn, pitch, drums, lane, skill)) return false;
+        if (!noteEditor.eraseNoteAt(trackIdx, qn, pitch, currentActivePart, lane, skill)) return false;
         patchRemove(lane, qn);
         if (!barModeFlag)
             eraseConflictingKick(trackIdx, qn, pitch);
@@ -336,7 +357,7 @@ protected:
     {
         int pitch = resolveBarPitch(barLane);
         if (pitch < 0) return false;
-        if (!noteEditor.eraseNoteAt(trackIdx, qn, pitch, isDrums(), barLane, currentActiveSkill)) return false;
+        if (!noteEditor.eraseNoteAt(trackIdx, qn, pitch, currentActivePart, barLane, currentActiveSkill)) return false;
         patchRemove(barLane, qn);
         return true;
     }
@@ -420,7 +441,7 @@ protected:
             if (want && existing.noteIndex < 0)
                 createMarkerNote(trackIdx, qn, candidates[i]);
             else if (!want && existing.noteIndex >= 0)
-                eraseNote(trackIdx, qn, candidates[i], isDrums(), lane, currentActiveSkill);
+                eraseNote(trackIdx, qn, candidates[i], lane, currentActiveSkill);
         }
     }
 

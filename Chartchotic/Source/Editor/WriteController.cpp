@@ -645,14 +645,14 @@ void WriteController::paintShrinkTo(double lo, double hi)
                     int lane = sn.lane;
                     int sp = resolvePitch(lane, drums);
                     if (sp >= 0)
-                        eraseNote(paintDragTrackIdx, it->qn + sn.qnOffset, sp, drums, lane, currentActiveSkill);
+                        eraseNote(paintDragTrackIdx, it->qn + sn.qnOffset, sp, lane, currentActiveSkill);
                 }
             }
             else
             {
                 int oldPitch = resolveActivePitch(it->lane);
                 if (oldPitch >= 0)
-                    eraseNote(paintDragTrackIdx, it->qn, oldPitch, drums, it->lane, currentActiveSkill);
+                    eraseNote(paintDragTrackIdx, it->qn, oldPitch, it->lane, currentActiveSkill);
             }
             it = paintedNotes.erase(it);
         }
@@ -716,18 +716,21 @@ void WriteController::handleEndErase()
         }
         else
             eraseNote(eraseDragTrackIdx, cn.note.startQN, cn.note.pitch,
-                      drums, cn.lane, currentActiveSkill);
+                      cn.lane, currentActiveSkill);
     }
     if (eraseClickedNoteQN >= 0.0)
     {
         if (barModeFlag && drums)
         {
-            for (int tryLane : {0, 6})
+            // Bar lanes are kick + 2x kick, and the 2x column differs per part (4-lane 6,
+            // elite 9), so it can't be a literal pair.
+            const int kick2xLane = isElite() ? ELITE_KICK_2X_COLUMN : DRUM_KICK_2X_COLUMN;
+            for (int tryLane : {DRUM_KICK_COLUMN, kick2xLane})
             {
                 int tryPitch = resolveBarPitch(tryLane);
                 if (tryPitch >= 0 && findNote(eraseDragTrackIdx, eraseClickedNoteQN, tryPitch).noteIndex >= 0)
                 {
-                    eraseNote(eraseDragTrackIdx, eraseClickedNoteQN, tryPitch, true, tryLane, currentActiveSkill);
+                    eraseNote(eraseDragTrackIdx, eraseClickedNoteQN, tryPitch, tryLane, currentActiveSkill);
                     break;
                 }
             }
@@ -736,7 +739,7 @@ void WriteController::handleEndErase()
         {
             int pitch = resolveActivePitch(eraseRect.startLane);
             if (pitch >= 0)
-                eraseNote(eraseDragTrackIdx, eraseClickedNoteQN, pitch, drums,
+                eraseNote(eraseDragTrackIdx, eraseClickedNoteQN, pitch,
                           eraseRect.startLane, currentActiveSkill);
         }
     }

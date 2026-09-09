@@ -26,15 +26,18 @@ bool NoteEditor::createNote(int trackIdx, double startQN, int pitch, int velocit
 }
 
 bool NoteEditor::eraseNoteAt(int trackIdx, double rawQN, int pitch,
-                             bool drums, int lane, SkillLevel skill)
+                             Part part, int lane, SkillLevel skill)
 {
     if (!midiWriter || !instrumentSession) return false;
 
     auto note = midiWriter->findNote(trackIdx, rawQN, pitch);
 
-    if (note.noteIndex < 0 && drums && lane == 0)
+    // Erasing the kick also clears a 2x kick sitting under it, whose pitch differs per part.
+    if (note.noteIndex < 0 && isDrumLike(part) && lane == DRUM_KICK_COLUMN)
     {
-        int kick2xPitch = InstrumentMapper::columnToDrumPitch(skill, 0, true);
+        int kick2xPitch = getRenderType(part) == RenderType::ELITE_DRUMS
+            ? InstrumentMapper::columnToEliteDrumPitch(skill, ELITE_KICK_2X_COLUMN)
+            : InstrumentMapper::columnToDrumPitch(skill, DRUM_KICK_COLUMN, true);
         note = midiWriter->findNote(trackIdx, rawQN, kick2xPitch);
     }
 

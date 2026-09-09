@@ -44,12 +44,21 @@ inline std::vector<ModifierSlot> modifierSlotsFor(RenderType type)
     {
         case RenderType::FOUR_LANE_DRUMS:
         case RenderType::FIVE_LANE_DRUMS:
-        case RenderType::ELITE_DRUMS:
             return {
                 { ModifierGroup::Dynamic, (int)DrumDynamic::Normal, "normal" },
                 { ModifierGroup::Dynamic, (int)DrumDynamic::Ghost,  "ghost"  },
                 { ModifierGroup::Dynamic, (int)DrumDynamic::Accent, "accent" },
                 { ModifierGroup::Cymbal,  1,                        "cymbal" },
+            };
+
+        // Elite lanes are drum XOR cymbal, fixed by lane (TrackResolver decides it from
+        // isEliteCymbalLane), so a Cymbal toggle would be inert. Dynamics still come from
+        // velocity exactly as 4-lane, so those three slots carry over.
+        case RenderType::ELITE_DRUMS:
+            return {
+                { ModifierGroup::Dynamic, (int)DrumDynamic::Normal, "normal" },
+                { ModifierGroup::Dynamic, (int)DrumDynamic::Ghost,  "ghost"  },
+                { ModifierGroup::Dynamic, (int)DrumDynamic::Accent, "accent" },
             };
 
         case RenderType::FIVE_FRET:

@@ -917,9 +917,9 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
     {
         bool kick2x = isDrums && (bool)state.getProperty("kick2x", false);
         if (kick2x && renderPt.x < renderWidth * 0.5f)
-            outPoint.laneIndex = 6;
+            outPoint.laneIndex = isElite ? ELITE_KICK_2X_COLUMN : DRUM_KICK_2X_COLUMN;
         else
-            outPoint.laneIndex = 0;
+            outPoint.laneIndex = DRUM_KICK_COLUMN;
     }
 
     // In bar mode, correct for barZ offset so ghost/placement center on the
@@ -957,7 +957,9 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
         // Bar mode only matches bars; normal mode only matches gems.
         for (const auto& hb : sceneRenderer.getNoteHitBoxes())
         {
-            if (isBarNote((uint)hb.lane, isDrums ? Part::DRUMS : Part::GUITAR) != barMode)
+            // activePart, not a collapse to DRUMS: elite's bar lanes are 0 and 9, and
+            // 4-lane's are 0 and 6, so collapsing treats elite Tom 3 as a bar.
+            if (isBarNote((uint)hb.lane, activePart) != barMode)
                 continue;
             if (hb.rect.contains(renderPt.x, hitY))
             {

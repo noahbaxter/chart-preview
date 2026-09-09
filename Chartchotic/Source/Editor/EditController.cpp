@@ -395,7 +395,7 @@ void EditController::handleDoubleClick(const AuthoringPoint& p)
     else if (p.overExistingNote)
     {
         int pitch = resolvePitch(p.laneIndex, drums);
-        eraseNote(trackIdx, p.hitNoteStartQN, pitch, drums, p.laneIndex, currentActiveSkill);
+        eraseNote(trackIdx, p.hitNoteStartQN, pitch, p.laneIndex, currentActiveSkill);
         selection.erase(
             std::remove_if(selection.begin(), selection.end(),
                 [&](const SelectedNote& n) {
@@ -410,7 +410,7 @@ void EditController::handleDoubleClick(const AuthoringPoint& p)
         int pitch = resolvePitch(p.laneIndex, drums);
         auto existing = findNote(trackIdx, qn, pitch);
         if (existing.noteIndex >= 0)
-            eraseNote(trackIdx, qn, pitch, drums, p.laneIndex, currentActiveSkill);
+            eraseNote(trackIdx, qn, pitch, p.laneIndex, currentActiveSkill);
         else
         {
             placeNote(trackIdx, qn, pitch, p.laneIndex, resolveVelocity());
@@ -436,7 +436,7 @@ void EditController::handleDeleteSelection()
         if (n.sustainOnly)
             truncateNote(n.trackIdx, n.startQN, n.pitch);
         else
-            eraseNote(n.trackIdx, n.startQN, n.pitch, isDrums(), n.lane, currentActiveSkill);
+            eraseNote(n.trackIdx, n.startQN, n.pitch, n.lane, currentActiveSkill);
     }
     endBatch();
 

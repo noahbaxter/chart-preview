@@ -148,6 +148,19 @@ public:
         }
     }
 
+    // Inverse of getEliteDrumColumn, for write mode. Hand lanes 0..8 are contiguous from
+    // Expert kick (74), and 2x kick sits one BELOW the kick at its virtual column, so both
+    // fall out of the same -24-per-difficulty shift. Returns -1 for an out-of-range column.
+    static int columnToEliteDrumPitch(SkillLevel skill, int col)
+    {
+        constexpr int kExpertKick = (int)MidiPitchDefinitions::EliteDrums::EXPERT_KICK;
+        int exp;
+        if (col >= 0 && col <= 8)             exp = kExpertKick + col;
+        else if (col == ELITE_KICK_2X_COLUMN) exp = kExpertKick - 1;
+        else                                  return -1;
+        return exp - (4 - (int)skill) * 24;
+    }
+
     // Elite roll/tremolo lane pitch -> hand-lane column. Pitches 110 (kick) .. 118
     // (R-crash) map linearly onto the same columns as getEliteDrumColumn (0..8); 109
     // is unused and 108 (stomp/splash) has no rendered column yet. Pan-difficulty, so
@@ -418,6 +431,21 @@ public:
         if (pitch == (int)Drums::EXPERT_KICK_2X)
             return { (int)Drums::EXPERT_KICK, DRUM_KICK_COLUMN };
         return { (int)Drums::EXPERT_KICK_2X, DRUM_KICK_2X_COLUMN };
+    }
+
+    // Elite equivalents. Elite kick pitches move per difficulty and its 2x kick sits at a
+    // virtual column, so neither isDrumKick(pitch) nor getConflictingKick applies.
+    static bool isEliteDrumKick(uint pitch, SkillLevel skill)
+    {
+        return (int)pitch == columnToEliteDrumPitch(skill, DRUM_KICK_COLUMN)
+            || (int)pitch == columnToEliteDrumPitch(skill, ELITE_KICK_2X_COLUMN);
+    }
+
+    static KickConflict getConflictingEliteKick(int pitch, SkillLevel skill)
+    {
+        if (pitch == columnToEliteDrumPitch(skill, ELITE_KICK_2X_COLUMN))
+            return { columnToEliteDrumPitch(skill, DRUM_KICK_COLUMN), DRUM_KICK_COLUMN };
+        return { columnToEliteDrumPitch(skill, ELITE_KICK_2X_COLUMN), ELITE_KICK_2X_COLUMN };
     }
 
     static bool isModifier(uint pitch, bool isElite = false)
