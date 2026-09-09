@@ -28,6 +28,22 @@ HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetMa
 #endif
 }
 
+const PositionConstants::NormalizedCoordinates* HighwayComponent::activeLaneCoords() const
+{
+    if (getRenderType(activePart) == RenderType::ELITE_DRUMS)
+        return sceneRenderer.eliteDrumLaneCoordsLocal;
+    return isDrumLike(activePart) ? sceneRenderer.drumLaneCoordsLocal
+                                  : sceneRenderer.guitarLaneCoordsLocal;
+}
+
+int HighwayComponent::activeLaneCount() const
+{
+    if (getRenderType(activePart) == RenderType::ELITE_DRUMS)
+        return (int)PositionConstants::ELITE_DRUM_LANE_COUNT;
+    return isDrumLike(activePart) ? (int)PositionConstants::DRUM_LANE_COUNT
+                                  : (int)PositionConstants::GUITAR_LANE_COUNT;
+}
+
 void HighwayComponent::setActivePart(Part part)
 {
     pendingPart = part;
@@ -260,7 +276,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                     if (qn < mr.qnLo - kQNEpsilon || qn > mr.qnHi + kQNEpsilon) continue;
                     for (int lane = mr.laneLo; lane <= mr.laneHi; ++lane)
                     {
-                        if (ov.barMode && !InstrumentMapper::isKickLane(lane)) continue;
+                        if (ov.barMode && !isBarNote((uint)lane, activePart)) continue;
                         if (lane >= 0 && lane < (int)frame.size()
                             && frame[lane].gem != Gem::NONE)
                             targets.push_back({ lane, noteTime });
@@ -275,7 +291,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                 for (const auto& s : frameData.sustainWindow)
                 {
                     int lane = (int)s.gemColumn;
-                    if (ov.barMode && !InstrumentMapper::isKickLane(lane)) continue;
+                    if (ov.barMode && !isBarNote((uint)lane, activePart)) continue;
                     if (lane < mr.laneLo || lane > mr.laneHi) continue;
                     if (s.startTime > secHi + kTimeEpsilon || s.endTime < secLo - kTimeEpsilon) continue;
                     if (clickedSec >= 0.0 && std::abs(s.endTime - clickedSec) < kTimeEpsilon) continue;
@@ -512,27 +528,27 @@ void HighwayComponent::paint(juce::Graphics& g)
 
         bool barModeMarquee = ov.barMode && isDrums;
         auto laneEdges = [&](int lane, float pos, bool splitKick = false) -> PositionConstants::LaneCorners {
-            if (isDrums && InstrumentMapper::isKickLane(lane))
+            // isDrumKick, not isKickLane: the latter tests the 4-lane 2x column (6), which on
+            // elite is Tom 3, and would draw a full-board rect for a tom.
+            if (isDrums && isDrumKick((uint)lane, activePart))
             {
                 auto fb = PositionMath::getFretboardEdge(getRenderType(activePart), pos, (uint)w, (uint)h,
                     PositionConstants::HIGHWAY_POS_START, posEnd);
                 if (splitKick)
                 {
                     float mid = (fb.leftX + fb.rightX) * 0.5f;
-                    return InstrumentMapper::is2xKickLane(lane)
+                    return lane != DRUM_KICK_COLUMN
                         ? PositionConstants::LaneCorners{ fb.leftX, mid, fb.centerY }
                         : PositionConstants::LaneCorners{ mid, fb.rightX, fb.centerY };
                 }
                 return fb;
             }
-            int laneCount = isDrums ? 5 : 6;
-            int clampedLane = juce::jlimit(0, laneCount - 1, lane);
-            const auto& coords = isDrums
-                ? PositionConstants::drumBezierLaneCoords[clampedLane]
-                : PositionConstants::guitarBezierLaneCoords[clampedLane];
+            // Same table the renderer and hit test read, so the marquee can't sit on a
+            // different column than the gems it is selecting.
+            int clampedLane = juce::jlimit(0, activeLaneCount() - 1, lane);
             return PositionMath::getColumnPosition(getRenderType(activePart), pos, (uint)w, (uint)h,
                 PositionConstants::HIGHWAY_POS_START, posEnd,
-                coords, 1.0f, PositionConstants::FRETBOARD_SCALE);
+                activeLaneCoords()[clampedLane], 1.0f, PositionConstants::FRETBOARD_SCALE);
         };
 
         // Marquee rectangle (blue = select, red = erase)
@@ -543,8 +559,8 @@ void HighwayComponent::paint(juce::Graphics& g)
             float posBot = qnToPos(mr.qnLo);
 
             bool splitKick = barModeMarquee && !(mr.laneLo != mr.laneHi
-                && InstrumentMapper::isKickLane(mr.laneLo)
-                && InstrumentMapper::isKickLane(mr.laneHi));
+                && isDrumKick((uint)mr.laneLo, activePart)
+                && isDrumKick((uint)mr.laneHi, activePart));
             auto topLeft  = laneEdges(mr.laneLo, posTop, splitKick);
             auto topRight = laneEdges(mr.laneHi, posTop, splitKick);
             auto botLeft  = laneEdges(mr.laneLo, posBot, splitKick);
@@ -767,15 +783,8 @@ void HighwayComponent::rebuildTrack()
     sceneRenderer.rescaleAssets(w);
     sceneRenderer.overlayYOffset = topOverflow;
 
-    // Pass lane coords to TrackRenderer for perspective-projected lane lines. Elite
-    // has its own 9-lane table (kick + 8 hand lanes); isDrumLike() is true for elite
-    // too, so it must be checked first or elite would silently fall back to the
-    // 4-lane drum table.
-    trackRenderer.setLaneCoords(
-        isElite ? sceneRenderer.eliteDrumLaneCoordsLocal
-                : isDrums ? sceneRenderer.drumLaneCoordsLocal : sceneRenderer.guitarLaneCoordsLocal,
-        isElite ? (int)PositionConstants::ELITE_DRUM_LANE_COUNT
-                : isDrums ? (int)PositionConstants::DRUM_LANE_COUNT : (int)PositionConstants::GUITAR_LANE_COUNT);
+    // Lane coords for perspective-projected lane lines, from the shared accessor.
+    trackRenderer.setLaneCoords(activeLaneCoords(), activeLaneCount());
 
     if (useCache)
     {
@@ -890,9 +899,7 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
     bool isElite = getRenderType(activePart) == RenderType::ELITE_DRUMS;
     // Hit-test against the SAME (debug-tunable) lane coords the renderers use, so click
     // zones can't drift from the rendered columns when the debug panel nudges coords.
-    const PositionConstants::NormalizedCoordinates* activeHitCoords =
-        isElite ? sceneRenderer.eliteDrumLaneCoordsLocal
-                : isDrums ? sceneRenderer.drumLaneCoordsLocal : sceneRenderer.guitarLaneCoordsLocal;
+    const PositionConstants::NormalizedCoordinates* activeHitCoords = activeLaneCoords();
     auto hit = hitTestMapper.hitTest(renderPt.x, hitY,
                                      (uint)juce::jmax(0, renderWidth),
                                      (uint)juce::jmax(0, renderHeight),
