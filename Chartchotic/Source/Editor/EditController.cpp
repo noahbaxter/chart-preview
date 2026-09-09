@@ -316,7 +316,7 @@ void EditController::handleContinueMove(const AuthoringPoint& p)
         if (newQN < 0.0) newQN = 0.0;
         int newPitch = resolvePitch(newLane, isDrums());
         auto info = findNote(n.trackIdx, n.startQN, n.pitch);
-        double duration = (info.noteIndex >= 0) ? (info.endQN - info.startQN) : 0.1;
+        double duration = (info.noteIndex >= 0) ? (info.endQN - info.startQN) : kShortNoteDurationQN;
         // Velocity and markers come from the source note, resolved against the
         // lane it is moving to, so the drag preview looks like the real note.
         uint32_t mask = captureMarkerMask(n.trackIdx, n.startQN, n.lane);

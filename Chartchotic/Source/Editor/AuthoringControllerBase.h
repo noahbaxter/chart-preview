@@ -271,38 +271,14 @@ protected:
     {
         std::vector<ClassifiedNote> result;
 
-        if (barModeFlag)
+        // Bar mode walks the rect's two edge lanes, everything else walks the
+        // range, but the head/body test is the same either way, so it lives
+        // here once and cannot drift between the two.
+        auto collect = [&](int lane, int pitch)
         {
-            for (int barLane : {rect.laneLo, rect.laneHi})
-            {
-                int barPitch = resolveBarPitch(barLane);
-                if (barPitch < 0) continue;
-                auto notes = findNotesInRange(trackIdx,
-                                              std::max(0.0, rect.qnLo - 32.0),
-                                              rect.qnHi, barPitch);
-                for (const auto& n : notes)
-                {
-                    bool headIn = n.startQN >= rect.qnLo - kQNEpsilon
-                               && n.startQN <= rect.qnHi + kQNEpsilon;
-                    bool hasSustain = (n.endQN - n.startQN) >= double(MIDI_MIN_SUSTAIN_LENGTH);
-                    bool bodyOverlaps = hasSustain
-                                     && n.endQN > rect.qnLo + kQNEpsilon
-                                     && n.startQN < rect.qnLo - kQNEpsilon;
-                    if (headIn)
-                        result.push_back({ n, barLane, false });
-                    else if (bodyOverlaps)
-                        result.push_back({ n, barLane, true });
-                }
-            }
-            return result;
-        }
-
-        for (int lane = rect.laneLo; lane <= rect.laneHi; ++lane)
-        {
-            int pitch = resolveActivePitch(lane);
-            if (pitch < 0) continue;
+            if (pitch < 0) return;
             auto notes = findNotesInRange(trackIdx,
-                                          std::max(0.0, rect.qnLo - 32.0),
+                                          std::max(0.0, rect.qnLo - kSustainLookbackQN),
                                           rect.qnHi, pitch);
             for (const auto& n : notes)
             {
@@ -317,7 +293,17 @@ protected:
                 else if (bodyOverlaps)
                     result.push_back({ n, lane, true });
             }
+        };
+
+        if (barModeFlag)
+        {
+            for (int barLane : {rect.laneLo, rect.laneHi})
+                collect(barLane, resolveBarPitch(barLane));
+            return result;
         }
+
+        for (int lane = rect.laneLo; lane <= rect.laneHi; ++lane)
+            collect(lane, resolveActivePitch(lane));
         return result;
     }
 

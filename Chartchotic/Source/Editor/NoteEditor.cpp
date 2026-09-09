@@ -5,11 +5,6 @@
 #include "../Midi/InstrumentSession.h"
 #include "../Midi/Utils/InstrumentMapper.h"
 
-namespace
-{
-    constexpr double kShortNoteDurationQN = 0.1;
-}
-
 bool NoteEditor::isAvailable() const
 {
     return midiWriter != nullptr && midiWriter->isAvailable();
@@ -217,7 +212,7 @@ void NoteEditor::resolveOverlapsAt(int trackIdx, double startQN, int pitch)
 
     // Truncate predecessor sustains that cover this position
     auto before = midiWriter->findNotesInRange(trackIdx,
-        std::max(0.0, startQN - 32.0), startQN, pitch);
+        std::max(0.0, startQN - kSustainLookbackQN), startQN, pitch);
     for (const auto& n : before)
     {
         if (n.startQN < startQN - kQNEpsilon && n.endQN > startQN + kQNEpsilon)

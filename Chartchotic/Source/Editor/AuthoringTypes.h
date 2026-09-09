@@ -12,6 +12,16 @@
 constexpr double kQNEpsilon   = 0.001;
 constexpr double kTimeEpsilon = 0.002;
 
+// Length given to a note that carries no sustain of its own. Placement, copy
+// capture and the drag preview all read it here so they cannot disagree about
+// how long an unmeasured note is.
+constexpr double kShortNoteDurationQN = 0.1;
+
+// How far back to search for a sustain whose body reaches the point tested.
+// Heuristic, not a derived bound: 8 bars of 4/4, and a longer sustain is
+// invisible to overlap resolution and to erase. See BACKLOG.
+constexpr double kSustainLookbackQN = 32.0;
+
 namespace AuthoringColours
 {
     static const juce::Colour selectTint = juce::Colour(180, 220, 255).withAlpha((uint8)140);

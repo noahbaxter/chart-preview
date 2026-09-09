@@ -143,7 +143,7 @@ bool InteractionController::onKeyPress(const juce::KeyPress& key)
             {
                 if (n.sustainOnly) continue;
                 auto info = editController.lookupNote(n.trackIdx, n.startQN, n.pitch);
-                double dur = (info.noteIndex >= 0) ? (info.endQN - info.startQN) : 0.1;
+                double dur = (info.noteIndex >= 0) ? (info.endQN - info.startQN) : kShortNoteDurationQN;
                 uint32_t mask = editController.markerMaskAt(n.trackIdx, n.startQN, n.lane);
                 notes.push_back({ n.lane, n.startQN - minQN, dur, info.velocity, mask,
                                   editController.capturedGem(n.lane, info.velocity, mask) });
