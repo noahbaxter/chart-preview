@@ -58,7 +58,9 @@ void WriteController::loadPersistedState()
 
 void WriteController::setWriteModeActive(bool active)
 {
+    if (writeModeActiveFlag == active) return;
     writeModeActiveFlag = active;
+    if (onStateChanged) onStateChanged();
 }
 
 void WriteController::setSubMode(SubMode mode)
@@ -66,6 +68,7 @@ void WriteController::setSubMode(SubMode mode)
     if (currentSubMode == mode) return;
     currentSubMode = mode;
     state.setProperty(kWriteSubMode, subModeToString(mode), nullptr);
+    if (onStateChanged) onStateChanged();
 }
 
 void WriteController::setStepDivision(int division)
@@ -74,6 +77,7 @@ void WriteController::setStepDivision(int division)
     if (currentStepDivision == clamped) return;
     currentStepDivision = clamped;
     state.setProperty(kWriteStepDivision, clamped, nullptr);
+    if (onStateChanged) onStateChanged();
 }
 
 void WriteController::setTuplet(int t)
@@ -82,6 +86,7 @@ void WriteController::setTuplet(int t)
     if (currentTuplet == t) return;
     currentTuplet = t;
     state.setProperty(kWriteTuplet, t, nullptr);
+    if (onStateChanged) onStateChanged();
 }
 
 void WriteController::setSnapEnabled(bool enabled)
@@ -89,6 +94,7 @@ void WriteController::setSnapEnabled(bool enabled)
     if (snapEnabledFlag == enabled) return;
     snapEnabledFlag = enabled;
     state.setProperty(kWriteSnap, enabled, nullptr);
+    if (onStateChanged) onStateChanged();
 }
 
 void WriteController::setActivePart(Part part)
