@@ -81,7 +81,7 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
     if (cmd != WriteCommand::SelectAt) return;
 
     int clickPitch = resolveActivePitch(p.laneIndex);
-    int clickLane = barModeFlag ? 0 : p.laneIndex;
+    int clickLane = p.laneIndex;
 
     bool hitInteractableNote = p.overExistingNote && !p.hitSustainBody
         && findNote(resolveTrackIdx(), p.hitNoteStartQN, clickPitch).noteIndex >= 0;
@@ -242,7 +242,7 @@ void EditController::handleSelectAt(const AuthoringPoint& p)
     if (p.overExistingNote)
     {
         int trackIdx = resolveTrackIdx();
-        int lane = barModeFlag ? 0 : p.laneIndex;
+        int lane = p.laneIndex;
         int pitch = resolveActivePitch(p.laneIndex);
 
         if (isNoteSelected(p.hitNoteStartQN, pitch))
@@ -371,15 +371,22 @@ void EditController::handleDoubleClick(const AuthoringPoint& p)
 
     if (barModeFlag)
     {
-        int barPitch = resolveBarPitch();
+        int barLane = p.laneIndex;
         if (p.overExistingNote)
         {
-            auto existing = findNote(trackIdx, p.hitNoteStartQN, barPitch);
-            if (existing.noteIndex >= 0)
-                eraseBarNote(trackIdx, existing.startQN);
+            for (int tryLane : {0, 6})
+            {
+                int tryPitch = resolveBarPitch(tryLane);
+                auto existing = findNote(trackIdx, p.hitNoteStartQN, tryPitch);
+                if (existing.noteIndex >= 0)
+                {
+                    eraseBarNote(trackIdx, existing.startQN, tryLane);
+                    break;
+                }
+            }
         }
         else
-            createBarNote(trackIdx, snapQN(p.rawProjectQN));
+            createBarNote(trackIdx, snapQN(p.rawProjectQN), barLane);
     }
     else if (p.overExistingNote)
     {

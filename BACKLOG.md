@@ -25,6 +25,7 @@ Work from the top.
 - **Update banner: show changelog** — `releaseNotes` already fetched from GitHub release body (release channel). Need: display in overlay card (taller/scrollable), strip markdown to plaintext, also fetch for dev channel.
 - **Solo sections** — Blue highway background during solo passages.
 - **Drum fills / BRE** — Full lanes for kicks/open, activation gem logic.
+- **Consider removing non-bar-mode kick interaction** — Currently kicks can be placed/erased by clicking left/right of the fretboard in normal mode. Could simplify to KICK mode only, removing the right-of-fretboard click zone. Tradeoff: less accessible but cleaner separation (normal mode = gems only, KICK mode = kicks only).
 - **Shift-lock time position (snap-off chord placement)** — When snap is off and shift is held, first click places at raw cursor position, subsequent clicks lock to that same time position in whatever lane is clicked. Enables placing chords at exact same QN in freetime mode. Shift currently does nothing in snap-off mode.
 - **Better mouse scrolling** — shift=faster, ctrl=precise.
 - **Info display** — BPM, time sig, measure, beat position.

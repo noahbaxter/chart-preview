@@ -1,0 +1,103 @@
+name: Beta Release
+
+on:
+  push:
+    branches: [beta]
+    paths: [VERSION]
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version_string: ${{ steps.version.outputs.version_string }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Read version
+      id: version
+      run: |
+        VERSION=$(cat VERSION | tr -d '[:space:]')
+        echo "version_string=${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "Beta version: ${VERSION}"
+
+  build:
+    needs: version
+    uses: ./.github/workflows/build.yml
+    with:
+      version_string: ${{ needs.version.outputs.version_string }}
+      build_channel: BETA
+    secrets: inherit
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        sparse-checkout: CHANGELOG.md
+        sparse-checkout-cone-mode: false
+
+    - name: Download Windows artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: Chartchotic-Windows
+        path: ./artifacts/windows/
+
+    - name: Download macOS artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: Chartchotic-macOS
+        path: ./artifacts/macos/
+
+    - name: Download Linux artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: Chartchotic-Linux
+        path: ./artifacts/linux/
+
+    - name: Create release archives
+      run: |
+        mkdir -p release
+        cd artifacts/windows && zip -r ../../release/Chartchotic-Windows.zip . && cd ../..
+        cd artifacts/macos && zip -r ../../release/Chartchotic-macOS.zip . && cd ../..
+        cd artifacts/linux && zip -r ../../release/Chartchotic-Linux.zip . && cd ../..
+        ls -la release/
+
+    - name: Delete existing beta-latest release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release delete beta-latest --repo ${{ github.repository }} --yes --cleanup-tag 2>/dev/null || true
+
+    - name: Create beta-latest release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        VERSION="${{ needs.version.outputs.version_string }}"
+        gh release create beta-latest \
+          --repo ${{ github.repository }} \
+          --title "Beta Build ($VERSION)" \
+          --notes "Beta build from \`beta\` branch.
+
+        **Version:** \`$VERSION\`
+        **Commit:** ${{ github.sha }}
+
+        > Beta builds are feature-complete but may contain bugs. Report issues on GitHub." \
+          --prerelease \
+          release/Chartchotic-Windows.zip \
+          release/Chartchotic-macOS.zip \
+          release/Chartchotic-Linux.zip
+
+    - name: Upload to R2 CDN
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        AWS_ENDPOINT_URL: https://ee4f7641599153d817b6bddbea5483e7.r2.cloudflarestorage.com
+      run: |
+        VERSION="${{ needs.version.outputs.version_string }}"
+        for platform in Windows macOS Linux; do
+          aws s3 cp "release/Chartchotic-${platform}.zip" "s3://vst-chartchotic/beta/${VERSION}/Chartchotic-${platform}.zip" --endpoint-url $AWS_ENDPOINT_URL --region auto
+          aws s3 cp "release/Chartchotic-${platform}.zip" "s3://vst-chartchotic/beta/latest/Chartchotic-${platform}.zip" --endpoint-url $AWS_ENDPOINT_URL --region auto
+        done

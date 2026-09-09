@@ -156,6 +156,7 @@ public:
         tupletStepper.setInterceptsMouseClicks(snapOn, snapOn);
 
         barToggle.setToggleState(interactionController.barMode());
+        barToggle.setButtonText(drums ? "KICK" : "OPEN");
 
         guitarForceButtons.setVisible(!drums);
         drumDynamicButtons.setVisible(drums);

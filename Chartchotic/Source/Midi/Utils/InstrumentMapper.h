@@ -305,6 +305,34 @@ public:
                 note == Drums::EXPERT_KICK_2X);
     }
 
+    static bool isKickLane(int lane) { return lane == DRUM_KICK_COLUMN || lane == DRUM_KICK_2X_COLUMN; }
+    static bool is2xKickLane(int lane) { return lane == DRUM_KICK_2X_COLUMN; }
+    enum class KickSide { None, Normal, Double };
+    static KickSide getKickSide(int laneOrColumn)
+    {
+        if (laneOrColumn == DRUM_KICK_2X_COLUMN) return KickSide::Double;
+        if (laneOrColumn == DRUM_KICK_COLUMN)    return KickSide::Normal;
+        return KickSide::None;
+    }
+
+    static int resolveKickPitch(SkillLevel skill, int lane, bool kick2xEnabled)
+    {
+        if (is2xKickLane(lane))
+            return kick2xEnabled ? (int)MidiPitchDefinitions::Drums::EXPERT_KICK_2X : -1;
+        if (lane == DRUM_KICK_COLUMN)
+            return columnToDrumPitch(skill, DRUM_KICK_COLUMN, false);
+        return -1;
+    }
+
+    struct KickConflict { int pitch; int lane; };
+    static KickConflict getConflictingKick(int pitch)
+    {
+        using Drums = MidiPitchDefinitions::Drums;
+        if (pitch == (int)Drums::EXPERT_KICK_2X)
+            return { (int)Drums::EXPERT_KICK, DRUM_KICK_COLUMN };
+        return { (int)Drums::EXPERT_KICK_2X, DRUM_KICK_2X_COLUMN };
+    }
+
     static bool isModifier(uint pitch)
     {
         using Guitar = MidiPitchDefinitions::Guitar;

@@ -22,6 +22,10 @@
   #define CHARTCHOTIC_VERSION "dev"
 #endif
 
+#if __has_include("BuildInfo.h")
+  #include "BuildInfo.h"
+#endif
+
 //==============================================================================
 ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudioProcessor &p, juce::ValueTree &state)
     : AudioProcessorEditor(&p),
@@ -744,7 +748,11 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
 void ChartchoticAudioProcessorEditor::initBottomBar()
 {
+#if defined(CHARTCHOTIC_BUILD_TIMESTAMP) && defined(CHARTCHOTIC_BUILD_SHA)
+    footer.init(juce::String("v") + CHARTCHOTIC_VERSION + "." + CHARTCHOTIC_BUILD_TIMESTAMP + "." + CHARTCHOTIC_BUILD_SHA);
+#else
     footer.init(juce::String("v") + CHARTCHOTIC_VERSION);
+#endif
     updateFooterHelpText();
     addAndMakeVisible(footer);
 
@@ -754,7 +762,7 @@ void ChartchoticAudioProcessorEditor::initBottomBar()
         if (info.available)
         {
             bool autoPrompt = !audioProcessor.updatePromptDismissed;
-            updateBanner.setUpdateInfo(info.version, info.downloadUrl, autoPrompt);
+            updateBanner.setUpdateInfo(info.version, info.downloadUrl, info.channelLabel, info.displayMessage, autoPrompt);
             footer.setUpdateAvailable();
             resized();
         }

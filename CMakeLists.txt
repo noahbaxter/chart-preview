@@ -1,15 +1,16 @@
 cmake_minimum_required(VERSION 3.22)
 
-# Read version from VERSION file
-file(READ "${CMAKE_SOURCE_DIR}/VERSION" CHARTCHOTIC_VERSION)
-string(STRIP "${CHARTCHOTIC_VERSION}" CHARTCHOTIC_VERSION)
+# Read version from VERSION file (may contain prerelease suffix like 1.3.0-beta.1)
+file(READ "${CMAKE_SOURCE_DIR}/VERSION" CHARTCHOTIC_VERSION_RAW)
+string(STRIP "${CHARTCHOTIC_VERSION_RAW}" CHARTCHOTIC_VERSION_RAW)
+string(REGEX REPLACE "-.*$" "" CHARTCHOTIC_VERSION "${CHARTCHOTIC_VERSION_RAW}")
 
 project(Chartchotic VERSION ${CHARTCHOTIC_VERSION} LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Build channel: DEV or RELEASE (passed via -DBUILD_CHANNEL=...)
+# Build channel: DEV, BETA, or RELEASE (passed via -DBUILD_CHANNEL=...)
 if(NOT DEFINED BUILD_CHANNEL)
     set(BUILD_CHANNEL "DEV")
 endif()
@@ -18,23 +19,35 @@ endif()
 # For local dev builds, generate a timestamped version automatically
 if(NOT DEFINED VERSION_STRING)
     if(BUILD_CHANNEL STREQUAL "DEV")
-        # Local-time "MonDD-HHhMM" (e.g. Apr27-18h30). Abbreviated month name
-        # + hh-mm with an "h" separator reads instantly while iterating. CI /
-        # release builds pass -DVERSION_STRING explicitly and don't hit this.
-        string(TIMESTAMP _timestamp "%b%d-%Hh%M")
-        execute_process(
-            COMMAND git rev-parse --short HEAD
-            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-            OUTPUT_VARIABLE _short_sha
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            ERROR_QUIET
+        # Timestamp and hash are written to a header at build time so they
+        # refresh on every build, not just on CMake configure.
+        set(_gen_script "${CMAKE_BINARY_DIR}/gen_build_info.cmake")
+        set(_build_info_h "${CMAKE_BINARY_DIR}/generated/BuildInfo.h")
+        set(_script_content [=[
+string(TIMESTAMP _ts "%b%d-%Hh%M")
+execute_process(COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY "@_SRC_DIR@"
+    OUTPUT_VARIABLE _sha OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+if(_sha STREQUAL "")
+    set(_sha "local")
+endif()
+file(WRITE "@_OUT_FILE@"
+    "#pragma once\n"
+    "#define CHARTCHOTIC_BUILD_TIMESTAMP \"${_ts}\"\n"
+    "#define CHARTCHOTIC_BUILD_SHA \"${_sha}\"\n")
+]=])
+        string(REPLACE "@_SRC_DIR@" "${CMAKE_SOURCE_DIR}" _script_content "${_script_content}")
+        string(REPLACE "@_OUT_FILE@" "${_build_info_h}" _script_content "${_script_content}")
+        file(WRITE "${_gen_script}" "${_script_content}")
+        add_custom_target(BuildInfo ALL
+            COMMAND ${CMAKE_COMMAND} -P "${_gen_script}"
+            BYPRODUCTS "${_build_info_h}"
+            COMMENT "Generating build timestamp"
+            VERBATIM
         )
-        if(_short_sha STREQUAL "")
-            set(_short_sha "local")
-        endif()
-        set(VERSION_STRING "${CHARTCHOTIC_VERSION}-dev.${_timestamp}.${_short_sha}")
+        set(VERSION_STRING "${CHARTCHOTIC_VERSION}-dev")
     else()
-        set(VERSION_STRING "${CHARTCHOTIC_VERSION}")
+        set(VERSION_STRING "${CHARTCHOTIC_VERSION_RAW}")
     endif()
 endif()
 
@@ -372,7 +385,11 @@ juce_add_binary_data(ChartchoticData
 target_include_directories(Chartchotic
     PRIVATE
         ${CMAKE_SOURCE_DIR}/third_party/reaper-sdk/sdk
+        ${CMAKE_BINARY_DIR}/generated
 )
+if(TARGET BuildInfo)
+    add_dependencies(Chartchotic BuildInfo)
+endif()
 
 # Compile definitions
 target_compile_definitions(Chartchotic
@@ -438,7 +455,11 @@ target_sources(ChartchoticStd PRIVATE ${_chartchotic_sources})
 target_include_directories(ChartchoticStd
     PRIVATE
         ${CMAKE_SOURCE_DIR}/third_party/reaper-sdk/sdk
+        ${CMAKE_BINARY_DIR}/generated
 )
+if(TARGET BuildInfo)
+    add_dependencies(ChartchoticStd BuildInfo)
+endif()
 
 target_compile_definitions(ChartchoticStd
     PUBLIC

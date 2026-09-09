@@ -642,10 +642,25 @@ void WriteController::handleEndErase()
     }
     if (eraseClickedNoteQN >= 0.0)
     {
-        int pitch = resolveActivePitch(eraseRect.startLane);
-        if (pitch >= 0)
-            eraseNote(eraseDragTrackIdx, eraseClickedNoteQN, pitch, drums,
-                      eraseRect.startLane, currentActiveSkill);
+        if (barModeFlag && drums)
+        {
+            for (int tryLane : {0, 6})
+            {
+                int tryPitch = resolveBarPitch(tryLane);
+                if (tryPitch >= 0 && findNote(eraseDragTrackIdx, eraseClickedNoteQN, tryPitch).noteIndex >= 0)
+                {
+                    eraseNote(eraseDragTrackIdx, eraseClickedNoteQN, tryPitch, true, tryLane, currentActiveSkill);
+                    break;
+                }
+            }
+        }
+        else
+        {
+            int pitch = resolveActivePitch(eraseRect.startLane);
+            if (pitch >= 0)
+                eraseNote(eraseDragTrackIdx, eraseClickedNoteQN, pitch, drums,
+                          eraseRect.startLane, currentActiveSkill);
+        }
     }
     if (eraseClickedSustainQN >= 0.0)
     {

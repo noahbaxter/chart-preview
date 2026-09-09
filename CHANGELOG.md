@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.3.0-beta.1
+Write mode!! - author charts directly on the highway without leaving REAPER.
+
+### Write Mode
+- **Draw Mode** - Click to place notes, right-click to erase, shift-drag to paint repeating notes. Drag after placing to create sustains. A ghost cursor shows exactly where your note will land.
+- **Edit Mode** - Click to select notes or marquee drag to grab multiple. Move notes by dragging or nudge with the arrow keys. Double-click to create or delete notes.
+- **Write Toolbar** - New sub-toolbar with step grid subdivisions, tuplet controls, snap toggle, and modifier selection (velocity, accent, ghost, tap, forced HOPO/strum, more to come!).
+- **Stamp (C)** - Available in both modes, hold and drag over a selection in DRAW or press while selecting notes in EDIT. Place full chord shapes and patterns in one click. Follows your mouse lane and preserves sustain durations.
+- **Bar Mode (B)** - Toggle dedicated kick editing for drums and open notes for other instruments. Non-bar gems dim so you can focus on just the bar lane. Split view of 1x and 2x kicks.
+
+### Quality of Life
+- Cmd+scroll to zoom note speed
+- Beta update channel - beta builds check for both beta and stable updates
+- Help text in the bottom left on for most modes, and on hover over controls with shortcuts if available!
+
+### Still to come
+- Star Power / Overdrive phrases
+- Solo, trill, tremolo, and roll markers
+- Drum fills and Big Rock Endings
+- Auto 2x kicks (able to manually place 1x and 2x currently)
+- Tempo, BPM, and time signature editing
+- Meta events (disco flips, section names, lyrics)
+- Pro instruments (pro guitar, pro keys, vocals)
+
+
 ## 1.2.3
 
 ### Bug Fixes

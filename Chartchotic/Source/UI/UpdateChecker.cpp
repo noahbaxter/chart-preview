@@ -43,6 +43,8 @@ void UpdateChecker::run()
     juce::String channel(CHARTCHOTIC_BUILD_CHANNEL);
     if (channel == "DEV")
         result = checkDevChannel();
+    else if (channel == "BETA")
+        result = checkBetaChannel();
     else
         result = checkReleaseChannel();
 
@@ -105,9 +107,95 @@ UpdateChecker::UpdateInfo UpdateChecker::checkReleaseChannel()
         info.available = true;
         info.version = tagName;
         info.releaseNotes = json.getProperty("body", "").toString();
-        // Always link to /releases/latest — GitHub redirects to the right page
+        info.displayMessage = "Chartchotic " + tagName + " is available.";
         info.downloadUrl = "https://github.com/noahbaxter/chartchotic/releases/latest";
     }
+
+    return info;
+}
+
+UpdateChecker::UpdateInfo UpdateChecker::checkBetaChannel()
+{
+    UpdateInfo info;
+
+    auto options = juce::URL::InputStreamOptions(juce::URL::ParameterHandling::inAddress)
+                       .withHttpRequestCmd("GET")
+                       .withExtraHeaders("Accept: application/vnd.github+json\r\nUser-Agent: Chartchotic-UpdateChecker");
+
+    juce::String localVersion(CHARTCHOTIC_VERSION);
+    auto localBase = localVersion.upToFirstOccurrenceOf("-", false, false);
+
+    auto stableStream = juce::URL(juce::String(GITHUB_API_BASE) + "/releases/latest")
+                            .createInputStream(options);
+    if (stableStream != nullptr)
+    {
+        auto json = juce::JSON::parse(stableStream->readEntireStreamAsString());
+        if (json.isObject())
+        {
+            auto tagName = json.getProperty("tag_name", "").toString();
+            auto remoteVersion = tagName.startsWith("v") ? tagName.substring(1) : tagName;
+
+            if (!remoteVersion.isEmpty() && isNewerVersion(remoteVersion, localBase))
+            {
+                info.available = true;
+                info.version = tagName;
+                info.releaseNotes = json.getProperty("body", "").toString();
+                info.channelLabel = "Stable Release";
+                info.displayMessage = "Chartchotic " + tagName + " is available.";
+                info.downloadUrl = "https://github.com/noahbaxter/chartchotic/releases/latest";
+                return info;
+            }
+        }
+    }
+
+    auto betaStream = juce::URL(juce::String(GITHUB_API_BASE) + "/releases/tags/beta-latest")
+                          .createInputStream(options);
+    if (betaStream == nullptr)
+        return info;
+
+    auto json = juce::JSON::parse(betaStream->readEntireStreamAsString());
+    if (!json.isObject())
+        return info;
+
+    auto title = json.getProperty("name", "").toString();
+    auto openParen = title.indexOfChar('(');
+    auto closeParen = title.indexOfChar(')');
+    if (openParen < 0 || closeParen <= openParen)
+        return info;
+
+    auto remoteFullVersion = title.substring(openParen + 1, closeParen);
+
+    auto setBetaUpdate = [&]()
+    {
+        info.available = true;
+        info.version = remoteFullVersion;
+        info.channelLabel = "Beta Update";
+        info.displayMessage = "A new beta build is available.";
+        info.downloadUrl = json.getProperty("html_url", "").toString();
+    };
+
+#ifdef DEBUG
+    if (remoteFullVersion != localVersion)
+        setBetaUpdate();
+#else
+    auto remoteBase = remoteFullVersion.upToFirstOccurrenceOf("-", false, false);
+
+    if (remoteBase != localBase)
+    {
+        if (isNewerVersion(remoteBase, localBase))
+            setBetaUpdate();
+        return info;
+    }
+
+    auto localBetaSuffix = localVersion.fromFirstOccurrenceOf("-beta.", false, false);
+    auto remoteBetaSuffix = remoteFullVersion.fromFirstOccurrenceOf("-beta.", false, false);
+
+    if (localBetaSuffix.isEmpty() || remoteBetaSuffix.isEmpty())
+        return info;
+
+    if (remoteBetaSuffix.getIntValue() > localBetaSuffix.getIntValue())
+        setBetaUpdate();
+#endif
 
     return info;
 }

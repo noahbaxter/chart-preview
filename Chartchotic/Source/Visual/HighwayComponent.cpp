@@ -12,6 +12,7 @@
 #include "../UI/ControlConstants.h"
 #include "../UI/Theme.h"
 #include "../Midi/Utils/MidiConstants.h"
+#include "../Midi/Utils/InstrumentMapper.h"
 
 HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetManager)
     : state(state),
@@ -253,7 +254,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                     if (qn < mr.qnLo - kQNEpsilon || qn > mr.qnHi + kQNEpsilon) continue;
                     for (int lane = mr.laneLo; lane <= mr.laneHi; ++lane)
                     {
-                        if (ov.barMode && lane != 0) continue;
+                        if (ov.barMode && !InstrumentMapper::isKickLane(lane)) continue;
                         if (lane >= 0 && lane < (int)frame.size()
                             && frame[lane].gem != Gem::NONE)
                             targets.push_back({ lane, noteTime });
@@ -264,7 +265,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                 for (const auto& s : frameData.sustainWindow)
                 {
                     int lane = (int)s.gemColumn;
-                    if (ov.barMode && lane != 0) continue;
+                    if (ov.barMode && !InstrumentMapper::isKickLane(lane)) continue;
                     if (lane < mr.laneLo || lane > mr.laneHi) continue;
                     if (s.startTime > secHi + kTimeEpsilon || s.endTime < secLo - kTimeEpsilon) continue;
                     sceneRenderer.getTintedSustains().push_back(
@@ -498,7 +499,21 @@ void HighwayComponent::paint(juce::Graphics& g)
                 : 0.0f;
         };
 
-        auto laneEdges = [&](int lane, float pos) -> PositionConstants::LaneCorners {
+        bool barModeMarquee = ov.barMode && isDrums;
+        auto laneEdges = [&](int lane, float pos, bool splitKick = false) -> PositionConstants::LaneCorners {
+            if (isDrums && InstrumentMapper::isKickLane(lane))
+            {
+                auto fb = PositionMath::getFretboardEdge(isDrums, pos, (uint)w, (uint)h,
+                    PositionConstants::HIGHWAY_POS_START, posEnd);
+                if (splitKick)
+                {
+                    float mid = (fb.leftX + fb.rightX) * 0.5f;
+                    return InstrumentMapper::is2xKickLane(lane)
+                        ? PositionConstants::LaneCorners{ fb.leftX, mid, fb.centerY }
+                        : PositionConstants::LaneCorners{ mid, fb.rightX, fb.centerY };
+                }
+                return fb;
+            }
             int laneCount = isDrums ? 5 : 6;
             int clampedLane = juce::jlimit(0, laneCount - 1, lane);
             const auto& coords = isDrums
@@ -516,10 +531,13 @@ void HighwayComponent::paint(juce::Graphics& g)
             float posTop = qnToPos(mr.qnHi);
             float posBot = qnToPos(mr.qnLo);
 
-            auto topLeft  = laneEdges(mr.laneLo, posTop);
-            auto topRight = laneEdges(mr.laneHi, posTop);
-            auto botLeft  = laneEdges(mr.laneLo, posBot);
-            auto botRight = laneEdges(mr.laneHi, posBot);
+            bool splitKick = barModeMarquee && !(mr.laneLo != mr.laneHi
+                && InstrumentMapper::isKickLane(mr.laneLo)
+                && InstrumentMapper::isKickLane(mr.laneHi));
+            auto topLeft  = laneEdges(mr.laneLo, posTop, splitKick);
+            auto topRight = laneEdges(mr.laneHi, posTop, splitKick);
+            auto botLeft  = laneEdges(mr.laneLo, posBot, splitKick);
+            auto botRight = laneEdges(mr.laneHi, posBot, splitKick);
 
             juce::Path marquee;
             marquee.startNewSubPath(topLeft.leftX, topLeft.centerY);
@@ -867,7 +885,13 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
 
     bool barMode = overlayStateGetter && overlayStateGetter().barMode;
     if (barMode && outPoint.onHighway)
-        outPoint.laneIndex = 0;
+    {
+        bool kick2x = isDrums && (bool)state.getProperty("kick2x", false);
+        if (kick2x && renderPt.x < renderWidth * 0.5f)
+            outPoint.laneIndex = 6;
+        else
+            outPoint.laneIndex = 0;
+    }
 
     // In bar mode, correct for barZ offset so ghost/placement center on the
     // click point instead of the top of the bar sprite.

@@ -44,7 +44,7 @@ public:
 protected:
     bool isPlaying() const { return playingStatePtr && *playingStatePtr; }
     bool isDrums()   const { return isDrumLike(currentActivePart); }
-    int  maxLane()   const { return isDrums() ? 4 : 5; }
+    int  maxLane()   const { return isDrums() ? (kick2xEnabled ? 6 : 4) : 5; }
 
     Gem resolveGhostGem(int lane) const
     {
@@ -80,6 +80,8 @@ protected:
 
     int resolvePitch(int laneIndex, bool drums) const
     {
+        if (drums && InstrumentMapper::isKickLane(laneIndex))
+            return InstrumentMapper::resolveKickPitch(currentActiveSkill, laneIndex, kick2xEnabled);
         return drums
             ? InstrumentMapper::columnToDrumPitch(currentActiveSkill, laneIndex, false)
             : InstrumentMapper::columnToGuitarPitch(currentActiveSkill, laneIndex);
@@ -87,7 +89,7 @@ protected:
 
     int resolveActivePitch(int laneIndex) const
     {
-        return barModeFlag ? resolveBarPitch() : resolvePitch(laneIndex, isDrums());
+        return barModeFlag ? resolveBarPitch(laneIndex) : resolvePitch(laneIndex, isDrums());
     }
 
     int resolveTrackIdx() const
@@ -106,11 +108,24 @@ protected:
 
     // Patch-aware note operations — patching is automatic, sub-controllers
     // never touch OptimisticPatchBuffer directly.
+    void eraseConflictingKick(int trackIdx, double qn, int pitch)
+    {
+        if (!isDrums() || !kick2xEnabled || !InstrumentMapper::isDrumKick((uint)pitch)) return;
+        auto other = InstrumentMapper::getConflictingKick(pitch);
+        auto conflict = findNote(trackIdx, qn, other.pitch);
+        if (conflict.noteIndex >= 0 && std::abs(conflict.startQN - qn) < kQNEpsilon)
+        {
+            noteEditor.eraseNoteAt(trackIdx, qn, other.pitch, true, other.lane, currentActiveSkill);
+            patchRemove(other.lane, qn);
+        }
+    }
+
     bool createNote(int trackIdx, double qn, int pitch, int lane, int velocity = 100, double duration = 0.0)
     {
         auto existing = findNote(trackIdx, qn, pitch);
         if (existing.noteIndex >= 0 && std::abs(existing.startQN - qn) < kQNEpsilon)
             eraseNote(trackIdx, qn, pitch, isDrums(), lane, currentActiveSkill);
+        eraseConflictingKick(trackIdx, qn, pitch);
         if (!noteEditor.createNote(trackIdx, qn, pitch, velocity, duration))
         {
             DBG("createNote: noteEditor rejected QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
@@ -124,6 +139,8 @@ protected:
     {
         if (!noteEditor.eraseNoteAt(trackIdx, qn, pitch, drums, lane, skill)) return false;
         patchRemove(lane, qn);
+        if (!barModeFlag)
+            eraseConflictingKick(trackIdx, qn, pitch);
         return true;
     }
 
@@ -169,23 +186,26 @@ protected:
 
         if (barModeFlag)
         {
-            int barPitch = resolveBarPitch();
-            if (barPitch < 0) return result;
-            auto notes = findNotesInRange(trackIdx,
-                                          std::max(0.0, rect.qnLo - 32.0),
-                                          rect.qnHi, barPitch);
-            for (const auto& n : notes)
+            for (int barLane : {rect.laneLo, rect.laneHi})
             {
-                bool headIn = n.startQN >= rect.qnLo - kQNEpsilon
-                           && n.startQN <= rect.qnHi + kQNEpsilon;
-                bool hasSustain = (n.endQN - n.startQN) >= double(MIDI_MIN_SUSTAIN_LENGTH);
-                bool bodyOverlaps = hasSustain
-                                 && n.endQN > rect.qnLo + kQNEpsilon
-                                 && n.startQN < rect.qnLo - kQNEpsilon;
-                if (headIn)
-                    result.push_back({ n, 0, false });
-                else if (bodyOverlaps)
-                    result.push_back({ n, 0, true });
+                int barPitch = resolveBarPitch(barLane);
+                if (barPitch < 0) continue;
+                auto notes = findNotesInRange(trackIdx,
+                                              std::max(0.0, rect.qnLo - 32.0),
+                                              rect.qnHi, barPitch);
+                for (const auto& n : notes)
+                {
+                    bool headIn = n.startQN >= rect.qnLo - kQNEpsilon
+                               && n.startQN <= rect.qnHi + kQNEpsilon;
+                    bool hasSustain = (n.endQN - n.startQN) >= double(MIDI_MIN_SUSTAIN_LENGTH);
+                    bool bodyOverlaps = hasSustain
+                                     && n.endQN > rect.qnLo + kQNEpsilon
+                                     && n.startQN < rect.qnLo - kQNEpsilon;
+                    if (headIn)
+                        result.push_back({ n, barLane, false });
+                    else if (bodyOverlaps)
+                        result.push_back({ n, barLane, true });
+                }
             }
             return result;
         }
@@ -214,37 +234,25 @@ protected:
         return result;
     }
 
-    int resolveBarPitch() const
+    int resolveBarPitch(int barLane = 0) const
     {
-        return isDrums()
-            ? InstrumentMapper::columnToDrumPitch(currentActiveSkill, 0, kick2xEnabled)
-            : InstrumentMapper::columnToGuitarPitch(currentActiveSkill, 0);
+        return isDrums() ? resolvePitch(barLane, true)
+                         : InstrumentMapper::columnToGuitarPitch(currentActiveSkill, 0);
     }
 
-    bool createBarNote(int trackIdx, double qn)
+    bool createBarNote(int trackIdx, double qn, int barLane = 0)
     {
-        int pitch = resolveBarPitch();
+        int pitch = resolveBarPitch(barLane);
         if (pitch < 0) return false;
-        if (findNote(trackIdx, qn, pitch).noteIndex >= 0)
-        {
-            DBG("createBarNote: duplicate at QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
-            return false;
-        }
-        if (!noteEditor.createNote(trackIdx, qn, pitch))
-        {
-            DBG("createBarNote: noteEditor rejected QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
-            return false;
-        }
-        patchAdd(0, qn);
-        return true;
+        return createNote(trackIdx, qn, pitch, barLane, resolveVelocity());
     }
 
-    bool eraseBarNote(int trackIdx, double qn)
+    bool eraseBarNote(int trackIdx, double qn, int barLane = 0)
     {
-        int pitch = resolveBarPitch();
+        int pitch = resolveBarPitch(barLane);
         if (pitch < 0) return false;
-        if (!noteEditor.eraseNoteAt(trackIdx, qn, pitch, isDrums(), 0, currentActiveSkill)) return false;
-        patchRemove(0, qn);
+        if (!noteEditor.eraseNoteAt(trackIdx, qn, pitch, isDrums(), barLane, currentActiveSkill)) return false;
+        patchRemove(barLane, qn);
         return true;
     }
 

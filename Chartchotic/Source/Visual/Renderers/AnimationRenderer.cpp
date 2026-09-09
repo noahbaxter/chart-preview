@@ -33,7 +33,7 @@ AnimationRenderer::~AnimationRenderer()
 void AnimationRenderer::triggerAnimationForColumn(uint gemColumn, Gem gemType, bool starPower)
 {
     bool isDrums = isDrumLike(activePart);
-    bool is2xKick = isDrums && gemColumn == 6;
+    bool is2xKick = isDrums && gemColumn == DRUM_KICK_2X_COLUMN;
     animationManager.triggerHit(gemColumn, isDrums, is2xKick, gemType, starPower);
 }
 
@@ -292,7 +292,7 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     bool barNote = isBarNote(anim.lane, currentPart);
     uint colIdx = anim.lane;
     if (isDrums) {
-        colIdx = (anim.lane == 6) ? 0 : ((anim.lane < PositionConstants::DRUM_LANE_COUNT) ? anim.lane : 1);
+        colIdx = drumColumnIndex(anim.lane) < PositionConstants::DRUM_LANE_COUNT ? drumColumnIndex(anim.lane) : 1;
     } else {
         colIdx = (anim.lane < PositionConstants::GUITAR_LANE_COUNT) ? anim.lane : 1;
     }
@@ -311,7 +311,7 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     // Z offset: bar uses hitBarZOffset, gems use hitGemZOffset + per-column offset
     float zOff = barNote ? hitBarZOffset : hitGemZOffset;
     if (!barNote && isDrums) {
-        uint drumIdx = (anim.lane == 6) ? 0 : ((anim.lane < DRUM_LANE_COUNT) ? anim.lane : 1);
+        uint drumIdx = drumColumnIndex(anim.lane) < DRUM_LANE_COUNT ? drumColumnIndex(anim.lane) : 1;
         zOff += drumColAdjust[drumIdx].z * resScale;   // .z is at REFERENCE_HEIGHT
     }
 

@@ -244,9 +244,11 @@ void AssetManager::rescaleForWidth(int viewportWidth)
     lastScaledWidth = targetWidth;
 }
 
-juce::Image* AssetManager::getGhostCursorImage(bool /*isDrums*/, int lane)
+juce::Image* AssetManager::getGhostCursorImage(bool isDrums, int lane)
 {
-    return (lane == 0) ? &barBlankImage : &noteBlankImage;
+    if (lane == DRUM_KICK_COLUMN) return &barBlankImage;
+    if (isDrums && lane == DRUM_KICK_2X_COLUMN) return &barBlankImage;
+    return &noteBlankImage;
 }
 
 juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive)
