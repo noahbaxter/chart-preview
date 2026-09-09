@@ -47,7 +47,7 @@ jobs:
 
     - name: Configure CMake
       run: |
-        cmake -B build -G "Visual Studio 17 2022" -A x64 `
+        cmake -B build -A x64 `
           -DBUILD_CHANNEL="${{ inputs.build_channel }}" `
           -DVERSION_STRING="${{ inputs.version_string }}"
 

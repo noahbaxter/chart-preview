@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
     paths: [VERSION, CHANGELOG.md]
+  # Retry a release that failed for reasons outside the release itself, such as
+  # a runner image change, without faking a VERSION or CHANGELOG edit.
+  workflow_dispatch:
 
 permissions:
   contents: write
