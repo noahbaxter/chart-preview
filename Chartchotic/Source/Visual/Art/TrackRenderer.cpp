@@ -8,7 +8,7 @@
 */
 
 #include "TrackRenderer.h"
-#include "../Utils/RenderTypeConfig.h"
+#include "../Geometry/RenderTypeConfig.h"
 #include "../Utils/LaneColours.h"
 #include "ProceduralTrackArt.h"
 
@@ -48,7 +48,7 @@ void TrackRenderer::paint(juce::Graphics& g, int viewportWidth, int viewportHeig
         {
             auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, viewportWidth, viewportHeight,
                             HIGHWAY_POS_START, cached.posEnd);
-            g.setColour(juce::Colour(0xFF111111));
+            g.setColour(TrackColours::highwayFill);
             g.fillRect(edge.leftX, 0.0f, edge.rightX - edge.leftX, (float)viewportHeight);
         }
         return;
@@ -187,9 +187,9 @@ void TrackRenderer::paintBemaniRails(juce::Graphics& g, int viewportWidth, int v
     float innerGreyW = std::max(1.5f, fbW * 0.006f);
     float totalRailW = outerGreyW + blackW + innerGreyW;
 
-    auto innerGrey = juce::Colour(0xff8c8c8c);
-    auto outerGrey = juce::Colour(0xff606060);
-    auto darkCol   = juce::Colour(0xff1a1a1a);
+    auto innerGrey = TrackColours::padBevelInner;
+    auto outerGrey = TrackColours::padBevelOuter;
+    auto darkCol   = TrackColours::padBevelDark;
 
     // Left rail (outer→inner = left→right)
     {
@@ -345,9 +345,9 @@ void TrackRenderer::compositeLayers(juce::Image& target, int w, int h, bool isDr
     fretboardPath.closeSubPath();
 
 #ifdef DEBUG
-    g.setColour(PositionMath::debugPolyShade ? juce::Colour(0xFFFF0000) : juce::Colour(0xFF111111));
+    g.setColour(PositionMath::debugPolyShade ? TrackColours::debugPoly : TrackColours::highwayFill);
 #else
-    g.setColour(juce::Colour(0xFF111111));
+    g.setColour(TrackColours::highwayFill);
 #endif
     g.fillPath(fretboardPath);
 }
@@ -526,7 +526,7 @@ void TrackRenderer::bakeLaneLinesPerspective(int w, int h, int overflow, bool is
 
     {
         juce::Graphics g(out);
-        g.setColour(juce::Colour(0x40FFFFFF));
+        g.setColour(TrackColours::sheenWhite);
 
         for (float frac : boundaryFracs)
         {
@@ -585,7 +585,7 @@ struct PadColours { juce::Colour top, bottom; };
 namespace FretColour
 {
     static PadColours pad(const LaneColours::Lane& l) { return { LaneColours::dark(l), LaneColours::bright(l) }; }
-    const PadColours none     { juce::Colour(0),          juce::Colour(0) };          // kick / open lane (undrawn)
+    const PadColours none     { juce::Colours::transparentBlack,          juce::Colours::transparentBlack };          // kick / open lane (undrawn)
     const PadColours red      = pad(LaneColours::red);
     const PadColours yellow   = pad(LaneColours::yellow);
     const PadColours blue     = pad(LaneColours::blue);
@@ -593,7 +593,7 @@ namespace FretColour
     const PadColours orange   = pad(LaneColours::orange);
     const PadColours purple   = pad(LaneColours::purple);
     const PadColours white    = pad(LaneColours::white);
-    const PadColours fallback { juce::Colour(0xFF888888), juce::Colour(0xFFBBBBBB) };  // unmapped lane
+    const PadColours fallback { TrackColours::padFallbackDark, TrackColours::padFallbackLite };  // unmapped lane
 }
 
 // Map the shared lane tint (PositionConstants::ELITE_LANE_STYLES) to pad colours, so the

@@ -10,7 +10,7 @@
 
 #include "MidiInterpreter.h"
 #include "../Utils/MidiConstants.h"
-#include "../../Visual/Utils/PositionMath.h"
+#include "../../Visual/Geometry/PositionMath.h"
 
 MidiInterpreter::MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, juce::CriticalSection &noteStateMapLock)
     : noteStateMapArray(noteStateMapArray),

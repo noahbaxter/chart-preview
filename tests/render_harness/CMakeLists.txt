@@ -23,12 +23,13 @@ target_sources(render_harness PRIVATE
     ${SOURCE_ROOT}/Visual/Renderers/GridlineRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/AnimationRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/TextEventRenderer.cpp
-    ${SOURCE_ROOT}/Visual/Renderers/TrackRenderer.cpp
-    ${SOURCE_ROOT}/Visual/Renderers/ProceduralTrackArt.cpp
+    ${SOURCE_ROOT}/Visual/Art/TrackRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Art/ProceduralTrackArt.cpp
+    ${SOURCE_ROOT}/Visual/Art/BarGemArt.cpp
     ${SOURCE_ROOT}/Visual/Managers/AssetManager.cpp
-    ${SOURCE_ROOT}/Visual/Utils/PositionMath.cpp
-    ${SOURCE_ROOT}/Visual/Utils/RenderTypeConfig.cpp
-    ${SOURCE_ROOT}/Visual/Utils/HitTestMapper.cpp
+    ${SOURCE_ROOT}/Visual/Geometry/PositionMath.cpp
+    ${SOURCE_ROOT}/Visual/Geometry/RenderTypeConfig.cpp
+    ${SOURCE_ROOT}/Visual/Geometry/HitTestMapper.cpp
     ${SOURCE_ROOT}/Visual/Utils/FrameRenderer.cpp
 )
 
@@ -92,6 +93,9 @@ juce_add_binary_data(RenderHarnessData
         ${ASSET_GEN}/notes/cym_red.png
         ${ASSET_GEN}/notes/cym_white.png
         ${ASSET_GEN}/notes/cym_yellow.png
+        # Elite hi-hat cymbals (extracted gold art, used as-is)
+        ${ASSET_GEN}/cymbals/cym_hihat_closed.png
+        ${ASSET_GEN}/cymbals/cym_hihat_open.png
         # Ghost cursor templates
         ${ASSET_GEN}/templates/note_blank.png
         ${ASSET_GEN}/templates/hopo_blank.png
@@ -111,10 +115,6 @@ juce_add_binary_data(RenderHarnessData
         # Sustains
         ${ASSET_GEN}/sustains/sustain_open.png
         ${ASSET_GEN}/sustains/sustain_open_white.png
-        # Markers
-        ${ASSET_GEN}/markers/marker_beat.png
-        ${ASSET_GEN}/markers/marker_half_beat.png
-        ${ASSET_GEN}/markers/marker_measure.png
         # Lanes
         ${ASSET_GEN}/lanes/lane_end.png
         ${ASSET_GEN}/lanes/lane_mid.png

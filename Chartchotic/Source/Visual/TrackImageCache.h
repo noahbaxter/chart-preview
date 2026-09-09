@@ -6,8 +6,8 @@
 #include <memory>
 #include <thread>
 #include <JuceHeader.h>
-#include "Renderers/TrackRenderer.h"
-#include "Utils/PositionMath.h"
+#include "Art/TrackRenderer.h"
+#include "Geometry/PositionMath.h"
 
 class TrackImageCache
 {

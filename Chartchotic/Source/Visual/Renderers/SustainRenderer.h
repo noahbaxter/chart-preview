@@ -15,8 +15,8 @@
 #include "../../Utils/ChartTypes.h"
 #include "../../Midi/Utils/TimeConverter.h"
 #include "../Managers/AssetManager.h"
-#include "../Utils/PositionConstants.h"
-#include "../Utils/PositionMath.h"
+#include "../Geometry/PositionConstants.h"
+#include "../Geometry/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
 #include "HighwayRenderer.h"
 

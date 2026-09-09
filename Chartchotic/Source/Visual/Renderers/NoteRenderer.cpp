@@ -10,7 +10,7 @@
 */
 
 #include "NoteRenderer.h"
-#include "../Utils/RenderTypeConfig.h"
+#include "../Geometry/RenderTypeConfig.h"
 #include "../../Editor/AuthoringTypes.h"
 #include "../../Midi/Utils/InstrumentMapper.h"
 
@@ -251,6 +251,12 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         glyphImage = assetManager.getDrumGlyphImage(gemWrapper, gemColumn, starPowerActive, elite);
     }
 
+    // Elite hi-hat pedal bars (Stomp / Splash) render like a bar (draw order, height, bar
+    // scales) but are NOT full width: the geometry block below spans ~3 lanes centered on
+    // the hi-hat lane instead of the whole fretboard.
+    bool pedalBar = elite && (gemWrapper.gem == Gem::STOMP || gemWrapper.gem == Gem::SPLASH);
+    if (pedalBar) barNote = true;
+
     if (!imageOverride)
     {
         double clipTime = barNote ? cachedBarClipTime : cachedNoteClipTime;
@@ -284,7 +290,16 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     // Strike-reference width + horizontal offset from shared anchor
     float strikeColWidth, strikeOffsetX;
     Render::ClipHalf barClipHalf = Render::ClipHalf::None;
-    if (barNote)
+    if (pedalBar)
+    {
+        // 3-lane span centered on the hi-hat: full-lane left edge of Snare (col 1) to the
+        // full-lane right edge of Left Crash (col 3). Same shared strike anchor as the gems.
+        auto eL = getColumnEdge(0.0f, laneCoords[resolveLaneIndex(1)], 1.0f, PositionConstants::FRETBOARD_SCALE);
+        auto eR = getColumnEdge(0.0f, laneCoords[resolveLaneIndex(3)], 1.0f, PositionConstants::FRETBOARD_SCALE);
+        strikeColWidth = eR.rightX - eL.leftX;
+        strikeOffsetX  = (eL.leftX + eR.rightX) * 0.5f - ctx.fbStrikeCenterX;
+    }
+    else if (barNote)
     {
         strikeColWidth = ctx.fbStrikeWidth
                        * PositionConstants::BAR_FRETBOARD_FIT * PositionConstants::BAR_SIZE;
@@ -337,7 +352,9 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     if (!isDrums && gemColumn < (int)GUITAR_LANE_COUNT) {
         const auto& ca = guitarColAdjust[gemColumn];
         colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
-    } else if (isDrums) {
+    } else if (isDrums && !pedalBar) {
+        // Pedal bars live at virtual columns 10/11 (no entry in drumColAdjust) and are
+        // positioned by their own 3-lane span above, so they skip the per-column adjust.
         uint drumIdx = drumColumnIndex(gemColumn, activePart);
         const auto& ca = drumColAdjust[drumIdx];
         colSNear = ca.sNear; colSFar = ca.sFar; colW = ca.w; colH = ca.h;
@@ -351,11 +368,15 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
 
     // Curvature arc, in strike-reference pixels (ctx.frameScale carries it to
     // current pixels at draw time, matching legacy current-pixel-space arc).
-    float curvature = barNote ? PositionConstants::BAR_CURVATURE : currentNoteCurvature;
+    // Kick/open bars stay flat. Pedal bars (Stomp/Splash) instead curve like gems so they sit
+    // along the tilted gridline over their off-centre span; their arc offset uses the hi-hat
+    // lane's distance (the pedal zone is centred on the hi-hat).
+    constexpr int ELITE_HIHAT_COLUMN = 2;
+    float curvature = (barNote && !pedalBar) ? PositionConstants::BAR_CURVATURE : currentNoteCurvature;
     float arcOffsetStrike = 0.0f;
-    if (curvature != 0.0f && !barNote)
+    if (curvature != 0.0f && (!barNote || pedalBar))
     {
-        float dist = getColumnDistFromCenter(gemColumn, isDrums);
+        float dist = getColumnDistFromCenter(pedalBar ? ELITE_HIHAT_COLUMN : (int)gemColumn, isDrums);
         // fbStrikeWidth is inflated on elite's wider canvas; the arc is a VERTICAL lift, and
         // elite is wider not taller, so divide the width factor back down (1.0 for non-wide
         // types) or the centre lanes bow up too far and read as sitting behind their row.
@@ -363,6 +384,10 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
                         * curvature * (1.0f - dist * dist)
                         / currentConfig->boardWidthScale;
     }
+    // Pedal bar: drop it slightly so it sits ON the gridline (the lift over-shoots on its
+    // off-centre span). REFERENCE_HEIGHT px -> current px via resScale.
+    if (pedalBar)
+        arcOffsetStrike += PositionConstants::ELITE_PEDAL_Z_NUDGE * resScale;
 
     // --- Append gem sprite ---
     int gemIdx = (int)outFrame.sprites.size();
@@ -373,7 +398,11 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         s.offsetY   = zOff + arcOffsetStrike;
         s.width     = strikeColWidth  * wScale;
         s.height    = strikeColHeight * hScale;
-        s.drawOrder = barNote ? (int)DrawOrder::BAR : (int)DrawOrder::NOTE;
+        // Pedal (Stomp/Splash) bar is a highway marking that sits ON the gridline, so it draws
+        // at GRID like the gridline -> the side rails / lane lines / strikeline render OVER it
+        // and clip its ends, instead of it floating on top of the rails.
+        s.drawOrder = pedalBar ? (int)DrawOrder::GRID
+                               : (barNote ? (int)DrawOrder::BAR : (int)DrawOrder::NOTE);
         s.drawColumn = (int)gemColumn;
         s.opacity   = opacity;
         s.clipHalf  = barClipHalf;
@@ -411,13 +440,27 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     // offset so the opaque cone sits where the straight asset's cone would. ---
     if (curvature != 0.0f)
     {
+        // Pedal bar: warp across the whole pedal zone (Snare..L-Crash, cols 1-3) so the tilt +
+        // curve of the gridline over that off-centre span both fall out of the same warp.
+        PositionConstants::NormalizedCoordinates pedalZone;
+        if (pedalBar)
+        {
+            const auto& l = laneCoords[resolveLaneIndex(1)];
+            const auto& r = laneCoords[resolveLaneIndex(3)];
+            pedalZone = l;
+            pedalZone.normWidth1 = (r.normX1 + r.normWidth1) - l.normX1;
+            curveCoordsOverride = &pedalZone;
+            curveScaleOverride  = PositionConstants::ELITE_PEDAL_CURVE_GAIN;
+        }
         CurvedSwapArgs args{
             glyphImage, overlayImage, overlayAdjPtr,
-            (int)gemColumn, isDrums,
+            pedalBar ? PEDAL_CURVE_COLUMN : (int)gemColumn, isDrums,
             strikeColWidth, strikeColHeight, hScale,
             strikeOffsetX, zOff + arcOffsetStrike,
         };
         applyCurvedImageSwap(outFrame, gemIdx, ovlIdx, args);
+        curveCoordsOverride = nullptr;
+        curveScaleOverride  = 1.0f;
     }
 
     // Capture hit box from final gem sprite (uses same transform as drawFrame)
@@ -589,7 +632,7 @@ float NoteRenderer::getColumnDistFromCenter(int column, bool isDrums)
 const NoteRenderer::CurvedImageEntry& NoteRenderer::getCurvedImage(
     juce::Image* src, int column, bool isDrums)
 {
-    float curv = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
+    float curv = (isDrums ? noteCurvatureDrums : noteCurvatureGuitar) * curveScaleOverride;
     CurveKey key{src, column, isDrums, (int)std::lround(curv * 10000.0f)};
     auto it = curvedCache.find(key);
     if (it != curvedCache.end())
@@ -617,7 +660,9 @@ const NoteRenderer::CurvedImageEntry& NoteRenderer::getCurvedImage(
     float fbCenterNorm = fbCoords.normX1 + fbCoords.normWidth1 * 0.5f;
     float fbHalfWNorm = fbCoords.normWidth1 * 0.5f;
 
-    const auto& colCoords = laneCoords[resolveLaneIndex((uint)column)];
+    // Pedal bar spans the whole pedal zone (off-centre); everything else warps across one lane.
+    const auto& colCoords = curveCoordsOverride ? *curveCoordsOverride
+                                                : laneCoords[resolveLaneIndex((uint)column)];
 
     float fbWidthInCache = (float)srcW * (fbCoords.normWidth1 / colCoords.normWidth1);
     float arcHeight = fbWidthInCache * curv;

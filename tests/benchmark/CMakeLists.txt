@@ -20,9 +20,10 @@ target_sources(bench_rendering PRIVATE
     ${SOURCE_ROOT}/Visual/Renderers/NoteRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/SustainRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/GridlineRenderer.cpp
-    ${SOURCE_ROOT}/Visual/Renderers/TrackRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Art/TrackRenderer.cpp
     ${SOURCE_ROOT}/Visual/Managers/AssetManager.cpp
-    ${SOURCE_ROOT}/Visual/Utils/PositionMath.cpp
+    ${SOURCE_ROOT}/Visual/Art/BarGemArt.cpp
+    ${SOURCE_ROOT}/Visual/Geometry/PositionMath.cpp
     ${SOURCE_ROOT}/Midi/Processing/MidiInterpreter.cpp
     ${SOURCE_ROOT}/Midi/Utils/ChordAnalyzer.cpp
     ${SOURCE_ROOT}/Midi/Utils/GemCalculator.cpp
@@ -158,15 +159,16 @@ target_sources(bench_pipeline PRIVATE
     ${SOURCE_ROOT}/Midi/Utils/GemCalculator.cpp
     ${SOURCE_ROOT}/Midi/Utils/ChordAnalyzer.cpp
     ${SOURCE_ROOT}/Midi/Utils/LaneDetector.cpp
-    ${SOURCE_ROOT}/Visual/Utils/PositionMath.cpp
+    ${SOURCE_ROOT}/Visual/Geometry/PositionMath.cpp
     ${SOURCE_ROOT}/Visual/Renderers/SceneRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/AnimationRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/NoteRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/SustainRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/GridlineRenderer.cpp
     ${SOURCE_ROOT}/Visual/Renderers/TextEventRenderer.cpp
-    ${SOURCE_ROOT}/Visual/Renderers/TrackRenderer.cpp
+    ${SOURCE_ROOT}/Visual/Art/TrackRenderer.cpp
     ${SOURCE_ROOT}/Visual/Managers/AssetManager.cpp
+    ${SOURCE_ROOT}/Visual/Art/BarGemArt.cpp
     ${SOURCE_ROOT}/Visual/HighwayComponent.cpp
     ${SOURCE_ROOT}/UI/LookAndFeel/ChartchoticLookAndFeel.cpp
 )

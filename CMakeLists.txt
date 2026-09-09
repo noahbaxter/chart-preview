@@ -204,10 +204,12 @@ target_sources(Chartchotic
         Chartchotic/Source/Visual/Renderers/GridlineRenderer.h
         Chartchotic/Source/Visual/Renderers/TextEventRenderer.cpp
         Chartchotic/Source/Visual/Renderers/TextEventRenderer.h
-        Chartchotic/Source/Visual/Renderers/TrackRenderer.cpp
+        Chartchotic/Source/Visual/Art/TrackRenderer.cpp
 
-        Chartchotic/Source/Visual/Renderers/ProceduralTrackArt.cpp
-        Chartchotic/Source/Visual/Renderers/TrackRenderer.h
+        Chartchotic/Source/Visual/Art/ProceduralTrackArt.cpp
+        Chartchotic/Source/Visual/Art/BarGemArt.cpp
+        Chartchotic/Source/Visual/Art/BarGemArt.h
+        Chartchotic/Source/Visual/Art/TrackRenderer.h
         Chartchotic/Source/Visual/HighwayComponent.cpp
         Chartchotic/Source/Visual/HighwayComponent.h
         Chartchotic/Source/Visual/HighwaySlot.h
@@ -221,15 +223,15 @@ target_sources(Chartchotic
         Chartchotic/Source/Visual/Utils/Frame.h
         Chartchotic/Source/Visual/Utils/FrameRenderer.cpp
         Chartchotic/Source/Visual/Utils/FrameRenderer.h
-        Chartchotic/Source/Visual/Utils/PositionConstants.h
-        Chartchotic/Source/Visual/Utils/HitTestMapper.cpp
-        Chartchotic/Source/Visual/Utils/HitTestMapper.h
-        Chartchotic/Source/Visual/Utils/PositionMath.cpp
-        Chartchotic/Source/Visual/Utils/PositionMath.h
-        Chartchotic/Source/Visual/Utils/RenderTypeConfig.cpp
-        Chartchotic/Source/Visual/Utils/RenderTypeConfig.h
+        Chartchotic/Source/Visual/Geometry/PositionConstants.h
+        Chartchotic/Source/Visual/Geometry/HitTestMapper.cpp
+        Chartchotic/Source/Visual/Geometry/HitTestMapper.h
+        Chartchotic/Source/Visual/Geometry/PositionMath.cpp
+        Chartchotic/Source/Visual/Geometry/PositionMath.h
+        Chartchotic/Source/Visual/Geometry/RenderTypeConfig.cpp
+        Chartchotic/Source/Visual/Geometry/RenderTypeConfig.h
         Chartchotic/Source/Visual/Utils/RenderTiming.h
-        Chartchotic/Source/Visual/Renderers/TrackFade.h
+        Chartchotic/Source/Visual/Art/TrackFade.h
         # Visual / Managers
         Chartchotic/Source/Visual/Managers/AnimationManager.h
         Chartchotic/Source/Visual/Managers/AssetManager.cpp
@@ -321,6 +323,9 @@ set(CHARTCHOTIC_ASSETS
         assets/generated/notes/cym_red.png
         assets/generated/notes/cym_white.png
         assets/generated/notes/cym_yellow.png
+        # Elite hi-hat cymbals (extracted gold art, used as-is)
+        assets/generated/cymbals/cym_hihat_closed.png
+        assets/generated/cymbals/cym_hihat_open.png
         # Ghost cursor templates (write-mode hover preview)
         assets/generated/templates/note_blank.png
         assets/generated/templates/hopo_blank.png
@@ -340,10 +345,6 @@ set(CHARTCHOTIC_ASSETS
         # Sustains (generated from PDFs)
         assets/generated/sustains/sustain_open.png
         assets/generated/sustains/sustain_open_white.png
-        # Markers (generated from PDFs)
-        assets/generated/markers/marker_beat.png
-        assets/generated/markers/marker_half_beat.png
-        assets/generated/markers/marker_measure.png
         # Lanes (generated from PDFs)
         assets/generated/lanes/lane_end.png
         assets/generated/lanes/lane_mid.png

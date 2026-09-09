@@ -18,8 +18,8 @@
 #include "../../Utils/ChartTypes.h"
 #include "../../Midi/Utils/TimeConverter.h"
 #include "../Managers/AssetManager.h"
-#include "../Utils/PositionConstants.h"
-#include "../Utils/PositionMath.h"
+#include "../Geometry/PositionConstants.h"
+#include "../Geometry/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
 #include "../Utils/Frame.h"
 #include "../Utils/FrameRenderer.h"
@@ -156,6 +156,17 @@ private:
         }
     };
     std::map<CurveKey, CurvedImageEntry> curvedCache;
+
+    // When set, getCurvedImage warps across THESE coords instead of a single lane's — used by
+    // the elite Stomp/Splash bar, which spans the ~3-lane pedal zone (off-centre), so its warp
+    // picks up the gridline's tilt AND curve over that span. Paired with PEDAL_CURVE_COLUMN as
+    // the cache key. Reset to nullptr after each pedal-bar swap.
+    const PositionConstants::NormalizedCoordinates* curveCoordsOverride = nullptr;
+    // Multiplies the warp curvature for the current swap. 1.0 for everything except the pedal
+    // bar, which steepens its tilt (ELITE_PEDAL_CURVE_GAIN) so its warp matches the FRETBOARD_SCALE
+    // its whole-bar lift already carries. Reset to 1.0 after each pedal-bar swap.
+    float curveScaleOverride = 1.0f;
+    static constexpr int PEDAL_CURVE_COLUMN = -100;   // synthetic cache-key column for the pedal bar
 
     const CurvedImageEntry& getCurvedImage(juce::Image* src, int column, bool isDrums);
     float getColumnDistFromCenter(int column, bool isDrums);

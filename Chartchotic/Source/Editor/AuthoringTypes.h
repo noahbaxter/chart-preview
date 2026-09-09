@@ -24,8 +24,10 @@ constexpr double kSustainLookbackQN = 32.0;
 
 namespace AuthoringColours
 {
-    static const juce::Colour selectTint = juce::Colour(180, 220, 255).withAlpha((uint8)140);
-    static const juce::Colour eraseTint  = juce::Colour(255, 80, 80).withAlpha((uint8)160);
+    static const juce::Colour selectTint   = juce::Colour(180, 220, 255).withAlpha((uint8)140);
+    static const juce::Colour eraseTint    = juce::Colour(255, 80, 80).withAlpha((uint8)160);
+    static const juce::Colour marqueeErase  = juce::Colour(255, 80, 80);    // erase marquee outline/fill
+    static const juce::Colour marqueeSelect = juce::Colour(100, 180, 255);  // select marquee outline/fill
 }
 
 struct AuthoringPoint

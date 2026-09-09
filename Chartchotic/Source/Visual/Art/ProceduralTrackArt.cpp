@@ -8,6 +8,7 @@
 */
 
 #include "ProceduralTrackArt.h"
+#include "../Utils/LaneColours.h"   // TrackColours palette
 
 namespace ProceduralTrackArt
 {
@@ -42,10 +43,10 @@ namespace ProceduralTrackArt
         // so the rail foreshortens (thins) down the neck with the board.
         struct Band { float width; juce::Colour colour; };
         const Band bands[] = {
-            { RailGeom::bandUnits[0], juce::Colour(0xFF404040) },  // dark-grey inside edge
-            { RailGeom::bandUnits[1], juce::Colour(0xFF606060) },  // grey line (3rd from outer)
-            { RailGeom::bandUnits[2], juce::Colour(0xFF060606) },  // black track
-            { RailGeom::bandUnits[3], juce::Colour(0xFF606060) },  // thin grey line (outer)
+            { RailGeom::bandUnits[0], TrackColours::railInner },  // dark-grey inside edge
+            { RailGeom::bandUnits[1], TrackColours::railLine  },  // grey line (3rd from outer)
+            { RailGeom::bandUnits[2], TrackColours::railBlack },  // black track
+            { RailGeom::bandUnits[3], TrackColours::railLine  },  // thin grey line (outer)
         };
         const float total = RailGeom::totalUnits;
 

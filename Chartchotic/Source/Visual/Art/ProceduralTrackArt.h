@@ -15,7 +15,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../Utils/PositionConstants.h"
+#include "../Geometry/PositionConstants.h"
 
 namespace ProceduralTrackArt
 {
