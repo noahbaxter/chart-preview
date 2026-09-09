@@ -262,9 +262,7 @@ target_sources(Chartchotic
 # Generated assets come from assets/generated/<category>/ (via convert_assets.sh)
 # Static assets (no PDF source) come from assets/static/
 # MIDI test files come from assets/midi/
-juce_add_binary_data(ChartchoticData
-    NAMESPACE BinaryData
-    SOURCES
+set(CHARTCHOTIC_ASSETS
         # Fonts
         assets/static/fonts/TurretRoad-Bold.ttf
         assets/static/fonts/TurretRoad-Medium.ttf
@@ -380,6 +378,27 @@ juce_add_binary_data(ChartchoticData
         assets/static/hits/hit_open_6.png
         assets/static/hits/hit_open_7.png
         # MIDI test files loaded from disk at runtime (see CHARTCHOTIC_MIDI_ASSET_DIR)
+)
+
+# A relative path that does not exist when CMake configures is silently treated
+# as a generated file under the build dir, so one missing asset yields a ninja
+# graph no reconfigure can repair. Fail here instead, naming what is missing.
+set(_missing_assets "")
+foreach(asset IN LISTS CHARTCHOTIC_ASSETS)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${asset}")
+        list(APPEND _missing_assets "  ${asset}")
+    endif()
+endforeach()
+if(_missing_assets)
+    string(JOIN "\n" _missing_list ${_missing_assets})
+    message(FATAL_ERROR
+        "Missing binary data assets. Is the assets submodule on the right commit?\n${_missing_list}")
+endif()
+list(TRANSFORM CHARTCHOTIC_ASSETS PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
+
+juce_add_binary_data(ChartchoticData
+    NAMESPACE BinaryData
+    SOURCES ${CHARTCHOTIC_ASSETS}
 )
 
 # REAPER SDK header path
