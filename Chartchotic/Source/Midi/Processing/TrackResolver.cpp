@@ -41,7 +41,28 @@ SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
                 {
                     ModifierRange range{onPPQ, it->first};
 
-                    if (pitch == (uint)Guitar::SP || pitch == (uint)Drums::SP
+                    // Elite reuses pitches that mean something else on guitar / 4-lane
+                    // drums: its roll lanes 110/111/112 are the tom markers and 116 is
+                    // star power. On an elite track the elite meaning wins, so these are
+                    // tested BEFORE the shared branches. Ordering them after silently ate
+                    // the lane and invented a phantom tom marker or SP phrase.
+                    const bool eliteRoll = isElite && InstrumentMapper::isEliteRollLane(pitch);
+                    const int hatPedal   = isElite ? InstrumentMapper::eliteHiHatPedalSkillIndex(pitch) : -1;
+                    const int hatIndiff  = isElite ? InstrumentMapper::eliteHiHatIndifferentSkillIndex(pitch) : -1;
+                    const bool laneMarker = eliteRoll
+                        || pitch == (uint)Guitar::LANE_1 || pitch == (uint)Drums::LANE_1
+                        || pitch == (uint)Guitar::LANE_2 || pitch == (uint)Drums::LANE_2;
+
+                    if (laneMarker)
+                    {
+                        PPQ extStart = bemaniMode ? onPPQ : onPPQ - MIDI_LANE_EXTENSION_TIME;
+                        auto onIt = nsm.find(onPPQ);
+                        uint8_t laneVel = (onIt != nsm.end()) ? onIt->second.velocity : 100;
+                        shared.lanes.push_back({extStart, it->first, (uint8_t)pitch, laneVel});
+                    }
+                    else if (hatPedal >= 0)  shared.modifiers.hihatPedal[hatPedal].push_back(range);
+                    else if (hatIndiff >= 0) shared.modifiers.hihatIndifferent[hatIndiff].push_back(range);
+                    else if (pitch == (uint)Guitar::SP || pitch == (uint)Drums::SP
                         || (isElite && pitch == (uint)MidiPitchDefinitions::EliteDrums::SP))
                         shared.modifiers.starPower.push_back(range);
                     else if (pitch == (uint)Guitar::TAP)
@@ -60,19 +81,6 @@ SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
                     else if (pitch == (uint)Guitar::MEDIUM_STRUM)  shared.modifiers.strumForce[1].push_back(range);
                     else if (pitch == (uint)Guitar::HARD_STRUM)    shared.modifiers.strumForce[2].push_back(range);
                     else if (pitch == (uint)Guitar::EXPERT_STRUM)  shared.modifiers.strumForce[3].push_back(range);
-                    else if (isElite && InstrumentMapper::eliteHiHatPedalSkillIndex(pitch) >= 0)
-                        shared.modifiers.hihatPedal[InstrumentMapper::eliteHiHatPedalSkillIndex(pitch)].push_back(range);
-                    else if (isElite && InstrumentMapper::eliteHiHatIndifferentSkillIndex(pitch) >= 0)
-                        shared.modifiers.hihatIndifferent[InstrumentMapper::eliteHiHatIndifferentSkillIndex(pitch)].push_back(range);
-                    else if (pitch == (uint)Guitar::LANE_1 || pitch == (uint)Drums::LANE_1 ||
-                             pitch == (uint)Guitar::LANE_2 || pitch == (uint)Drums::LANE_2 ||
-                             (isElite && InstrumentMapper::isEliteRollLane(pitch)))
-                    {
-                        PPQ extStart = bemaniMode ? onPPQ : onPPQ - MIDI_LANE_EXTENSION_TIME;
-                        auto onIt = nsm.find(onPPQ);
-                        uint8_t laneVel = (onIt != nsm.end()) ? onIt->second.velocity : 100;
-                        shared.lanes.push_back({extStart, it->first, (uint8_t)pitch, laneVel});
-                    }
 
                     onPPQ = PPQ(-1.0);
                 }
