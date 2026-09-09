@@ -1,0 +1,40 @@
+name: Dispatch release to hub
+
+# The Dichotic plugins hub (noahbaxter/_plugins) does all the building, signing,
+# CDN upload, GitHub release, and site publishing. This repo only tells it when:
+#   - push to main -> hub dry-run (build all platforms, publish nothing)
+#   - push a tag vX.Y.Z -> hub publish (build + release + CDN + site)
+#
+# Needs a HUB_DISPATCH_TOKEN secret: a fine-grained PAT with Actions: read/write
+# on noahbaxter/_plugins.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+# A newer push supersedes an in-flight dispatch for the same ref.
+concurrency:
+  group: hub-dispatch-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fire the hub release workflow
+        env:
+          GH_TOKEN: ${{ secrets.HUB_DISPATCH_TOKEN }}
+          PLUGIN: chartchotic
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            echo "tag $GITHUB_REF_NAME ($GITHUB_SHA) -> publish $PLUGIN v$VERSION"
+            gh workflow run release.yml -R noahbaxter/_plugins \
+              -f plugin="$PLUGIN" -f version="$VERSION" -f ref="$GITHUB_SHA" -f dry_run=false
+          else
+            echo "push to $GITHUB_REF_NAME ($GITHUB_SHA) -> dry-run build $PLUGIN"
+            gh workflow run release.yml -R noahbaxter/_plugins \
+              -f plugin="$PLUGIN" -f ref="$GITHUB_SHA" -f dry_run=true
+          fi
