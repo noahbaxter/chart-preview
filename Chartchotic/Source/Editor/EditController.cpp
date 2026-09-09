@@ -19,7 +19,15 @@ bool EditController::isNoteSelected(double startQN, int pitch) const
 
 void EditController::clearSelection()
 {
+    commitArrowMoves();
+    overlayState.moveDragVisible = false;
+    overlayState.movePreviewNotes.clear();
     selection.clear();
+    notifyChanged();
+}
+
+void EditController::notifyChanged()
+{
     recomputeOverlay();
     if (onStateChanged) onStateChanged();
 }
@@ -64,56 +72,29 @@ void EditController::onPointerMove(const AuthoringPoint& p, const AuthoringConte
 
 void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
+    bool hadArrowDelta = hasArrowDelta();
+    commitArrowMoves();
     if (!canEdit(p)) return;
     doubleClickConsumed = false;
 
     auto cmd = commandMapper.resolve(SubMode::Edit, EventType::Down, ctx);
     if (cmd != WriteCommand::SelectAt) return;
 
-    if (barModeFlag)
+    int clickPitch = resolveActivePitch(p.laneIndex);
+    int clickLane = barModeFlag ? 0 : p.laneIndex;
+
+    bool hitInteractableNote = p.overExistingNote && !p.hitSustainBody
+        && findNote(resolveTrackIdx(), p.hitNoteStartQN, clickPitch).noteIndex >= 0;
+
+    if (!hitInteractableNote && hadArrowDelta)
     {
-        int trackIdx = resolveTrackIdx();
-        if (trackIdx < 0) return;
-
-        int barPitch = resolveBarPitch();
-
-        if (p.overExistingNote)
-        {
-            auto found = findNote(trackIdx, p.hitNoteStartQN, barPitch);
-            if (found.noteIndex >= 0)
-            {
-                bool alreadySelected = isNoteSelected(found.startQN, barPitch);
-                if (!alreadySelected)
-                {
-                    selection.clear();
-                    selection.push_back({ trackIdx, found.startQN, barPitch, 0 });
-                    recomputeOverlay();
-                }
-                dragMode = DragMode::Moving;
-                moveScreenStart = p.screenPos;
-                moveOriginQN = p.rawProjectQN;
-                moveOriginLane = 0;
-                moveAxisLock = false;
-                moveDragStarted = false;
-            }
-        }
-        else
-        {
-            selection.clear();
-            recomputeOverlay();
-            dragMode = DragMode::Marquee;
-            marqueeScreenStart = p.screenPos;
-            marqueeRect.begin(p.rawProjectQN, p.laneIndex);
-            if (onStateChanged) onStateChanged();
-        }
-        return;
+        auto hit = findNote(resolveTrackIdx(), p.rawProjectQN, clickPitch);
+        if (hit.noteIndex >= 0 && isNoteSelected(hit.startQN, hit.pitch))
+            hitInteractableNote = true;
     }
 
-    if (p.overExistingNote && !p.hitSustainBody)
+    if (hitInteractableNote)
     {
-        bool drums = isDrums();
-        int clickPitch = resolvePitch(p.laneIndex, drums);
-
         if (isNoteSelected(p.hitNoteStartQN, clickPitch))
         {
             for (auto& n : selection)
@@ -123,15 +104,17 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
             dragMode = DragMode::Moving;
             moveScreenStart = p.screenPos;
             moveOriginQN = p.rawProjectQN;
-            moveOriginLane = p.laneIndex;
+            moveOriginLane = clickLane;
             moveAxisLock = ctx.mods.isAltDown();
             moveDragStarted = false;
         }
         else
         {
             int trackIdx = resolveTrackIdx();
+            auto found = findNote(trackIdx, p.hitNoteStartQN, clickPitch);
+
             selection.clear();
-            selection.push_back({ trackIdx, p.hitNoteStartQN, clickPitch, p.laneIndex });
+            selection.push_back({ trackIdx, found.startQN, found.endQN, clickPitch, clickLane });
             recomputeOverlay();
 
             pendingSelect = true;
@@ -139,7 +122,7 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
             dragMode = DragMode::Moving;
             moveScreenStart = p.screenPos;
             moveOriginQN = p.rawProjectQN;
-            moveOriginLane = p.laneIndex;
+            moveOriginLane = clickLane;
             moveAxisLock = ctx.mods.isAltDown();
             moveDragStarted = false;
         }
@@ -149,7 +132,7 @@ void EditController::onPointerDown(const AuthoringPoint& p, const AuthoringConte
         handleSelectAt(p);
         dragMode = DragMode::Marquee;
         marqueeScreenStart = p.screenPos;
-        marqueeRect.begin(p.rawProjectQN, p.laneIndex);
+        marqueeRect.begin(p.rawProjectQN, clickLane);
     }
 }
 
@@ -233,6 +216,13 @@ bool EditController::onKeyPress(const juce::KeyPress& key)
         if (code == juce::KeyPress::downKey)  { handleArrowMove(0, -step); return true; }
         if (code == juce::KeyPress::leftKey)  { handleArrowMove(-1, 0.0);  return true; }
         if (code == juce::KeyPress::rightKey) { handleArrowMove(1,  0.0);  return true; }
+        if (code == juce::KeyPress::returnKey && hasArrowDelta())
+        {
+            commitArrowMoves();
+            overlayState.moveDragVisible = false;
+            overlayState.movePreviewNotes.clear();
+            return true;
+        }
     }
 
     auto cmd = commandMapper.resolveKey(true, key);
@@ -252,29 +242,31 @@ void EditController::handleSelectAt(const AuthoringPoint& p)
     if (p.overExistingNote)
     {
         int trackIdx = resolveTrackIdx();
-        bool drums = isDrums();
-        int lane = p.laneIndex;
-        int pitch = resolvePitch(lane, drums);
+        int lane = barModeFlag ? 0 : p.laneIndex;
+        int pitch = resolveActivePitch(p.laneIndex);
 
         if (isNoteSelected(p.hitNoteStartQN, pitch))
             return;
 
-        bool sustainOnly = p.hitSustainBody;
-        if (sustainOnly)
+        auto found = findNote(trackIdx, p.hitNoteStartQN, pitch);
+        if (found.noteIndex < 0)
         {
-            auto info = findNote(trackIdx, p.hitNoteStartQN, pitch);
-            if (info.noteIndex < 0 || (info.endQN - info.startQN) < double(MIDI_MIN_SUSTAIN_LENGTH))
-                sustainOnly = false;
+            selection.clear();
+            notifyChanged();
+            return;
         }
+
+        bool sustainOnly = p.hitSustainBody
+            && (found.endQN - found.startQN) >= double(MIDI_MIN_SUSTAIN_LENGTH);
+
         selection.clear();
-        selection.push_back({ trackIdx, p.hitNoteStartQN, pitch, lane, sustainOnly });
+        selection.push_back({ trackIdx, found.startQN, found.endQN, pitch, lane, sustainOnly });
     }
     else
     {
         selection.clear();
     }
-    recomputeOverlay();
-    if (onStateChanged) onStateChanged();
+    notifyChanged();
 }
 
 void EditController::handleContinueMarquee(const AuthoringPoint& p)
@@ -295,10 +287,9 @@ void EditController::handleCommitMarquee(const AuthoringPoint& p)
 
     selection.clear();
     for (const auto& cn : classifyNotesInRect(trackIdx, marqueeRect))
-        selection.push_back({ trackIdx, cn.note.startQN, cn.note.pitch, cn.lane, cn.sustainOnly });
+        selection.push_back({ trackIdx, cn.note.startQN, cn.note.endQN, cn.note.pitch, cn.lane, cn.sustainOnly });
 
-    recomputeOverlay();
-    if (onStateChanged) onStateChanged();
+    notifyChanged();
 }
 
 void EditController::handleContinueMove(const AuthoringPoint& p)
@@ -316,17 +307,14 @@ void EditController::handleContinueMove(const AuthoringPoint& p)
             deltaQN = 0.0;
     }
 
-    bool drums = isDrums();
-    int maxLane = drums ? 4 : 5;
-
     overlayState.moveDragVisible = true;
     overlayState.movePreviewNotes.clear();
     for (const auto& n : selection)
     {
-        int newLane = juce::jlimit(0, maxLane, n.lane + deltaLane);
+        int newLane = juce::jlimit(0, maxLane(), n.lane + deltaLane);
         double newQN = snapQN(n.startQN + deltaQN);
         if (newQN < 0.0) newQN = 0.0;
-        int newPitch = resolvePitch(newLane, drums);
+        int newPitch = resolvePitch(newLane, isDrums());
         auto info = findNote(n.trackIdx, n.startQN, n.pitch);
         double duration = (info.noteIndex >= 0) ? (info.endQN - info.startQN) : 0.1;
         overlayState.movePreviewNotes.push_back({ newLane, newQN, newQN + duration, newPitch });
@@ -350,15 +338,12 @@ void EditController::handleCommitMove(const AuthoringPoint& p)
             deltaQN = 0.0;
     }
 
-    bool drums = isDrums();
-    int maxLane = drums ? 4 : 5;
-
     beginBatch("Chartchotic: Move notes");
 
     std::vector<SelectedNote> moved;
     for (const auto& n : selection)
     {
-        int newLane = juce::jlimit(0, maxLane, n.lane + deltaLane);
+        int newLane = juce::jlimit(0, maxLane(), n.lane + deltaLane);
         double newStartQN = snapQN(n.startQN + deltaQN);
         if (newStartQN < 0.0) newStartQN = 0.0;
 
@@ -367,17 +352,14 @@ void EditController::handleCommitMove(const AuthoringPoint& p)
 
         double duration = found.endQN - found.startQN;
         double newEndQN = newStartQN + duration;
-        int newPitch = resolvePitch(newLane, drums);
+        int newPitch = resolvePitch(newLane, isDrums());
 
         moveNote(n.trackIdx, n.startQN, n.pitch, n.lane,
                  newStartQN, newEndQN, newPitch, newLane);
-        moved.push_back({ n.trackIdx, newStartQN, newPitch, newLane });
+        moved.push_back({ n.trackIdx, newStartQN, newEndQN, newPitch, newLane });
     }
 
-    endBatch();
-    selection = std::move(moved);
-    recomputeOverlay();
-    if (onStateChanged) onStateChanged();
+    finishBatchMove(moved);
 }
 
 void EditController::handleDoubleClick(const AuthoringPoint& p)
@@ -419,16 +401,27 @@ void EditController::handleDoubleClick(const AuthoringPoint& p)
         if (existing.noteIndex >= 0)
             eraseNote(trackIdx, qn, pitch, drums, p.laneIndex, currentActiveSkill);
         else
-            createNote(trackIdx, qn, pitch, p.laneIndex);
+        {
+            createNote(trackIdx, qn, pitch, p.laneIndex, resolveVelocity());
+            if (drums)
+                writeTomMarker(trackIdx, qn, p.laneIndex);
+            else
+                writeGuitarForceMarker(trackIdx, qn);
+        }
     }
 
-    recomputeOverlay();
-    if (onStateChanged) onStateChanged();
+    notifyChanged();
 }
 
 void EditController::handleDeleteSelection()
 {
     if (selection.empty()) return;
+    if (hasArrowDelta())
+    {
+        commitArrowMoves();
+        overlayState.moveDragVisible = false;
+        overlayState.movePreviewNotes.clear();
+    }
 
     beginBatch("Chartchotic: Delete notes");
     for (const auto& n : selection)
@@ -441,46 +434,93 @@ void EditController::handleDeleteSelection()
     endBatch();
 
     selection.clear();
-    recomputeOverlay();
-    if (onStateChanged) onStateChanged();
+    notifyChanged();
 }
 
 void EditController::handleArrowMove(int deltaLane, double deltaQN)
 {
     if (selection.empty()) return;
+    if (barModeFlag) deltaLane = 0;
 
-    bool drums = isDrums();
-    int maxLane = drums ? 4 : 5;
+    if (arrowOriginalPositions.empty())
+        arrowOriginalPositions = selection;
 
-    for (const auto& n : selection)
+    double nextDeltaQN = arrowDeltaQN + deltaQN;
+    int nextDeltaLane = arrowDeltaLane + deltaLane;
+
+    for (const auto& n : arrowOriginalPositions)
     {
-        int newLane = n.lane + deltaLane;
-        if (newLane < 0 || newLane > maxLane) return;
-        if (n.startQN + deltaQN < 0.0) return;
+        int newLane = n.lane + nextDeltaLane;
+        if (newLane < 0 || newLane > maxLane()) return;
+        if (n.startQN + nextDeltaQN < 0.0) return;
     }
+
+    arrowDeltaQN = nextDeltaQN;
+    arrowDeltaLane = nextDeltaLane;
+    updateArrowPreview();
+}
+
+void EditController::updateArrowPreview()
+{
+    overlayState.moveDragVisible = true;
+    overlayState.movePreviewNotes.clear();
+    for (const auto& n : arrowOriginalPositions)
+    {
+        int newLane = juce::jlimit(0, maxLane(), n.lane + arrowDeltaLane);
+        double newQN = n.startQN + arrowDeltaQN;
+        if (newQN < 0.0) newQN = 0.0;
+        int newPitch = resolvePitch(newLane, isDrums());
+        double duration = n.endQN - n.startQN;
+        overlayState.movePreviewNotes.push_back({ newLane, newQN, newQN + duration, newPitch });
+    }
+    notifyChanged();
+}
+
+void EditController::commitArrowMoves()
+{
+    if (!hasArrowDelta()) return;
 
     beginBatch("Chartchotic: Move notes");
 
     std::vector<SelectedNote> moved;
-    for (const auto& n : selection)
+    for (const auto& n : arrowOriginalPositions)
     {
         auto found = findNote(n.trackIdx, n.startQN, n.pitch);
         if (found.noteIndex < 0) continue;
 
-        int newLane = n.lane + deltaLane;
-        double newStartQN = n.startQN + deltaQN;
+        int newLane = juce::jlimit(0, maxLane(), n.lane + arrowDeltaLane);
+        double newStartQN = n.startQN + arrowDeltaQN;
+        if (newStartQN < 0.0) newStartQN = 0.0;
         double duration = found.endQN - found.startQN;
-        int newPitch = resolvePitch(newLane, drums);
+        double newEndQN = newStartQN + duration;
+        int newPitch = resolvePitch(newLane, isDrums());
 
         moveNote(n.trackIdx, n.startQN, n.pitch, n.lane,
-                 newStartQN, newStartQN + duration, newPitch, newLane);
-        moved.push_back({ n.trackIdx, newStartQN, newPitch, newLane });
+                 newStartQN, newEndQN, newPitch, newLane);
+        moved.push_back({ n.trackIdx, newStartQN, newEndQN, newPitch, newLane });
+    }
+
+    finishBatchMove(moved);
+
+    arrowDeltaQN = 0.0;
+    arrowDeltaLane = 0;
+    arrowOriginalPositions.clear();
+}
+
+void EditController::finishBatchMove(std::vector<SelectedNote>& moved)
+{
+    for (const auto& m : moved)
+        resolveOverlapsAt(m.trackIdx, m.startQN, m.pitch);
+
+    for (auto& m : moved)
+    {
+        auto updated = findNote(m.trackIdx, m.startQN, m.pitch);
+        if (updated.noteIndex >= 0) m.endQN = updated.endQN;
     }
 
     endBatch();
     selection = std::move(moved);
-    recomputeOverlay();
-    if (onStateChanged) onStateChanged();
+    notifyChanged();
 }
 
 void EditController::applyDrumDynamicToSelection(DrumDynamic dynamic)

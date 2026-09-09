@@ -109,15 +109,26 @@ bool ReaperMidiWriter::moveNote(int trackIndex, int noteIndex,
     void* take = itemManager.getLastFoundTake();
     if (!take) return false;
 
-    double takePPQStart = apis.MIDI_GetPPQPosFromProjQN(take, newStartQN);
-    double takePPQEnd   = apis.MIDI_GetPPQPosFromProjQN(take, newEndQN);
+    int ch = 0, vel = 100;
+    double oldStart = 0, oldEnd = 0;
+    int oldPitch = 0;
+    bool sel = false, muted = false;
+    if (apis.MIDI_GetNote(take, noteIndex, &sel, &muted, &oldStart, &oldEnd, &ch, &oldPitch, &vel))
+    {
+        // keep original velocity and channel
+    }
 
-    bool ok = apis.MIDI_SetNote(take, noteIndex,
-                                nullptr, nullptr,
-                                &takePPQStart, &takePPQEnd,
-                                nullptr, &newPitch,
-                                nullptr, nullptr);
+    if (!apis.MIDI_DeleteNote(take, noteIndex)) return false;
     if (apis.MIDI_Sort) apis.MIDI_Sort(take);
+
+    void* destTake = itemManager.getTakeForWrite(project, trackIndex, newStartQN, newEndQN);
+    if (!destTake) return false;
+
+    double ppqStart = apis.MIDI_GetPPQPosFromProjQN(destTake, newStartQN);
+    double ppqEnd   = apis.MIDI_GetPPQPosFromProjQN(destTake, newEndQN);
+
+    bool ok = apis.MIDI_InsertNote(destTake, sel, muted, ppqStart, ppqEnd, ch, newPitch, vel, nullptr);
+    if (apis.MIDI_Sort) apis.MIDI_Sort(destTake);
     endUndoBlock(project, "Chartchotic: Move note");
     return ok;
 }
@@ -174,19 +185,30 @@ bool ReaperMidiWriter::batchMoveNote(int trackIndex, int noteIndex,
     juce::ScopedLock lock(writeLock);
     if (!inBatch || !batchProject) return false;
 
-    void* take = itemManager.getLastFoundTake();
-    if (!take) return false;
-    addBatchTake(take);
+    void* srcTake = itemManager.getLastFoundTake();
+    if (!srcTake) return false;
+    addBatchTake(srcTake);
 
-    double takePPQStart = apis.MIDI_GetPPQPosFromProjQN(take, newStartQN);
-    double takePPQEnd   = apis.MIDI_GetPPQPosFromProjQN(take, newEndQN);
+    int ch = 0, vel = 100;
+    double oldStart = 0, oldEnd = 0;
+    int oldPitch = 0;
+    bool sel = false, muted = false;
+    if (apis.MIDI_GetNote(srcTake, noteIndex, &sel, &muted, &oldStart, &oldEnd, &ch, &oldPitch, &vel))
+    {
+        // keep original velocity and channel
+    }
+
+    if (!apis.MIDI_DeleteNote(srcTake, noteIndex)) return false;
+
+    void* destTake = itemManager.getTakeForWrite(batchProject, trackIndex, newStartQN, newEndQN);
+    if (!destTake) return false;
+    addBatchTake(destTake);
+
+    double ppqStart = apis.MIDI_GetPPQPosFromProjQN(destTake, newStartQN);
+    double ppqEnd   = apis.MIDI_GetPPQPosFromProjQN(destTake, newEndQN);
 
     const bool noSort = true;
-    return apis.MIDI_SetNote(take, noteIndex,
-                             nullptr, nullptr,
-                             &takePPQStart, &takePPQEnd,
-                             nullptr, &newPitch,
-                             nullptr, &noSort);
+    return apis.MIDI_InsertNote(destTake, sel, muted, ppqStart, ppqEnd, ch, newPitch, vel, &noSort);
 }
 
 void ReaperMidiWriter::endBatch()

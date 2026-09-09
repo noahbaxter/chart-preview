@@ -60,6 +60,10 @@ public:
     void mouseDrag (const juce::MouseEvent& e) override;
     void mouseUp          (const juce::MouseEvent& e) override;
     void mouseDoubleClick (const juce::MouseEvent& e) override;
+    void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override
+    {
+        if (onMouseWheel) onMouseWheel(e, wheel);
+    }
 
     // Authoring dispatch hooks. Wired by PluginEditor; null when unset.
     using PointerCallback = std::function<void(const AuthoringPoint&, const AuthoringContext&)>;
@@ -70,6 +74,8 @@ public:
     void setOnPointerExit  (std::function<void()> cb) { onPointerExit   = std::move(cb); }
     void setOnPointerCancel(std::function<void()> cb) { onPointerCancel = std::move(cb); }
     void setOnPointerDoubleClick(PointerCallback cb) { onPointerDoubleClick = std::move(cb); }
+
+    std::function<void(const juce::MouseEvent&, const juce::MouseWheelDetails&)> onMouseWheel;
 
     // Coordinate-domain conversion at the dispatch boundary (M0-G design rule).
     // Takes a "seconds offset from cursor" (the timeFromCursor returned by HitTestMapper)

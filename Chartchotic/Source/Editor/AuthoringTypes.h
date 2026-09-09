@@ -3,10 +3,14 @@
 #include <cmath>
 #include <vector>
 #include <JuceHeader.h>
+#include "../Utils/ChartTypes.h"
 
 //==============================================================================
 // Authoring types shared between HighwayComponent (event dispatcher),
 // WriteController (state owner), and GridlineGenerator (step grid).
+
+constexpr double kQNEpsilon   = 0.001;
+constexpr double kTimeEpsilon = 0.002;
 
 namespace AuthoringColours
 {
@@ -37,6 +41,7 @@ struct SelectedNote
 {
     int    trackIdx    = -1;
     double startQN     = 0.0;
+    double endQN       = 0.0;
     int    pitch       = -1;
     int    lane        = -1;
     bool   sustainOnly = false;
@@ -94,7 +99,8 @@ struct OverlayState
     int    ghostLane = -1;
     double ghostQN = 0.0;
     bool   ghostShowsErase = false;
-    struct StampGhost { int lane; double qnOffset; };
+    Gem    ghostGem = Gem::NOTE;
+    struct StampGhost { int lane; double qnOffset; double duration; };
     std::vector<StampGhost> stampGhosts;
 
     // Draw stroke preview

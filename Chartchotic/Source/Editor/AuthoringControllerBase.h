@@ -44,6 +44,28 @@ public:
 protected:
     bool isPlaying() const { return playingStatePtr && *playingStatePtr; }
     bool isDrums()   const { return isDrumLike(currentActivePart); }
+    int  maxLane()   const { return isDrums() ? 4 : 5; }
+
+    Gem resolveGhostGem(int lane) const
+    {
+        if (isDrums())
+        {
+            bool canBeCymbal = (lane >= 2 && lane <= 4);
+            bool cymbal = canBeCymbal && cymbalModeFlag;
+            switch (currentDrumDynamic)
+            {
+                case DrumDynamic::Ghost:  return cymbal ? Gem::CYM_GHOST  : Gem::HOPO_GHOST;
+                case DrumDynamic::Accent: return cymbal ? Gem::CYM_ACCENT : Gem::TAP_ACCENT;
+                default:                  return cymbal ? Gem::CYM        : Gem::NOTE;
+            }
+        }
+        switch (currentGuitarForce)
+        {
+            case GuitarForce::Hopo: return Gem::HOPO_GHOST;
+            case GuitarForce::Tap:  return Gem::TAP_ACCENT;
+            default:                return Gem::NOTE;
+        }
+    }
 
     int resolveVelocity() const
     {
@@ -84,15 +106,12 @@ protected:
 
     // Patch-aware note operations — patching is automatic, sub-controllers
     // never touch OptimisticPatchBuffer directly.
-    bool createNote(int trackIdx, double qn, int pitch, int lane, int velocity = 100)
+    bool createNote(int trackIdx, double qn, int pitch, int lane, int velocity = 100, double duration = 0.0)
     {
         auto existing = findNote(trackIdx, qn, pitch);
-        if (existing.noteIndex >= 0 && std::abs(existing.startQN - qn) < 0.001)
-        {
-            DBG("createNote: duplicate at QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
-            return false;
-        }
-        if (!noteEditor.createNote(trackIdx, qn, pitch, velocity))
+        if (existing.noteIndex >= 0 && std::abs(existing.startQN - qn) < kQNEpsilon)
+            eraseNote(trackIdx, qn, pitch, isDrums(), lane, currentActiveSkill);
+        if (!noteEditor.createNote(trackIdx, qn, pitch, velocity, duration))
         {
             DBG("createNote: noteEditor rejected QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
             return false;
@@ -147,6 +166,30 @@ protected:
     std::vector<ClassifiedNote> classifyNotesInRect(int trackIdx, const MarqueeRect& rect)
     {
         std::vector<ClassifiedNote> result;
+
+        if (barModeFlag)
+        {
+            int barPitch = resolveBarPitch();
+            if (barPitch < 0) return result;
+            auto notes = findNotesInRange(trackIdx,
+                                          std::max(0.0, rect.qnLo - 32.0),
+                                          rect.qnHi, barPitch);
+            for (const auto& n : notes)
+            {
+                bool headIn = n.startQN >= rect.qnLo - kQNEpsilon
+                           && n.startQN <= rect.qnHi + kQNEpsilon;
+                bool hasSustain = (n.endQN - n.startQN) >= double(MIDI_MIN_SUSTAIN_LENGTH);
+                bool bodyOverlaps = hasSustain
+                                 && n.endQN > rect.qnLo + kQNEpsilon
+                                 && n.startQN < rect.qnLo - kQNEpsilon;
+                if (headIn)
+                    result.push_back({ n, 0, false });
+                else if (bodyOverlaps)
+                    result.push_back({ n, 0, true });
+            }
+            return result;
+        }
+
         for (int lane = rect.laneLo; lane <= rect.laneHi; ++lane)
         {
             int pitch = resolveActivePitch(lane);
@@ -156,12 +199,12 @@ protected:
                                           rect.qnHi, pitch);
             for (const auto& n : notes)
             {
-                bool headIn = n.startQN >= rect.qnLo - 0.001
-                           && n.startQN <= rect.qnHi + 0.001;
+                bool headIn = n.startQN >= rect.qnLo - kQNEpsilon
+                           && n.startQN <= rect.qnHi + kQNEpsilon;
                 bool hasSustain = (n.endQN - n.startQN) >= double(MIDI_MIN_SUSTAIN_LENGTH);
                 bool bodyOverlaps = hasSustain
-                                 && n.endQN > rect.qnLo + 0.001
-                                 && n.startQN < rect.qnLo - 0.001;
+                                 && n.endQN > rect.qnLo + kQNEpsilon
+                                 && n.startQN < rect.qnLo - kQNEpsilon;
                 if (headIn)
                     result.push_back({ n, lane, false });
                 else if (bodyOverlaps)
@@ -208,6 +251,8 @@ protected:
     bool noteEditorAvailable() const { return noteEditor.isAvailable(); }
     void beginBatch(const char* desc) { noteEditor.beginBatch(desc); }
     void endBatch() { noteEditor.endBatch(); }
+    void resolveOverlapsAt(int trackIdx, double startQN, int pitch)
+    { noteEditor.resolveOverlapsAt(trackIdx, startQN, pitch); }
 
     bool createMarkerNote(int trackIdx, double qn, int pitch)
     {

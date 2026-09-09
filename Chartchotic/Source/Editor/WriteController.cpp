@@ -77,6 +77,7 @@ void WriteController::recomputeGhost()
     overlayState.ghostLane       = -1;
     overlayState.ghostQN         = 0.0;
     overlayState.ghostShowsErase = false;
+    overlayState.ghostGem        = Gem::NOTE;
     overlayState.stampGhosts.clear();
 
     if (!lastPointValid)                                  return;
@@ -96,12 +97,21 @@ void WriteController::recomputeGhost()
     {
         if (!stamp.empty())
         {
+            int minLane = stamp[0].lane, maxStampLane = stamp[0].lane;
             for (const auto& sn : stamp)
-                overlayState.stampGhosts.push_back({ sn.lane, sn.qnOffset });
+            {
+                minLane = std::min(minLane, sn.lane);
+                maxStampLane = std::max(maxStampLane, sn.lane);
+            }
+            stampMouseLaneOffset = juce::jlimit(-minLane, maxLane() - maxStampLane,
+                                                lastPoint.laneIndex - minLane);
+            for (const auto& sn : stamp)
+                overlayState.stampGhosts.push_back({ sn.lane + stampMouseLaneOffset, sn.qnOffset, sn.duration });
         }
         else
         {
             overlayState.ghostLane = lastPoint.laneIndex;
+            overlayState.ghostGem = resolveGhostGem(lastPoint.laneIndex);
         }
     }
 }
@@ -338,12 +348,13 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
         beginBatch("Chartchotic: Stamp notes");
         for (const auto& sn : stamp)
         {
-            int sp = resolvePitch(sn.lane, drums);
+            int lane = sn.lane + stampMouseLaneOffset;
+            int sp = resolvePitch(lane, drums);
             if (sp >= 0)
             {
-                createNote(trackIdx, clickQN + sn.qnOffset, sp, sn.lane, resolveVelocity());
+                createNote(trackIdx, clickQN + sn.qnOffset, sp, lane, resolveVelocity(), sn.duration);
                 if (drums)
-                    writeTomMarker(trackIdx, clickQN + sn.qnOffset, sn.lane);
+                    writeTomMarker(trackIdx, clickQN + sn.qnOffset, lane);
                 else
                     writeGuitarForceMarker(trackIdx, clickQN + sn.qnOffset);
             }
@@ -398,9 +409,12 @@ void WriteController::handleUpdateSustain(const AuthoringPoint& p)
     {
         bool drums = isDrums();
         for (const auto& sn : stamp)
+        {
+            int lane = sn.lane + stampMouseLaneOffset;
             overlayState.drawPreviewNotes.push_back({
-                sn.lane, sustainDragStartQN + sn.qnOffset, dragQN, resolvePitch(sn.lane, drums)
+                lane, sustainDragStartQN + sn.qnOffset, dragQN, resolvePitch(lane, drums)
             });
+        }
     }
     else
     {
@@ -421,7 +435,8 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
             bool drums = isDrums();
             for (const auto& sn : stamp)
             {
-                int sp = resolvePitch(sn.lane, drums);
+                int lane = sn.lane + stampMouseLaneOffset;
+                int sp = resolvePitch(lane, drums);
                 if (sp >= 0)
                     chainExtendNotes(sustainDragTrackIdx,
                                      sustainDragStartQN + sn.qnOffset,
@@ -463,7 +478,15 @@ void WriteController::handleContinuePaint(const AuthoringPoint& p)
     if (!p.onHighway || p.laneIndex < 0) return;
 
     double cursorQN = snapQN(p.rawProjectQN);
-    int lane = p.laneIndex;
+    int lane = paintLastLane;
+
+    if (p.laneIndex != paintLastLane)
+    {
+        paintShrinkTo(-1.0, -1.0);
+        paintLastQN   = cursorQN;
+        paintLastLane = p.laneIndex;
+        return;
+    }
 
     double lo = std::min(paintStartQN, cursorQN);
     double hi = std::max(paintStartQN, cursorQN);
@@ -510,12 +533,13 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
         {
             for (const auto& sn : stamp)
             {
-                int sp = resolvePitch(sn.lane, drums);
+                int lane = sn.lane + stampMouseLaneOffset;
+                int sp = resolvePitch(lane, drums);
                 if (sp >= 0)
                 {
-                    createNote(paintDragTrackIdx, snapped + sn.qnOffset, sp, sn.lane, resolveVelocity());
+                    createNote(paintDragTrackIdx, snapped + sn.qnOffset, sp, lane, resolveVelocity());
                     if (drums)
-                        writeTomMarker(paintDragTrackIdx, snapped + sn.qnOffset, sn.lane);
+                        writeTomMarker(paintDragTrackIdx, snapped + sn.qnOffset, lane);
                     else
                         writeGuitarForceMarker(paintDragTrackIdx, snapped + sn.qnOffset);
                 }
@@ -549,9 +573,10 @@ void WriteController::paintShrinkTo(double lo, double hi)
             {
                 for (const auto& sn : stamp)
                 {
-                    int sp = resolvePitch(sn.lane, drums);
+                    int lane = sn.lane + stampMouseLaneOffset;
+                    int sp = resolvePitch(lane, drums);
                     if (sp >= 0)
-                        eraseNote(paintDragTrackIdx, it->qn + sn.qnOffset, sp, drums, sn.lane, currentActiveSkill);
+                        eraseNote(paintDragTrackIdx, it->qn + sn.qnOffset, sp, drums, lane, currentActiveSkill);
                 }
             }
             else

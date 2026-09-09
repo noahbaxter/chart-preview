@@ -104,7 +104,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
         else if (ghostCursor.visible)
         {
             noteRenderer.renderGhost(drawCallMap, ghostCursor.lane, ghostCursor.position,
-                                     ghostCursor.image, ghostCursor.opacity);
+                                     ghostCursor.image, ghostCursor.opacity, ghostCursor.gem);
         }
 
         if (ghostCursor.positionLabel.isNotEmpty())
@@ -139,7 +139,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
         }
 
         for (const auto& ghost : movePreviewGhosts)
-            noteRenderer.renderGhost(drawCallMap, ghost.lane, ghost.position, nullptr, 1.0f, ghost.gem);
+            noteRenderer.renderGhost(drawCallMap, ghost.lane, ghost.position, nullptr, 1.0f, ghost.gem, ghost.selected);
         movePreviewGhosts.clear();
     }
 

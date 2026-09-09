@@ -213,3 +213,4 @@ ReaperItemManager::findNotesInRange(void* project, int trackIndex,
               [](const auto& a, const auto& b) { return a.startQN < b.startQN; });
     return results;
 }
+

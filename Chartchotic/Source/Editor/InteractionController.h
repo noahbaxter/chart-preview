@@ -34,6 +34,7 @@ public:
     GuitarForce guitarForce()     const { return writeController.guitarForce(); }
     bool        cymbalMode()      const { return writeController.cymbalMode(); }
     bool        hasStamp()        const { return writeController.hasStamp(); }
+    bool        hasEditSelection() const { return !editController.getSelection().empty(); }
 
     void setWriteModeActive(bool v) { writeController.setWriteModeActive(v); }
     void setSubMode(SubMode m)      { writeController.setSubMode(m); }

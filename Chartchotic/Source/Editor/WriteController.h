@@ -81,6 +81,7 @@ private:
     void paintShrinkTo(double lo, double hi);
 
     std::vector<StampNote> stamp;
+    int stampMouseLaneOffset = 0;
 
     // Stamp capture (hold C + drag in draw mode)
     bool        stampCaptureActive = false;
