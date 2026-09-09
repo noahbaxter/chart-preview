@@ -13,6 +13,7 @@
 */
 
 #include "BarGemArt.h"
+#include "../Geometry/PositionConstants.h"
 
 namespace GemArt
 {
@@ -23,9 +24,14 @@ namespace
     constexpr float kSrcW        = 2260.0f;
     constexpr float kSrcH        = 152.0f;
     constexpr float kTubeH       = 98.0f;
-    constexpr float kArch        = 37.0f;    // extra top-y at t = +/-1
     constexpr float kArcCentre   = 1130.0f;  // abs 1216 - content x0 86
     constexpr float kArcHalf     = 1080.0f;
+    // Extra top-y at t = +/-1, derived (span * curvature) the way bakeGridline's arch is,
+    // so the bar tracks the note curvature instead of the 37.0 measured off bar_white.png.
+    constexpr float kCurv        = PositionConstants::NOTE_CURVATURE_DRUMS < 0.0f
+                                 ? -PositionConstants::NOTE_CURVATURE_DRUMS
+                                 :  PositionConstants::NOTE_CURVATURE_DRUMS;
+    constexpr float kArch        = 2.0f * kArcHalf * kCurv;
     constexpr float kTubeX0      = 40.0f;    // tube runs under the caps
 
     BarRamp makeRamp(std::initializer_list<std::pair<float, juce::uint32>> stops)
@@ -53,6 +59,15 @@ namespace
     {
         float t = (x - kArcCentre) / kArcHalf;
         return kArch * t * t;
+    }
+
+    // Inverse of squeezing the bar to `thickness` about the tube's centreline at x. Callers
+    // sample in squeezed space and un-squeeze to test against the full-thickness geometry,
+    // so thickness never touches arcTopAt: a thin bar keeps the fat bar's arc and centreline.
+    float unsqueezeY(float x, float y, float thickness)
+    {
+        const float cy = arcTopAt(x) + kTubeH * 0.5f;
+        return cy + (y - cy) / thickness;
     }
 
     // Left cap outline in content units, measured row-by-row from bar_white:
@@ -94,7 +109,8 @@ namespace
 
     // Per-pixel cap shading in content units. leftCap mirrors x for the right
     // side. The lobe bands bow toward the cap tip as you move off-axis.
-    void shadeCap(juce::Image& img, juce::Rectangle<int> contentBounds, bool leftCap)
+    void shadeCap(juce::Image& img, juce::Rectangle<int> contentBounds, bool leftCap,
+                  float thickness)
     {
         auto path = capPath();
         // Nearly vertical axis: bands start ~horizontal at the axis and only
@@ -129,7 +145,8 @@ namespace
                 {
                     float fx = (px + 0.25f + 0.5f * (s & 1) - contentBounds.getX()) / sx;
                     if (! leftCap) fx = kSrcW - fx;
-                    float fy = (py + 0.25f + 0.5f * (s >> 1) - contentBounds.getY()) / sy;
+                    float fy = unsqueezeY(fx, (py + 0.25f + 0.5f * (s >> 1) - contentBounds.getY()) / sy,
+                                          thickness);
                     if (path.contains(fx, fy)) { ++hits; cxSrc = fx; cySrc = fy; }
                 }
                 if (hits == 0) continue;
@@ -311,7 +328,8 @@ juce::Image bakeGridline(float thickness, juce::Colour colour, float arch)
 
 juce::Image bakeBar(const BarRamp& ramp,
                     juce::Rectangle<int> canvas,
-                    juce::Rectangle<int> contentBounds)
+                    juce::Rectangle<int> contentBounds,
+                    float thickness)
 {
     juce::Image img(juce::Image::ARGB, canvas.getWidth(), canvas.getHeight(), true);
 
@@ -327,16 +345,17 @@ juce::Image bakeBar(const BarRamp& ramp,
             if (x < kTubeX0 || x > kSrcW - kTubeX0) continue;
 
             float top = arcTopAt(x);
+            const float syEff = sy * thickness;
             for (int py = 0; py < canvas.getHeight(); ++py)
             {
                 // Pixel's span in source units, for edge coverage AA
-                float y0 = (py - contentBounds.getY()) / sy;
-                float y1 = y0 + 1.0f / sy;
+                float y0 = unsqueezeY(x, (py - contentBounds.getY()) / sy, thickness);
+                float y1 = y0 + 1.0f / syEff;
                 float overlap = juce::jmin(y1, top + kTubeH) - juce::jmax(y0, top);
                 if (overlap <= 0.0f) continue;
 
                 float t = juce::jlimit(0.0f, 1.0f, ((y0 + y1) * 0.5f - top) / kTubeH);
-                float cov = juce::jmin(1.0f, overlap * sy);
+                float cov = juce::jmin(1.0f, overlap * syEff);
                 auto col = rampAt(ramp, t);
                 bd.setPixelColour(px, py, cov >= 1.0f ? col : col.withAlpha(cov));
             }
@@ -356,14 +375,20 @@ juce::Image bakeBar(const BarRamp& ramp,
 
         juce::Path sliver;
         sliver.addQuadrilateral(82.0f, 27.0f, 90.0f, 27.0f, 56.0f, 152.0f, 48.0f, 152.0f);
+        // Squeeze about the tube centreline at the cap (mirrored x, so the same value serves
+        // both ends), matching the tube and cap.
+        const float capCy = arcTopAt(65.0f) + kTubeH * 0.5f;
+        sliver.applyTransform(juce::AffineTransform::translation(0.0f, -capCy)
+                                  .scaled(1.0f, thickness)
+                                  .translated(0.0f, capCy));
         g.setColour(juce::Colours::black.withAlpha(0.35f));
         g.fillPath(sliver);
         sliver.applyTransform(juce::AffineTransform::scale(-1.0f, 1.0f).translated(kSrcW, 0.0f));
         g.fillPath(sliver);
     }
 
-    shadeCap(img, contentBounds, true);
-    shadeCap(img, contentBounds, false);
+    shadeCap(img, contentBounds, true, thickness);
+    shadeCap(img, contentBounds, false, thickness);
 
     return img;
 }

@@ -197,12 +197,14 @@ int main(int argc, char** argv)
     // board gridlines gems sidebars lanes strikeline connectors
     juce::StringArray onlyParts;
     juce::String dumpStomp;   // if set: save the baked Stomp bar asset alone and exit
+    juce::String dumpKick;    // if set: save the baked kick bars (fat + elite thin) and exit
     bool bemani = false;      // --bemani: flat (Bemani) mode instead of perspective
 
     for (int i = 1; i < argc; ++i)
     {
         juce::String a(argv[i]);
         if      (a == "--dump-stomp" && i + 1 < argc) dumpStomp = argv[++i];
+        else if (a == "--dump-kick"  && i + 1 < argc) dumpKick = argv[++i];
         else if (a == "--part"   && i + 1 < argc) partName = argv[++i];
         else if (a == "--width"  && i + 1 < argc) W = juce::String(argv[++i]).getIntValue();
         else if (a == "--aspect" && i + 1 < argc) aspect = juce::String(argv[++i]).getDoubleValue();
@@ -243,6 +245,23 @@ int main(int argc, char** argv)
 
     // Isolation dump: save just the baked Stomp bar asset (for pixel-accurate iteration
     // against the source art), then exit — no scene, no highway.
+    if (dumpKick.isNotEmpty())
+    {
+        // Fat over thin on one canvas: the two arcs must trace the same curve.
+        auto* fat  = assets.getBarKickImage();
+        auto* thin = assets.getBarKickEliteImage();
+        juce::Image sheet(juce::Image::ARGB, fat->getWidth(), fat->getHeight() * 2, true);
+        juce::Graphics g(sheet);
+        g.drawImageAt(*fat, 0, 0);
+        g.drawImageAt(*thin, 0, fat->getHeight());
+        juce::File f(dumpKick);
+        f.deleteFile();
+        juce::FileOutputStream os(f);
+        juce::PNGImageFormat png;
+        png.writeImageToStream(sheet, os);
+        return 0;
+    }
+
     if (dumpStomp.isNotEmpty())
     {
         juce::File f(dumpStomp);

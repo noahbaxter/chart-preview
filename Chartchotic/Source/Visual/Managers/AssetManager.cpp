@@ -90,6 +90,12 @@ void AssetManager::initAssets()
         barKickImage   = GemArt::bakeBar(GemArt::barRampKick(),   canvas, content);
         barKick2xImage = GemArt::bakeBar(GemArt::barRampKick2x(), canvas, content);
         barOpenImage   = GemArt::bakeBar(GemArt::barRampOpen(),   canvas, content);
+
+        // Elite's full-width bars: same arc and centreline, thinner tube.
+        const float eliteTh = GemArt::kEliteBarThickness;
+        barWhiteEliteImage  = GemArt::bakeBar(GemArt::barRampWhite(),  canvas, content, eliteTh);
+        barKickEliteImage   = GemArt::bakeBar(GemArt::barRampKick(),   canvas, content, eliteTh);
+        barKick2xEliteImage = GemArt::bakeBar(GemArt::barRampKick2x(), canvas, content, eliteTh);
     }
     // Elite Stomp/Splash pedal bar: procedurally baked FLAT (like the kick bars). The highway
     // curve is applied at render time (over the bar's off-centre span) so it matches the tilted
@@ -244,6 +250,8 @@ void AssetManager::initAssets()
         // Bars
         {&barKickImage, barKickImage}, {&barKick2xImage, barKick2xImage},
         {&barOpenImage, barOpenImage}, {&barWhiteImage, barWhiteImage},
+        {&barKickEliteImage, barKickEliteImage}, {&barKick2xEliteImage, barKick2xEliteImage},
+        {&barWhiteEliteImage, barWhiteEliteImage},
         {&barStompImage, barStompImage},
         // Overlays
         {&overlayCymAccentImage, overlayCymAccentImage}, {&overlayCymGhostImage, overlayCymGhostImage},
@@ -508,8 +516,8 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
             default:        return ghost ? getHopoWhiteImage()  : getNoteWhiteImage();
             }
         }
-        if (gemColumn == 9) return shouldBeWhite ? getBarWhiteImage() : getBarKick2xImage();  // 2x Kick
-        return shouldBeWhite ? getBarWhiteImage() : getBarKickImage();                        // Kick / other
+        if (gemColumn == 9) return shouldBeWhite ? getBarWhiteEliteImage() : getBarKick2xEliteImage();  // 2x Kick
+        return shouldBeWhite ? getBarWhiteEliteImage() : getBarKickEliteImage();                        // Kick / other
     }
 
     if (shouldBeWhite)

@@ -27,9 +27,15 @@ namespace GemArt
     BarRamp barRampKick2x();    // red-orange
     BarRamp barRampOpen();      // purple
 
+    // `thickness` squeezes the tube and its caps about the bar's centreline. The arc, the
+    // canvas and the centreline are untouched, so a thin bar curves exactly like a fat one
+    // and the gems that sit on it don't move. Elite bakes thin (kEliteBarThickness) because
+    // its 9 lanes shrink the gems while a full-width bar keeps 4-lane proportions.
+    constexpr float kEliteBarThickness = 0.5f;
     juce::Image bakeBar(const BarRamp& ramp,
                         juce::Rectangle<int> canvas,
-                        juce::Rectangle<int> contentBounds);
+                        juce::Rectangle<int> contentBounds,
+                        float thickness = 1.0f);
 
     inline juce::Rectangle<int> barCanvas()        { return { 0, 0, 2432, 152 }; }
     inline juce::Rectangle<int> barContentBounds() { return { 86, 0, 2260, 152 }; }
