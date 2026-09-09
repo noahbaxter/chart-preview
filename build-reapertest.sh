@@ -22,20 +22,11 @@ done
 # Build (pass through any args like "release", "--vst3-only", etc.)
 "$SCRIPT_DIR/build.sh" "${BUILD_ARGS[@]}"
 
-# Quit REAPER cleanly via AppleScript (handles save prompts)
+# Force-quit REAPER — skips save prompts that block the graceful path
 if pgrep -x REAPER > /dev/null; then
-    echo "Quitting REAPER..."
-    osascript -e 'tell application "REAPER" to quit' 2>/dev/null || true
-    for i in {1..20}; do
-        pgrep -x REAPER > /dev/null || break
-        sleep 0.5
-    done
-    # If still alive after 10s, force kill
-    if pgrep -x REAPER > /dev/null; then
-        echo "REAPER didn't quit cleanly, force killing..."
-        pkill -9 -x REAPER
-        sleep 1
-    fi
+    echo "Killing REAPER..."
+    pkill -9 -x REAPER
+    sleep 0.5
 fi
 
 # Reopen

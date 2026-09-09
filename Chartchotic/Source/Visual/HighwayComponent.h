@@ -74,6 +74,14 @@ public:
     // and returns project QN. If unset, mouse handlers fall back to rawProjectQN = 0.
     void setSecondsToProjectQN(std::function<double(double)> fn) { secondsToProjectQN = std::move(fn); }
 
+    // Inverse of secondsToProjectQN — given a project QN, return the seconds-offset-from-cursor
+    // used by the rendering window. Required for drawing the hover ghost at the snapped QN.
+    void setProjectQNToSeconds(std::function<double(double)> fn) { projectQNToSeconds = std::move(fn); }
+
+    // Read-only access to the WriteController's overlay state for the ghost cursor.
+    using OverlayStateGetter = std::function<const OverlayState&()>;
+    void setOverlayStateGetter(OverlayStateGetter g) { overlayStateGetter = std::move(g); }
+
     void setFrameData(const HighwayFrameData& data);
     void rebuildTrack();
 
@@ -148,11 +156,32 @@ private:
     std::function<void()> onPointerExit;
     std::function<void()> onPointerCancel;
     std::function<double(double)> secondsToProjectQN;
+    std::function<double(double)> projectQNToSeconds;
+    OverlayStateGetter            overlayStateGetter;
+
+    // Last ghost state seen at end of mouseMove. Used to throttle repaint —
+    // vblank already drives 60fps, mouseMove fires at 100+ Hz on fast pointers,
+    // so re-rendering on every cursor pixel saturates the renderer at high
+    // step subdivisions (cost scales with gridline count).
+    struct LastGhostState
+    {
+        bool   visible = false;
+        int    lane = -1;
+        double qn = 0.0;
+    };
+    LastGhostState lastGhost;
 
     // Build authoring payloads from a JUCE mouse event.
     void buildAuthoringPayload(const juce::MouseEvent& e,
                                AuthoringPoint& outPoint,
                                AuthoringContext& outContext) const;
+
+    // Map a component-local screen-space point into the render-space coordinates
+    // that PositionMath / HitTestMapper operate in. Inverse of the paint()
+    // transform: render canvas is renderWidth x (renderHeight + topOverflow),
+    // mapped to the component via either independent X/Y stretch (stretchToFill)
+    // or uniform letterboxed scale.
+    juce::Point<float> screenToRenderCoords(juce::Point<float> screen) const;
 
     int topOverflow = 0;
 

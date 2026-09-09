@@ -72,6 +72,33 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
             }
             return cursorQN + secondsFromCursor * (bpm / 60.0);
         });
+
+        // Inverse of the above — used by the hover-ghost renderer to convert a
+        // snapped project QN back into a seconds-from-cursor offset (then into a
+        // normalized highway position).
+        hw.setProjectQNToSeconds([this](double projectQN) -> double {
+            double cursorQN = lastKnownPosition.toDouble();
+            auto& reaperProvider = audioProcessor.getReaperMidiProvider();
+            if (reaperProvider.isReaperApiAvailable())
+            {
+                double cursorTime = reaperProvider.ppqToTime(cursorQN);
+                double targetTime = reaperProvider.ppqToTime(projectQN);
+                return targetTime - cursorTime;
+            }
+            double bpm = defaultBPM;
+            if (auto* playHead = audioProcessor.getPlayHead())
+            {
+                auto positionInfo = playHead->getPosition();
+                if (positionInfo.hasValue())
+                    bpm = positionInfo->getBpm().orFallback(defaultBPM);
+            }
+            return (projectQN - cursorQN) * (60.0 / bpm);
+        });
+
+        // Read access to the WriteController's overlay state (hover ghost lives there).
+        hw.setOverlayStateGetter([this]() -> const OverlayState& {
+            return writeController.getOverlayState();
+        });
     }
 
     // Activate slot 0 as default
@@ -234,11 +261,25 @@ void ChartchoticAudioProcessorEditor::onFrame()
         toolbar.updateVisibility();
     }
 
-    // Keep write controller in sync with the primary slot's part. Cheap (just stores
-    // an enum) and idempotent — covers SessionController paths that don't have a
-    // direct hook into the editor.
+    // Keep write controller in sync with the primary slot's part/skill. Cheap
+    // (just stores enums) and idempotent — covers SessionController paths that
+    // don't have a direct hook into the editor. Skill comes from state because
+    // single-slot mode doesn't keep slot.skillLevel up to date with the toolbar.
     if (activeSlotCount > 0)
+    {
         writeController.setActivePart(slots[0].part);
+        const int skillId = state.hasProperty("skillLevel")
+            ? (int)state.getProperty("skillLevel")
+            : (int)SkillLevel::EXPERT;
+        writeController.setActiveSkill((SkillLevel)skillId);
+    }
+
+    // MidiWriter and InstrumentSession only become non-null once REAPER has
+    // connected. Re-wire each frame so M3.1 onPointerDown picks them up the
+    // moment they appear (and clears them on tear-down).
+    writeController.setMidiWriter(audioProcessor.getReaperMidiProvider().getWriter());
+    writeController.setInstrumentSession(audioProcessor.getInstrumentSession());
+    writeController.setPlayingStatePtr(&lastPlayingState);
 
     // Per-frame tick — controller uses this for hover refresh under stationary
     // cursor and to enforce playback-gated authoring (no-op in M1, real in M3).

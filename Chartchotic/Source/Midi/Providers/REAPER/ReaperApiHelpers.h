@@ -71,6 +71,19 @@ struct ReaperAPIs
     void (*MIDI_DisableSort)(void* take) = nullptr;
     double (*MIDI_GetPPQPosFromProjQN)(void* take, double projqn) = nullptr;
 
+    // MIDI item extents — the correct way to resize MIDI items (handles PPQ
+    // mapping internally, unlike SetMediaItemInfo_Value("D_POSITION") which corrupts it).
+    bool (*MIDI_SetItemExtents)(void* item, double startQN, double endQN) = nullptr;
+
+    // Media item info accessors
+    double (*GetMediaItemInfo_Value)(void* item, const char* parmname) = nullptr;
+    bool   (*SetMediaItemInfo_Value)(void* item, const char* parmname, double newvalue) = nullptr;
+
+    // Create a new (empty) MIDI item on a track — used when writing to a track
+    // that has no MIDI items at all.
+    void* (*CreateNewMIDIItemInProj)(void* track, double starttime, double endtime,
+                                     const bool* qnInOptional) = nullptr;
+
     // Undo — only OnStateChange works reliably from plugin GUI threads.
     // BeginBlock2/EndBlock2 open a block that never closes from plugin context.
     void (*Undo_OnStateChange)(const char* descchange) = nullptr;
@@ -215,6 +228,13 @@ public:
         outAPIs.MIDI_Sort = (void(*)(void*))apiFunc("MIDI_Sort");
         outAPIs.MIDI_DisableSort = (void(*)(void*))apiFunc("MIDI_DisableSort");
         outAPIs.MIDI_GetPPQPosFromProjQN = (double(*)(void*, double))apiFunc("MIDI_GetPPQPosFromProjQN");
+        outAPIs.MIDI_SetItemExtents = (bool(*)(void*, double, double))apiFunc("MIDI_SetItemExtents");
+
+        // Media item info / creation
+        outAPIs.GetMediaItemInfo_Value = (double(*)(void*, const char*))apiFunc("GetMediaItemInfo_Value");
+        outAPIs.SetMediaItemInfo_Value = (bool(*)(void*, const char*, double))apiFunc("SetMediaItemInfo_Value");
+        outAPIs.CreateNewMIDIItemInProj = (void*(*)(void*, double, double, const bool*))
+            apiFunc("CreateNewMIDIItemInProj");
 
         // Undo
         outAPIs.Undo_OnStateChange = (void(*)(const char*))apiFunc("Undo_OnStateChange");

@@ -129,30 +129,43 @@ void NoteRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow
     }
 }
 
-void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, double frameTime)
+NoteRenderer::SharedFrameContext NoteRenderer::buildFrameContext(float position)
 {
     bool isDrums = isDrumLike(activePart);
+    auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height, HIGHWAY_POS_START, posEnd);
+    auto fbCur    = PositionMath::getFretboardEdge(isDrums, position, width, height, HIGHWAY_POS_START, posEnd);
+    float fbSW = fbStrike.rightX - fbStrike.leftX;
+    float wRatio = (fbSW > 0.0f) ? ((fbCur.rightX - fbCur.leftX) / fbSW) : 1.0f;
 
-    // Shared anchor + scale for the whole row: one projection of the lane plane
-    // at the musical position. Every sprite (bar + gems + overlays) is laid out
-    // in strike-reference pixels relative to this anchor and scaled by the same
-    // frameScale, so the row renders as a single composite — no per-sprite
-    // depth offset, no drift between stacked elements.
-    auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height,
-                                                    PositionConstants::HIGHWAY_POS_START, posEnd);
-    auto fbCur = PositionMath::getFretboardEdge(isDrums, position, width, height,
-                                                  PositionConstants::HIGHWAY_POS_START, posEnd);
-    float fbStrikeWidth = fbStrike.rightX - fbStrike.leftX;
-    float fbStrikeCenterX = (fbStrike.leftX + fbStrike.rightX) * 0.5f;
-    float fbCurWidth = fbCur.rightX - fbCur.leftX;
-    float fbCurCenterX = (fbCur.leftX + fbCur.rightX) * 0.5f;
-    float widthRatio = (fbStrikeWidth > 0.0f) ? (fbCurWidth / fbStrikeWidth) : 1.0f;
+    return {
+        {(fbCur.leftX + fbCur.rightX) * 0.5f, fbCur.centerY},
+        {wRatio, wRatio},
+        fbSW,
+        (fbStrike.leftX + fbStrike.rightX) * 0.5f
+    };
+}
 
-    SharedFrameContext ctx;
-    ctx.anchor = juce::Point<float>(fbCurCenterX, fbCur.centerY);
-    ctx.frameScale = juce::Point<float>(widthRatio, widthRatio);
-    ctx.fbStrikeWidth = fbStrikeWidth;
-    ctx.fbStrikeCenterX = fbStrikeCenterX;
+void NoteRenderer::renderGhost(DrawCallMap& drawCallMap, int lane, float position,
+                                juce::Image* image, float opacity)
+{
+    auto ctx = buildFrameContext(position);
+    GemWrapper dummy;
+    dummy.gem = Gem::NOTE;
+
+    Render::Frame frame;
+    // image=nullptr → appendGemSprites falls through to the real colored asset
+    appendGemSprites(lane, dummy, position, 0.0, ctx, frame, image, opacity);
+
+    for (auto& s : frame.sprites)
+        s.drawOrder = (int)DrawOrder::OVERLAY;
+
+    if (!frame.sprites.empty())
+        Render::drawFrame(frame, ctx.anchor, ctx.frameScale, drawCallMap);
+}
+
+void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, double frameTime)
+{
+    auto ctx = buildFrameContext(position);
 
     Render::Frame composite;
 
@@ -172,7 +185,9 @@ void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, 
 
 void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper, float position,
                                      double frameTime, const SharedFrameContext& ctx,
-                                     Render::Frame& outFrame)
+                                     Render::Frame& outFrame,
+                                     juce::Image* imageOverride,
+                                     float opacityOverride)
 {
     juce::Image* glyphImage;
     bool barNote;
@@ -180,7 +195,12 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     bool starPowerActive = state.getProperty("starPower");
     bool isDrums = isDrumLike(activePart);
 
-    if (isGuitarLike(activePart))
+    if (imageOverride)
+    {
+        glyphImage = imageOverride;
+        barNote = isBarNote(gemColumn, isDrums ? Part::DRUMS : Part::GUITAR);
+    }
+    else if (isGuitarLike(activePart))
     {
         barNote = isBarNote(gemColumn, Part::GUITAR);
         glyphImage = assetManager.getGuitarGlyphImage(gemWrapper, gemColumn, starPowerActive);
@@ -191,18 +211,19 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         glyphImage = assetManager.getDrumGlyphImage(gemWrapper, gemColumn, starPowerActive);
     }
 
-    // Per-gem clip: bars and notes can have different strike positions
-    double clipTime = barNote ? cachedBarClipTime : cachedNoteClipTime;
-    if (frameTime < clipTime) return;
-
-    if (barNote && !showBars) return;
-    if (!barNote && !showGems) return;
+    if (!imageOverride)
+    {
+        double clipTime = barNote ? cachedBarClipTime : cachedNoteClipTime;
+        if (frameTime < clipTime) return;
+        if (barNote && !showBars) return;
+        if (!barNote && !showGems) return;
+    }
 
     if (glyphImage == nullptr)
         return;
 
     float imageAspect = (float)glyphImage->getWidth() / (float)glyphImage->getHeight();
-    float opacity = calculateOpacity(position);
+    float opacity = (opacityOverride >= 0.0f) ? opacityOverride : calculateOpacity(position);
 
     if (PositionMath::bemaniMode)
     {

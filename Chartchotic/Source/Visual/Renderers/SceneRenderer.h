@@ -58,6 +58,17 @@ class SceneRenderer
         // Forward write-mode flag to gridline renderer (changes opacities + enables STEP)
         void setWriteMode(bool on) { gridlineRenderer.writeMode = on; }
 
+        struct GhostCursor
+        {
+            bool   visible = false;
+            int    lane    = -1;
+            float  position = 0.0f;
+            juce::Image* image = nullptr;  // null = use real colored note asset
+            float  opacity = 0.5f;
+        };
+        GhostCursor ghostCursor;
+        static constexpr bool useColoredGhostCursor = true;
+
 #ifdef DEBUG
         bool collectPhaseTiming = true;
 #else

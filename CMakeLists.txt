@@ -86,6 +86,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Editor/AuthoringTypes.h
         Chartchotic/Source/Editor/WriteController.cpp
         Chartchotic/Source/Editor/WriteController.h
+        Chartchotic/Source/Editor/CommandMapper.cpp
+        Chartchotic/Source/Editor/CommandMapper.h
         Chartchotic/Source/Host/ReaperVST3.h
         # DebugTools
         Chartchotic/Source/DebugTools/DebugEditorController.cpp
@@ -131,6 +133,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiProvider.h
         Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiWriter.cpp
         Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiWriter.h
+        Chartchotic/Source/Midi/Providers/REAPER/ReaperItemManager.cpp
+        Chartchotic/Source/Midi/Providers/REAPER/ReaperItemManager.h
         Chartchotic/Source/Midi/Providers/REAPER/ReaperNoteFetcher.cpp
         Chartchotic/Source/Midi/Providers/REAPER/ReaperNoteFetcher.h
         # Midi / Providers
@@ -287,6 +291,11 @@ juce_add_binary_data(ChartchoticData
         assets/generated/notes/cym_red.png
         assets/generated/notes/cym_white.png
         assets/generated/notes/cym_yellow.png
+        # Ghost cursor templates (write-mode hover preview)
+        assets/generated/templates/note_blank.png
+        assets/generated/templates/hopo_blank.png
+        assets/generated/templates/cym_blank.png
+        assets/generated/templates/bar_blank.png
         # Bars (generated from PDFs)
         assets/generated/bars/bar_kick.png
         assets/generated/bars/bar_kick_2x.png

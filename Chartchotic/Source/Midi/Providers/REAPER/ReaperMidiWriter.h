@@ -4,10 +4,6 @@
     ReaperMidiWriter.h
     REAPER implementation of MidiWriter
 
-    Wraps REAPER API calls with undo blocks, sort management, and dirty
-    marking. After any mutation, MarkProjectDirty changes the track hash
-    so the existing read pipeline auto-refetches on the next process() cycle.
-
   ==============================================================================
 */
 
@@ -16,6 +12,9 @@
 #include <JuceHeader.h>
 #include "../MidiWriter.h"
 #include "ReaperApiHelpers.h"
+#include "ReaperItemManager.h"
+
+#include <vector>
 
 class ReaperMidiWriter : public MidiWriter
 {
@@ -26,18 +25,21 @@ public:
 
     bool isAvailable() const override;
 
-    // Single-note operations
     bool insertNote(int trackIndex, double startQN, double endQN,
                    int channel, int pitch, int velocity) override;
     bool deleteNote(int trackIndex, int noteIndex) override;
+    bool deleteNoteAtQN(int trackIndex, int noteIndex, double hintQN) override;
+    int findNoteIndex(int trackIndex, double targetQN, int pitch,
+                      double toleranceQN = 0.25) override;
+    std::vector<NoteInfo> findNotesInRange(int trackIndex, double startQN,
+                                            double endQN, int pitch) override;
     bool moveNote(int trackIndex, int noteIndex,
                  double newStartQN, double newEndQN, int newPitch) override;
 
-    // Batch operations
     void beginBatch(const char* undoDescription) override;
     bool batchInsertNote(int trackIndex, double startQN, double endQN,
                         int channel, int pitch, int velocity) override;
-    bool batchDeleteNote(int trackIndex, int noteIndex) override;
+    bool batchDeleteNote(int trackIndex, int noteIndex, double hintQN = -1.0) override;
     bool batchMoveNote(int trackIndex, int noteIndex,
                       double newStartQN, double newEndQN, int newPitch) override;
     void endBatch() override;
@@ -45,24 +47,14 @@ public:
 private:
     const ReaperAPIs& apis;
     std::function<void*(const char*)> getReaperApi;
+    ReaperItemManager itemManager;
 
-    // Resolve the first MIDI take on the given track
-    void* getFirstMidiTake(void* project, int trackIndex);
-
-    // If the target track has >1 MIDI item, glue them into one item via
-    // REAPER action 40543. Wrapped in its own undo step so it's distinct
-    // from the subsequent write. Logs once per consolidation event.
-    // Returns true if consolidation either succeeded or was unnecessary.
-    bool consolidateItemsIfNeeded(void* project, int trackIndex);
-
-    // Undo/sort helpers
-    void beginUndoBlock(void* project, const char* description);
     void endUndoBlock(void* project, const char* description);
+    void addBatchTake(void* take);
 
-    // Batch state
     bool inBatch = false;
     void* batchProject = nullptr;
-    void* batchTake = nullptr;
+    std::vector<void*> batchTakes;
     juce::String batchDescription;
 
     juce::CriticalSection writeLock;
