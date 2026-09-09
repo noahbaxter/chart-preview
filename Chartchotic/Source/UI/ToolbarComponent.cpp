@@ -580,6 +580,10 @@ void ToolbarComponent::resized()
         x += diffW + gap;
     }
 
+    // Flyouts hang from the header strip, never covering it.
+    instrumentSelector.setPanelTopMargin(stripH);
+    difficultySelector.setPanelTopMargin(stripH);
+
     // Logo
     int logoH = stripH;
     logo.setFontSize((float)logoH * logoFontRatio);

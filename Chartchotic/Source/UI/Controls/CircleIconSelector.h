@@ -32,6 +32,10 @@ public:
         dismissPanel();
     }
 
+    // Bottom of the header strip. The panel hangs from there so its top
+    // edge lands on a real edge; overlapping the sub-toolbar below is fine.
+    void setPanelTopMargin(int y) { panelTopMargin = y; }
+
     void setMenuGroup(MenuGroup* group) { menuGroup = group; }
 
     void setItems(std::vector<CircleItem> newItems)
@@ -244,7 +248,16 @@ public:
 
         float d = (float)juce::jmin(getWidth(), getHeight());
         int padding = 4;
-        int labelW = juce::roundToInt(d * 2.5f);
+        // Width follows the longest label rather than a fixed multiple of the
+        // circle, so a two-row list like Drums does not trail a band of empty
+        // panel to its right.
+        float textW = 0.0f;
+        for (const auto& item : items)
+        {
+            auto text = item.tooltip.isNotEmpty() ? item.tooltip : item.label;
+            textW = juce::jmax(textW, Theme::controlFont.getStringWidthFloat(text));
+        }
+        int labelW = juce::roundToInt(textW) + padding * 2;
         int rowCount = (int)items.size() + (multiSelectMode && showAllOption ? 1 : 0);
         int panelW = (int)d + padding * 2 + labelW;
         int panelH = (int)(d * rowCount) + padding * (rowCount + 1);
@@ -264,6 +277,7 @@ private:
     std::vector<bool> itemEnabled;
     int selectedIndex = 0;
     int panelHoverIndex = -1;
+    int panelTopMargin = 0;
     bool mouseHovered = false;
 
     // Multi-select state
@@ -283,6 +297,15 @@ private:
 
         void paint(juce::Graphics& g) override
         {
+            // Same layer as the Settings panel: translucent over the highway,
+            // stepper's textDim edge rather than coral, which the circles use.
+            g.setColour(juce::Colour(Theme::darkBg).withAlpha(Theme::panelBgAlpha));
+            g.fillRoundedRectangle(getLocalBounds().toFloat(), Theme::panelRadius);
+
+            g.setColour(juce::Colour(Theme::textDim).withAlpha(0.3f));
+            g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f),
+                                   Theme::panelRadius, 1.0f);
+
             for (int i = 0; i < (int)owner.items.size(); i++)
             {
                 auto circle = getCircleBounds(i);
@@ -524,7 +547,7 @@ private:
         int padding = 4;
         auto btnBottom = topLevel->getLocalPoint(this, juce::Point<int>(getWidth() / 2, getHeight()));
         int panelX = btnBottom.x - padding - (int)(d / 2.0f);
-        int panelY = btnBottom.y + 4;
+        int panelY = (panelTopMargin > 0 ? panelTopMargin : btnBottom.y) + 4;
 
         panelX = juce::jmax(0, juce::jmin(panelX, topLevel->getWidth() - panel->getWidth()));
         panelY = juce::jmin(panelY, topLevel->getHeight() - panel->getHeight());
