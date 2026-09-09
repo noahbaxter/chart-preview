@@ -14,6 +14,7 @@
 #include "../Utils/Frame.h"
 #include "../Utils/FrameRenderer.h"
 #include "../../UI/Theme.h"
+#include "../../Midi/Utils/TempoTimeSignatureEventHelper.h"
 
 using namespace PositionConstants;
 using namespace Render;
@@ -129,21 +130,6 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
     std::vector<LabelCandidate> labelCandidates;
     std::map<size_t, juce::String> labelToRender;  // gridlineIdx -> label text
 
-    // Format helper: BEAT/HALF_BEAT/STEP labels are "M.<beatPart>", where
-    // beatPart is the integer beat for an exact beat ("3"), or beat+fraction
-    // for sub-beat divisions ("3.5", "3.25", "3.125", "3.333" for triplets).
-    // Trims trailing zeros. MEASURE labels use just "M".
-    auto formatBeatPart = [](double bim) -> juce::String {
-        int beatInt = (int)std::floor(bim + 1e-6);
-        double frac = bim - (double)beatInt;
-        if (std::abs(frac) < 0.001) return juce::String(beatInt);
-        juce::String fracStr = juce::String(frac, 3);   // "0.500" / "0.250" / "0.333"
-        if (fracStr.startsWith("0")) fracStr = fracStr.substring(1);
-        while (fracStr.endsWith("0") && fracStr.length() > 1)
-            fracStr = fracStr.dropLastCharacters(1);
-        return juce::String(beatInt) + fracStr;
-    };
-
     if (writeMode && !PositionMath::bemaniMode)
     {
         for (size_t i = 0; i < gridlines.size(); ++i)
@@ -168,7 +154,8 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
                 else if (gl.type == Gridline::HALF_BEAT) prio = 2;
                 else if (gl.type == Gridline::STEP)      prio = 3;
                 else continue;
-                text = juce::String(gl.measureNumber + 1) + "." + formatBeatPart(gl.beatInMeasure);
+                text = TempoTimeSignatureEventHelper::formatMeasureBeat(
+                           gl.measureNumber + 1, gl.beatInMeasure);
             }
             else
             {

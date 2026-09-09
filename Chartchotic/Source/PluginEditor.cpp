@@ -109,34 +109,10 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         hw.setFormatPositionQN([this](double projectQN) -> juce::String {
             const juce::ScopedLock lock(audioProcessor.getTempoLock());
             auto& map = audioProcessor.getTempoTimeSignatureMap();
-            int measure = TempoTimeSignatureEventHelper::pPqToMeasureNumber(PPQ(projectQN), map) + 1;
-
-            if (map.empty()) return juce::String(measure);
-
-            auto it = map.upper_bound(PPQ(projectQN));
-            if (it != map.begin()) --it;
-            const auto& anchor = it->second;
-            int denom = std::max(1, anchor.timeSigDenominator);
-            int num   = std::max(1, anchor.timeSigNumerator);
-            double beatSpacing = 4.0 / (double)denom;
-            double measureLen  = (double)num * beatSpacing;
-            double beatPosQN   = anchor.beatPos * beatSpacing;
-            double measureStart = anchor.ppqPosition.toDouble() - beatPosQN;
-            double relQN = projectQN - measureStart;
-            double measOff = std::fmod(relQN, measureLen);
-            if (measOff < 0.0) measOff += measureLen;
-            double beat = measOff / beatSpacing + 1.0;
-
-            int beatInt = (int)std::floor(beat + 1e-6);
-            double frac = beat - (double)beatInt;
-            if (std::abs(frac) < 0.001)
-                return juce::String(measure) + "." + juce::String(beatInt);
-
-            juce::String fracStr = juce::String(frac, 3);
-            if (fracStr.startsWith("0")) fracStr = fracStr.substring(1);
-            while (fracStr.endsWith("0") && fracStr.length() > 1)
-                fracStr = fracStr.dropLastCharacters(1);
-            return juce::String(measure) + "." + juce::String(beatInt) + fracStr;
+            auto mb = TempoTimeSignatureEventHelper::pPqToMeasureBeat(PPQ(projectQN), map);
+            if (map.empty()) return juce::String(mb.measure + 1);
+            return TempoTimeSignatureEventHelper::formatMeasureBeat(mb.measure + 1,
+                                                                    mb.beatInMeasure);
         });
     }
 
