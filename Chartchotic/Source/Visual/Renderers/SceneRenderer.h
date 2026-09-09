@@ -65,6 +65,7 @@ class SceneRenderer
             float  position = 0.0f;
             juce::Image* image = nullptr;  // null = use real colored note asset
             float  opacity = 0.5f;
+            juce::String positionLabel;    // "37.2" style label shown in write mode
         };
         GhostCursor ghostCursor;
         static constexpr bool useColoredGhostCursor = true;

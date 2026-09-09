@@ -69,8 +69,8 @@ void ReaperMidiProvider::processTempoMarkers(void* project, std::vector<TempoTim
 
     for (int markerIdx = 0; markerIdx < markerCount; markerIdx++)
     {
-        double timepos = 0.0, bpm = 120.0;
-        int measurepos = 0, timesig_num = 4, timesig_denom = 4;
+        double timepos = 0.0, bpm = 0.0;
+        int measurepos = 0, timesig_num = 0, timesig_denom = 0;
         double beatpos = 0.0;
         bool lineartempo = false;
 
@@ -90,12 +90,10 @@ void ReaperMidiProvider::processTempoMarkers(void* project, std::vector<TempoTim
             timeSigReset = true;
         }
 
-        events.push_back(TempoTimeSignatureEvent(PPQ(ppq), currentBpm, currentTimeSigNum, currentTimeSigDenom, timeSigReset));
+        events.push_back(TempoTimeSignatureEvent(
+            PPQ(ppq), currentBpm, currentTimeSigNum, currentTimeSigDenom,
+            timeSigReset, measurepos, beatpos));
     }
-
-    if (logger)
-        logger->log(DebugTools::LogCategory::ReaperAPI,
-                   "Found " + juce::String(events.size()) + " tempo/timesig markers");
 }
 
 ReaperMidiProvider::MusicalPosition ReaperMidiProvider::queryMusicalPositionFromReaper(

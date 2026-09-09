@@ -18,8 +18,8 @@ public:
 
     // Search ALL MIDI takes on the track for a note matching targetQN/pitch.
     // Caches the found take — retrieve via getLastFoundTake().
-    int findNoteIndex(void* project, int trackIndex,
-                      double targetQN, int pitch, double toleranceQN = 0.25);
+    MidiWriter::NoteInfo findNote(void* project, int trackIndex,
+                                  double positionQN, int pitch);
 
     std::vector<MidiWriter::NoteInfo> findNotesInRange(void* project, int trackIndex,
                                                         double startQN, double endQN, int pitch);

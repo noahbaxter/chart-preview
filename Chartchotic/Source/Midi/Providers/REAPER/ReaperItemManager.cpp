@@ -117,25 +117,26 @@ void* ReaperItemManager::getTakeForWrite(void* project, int trackIndex,
 }
 
 // =============================================================================
-// findNoteIndex — searches ALL takes, caches the result take
+// findNote — find a note at a position (start match or inside sustain body).
+// Closest start wins, so a note starting AT the position beats a body match.
 // =============================================================================
 
-int ReaperItemManager::findNoteIndex(void* project, int trackIndex,
-                                      double targetQN, int pitch, double toleranceQN)
+MidiWriter::NoteInfo ReaperItemManager::findNote(void* project, int trackIndex,
+                                                  double positionQN, int pitch)
 {
     lastFoundTake = nullptr;
-    if (!apis.MIDI_CountEvts || !apis.MIDI_GetNote || !apis.MIDI_GetPPQPosFromProjQN)
-        return -1;
+    if (!apis.MIDI_CountEvts || !apis.MIDI_GetNote || !apis.MIDI_GetPPQPosFromProjQN ||
+        !apis.MIDI_GetProjQNFromPPQPos)
+        return {};
 
     auto items = collectMidiItems(project, trackIndex);
 
-    int bestIdx = -1;
+    MidiWriter::NoteInfo best;
     double bestDist = std::numeric_limits<double>::max();
 
     for (auto& it : items)
     {
-        double targetPPQ = apis.MIDI_GetPPQPosFromProjQN(it.take, targetQN);
-        double tolPPQ = apis.MIDI_GetPPQPosFromProjQN(it.take, targetQN + toleranceQN) - targetPPQ;
+        double targetPPQ = apis.MIDI_GetPPQPosFromProjQN(it.take, positionQN);
 
         int noteCount = 0;
         apis.MIDI_CountEvts(it.take, &noteCount, nullptr, nullptr);
@@ -148,17 +149,25 @@ int ReaperItemManager::findNoteIndex(void* project, int trackIndex,
             if (!apis.MIDI_GetNote(it.take, i, &sel, &muted, &startPPQ, &endPPQ, &ch, &p, &vel))
                 continue;
             if (p != pitch) continue;
+
+            bool atStart = std::abs(startPPQ - targetPPQ) <= 1.0;
+            bool inBody  = targetPPQ >= startPPQ && targetPPQ < endPPQ;
+            if (!atStart && !inBody) continue;
+
             double dist = std::abs(startPPQ - targetPPQ);
-            if (dist < tolPPQ && dist < bestDist)
+            if (dist < bestDist)
             {
                 bestDist = dist;
-                bestIdx = i;
+                best = { i,
+                         apis.MIDI_GetProjQNFromPPQPos(it.take, startPPQ),
+                         apis.MIDI_GetProjQNFromPPQPos(it.take, endPPQ),
+                         p };
                 lastFoundTake = it.take;
             }
         }
     }
 
-    return bestIdx;
+    return best;
 }
 
 // =============================================================================
@@ -192,7 +201,7 @@ ReaperItemManager::findNotesInRange(void* project, int trackIndex,
             if (!apis.MIDI_GetNote(it.take, i, &sel, &muted, &nStart, &nEnd, &ch, &p, &vel))
                 continue;
             if (p != pitch) continue;
-            if (nStart < startPPQ || nStart > endPPQ) continue;
+            if (nStart < startPPQ - 1.0 || nStart > endPPQ + 1.0) continue;
 
             double noteStartQN = apis.MIDI_GetProjQNFromPPQPos(it.take, nStart);
             double noteEndQN   = apis.MIDI_GetProjQNFromPPQPos(it.take, nEnd);

@@ -15,6 +15,7 @@
 
 #include <JuceHeader.h>
 #include "../../Utils/ChartTypes.h"
+#include "../../Editor/AuthoringTypes.h"
 #include "../../Midi/Utils/PPQ.h"
 #include "../../Midi/Utils/TimeConverter.h"
 #include "../../Midi/Utils/TempoTimeSignatureEventHelper.h"
@@ -149,15 +150,9 @@ private:
         double nextHalfBeat = std::ceil(relativeToAnchor / halfBeatSpacing) * halfBeatSpacing;
         currentPPQ = measureAnchor + nextHalfBeat;
 
-        // Pre-compute write-mode step spacing for the BEAT alignment filter
-        // below. Only meaningful when writeGridConfig.active.
         double stepSpacingForFilter = 0.0;
         if (writeGridConfig.active && writeGridConfig.stepDivision > 0)
-        {
-            stepSpacingForFilter = (writeGridConfig.tuplet > 0)
-                ? (8.0 / (static_cast<double>(writeGridConfig.stepDivision) * writeGridConfig.tuplet))
-                : (4.0 / static_cast<double>(writeGridConfig.stepDivision));
-        }
+            stepSpacingForFilter = stepSpacingQN(writeGridConfig.stepDivision, writeGridConfig.tuplet);
 
         // Generate gridlines from first half-beat to section end
         int iterationCount = 0;
@@ -241,14 +236,7 @@ private:
         if (writeGridConfig.stepDivision <= 0)
             return;
 
-        // Spacing formula (in QN):
-        //   No tuplet (T == 0): spacing = 4.0 / stepDivision
-        //   Tuplet T > 0:        spacing = 8.0 / (stepDivision * T)
-        // IMPORTANT: WriteController.cpp duplicates this formula for click-snap. Any
-        // change to step-spacing semantics must update both sites.
-        double stepSpacing = (writeGridConfig.tuplet > 0)
-            ? (8.0 / (static_cast<double>(writeGridConfig.stepDivision) * writeGridConfig.tuplet))
-            : (4.0 / static_cast<double>(writeGridConfig.stepDivision));
+        double stepSpacing = stepSpacingQN(writeGridConfig.stepDivision, writeGridConfig.tuplet);
 
         if (stepSpacing <= 0.0)
             return;

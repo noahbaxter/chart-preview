@@ -135,12 +135,34 @@ void HighwayComponent::paint(juce::Graphics& g)
                 sceneRenderer.ghostCursor.image = sceneRenderer.useColoredGhostCursor
                     ? nullptr
                     : assetManager.getGhostCursorImage(isDrumLike(activePart), ov.ghostLane);
+                sceneRenderer.ghostCursor.positionLabel = formatPositionQN
+                    ? formatPositionQN(ov.ghostQN) : juce::String();
+            }
+        }
+    }
+
+    // Inject sustain drag preview into a local copy of the sustain window.
+    auto sustainWindow = frameData.sustainWindow;
+    if (overlayStateGetter && projectQNToSeconds)
+    {
+        const auto& ov = overlayStateGetter();
+        if (ov.drawPreviewVisible)
+        {
+            for (const auto& pn : ov.drawPreviewNotes)
+            {
+                sustainWindow.push_back({
+                    projectQNToSeconds(pn.startQN),
+                    projectQNToSeconds(pn.endQN),
+                    static_cast<uint>(pn.lane),
+                    SustainType::SUSTAIN,
+                    GemWrapper()
+                });
             }
         }
     }
 
     sceneRenderer.paint(g, w, h,
-                        frameData.trackWindow, frameData.sustainWindow, frameData.gridlines,
+                        frameData.trackWindow, sustainWindow, frameData.gridlines,
                         frameData.flipRegions, frameData.eventMarkers,
                         frameData.windowStartTime, frameData.windowEndTime, frameData.isPlaying);
 
@@ -469,10 +491,54 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
     // otherwise leave as 0.0 (M1 controllers don't use it).
     outPoint.rawProjectQN = secondsToProjectQN ? secondsToProjectQN(hit.timeFromCursor) : 0.0;
 
-    // Gem hit-testing is M3.
     outPoint.overExistingNote = false;
-    outPoint.hitNoteStartQN = 0.0;
-    outPoint.hitNotePitch = -1;
+    outPoint.hitSustainBody   = false;
+    outPoint.hitNoteStartQN   = 0.0;
+    outPoint.hitNotePitch     = -1;
+
+    if (outPoint.onHighway && secondsToProjectQN)
+    {
+        constexpr float kHeadHitPixels = 20.0f;
+        double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
+        double timeTol = (windowSpan > 0.0 && renderHeight > 0)
+            ? kHeadHitPixels * windowSpan / (double)renderHeight
+            : 0.05;
+
+        double hitTime = hit.timeFromCursor;
+        uint hitLane = (uint)outPoint.laneIndex;
+
+        for (const auto& [noteTime, frame] : frameData.trackWindow)
+        {
+            if (hitLane >= frame.size()) continue;
+            if (frame[hitLane].gem == Gem::NONE) continue;
+            if (std::abs(hitTime - noteTime) < timeTol)
+            {
+                outPoint.overExistingNote = true;
+                outPoint.hitSustainBody   = false;
+                outPoint.hitNoteStartQN   = secondsToProjectQN(noteTime);
+                break;
+            }
+        }
+
+        if (!outPoint.overExistingNote)
+        {
+            for (const auto& s : frameData.sustainWindow)
+            {
+                if (s.gemColumn != hitLane) continue;
+
+                bool nearHead = std::abs(hitTime - s.startTime) < timeTol;
+                bool inBody   = hitTime >= s.startTime && hitTime < s.endTime;
+
+                if (nearHead || inBody)
+                {
+                    outPoint.overExistingNote = true;
+                    outPoint.hitSustainBody   = inBody && !nearHead;
+                    outPoint.hitNoteStartQN   = secondsToProjectQN(s.startTime);
+                    break;
+                }
+            }
+        }
+    }
 
     outContext.mods = juce::ModifierKeys::getCurrentModifiers();
     outContext.leftButton  = e.mods.isLeftButtonDown();

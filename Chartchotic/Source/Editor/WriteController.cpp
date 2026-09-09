@@ -1,19 +1,14 @@
 #include "WriteController.h"
-
-#include <cmath>
-
-#include "../Midi/Providers/MidiWriter.h"
 #include "../Midi/InstrumentSession.h"
-#include "../Midi/Discovery/TrackDiscovery.h"
 #include "../Midi/Utils/InstrumentMapper.h"
+#include "../Midi/Utils/MidiConstants.h"
 
 namespace
 {
-    // Persisted ValueTree property keys
-    const juce::Identifier kWriteSubMode      { "writeSubMode" };       // "draw" / "edit"
-    const juce::Identifier kWriteStepDivision { "writeStepDivision" };  // int 1..64
-    const juce::Identifier kWriteTuplet       { "writeTuplet" };        // int 0/3/5/7
-    const juce::Identifier kWriteSnap         { "writeSnap" };          // bool
+    const juce::Identifier kWriteSubMode      { "writeSubMode" };
+    const juce::Identifier kWriteStepDivision { "writeStepDivision" };
+    const juce::Identifier kWriteTuplet       { "writeTuplet" };
+    const juce::Identifier kWriteSnap         { "writeSnap" };
 
     static const juce::String kSubModeDraw { "draw" };
     static const juce::String kSubModeEdit { "edit" };
@@ -56,8 +51,91 @@ void WriteController::loadPersistedState()
 
     if (state.hasProperty(kWriteSnap))
         snapEnabledFlag = (bool)state.getProperty(kWriteSnap);
+}
 
-    // writeModeActive is intentionally NOT loaded — always starts off per the plan.
+//==============================================================================
+// Helpers
+
+double WriteController::snapQN(double rawQN) const
+{
+    return snapEnabled()
+        ? snapToStep(rawQN, currentStepDivision, currentTuplet)
+        : rawQN;
+}
+
+bool WriteController::canWrite(const AuthoringPoint& p) const
+{
+    return writeModeActive()
+        && !(playingStatePtr && *playingStatePtr)
+        && currentSubMode == SubMode::Draw
+        && p.onHighway
+        && p.laneIndex >= 0
+        && noteEditor.isAvailable()
+        && instrumentSession != nullptr;
+}
+
+int WriteController::resolvePitch(int laneIndex, bool drums) const
+{
+    return drums
+        ? InstrumentMapper::columnToDrumPitch(currentActiveSkill, laneIndex, false)
+        : InstrumentMapper::columnToGuitarPitch(currentActiveSkill, laneIndex);
+}
+
+int WriteController::resolveTrackIdx() const
+{
+    if (instrumentSession == nullptr) return -1;
+    for (const auto& info : instrumentSession->getTracks())
+        if (info.part == currentActivePart)
+            return info.sourceTrackIndex;
+    return -1;
+}
+
+void WriteController::stateDidChange()
+{
+    recomputeGhost();
+    if (onStateChanged) onStateChanged();
+}
+
+void WriteController::recomputeGhost()
+{
+    overlayState.ghostVisible    = false;
+    overlayState.ghostLane       = -1;
+    overlayState.ghostQN         = 0.0;
+    overlayState.ghostShowsErase = false;
+
+    if (!lastPointValid)                                  return;
+    if (!writeModeActive())                               return;
+    if (playingStatePtr && *playingStatePtr)               return;
+    if (currentSubMode != SubMode::Draw)                  return;
+    if (!lastPoint.onHighway || lastPoint.laneIndex < 0)  return;
+    if ((sustainDragActive || paintDragActive || eraseDragActive) && ghostHideDelay <= 0) return;
+
+    double qn = snapQN(lastPoint.rawProjectQN);
+    if (qn < 0.0) qn = 0.0;
+
+    overlayState.ghostVisible = true;
+    overlayState.ghostLane    = lastPoint.laneIndex;
+    overlayState.ghostQN      = qn;
+}
+
+void WriteController::enterSustainDrag(int trackIdx, double startQN, int lane, int pitch, bool chainMode)
+{
+    ghostHideDelay       = kGhostHideDelayFrames;
+    sustainDragActive    = true;
+    sustainDragTrackIdx  = trackIdx;
+    sustainDragStartQN   = startQN;
+    sustainDragLane      = lane;
+    sustainDragPitch     = pitch;
+    sustainDragChainMode = chainMode;
+}
+
+void WriteController::clearSustainDrag()
+{
+    sustainDragActive    = false;
+    sustainDragTrackIdx  = -1;
+    sustainDragChainMode = false;
+    overlayState.drawPreviewVisible = false;
+    overlayState.drawPreviewNotes.clear();
 }
 
 //==============================================================================
@@ -67,8 +145,7 @@ void WriteController::setWriteModeActive(bool active)
 {
     if (writeModeActiveFlag == active) return;
     writeModeActiveFlag = active;
-    recomputeGhost();
-    if (onStateChanged) onStateChanged();
+    stateDidChange();
 }
 
 void WriteController::setSubMode(SubMode mode)
@@ -76,8 +153,7 @@ void WriteController::setSubMode(SubMode mode)
     if (currentSubMode == mode) return;
     currentSubMode = mode;
     state.setProperty(kWriteSubMode, subModeToString(mode), nullptr);
-    recomputeGhost();
-    if (onStateChanged) onStateChanged();
+    stateDidChange();
 }
 
 void WriteController::setStepDivision(int division)
@@ -86,8 +162,7 @@ void WriteController::setStepDivision(int division)
     if (currentStepDivision == clamped) return;
     currentStepDivision = clamped;
     state.setProperty(kWriteStepDivision, clamped, nullptr);
-    recomputeGhost();
-    if (onStateChanged) onStateChanged();
+    stateDidChange();
 }
 
 void WriteController::setTuplet(int t)
@@ -96,8 +171,18 @@ void WriteController::setTuplet(int t)
     if (currentTuplet == t) return;
     currentTuplet = t;
     state.setProperty(kWriteTuplet, t, nullptr);
-    recomputeGhost();
-    if (onStateChanged) onStateChanged();
+    stateDidChange();
+}
+
+void WriteController::cycleTuplet()
+{
+    switch (currentTuplet)
+    {
+        case 0: setTuplet(3); break;
+        case 3: setTuplet(5); break;
+        case 5: setTuplet(7); break;
+        default: setTuplet(0); break;
+    }
 }
 
 void WriteController::setSnapEnabled(bool enabled)
@@ -105,72 +190,11 @@ void WriteController::setSnapEnabled(bool enabled)
     if (snapEnabledFlag == enabled) return;
     snapEnabledFlag = enabled;
     state.setProperty(kWriteSnap, enabled, nullptr);
-    recomputeGhost();
-    if (onStateChanged) onStateChanged();
-}
-
-void WriteController::setActivePart(Part part)
-{
-    currentActivePart = part;
-}
-
-void WriteController::setActiveSkill(SkillLevel skill)
-{
-    currentActiveSkill = skill;
+    stateDidChange();
 }
 
 //==============================================================================
-// Helpers (file-scope, unit-testable in isolation)
-
-namespace
-{
-    // Fixed short-note duration in QN for click-to-place. Drag-to-sustain
-    // will replace this in a future milestone.
-    constexpr double kShortNoteDurationQN = 0.1;
-
-    // IMPORTANT: must stay in lock-step with GridlineGenerator.h's stepSpacingQN
-    // formula (search there for the same expression). The snapped position must
-    // land exactly on a rendered gridline; if these diverge, clicks land off-grid.
-    double stepSpacingQN(int stepDivision, int tuplet)
-    {
-        if (tuplet > 0)
-            return 8.0 / (double(stepDivision) * double(tuplet));
-        return 4.0 / double(stepDivision);
-    }
-
-    double snapToStep(double rawQN, int stepDivision, int tuplet)
-    {
-        const double spacing = stepSpacingQN(stepDivision, tuplet);
-        if (spacing <= 0.0)
-            return rawQN;
-
-        double snapped = std::round(rawQN / spacing) * spacing;
-
-        // Final precision floor: round to nearest 1/128 QN if the residual is
-        // below ~1e-6 (kills floating-point fuzz that would otherwise leak into
-        // REAPER's PPQ conversion).
-        const double oneOver128 = 1.0 / 128.0;
-        const double quantized  = std::round(snapped / oneOver128) * oneOver128;
-        if (std::abs(snapped - quantized) < 1e-6)
-            snapped = quantized;
-        return snapped;
-    }
-
-    // Find the first track in the session whose .part matches `part`. Returns
-    // the REAPER (backend-opaque) track index, or -1 if not found.
-    int resolveTrackIndexForPart(InstrumentSession* session, Part part)
-    {
-        if (session == nullptr) return -1;
-        for (const auto& info : session->getTracks())
-            if (info.part == part)
-                return info.sourceTrackIndex;
-        return -1;
-    }
-}
-
-//==============================================================================
-// Pointer / key / frame input methods. onPointerDown handles left-click
-// placement; the rest are stubs until later milestones.
+// Input dispatch
 
 void WriteController::onPointerMove(const AuthoringPoint& p,
                                     [[maybe_unused]] const AuthoringContext& ctx)
@@ -181,194 +205,276 @@ void WriteController::onPointerMove(const AuthoringPoint& p,
     recomputeGhost();
 }
 
-void WriteController::recomputeGhost()
-{
-    overlayState.ghostVisible    = false;
-    overlayState.ghostLane       = -1;
-    overlayState.ghostQN         = 0.0;
-    overlayState.ghostShowsErase = false;
-
-    if (!lastPointValid)                          return;
-    if (!writeModeActive())                       return;
-    if (playingStatePtr && *playingStatePtr)       return;
-    if (currentSubMode != SubMode::Draw)          return;
-    if (!lastPoint.onHighway || lastPoint.laneIndex < 0) return;
-
-    double qn = snapEnabled()
-        ? snapToStep(lastPoint.rawProjectQN, currentStepDivision, currentTuplet)
-        : lastPoint.rawProjectQN;
-
-    if (qn < 0.0) qn = 0.0;
-
-    overlayState.ghostVisible = true;
-    overlayState.ghostLane    = lastPoint.laneIndex;
-    overlayState.ghostQN      = qn;
-}
-
-void WriteController::eraseNoteUnderCursor(int trackIdx, double rawQN, int pitch, bool drums, int lane)
-{
-    if (!midiWriter || !instrumentSession) return;
-
-    int noteIdx = midiWriter->findNoteIndex(trackIdx, rawQN, pitch);
-
-    if (noteIdx < 0 && drums && lane == 0)
-    {
-        int kick2xPitch = InstrumentMapper::columnToDrumPitch(currentActiveSkill, 0, true);
-        noteIdx = midiWriter->findNoteIndex(trackIdx, rawQN, kick2xPitch);
-    }
-
-    if (noteIdx < 0) return;
-
-    bool ok = eraseDragActive
-        ? midiWriter->batchDeleteNote(trackIdx, noteIdx, rawQN)
-        : midiWriter->deleteNoteAtQN(trackIdx, noteIdx, rawQN);
-
-    if (ok)
-        instrumentSession->invalidateTrack(trackIdx);
-}
-
 void WriteController::onPointerDown(const AuthoringPoint& p, const AuthoringContext& ctx)
 {
     JUCE_ASSERT_MESSAGE_THREAD;
+    if (!canWrite(p)) return;
 
-    if (!writeModeActive())                  return;
-    if (playingStatePtr && *playingStatePtr)  return;
-    if (currentSubMode != SubMode::Draw)     return;
-    if (!p.onHighway)                        return;
-    if (p.laneIndex < 0)                     return;
-    if (midiWriter == nullptr)               return;
-    if (!midiWriter->isAvailable())          return;
-    if (instrumentSession == nullptr)        return;
-
-    const int trackIdx = resolveTrackIndexForPart(instrumentSession, currentActivePart);
+    int trackIdx = resolveTrackIdx();
     if (trackIdx < 0) return;
 
-    const bool drums = isDrumLike(currentActivePart);
-    const int  pitch = drums
-        ? InstrumentMapper::columnToDrumPitch  (currentActiveSkill, p.laneIndex, /*kick2x*/ false)
-        : InstrumentMapper::columnToGuitarPitch(currentActiveSkill, p.laneIndex);
+    bool drums = isDrumLike(currentActivePart);
+    int  pitch = resolvePitch(p.laneIndex, drums);
     if (pitch < 0) return;
 
-    if (ctx.rightButton)
+    auto cmd = commandMapper.resolve(currentSubMode, EventType::Down, ctx);
+
+    switch (cmd)
     {
-        eraseDragActive = true;
-        eraseDragTrackIdx = trackIdx;
-        midiWriter->beginBatch("Chartchotic: Erase notes");
-        eraseNoteUnderCursor(trackIdx, p.rawProjectQN, pitch, drums, p.laneIndex);
-        return;
+        case WriteCommand::BeginSustain: handleBeginSustain(p, trackIdx, pitch, drums); break;
+        case WriteCommand::BeginPaint:   handleBeginPaint(p, trackIdx, pitch, drums);   break;
+        case WriteCommand::BeginErase:   handleBeginErase(p, trackIdx, pitch, drums);   break;
+        default: break;
     }
-
-    if (!ctx.leftButton) return;
-
-    const double startQN = snapEnabled()
-        ? snapToStep(p.rawProjectQN, currentStepDivision, currentTuplet)
-        : p.rawProjectQN;
-
-    const double endQN = startQN + kShortNoteDurationQN;
-
-    if (midiWriter->insertNote(trackIdx, startQN, endQN, /*channel*/ 0, pitch, /*velocity*/ 100))
-        instrumentSession->invalidateTrack(trackIdx);
 }
 
-void WriteController::onPointerDrag(const AuthoringPoint& p, const AuthoringContext& ctx)
+void WriteController::onPointerDrag(const AuthoringPoint& p,
+                                    [[maybe_unused]] const AuthoringContext& ctx)
 {
     JUCE_ASSERT_MESSAGE_THREAD;
 
-    if (!eraseDragActive || !ctx.rightButton) return;
-    if (!p.onHighway || p.laneIndex < 0)     return;
-
-    const bool drums = isDrumLike(currentActivePart);
-    const int pitch = drums
-        ? InstrumentMapper::columnToDrumPitch(currentActiveSkill, p.laneIndex, false)
-        : InstrumentMapper::columnToGuitarPitch(currentActiveSkill, p.laneIndex);
-    if (pitch < 0) return;
-
-    eraseNoteUnderCursor(eraseDragTrackIdx, p.rawProjectQN, pitch, drums, p.laneIndex);
+    if (sustainDragActive)   { handleUpdateSustain(p);  return; }
+    if (paintDragActive)     { handleContinuePaint(p);  return; }
+    if (eraseDragActive)     { handleContinueErase(p);  return; }
 }
 
-void WriteController::onPointerUp([[maybe_unused]] const AuthoringPoint& p,
+void WriteController::onPointerUp(const AuthoringPoint& p,
                                   [[maybe_unused]] const AuthoringContext& ctx)
 {
-    if (eraseDragActive && midiWriter)
-        midiWriter->endBatch();
-
-    eraseDragActive = false;
-    eraseDragTrackIdx = -1;
-}
-
-void WriteController::onPointerExit()
-{
-    lastPointValid = false;
-    overlayState.ghostVisible   = false;
-    overlayState.ghostLane      = -1;
-    overlayState.ghostQN        = 0.0;
-    overlayState.ghostShowsErase = false;
-}
-
-void WriteController::onPointerCancel() {}
-
-bool WriteController::onKeyPress(const juce::KeyPress& key)
-{
-    const int code = key.getKeyCode();
-
-    // W toggles write mode regardless of current state.
-    if (code == 'W')
-    {
-        setWriteModeActive(!writeModeActive());
-        return true;
-    }
-
-    // Remaining shortcuts only apply while write mode is active.
-    if (!writeModeActive())
-        return false;
-
-    if (code == 'Q')
-    {
-        setSubMode(subMode() == SubMode::Draw ? SubMode::Edit : SubMode::Draw);
-        return true;
-    }
-
-    if (code == 'S')
-    {
-        setSnapEnabled(!snapEnabled());
-        return true;
-    }
-
-    if (code == 'T')
-    {
-        // Cycle 0 -> 3 -> 5 -> 7 -> 0
-        int next = 0;
-        switch (tuplet())
-        {
-            case 0: next = 3; break;
-            case 3: next = 5; break;
-            case 5: next = 7; break;
-            case 7: next = 0; break;
-            default: next = 0; break;
-        }
-        setTuplet(next);
-        return true;
-    }
-
-    if (code == '[')
-    {
-        // Halve, clamped to min 1 (setter no-ops if same value).
-        setStepDivision(std::max(1, stepDivision() / 2));
-        return true;
-    }
-
-    if (code == ']')
-    {
-        // Double; setter clamps to max 64.
-        setStepDivision(stepDivision() * 2);
-        return true;
-    }
-
-    return false;
+    if (sustainDragActive)   { handleCommitSustain(p);  return; }
+    if (paintDragActive)     { handleCommitPaint();     return; }
+    if (eraseDragActive)     { handleEndErase();        return; }
 }
 
 void WriteController::onFrameTick([[maybe_unused]] double currentProjectQN,
                                   [[maybe_unused]] bool isPlaying)
 {
+    if (ghostHideDelay > 0) --ghostHideDelay;
     recomputeGhost();
+}
+
+//==============================================================================
+// Sustain command handlers
+
+void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, int pitch, bool drums)
+{
+    double clickQN = snapQN(p.rawProjectQN);
+    bool onExistingNote = p.overExistingNote
+        && std::abs(snapQN(p.hitNoteStartQN) - clickQN) < 0.001;
+
+    if (!drums)
+        noteEditor.beginBatch("Chartchotic: Sustain note");
+
+    if (!onExistingNote)
+    {
+        noteEditor.createNote(trackIdx, clickQN, pitch);
+        if (drums) return;
+        enterSustainDrag(trackIdx, clickQN, p.laneIndex, pitch, false);
+        return;
+    }
+
+    if (drums) return;
+
+    enterSustainDrag(trackIdx, p.hitNoteStartQN, p.laneIndex, pitch, true);
+}
+
+void WriteController::handleUpdateSustain(const AuthoringPoint& p)
+{
+    double dragQN  = snapQN(p.rawProjectQN);
+
+    if (dragQN - sustainDragStartQN < double(MIDI_MIN_SUSTAIN_LENGTH))
+    {
+        overlayState.drawPreviewVisible = false;
+        overlayState.drawPreviewNotes.clear();
+        return;
+    }
+
+    overlayState.drawPreviewVisible = true;
+    overlayState.drawPreviewNotes.clear();
+    overlayState.drawPreviewNotes.push_back({
+        sustainDragLane, sustainDragStartQN, dragQN, sustainDragPitch
+    });
+}
+
+void WriteController::handleCommitSustain(const AuthoringPoint& p)
+{
+    double endQN = snapQN(p.rawProjectQN);
+
+    if (endQN - sustainDragStartQN >= double(MIDI_MIN_SUSTAIN_LENGTH))
+    {
+        if (sustainDragChainMode)
+            noteEditor.chainExtendNotes(sustainDragTrackIdx, sustainDragStartQN, endQN, sustainDragPitch);
+        else
+            noteEditor.extendNote(sustainDragTrackIdx, sustainDragStartQN, endQN, sustainDragPitch);
+    }
+
+    noteEditor.endBatch();
+    clearSustainDrag();
+    recomputeGhost();
+}
+
+//==============================================================================
+// Paint command handlers
+
+void WriteController::handleBeginPaint(const AuthoringPoint& p, int trackIdx,
+                                       [[maybe_unused]] int pitch, [[maybe_unused]] bool drums)
+{
+    double qn = snapQN(p.rawProjectQN);
+
+    ghostHideDelay    = 2;
+    paintDragActive   = true;
+    paintDragTrackIdx = trackIdx;
+    paintStartQN      = qn;
+    paintLastQN        = qn;
+    paintLastLane      = p.laneIndex;
+    paintedNotes.clear();
+    noteEditor.beginBatch("Chartchotic: Paint notes");
+
+    paintFillRange(qn, qn, p.laneIndex);
+}
+
+void WriteController::handleContinuePaint(const AuthoringPoint& p)
+{
+    if (!p.onHighway || p.laneIndex < 0) return;
+
+    double cursorQN = snapQN(p.rawProjectQN);
+    int lane = p.laneIndex;
+
+    double lo = std::min(paintStartQN, cursorQN);
+    double hi = std::max(paintStartQN, cursorQN);
+
+    paintShrinkTo(lo, hi);
+    paintFillRange(lo, hi, lane);
+
+    paintLastQN   = cursorQN;
+    paintLastLane = lane;
+}
+
+void WriteController::handleCommitPaint()
+{
+    noteEditor.endBatch();
+    paintDragActive   = false;
+    paintDragTrackIdx = -1;
+    paintedNotes.clear();
+    recomputeGhost();
+}
+
+void WriteController::paintFillRange(double fromQN, double toQN, int lane)
+{
+    bool drums = isDrumLike(currentActivePart);
+    int  pitch = resolvePitch(lane, drums);
+    if (pitch < 0) return;
+
+    double spacing = stepSpacingQN(currentStepDivision, currentTuplet);
+    if (spacing <= 0.0) return;
+
+    double lo = std::min(fromQN, toQN);
+    double hi = std::max(fromQN, toQN);
+
+    double firstStep = snapToStep(lo, currentStepDivision, currentTuplet);
+    if (firstStep < lo - 0.001) firstStep += spacing;
+
+    for (double qn = firstStep; qn <= hi + 0.001; qn += spacing)
+    {
+        double snapped = snapToStep(qn, currentStepDivision, currentTuplet);
+
+        PaintedNote* existing = nullptr;
+        for (auto& pn : paintedNotes)
+            if (std::abs(pn.qn - snapped) < 0.001) { existing = &pn; break; }
+
+        if (existing)
+        {
+            if (existing->lane != lane)
+            {
+                int oldPitch = resolvePitch(existing->lane, drums);
+                if (oldPitch >= 0)
+                    noteEditor.eraseNoteAt(paintDragTrackIdx, existing->qn, oldPitch, drums, existing->lane, currentActiveSkill);
+                noteEditor.createNote(paintDragTrackIdx, existing->qn, pitch);
+                existing->lane = lane;
+            }
+            continue;
+        }
+
+        auto pre = noteEditor.findNote(paintDragTrackIdx, snapped, pitch);
+        if (pre.noteIndex >= 0 && std::abs(pre.startQN - snapped) < 0.001)
+            continue;
+
+        noteEditor.createNote(paintDragTrackIdx, snapped, pitch);
+        paintedNotes.push_back({ snapped, lane });
+    }
+}
+
+void WriteController::paintShrinkTo(double lo, double hi)
+{
+    bool drums = isDrumLike(currentActivePart);
+    for (auto it = paintedNotes.begin(); it != paintedNotes.end(); )
+    {
+        if (it->qn < lo - 0.001 || it->qn > hi + 0.001)
+        {
+            int oldPitch = resolvePitch(it->lane, drums);
+            if (oldPitch >= 0)
+                noteEditor.eraseNoteAt(paintDragTrackIdx, it->qn, oldPitch, drums, it->lane, currentActiveSkill);
+            it = paintedNotes.erase(it);
+        }
+        else
+            ++it;
+    }
+}
+
+//==============================================================================
+// Erase command handlers
+
+void WriteController::handleBeginErase(const AuthoringPoint& p, int trackIdx, int pitch, bool drums)
+{
+    eraseDragActive   = true;
+    eraseDragTrackIdx = trackIdx;
+    noteEditor.beginBatch("Chartchotic: Erase notes");
+
+    if (!p.overExistingNote) return;
+
+    if (p.hitSustainBody)
+        noteEditor.truncateNote(trackIdx, p.hitNoteStartQN, pitch);
+    else
+        noteEditor.eraseNoteAt(trackIdx, p.hitNoteStartQN, pitch, drums, p.laneIndex, currentActiveSkill);
+}
+
+void WriteController::handleContinueErase(const AuthoringPoint& p)
+{
+    if (!p.onHighway || p.laneIndex < 0) return;
+    if (!p.overExistingNote) return;
+
+    bool drums = isDrumLike(currentActivePart);
+    int  pitch = resolvePitch(p.laneIndex, drums);
+    if (pitch < 0) return;
+
+    if (p.hitSustainBody)
+        noteEditor.truncateNote(eraseDragTrackIdx, p.hitNoteStartQN, pitch);
+    else
+        noteEditor.eraseNoteAt(eraseDragTrackIdx, p.hitNoteStartQN, pitch, drums, p.laneIndex, currentActiveSkill);
+}
+
+void WriteController::handleEndErase()
+{
+    noteEditor.endBatch();
+    eraseDragActive   = false;
+    eraseDragTrackIdx = -1;
+}
+
+//==============================================================================
+// Key commands
+
+bool WriteController::onKeyPress(const juce::KeyPress& key)
+{
+    auto cmd = commandMapper.resolveKey(writeModeActive(), key);
+
+    switch (cmd)
+    {
+        case WriteCommand::ToggleWriteMode: setWriteModeActive(!writeModeActive()); return true;
+        case WriteCommand::ToggleSubMode:   setSubMode(subMode() == SubMode::Draw ? SubMode::Edit : SubMode::Draw); return true;
+        case WriteCommand::ToggleSnap:      setSnapEnabled(!snapEnabled());                   return true;
+        case WriteCommand::StepDown:        setStepDivision(std::max(1, stepDivision() / 2)); return true;
+        case WriteCommand::StepUp:          setStepDivision(stepDivision() * 2);              return true;
+        case WriteCommand::CycleTuplet:     cycleTuplet();                                    return true;
+        default: return false;
+    }
 }
