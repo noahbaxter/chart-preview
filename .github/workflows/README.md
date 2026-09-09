@@ -1,63 +1,45 @@
-# GitHub Actions Build Workflow
+# Workflows
 
-This workflow automatically builds Chartchotic VST3 plugin for Windows, macOS, and Linux.
+Releases are built and published by the plugins hub (`noahbaxter/_plugins`), not here.
+This repo only says *when*, and validates pull requests.
 
-## Triggers
+## Stable releases
 
-- **Push to branches**: main, develop, refac
-- **Pull requests** to main, develop, refac  
-- **Releases** (creates downloadable artifacts)
+`release-dispatch.yml` fires the hub:
 
-## Build Outputs
+- push to `main` -> hub dry run (builds all three platforms, publishes nothing)
+- push a `vX.Y.Z` tag -> hub publish
 
-### Windows (windows-latest)
-- **VST3**: `Chartchotic-VST3-Windows-x64.zip`
-- **AU**: `Chartchotic-AU-Windows-x64.zip` (if available)
-- **Standalone**: `Chartchotic-Standalone-Windows-x64.zip` (if available)
+The hub then builds, signs and notarizes macOS, builds the Windows Inno installer,
+zips the Linux bundles, promotes them to the CDN, cuts the GitHub release on this
+repo, and publishes the changelog + update manifest to dichoticstudios.com.
 
-### macOS (macos-latest)  
-- **VST3**: `Chartchotic-VST3-macOS.zip`
+Needs the `HUB_DISPATCH_TOKEN` secret (a PAT with Actions: read/write on `_plugins`).
+Plugin config lives in the hub's `plugins.json`, including `cmakeArgs`, which passes
+`-DBUILD_CHANNEL=RELEASE` so hub builds don't report themselves as dev builds.
 
-### Linux (ubuntu-22.04)
-- **VST3**: `Chartchotic-VST3-Linux-x64.zip`
+Shipping a release: bump `VERSION`, add the matching `## X.Y.Z` section to
+`CHANGELOG.md` (the hub fails the publish if it's missing), merge to `main`, then
+tag `vX.Y.Z`. The tag must match `VERSION` or the hub refuses before building.
 
-## Artifacts
+## Prereleases
 
-Artifacts are available for 30 days after each build:
-1. Go to the "Actions" tab
-2. Click on a workflow run
-3. Scroll down to "Artifacts" section
-4. Download the built plugins
+Still published from this repo, because the hub only handles stable:
 
-## Releases
+- `release-dev.yml`: push to `dev` -> `dev-latest` prerelease
+- `release-beta.yml`: push to `beta` touching `VERSION` -> `beta-latest` prerelease
 
-When you create a GitHub release:
-1. The workflow automatically builds all three platforms
-2. Creates zip files with the plugins
-3. Attaches them to the release as downloadable assets
+`UpdateChecker` reads those two tags for the DEV and BETA channels, so retiring
+either workflow retires that channel.
 
-## Troubleshooting
+## Pull requests
 
-If builds fail:
-1. Check the logs in the Actions tab
-2. Common issues:
-   - Missing dependencies
-   - Projucer file changes
-   - Path issues with spaces in "Chartchotic" folder name
+`pr-check.yml` runs `build.yml` on PRs to `main`: all three platforms, plus
+pluginval (strictness 5) and the unit tests. Apple secrets are not passed, so PRs
+skip signing and notarization.
 
-## Local Testing
+## Reusable build
 
-To test locally before pushing:
-```bash
-# macOS
-cd Chartchotic
-./build.sh
-
-# Windows (in Visual Studio Command Prompt)
-cd Chartchotic  
-msbuild "Builds/VisualStudio2022/Chartchotic.sln" /p:Configuration=Release /p:Platform=x64
-
-# Linux
-cd Chartchotic
-./build-linux.sh
-```
+`build.yml` is `workflow_call` only. Inputs: `version_string` (required) and
+`build_channel` (`RELEASE`/`DEV`). Called by `pr-check.yml` and the two prerelease
+workflows.
