@@ -160,8 +160,8 @@ private:
         float gemBaseW;            // base width before scale
         float gemBaseH;            // base height before scale
         float hScale;              // height scale multiplier
-        float overlayBaseW;        // overlay's base width: the gem's, or the whole lane's
-                                   // when a flam draws one centred overlay for the pair
+        float overlayBaseW;        // width the overlay's HEIGHT comes from. Whole lane, like
+                                   // gemBaseW: the sprite rect already carries any squish
         float overlayAnchorX;      // overlay offsetX baseline
         float overlayAnchorY;      // overlay offsetY baseline
         float pixelScale;          // strike-reference px -> on-screen px, for bake sizing

@@ -574,8 +574,8 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
             // curved path scale the gem down instead of squishing it, which is what turned
             // flams into two small gems rather than one gem split in two.
             laneStrikeWidth, strikeColHeight, hScale,
-            flamOneOverlay ? laneStrikeWidth : strikeColWidth,
-            flamOneOverlay ? laneOffsetX     : strikeOffsetX,
+            laneStrikeWidth,
+            flamOneOverlay ? laneOffsetX : strikeOffsetX,
             zOff + arcOffsetStrike,
             ctx.frameScale.x,
         };
