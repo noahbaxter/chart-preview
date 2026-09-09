@@ -132,10 +132,14 @@ struct GemWrapper
     Gem gem;
     bool starPower;
     HiHatState hihat;
+    // Elite flam: a grace note ahead of the gem. Orthogonal to gem type, to dynamics and to
+    // hat state (an "Open Ghost Flam" is legal), so it rides alongside them rather than
+    // doubling the Gem enum. Never set on kicks — those flam as stacked 1x + 2x.
+    bool flam;
 
-    GemWrapper() : gem(Gem::NONE), starPower(false), hihat(HiHatState::None) {}
-    GemWrapper(Gem g, bool sp = false, HiHatState hh = HiHatState::None)
-        : gem(g), starPower(sp), hihat(hh) {}
+    GemWrapper() : gem(Gem::NONE), starPower(false), hihat(HiHatState::None), flam(false) {}
+    GemWrapper(Gem g, bool sp = false, HiHatState hh = HiHatState::None, bool fl = false)
+        : gem(g), starPower(sp), hihat(hh), flam(fl) {}
 };
 
 enum class Gridline

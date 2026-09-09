@@ -33,6 +33,11 @@ inline const PPQ MIDI_HOPO_EIGHTH = MIDI_TICK_EIGHTH;
 
 constexpr uint MIDI_LANE_COUNT = 7;
 
+// Lane/roll markers are Expert-only unless their velocity lands in this window, which also
+// puts them on Hard.
+constexpr uint8_t MIDI_LANE_HARD_VELOCITY_MIN = 41;
+constexpr uint8_t MIDI_LANE_HARD_VELOCITY_MAX = 50;
+
 inline const PPQ MIDI_MIN_SUSTAIN_LENGTH = PPQ(4.0 / 12.0);
 inline const PPQ MIDI_LANE_EXTENSION_TIME = PPQ(0.1);
 

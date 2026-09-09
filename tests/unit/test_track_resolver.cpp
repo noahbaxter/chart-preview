@@ -18,6 +18,30 @@ namespace
     {
         return TrackResolver::extract(notes, PPQ(0.0), PPQ(16.0), PPQ(16.0), false, true);
     }
+
+    void addNote(NoteStateMapArray& notes, uint pitch, double onQN, double offQN,
+                 uint8_t velocity = 100)
+    {
+        notes[pitch][PPQ(onQN)]  = { velocity };
+        notes[pitch][PPQ(offQN)] = { 0 };
+    }
+
+    TrackResolver::Config eliteConfig()
+    {
+        TrackResolver::Config cfg;
+        cfg.part = Part::ELITE_DRUMS;
+        cfg.dynamics = true;
+        cfg.kick2x = true;
+        return cfg;
+    }
+
+    // The Expert frame at `onQN`, or nullptr if nothing resolved there.
+    const TrackFrame* expertFrameAt(const PartWindow& pw, double onQN)
+    {
+        const auto& tw = pw.forSkill(SkillLevel::EXPERT).trackWindow;
+        auto it = tw.find(PPQ(onQN));
+        return (it == tw.end()) ? nullptr : &it->second;
+    }
 }
 
 // ============================================================================
@@ -88,4 +112,141 @@ TEST_CASE("TrackResolver - 4-lane tom markers are untouched", "[track_resolver][
                                          PPQ(16.0), false, /*isElite=*/false);
     REQUIRE(shared.modifiers.tomYellow.size() == 1);
     REQUIRE(shared.lanes.empty());
+}
+
+// ============================================================================
+// Elite flam marker (upper-octave Eb, per difficulty).
+
+TEST_CASE("TrackResolver - elite flam markers parse per difficulty", "[track_resolver][elite]")
+{
+    struct Case { uint pitch; int skillIdx; };
+    const Case cases[] = {
+        { (uint)EliteDrums::EASY_FLAM,   0 },
+        { (uint)EliteDrums::MEDIUM_FLAM, 1 },
+        { (uint)EliteDrums::HARD_FLAM,   2 },
+        { (uint)EliteDrums::EXPERT_FLAM, 3 },
+    };
+
+    for (const auto& c : cases)
+    {
+        auto shared = extractElite(oneNote(c.pitch, 1.0, 2.0));
+        for (int i = 0; i < 4; i++)
+            REQUIRE(shared.modifiers.flam[i].size() == (i == c.skillIdx ? 1u : 0u));
+        REQUIRE(shared.positions.empty());   // a marker, not a gem
+    }
+}
+
+TEST_CASE("TrackResolver - flam pitches stay guitar notes off an elite track",
+          "[track_resolver][guitar]")
+{
+    // EXPERT_FLAM is 87, which is Guitar::HARD_BLUE. Off elite it must still be a note.
+    auto shared = TrackResolver::extract(oneNote(87, 1.0, 2.0), PPQ(0.0), PPQ(16.0),
+                                         PPQ(16.0), false, /*isElite=*/false);
+    REQUIRE(shared.positions.size() == 1);
+    for (int i = 0; i < 4; i++)
+        REQUIRE(shared.modifiers.flam[i].empty());
+}
+
+TEST_CASE("TrackResolver - flam marker flams the hand gem under it", "[track_resolver][elite]")
+{
+    NoteStateMapArray notes;
+    addNote(notes, (uint)EliteDrums::EXPERT_SNARE, 1.0, 1.1);
+    addNote(notes, (uint)EliteDrums::EXPERT_FLAM,  1.0, 1.1);
+
+    auto pw = TrackResolver::resolve(extractElite(notes), eliteConfig());
+    const auto* frame = expertFrameAt(pw, 1.0);
+    REQUIRE(frame != nullptr);
+    REQUIRE((*frame)[1].gem != Gem::NONE);
+    REQUIRE((*frame)[1].flam);
+}
+
+TEST_CASE("TrackResolver - flam keeps dynamics and hat state", "[track_resolver][elite]")
+{
+    SECTION("ghost snare stays a ghost")
+    {
+        NoteStateMapArray notes;
+        addNote(notes, (uint)EliteDrums::EXPERT_SNARE, 1.0, 1.1, /*ghost velocity=*/1);
+        addNote(notes, (uint)EliteDrums::EXPERT_FLAM,  1.0, 1.1);
+
+        auto pw = TrackResolver::resolve(extractElite(notes), eliteConfig());
+        const auto* frame = expertFrameAt(pw, 1.0);
+        REQUIRE(frame != nullptr);
+        REQUIRE((*frame)[1].gem == Gem::HOPO_GHOST);
+        REQUIRE((*frame)[1].flam);
+    }
+
+    SECTION("open hi-hat stays open")
+    {
+        NoteStateMapArray notes;
+        addNote(notes, (uint)EliteDrums::EXPERT_HIHAT, 1.0, 1.1);
+        addNote(notes, (uint)EliteDrums::EXPERT_FLAM,  1.0, 1.1);
+
+        auto pw = TrackResolver::resolve(extractElite(notes), eliteConfig());
+        const auto* frame = expertFrameAt(pw, 1.0);
+        REQUIRE(frame != nullptr);
+        REQUIRE((*frame)[2].hihat == HiHatState::Open);
+        REQUIRE((*frame)[2].flam);
+    }
+}
+
+TEST_CASE("TrackResolver - flam never touches kicks", "[track_resolver][elite]")
+{
+    // Kicks flam as stacked 1x + 2x, so the marker must skip them. Here it should land on
+    // the snare, not on either kick.
+    NoteStateMapArray notes;
+    addNote(notes, (uint)EliteDrums::EXPERT_KICK,    1.0, 1.1);
+    addNote(notes, (uint)EliteDrums::EXPERT_KICK_2X, 1.0, 1.1);
+    addNote(notes, (uint)EliteDrums::EXPERT_SNARE,   1.0, 1.1);
+    addNote(notes, (uint)EliteDrums::EXPERT_FLAM,    1.0, 1.1);
+
+    auto pw = TrackResolver::resolve(extractElite(notes), eliteConfig());
+    const auto* frame = expertFrameAt(pw, 1.0);
+    REQUIRE(frame != nullptr);
+    REQUIRE_FALSE((*frame)[0].flam);
+    REQUIRE_FALSE((*frame)[ELITE_KICK_2X_COLUMN].flam);
+    REQUIRE((*frame)[1].flam);
+}
+
+TEST_CASE("TrackResolver - flam on simultaneous hand gems takes the leftmost",
+          "[track_resolver][elite]")
+{
+    // The spec leaves this undefined; we pick the leftmost hand gem and pin it here.
+    NoteStateMapArray notes;
+    addNote(notes, (uint)EliteDrums::EXPERT_RIDE,  1.0, 1.1);
+    addNote(notes, (uint)EliteDrums::EXPERT_HIHAT, 1.0, 1.1);
+    addNote(notes, (uint)EliteDrums::EXPERT_FLAM,  1.0, 1.1);
+
+    auto pw = TrackResolver::resolve(extractElite(notes), eliteConfig());
+    const auto* frame = expertFrameAt(pw, 1.0);
+    REQUIRE(frame != nullptr);
+    REQUIRE((*frame)[2].flam);          // hi-hat, the leftmost
+    REQUIRE_FALSE((*frame)[7].flam);    // ride
+}
+
+TEST_CASE("TrackResolver - flam inside a roll lane is ignored", "[track_resolver][elite]")
+{
+    NoteStateMapArray notes;
+    addNote(notes, (uint)EliteDrums::EXPERT_SNARE, 1.0, 1.1);
+    addNote(notes, (uint)EliteDrums::EXPERT_FLAM,  1.0, 1.1);
+    addNote(notes, (uint)EliteDrums::ROLL_SNARE,   0.5, 2.0);   // covers the snare lane
+
+    auto pw = TrackResolver::resolve(extractElite(notes), eliteConfig());
+    const auto* frame = expertFrameAt(pw, 1.0);
+    REQUIRE(frame != nullptr);
+    REQUIRE((*frame)[1].gem != Gem::NONE);
+    REQUIRE_FALSE((*frame)[1].flam);
+}
+
+TEST_CASE("TrackResolver - a roll lane on another column doesn't suppress the flam",
+          "[track_resolver][elite]")
+{
+    NoteStateMapArray notes;
+    addNote(notes, (uint)EliteDrums::EXPERT_SNARE, 1.0, 1.1);
+    addNote(notes, (uint)EliteDrums::EXPERT_FLAM,  1.0, 1.1);
+    addNote(notes, (uint)EliteDrums::ROLL_RIDE,    0.5, 2.0);
+
+    auto pw = TrackResolver::resolve(extractElite(notes), eliteConfig());
+    const auto* frame = expertFrameAt(pw, 1.0);
+    REQUIRE(frame != nullptr);
+    REQUIRE((*frame)[1].flam);
 }

@@ -74,4 +74,13 @@ private:
 
     // Disco flip: replace cymbal/tom flag while preserving dynamic
     static Gem swapCymbalFlag(Gem gem, bool cymbal);
+
+    // Whether a lane marker is visible on this difficulty: Expert always, Hard only for the
+    // velocity 41-50 "also on Hard" encoding.
+    static bool laneAppliesToSkill(const RawLaneMarker& lane, SkillLevel skill);
+
+    // Elite: is a roll lane covering `gemColumn` at `position` on this difficulty? Flams
+    // inside a roll lane are ignored — the gem draws as a single note.
+    static bool eliteRollLaneCovers(const SharedWindow& shared, uint gemColumn,
+                                    PPQ position, SkillLevel skill);
 };

@@ -98,6 +98,10 @@ struct MidiPitchDefinitions
         EXPERT_PEDAL = 72, HARD_PEDAL = 48, MEDIUM_PEDAL = 24, EASY_PEDAL = 0,
         EXPERT_INDIFFERENT = 88, HARD_INDIFFERENT = 64, MEDIUM_INDIFFERENT = 40, EASY_INDIFFERENT = 16,
 
+        // Flam marker (upper-octave Eb, per difficulty): turns one hand gem into a flam.
+        // Kicks flam by stacking 1x + 2x instead, so this never applies to them.
+        EXPERT_FLAM = 87, HARD_FLAM = 63, MEDIUM_FLAM = 39, EASY_FLAM = 15,
+
         // Roll/tremolo lanes (pan-difficulty). Expert-only unless velocity in [41,50] -> Hard too.
         // 110 kick .. 118 R-crash map linearly to columns 0..8; 109 unused (no 2x-kick roll lane).
         ROLL_RCRASH = 118, ROLL_RIDE = 117, ROLL_TOM3  = 116, ROLL_TOM2  = 115,

@@ -49,6 +49,7 @@ SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
                     const bool eliteRoll = isElite && InstrumentMapper::isEliteRollLane(pitch);
                     const int hatPedal   = isElite ? InstrumentMapper::eliteHiHatPedalSkillIndex(pitch) : -1;
                     const int hatIndiff  = isElite ? InstrumentMapper::eliteHiHatIndifferentSkillIndex(pitch) : -1;
+                    const int flamSkill  = isElite ? InstrumentMapper::eliteFlamSkillIndex(pitch) : -1;
                     const bool laneMarker = eliteRoll
                         || pitch == (uint)Guitar::LANE_1 || pitch == (uint)Drums::LANE_1
                         || pitch == (uint)Guitar::LANE_2 || pitch == (uint)Drums::LANE_2;
@@ -62,6 +63,7 @@ SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
                     }
                     else if (hatPedal >= 0)  shared.modifiers.hihatPedal[hatPedal].push_back(range);
                     else if (hatIndiff >= 0) shared.modifiers.hihatIndifferent[hatIndiff].push_back(range);
+                    else if (flamSkill >= 0) shared.modifiers.flam[flamSkill].push_back(range);
                     else if (pitch == (uint)Guitar::SP || pitch == (uint)Drums::SP
                         || (isElite && pitch == (uint)MidiPitchDefinitions::EliteDrums::SP))
                         shared.modifiers.starPower.push_back(range);
@@ -257,6 +259,20 @@ void TrackResolver::resolveNotes(PartWindow& result,
 
             if (noteCount == 0) continue;
 
+            // Elite flam marker. The spec leaves multiple simultaneous hand gems undefined;
+            // we take the leftmost hand gem (kicks are excluded — they flam as stacked
+            // 1x + 2x) and drop the flam entirely if that gem sits inside a roll lane.
+            if (isElite && ModifierRanges::isActiveAt(shared.modifiers.flam[dc.idx], position))
+            {
+                for (uint c = 0; c < LANE_COUNT; c++)
+                {
+                    if (frame[c].gem == Gem::NONE || isDrumKick(c, cfg.part)) continue;
+                    if (!eliteRollLaneCovers(shared, c, position, dc.skill))
+                        frame[c].flam = true;
+                    break;
+                }
+            }
+
             bool isChord = (noteCount >= 2);
 
             // Guitar: resolve with chord/auto-HOPO context
@@ -359,9 +375,7 @@ void TrackResolver::resolveLanes(PartWindow& result,
 
         for (auto& lane : shared.lanes)
         {
-            bool appliesToSkill = (dc.skill == SkillLevel::EXPERT) ||
-                                  (dc.skill == SkillLevel::HARD && lane.laneVelocity >= 41 && lane.laneVelocity <= 50);
-            if (!appliesToSkill) continue;
+            if (!laneAppliesToSkill(lane, dc.skill)) continue;
 
             // Elite roll lanes carry their column in the pitch itself (110..118 -> 0..8),
             // one lane per pitch, so map directly instead of inferring from underlying notes.
@@ -420,6 +434,26 @@ void TrackResolver::resolveLanes(PartWindow& result,
 //==============================================================================
 // Helpers
 //==============================================================================
+
+bool TrackResolver::laneAppliesToSkill(const RawLaneMarker& lane, SkillLevel skill)
+{
+    if (skill == SkillLevel::EXPERT) return true;
+    return skill == SkillLevel::HARD
+        && lane.laneVelocity >= MIDI_LANE_HARD_VELOCITY_MIN
+        && lane.laneVelocity <= MIDI_LANE_HARD_VELOCITY_MAX;
+}
+
+bool TrackResolver::eliteRollLaneCovers(const SharedWindow& shared, uint gemColumn,
+                                        PPQ position, SkillLevel skill)
+{
+    for (const auto& lane : shared.lanes)
+    {
+        if (!laneAppliesToSkill(lane, skill)) continue;
+        if (InstrumentMapper::getEliteRollLaneColumn(lane.laneType) != gemColumn) continue;
+        if (position >= lane.startPPQ && position <= lane.endPPQ) return true;
+    }
+    return false;
+}
 
 Gem TrackResolver::swapCymbalFlag(Gem gem, bool cymbal)
 {

@@ -204,6 +204,21 @@ public:
         return eliteHiHatPedalSkillIndex(pitch) >= 0 || eliteHiHatIndifferentSkillIndex(pitch) >= 0;
     }
 
+    // Flam marker, same per-difficulty shape as the hi-hat modifiers (upper-octave Eb,
+    // -24 per difficulty). Expert 87 is guitar's HARD_BLUE, so this only ever runs on an
+    // elite track.
+    static int eliteFlamSkillIndex(uint pitch)
+    {
+        using ED = MidiPitchDefinitions::EliteDrums;
+        switch (pitch) {
+        case (uint)ED::EASY_FLAM:   return 0;
+        case (uint)ED::MEDIUM_FLAM: return 1;
+        case (uint)ED::HARD_FLAM:   return 2;
+        case (uint)ED::EXPERT_FLAM: return 3;
+        default: return -1;
+        }
+    }
+
     // Inverse of getGuitarColumn: given a lane the user clicked, return the
     // MIDI pitch to write. col 0 = open, col 1-5 = green/red/yellow/blue/orange.
     // Returns -1 for invalid (col, skill) combinations.
@@ -456,11 +471,12 @@ public:
         // Elite drums own the whole 72-82 note octave (kick..R-crash), which overlaps
         // guitar's MEDIUM_HOPO (77) / MEDIUM_STRUM (78) etc. Those are ELITE NOTES, not
         // modifiers, so for elite only its genuine modifiers count: Star Power (104), the
-        // roll/tremolo lanes (110-118), and the hi-hat pedal-state modifiers (Pedal Down +
-        // Indifferent, all four difficulties). Flam/disco markers are still not parsed.
+        // roll/tremolo lanes (110-118), the hi-hat pedal-state modifiers (Pedal Down +
+        // Indifferent, all four difficulties) and the flam markers. Disco markers are still
+        // not parsed.
         if (isElite)
             return pitch == (uint)MidiPitchDefinitions::EliteDrums::SP || isEliteRollLane(pitch)
-                || isEliteHiHatModifier(pitch);
+                || isEliteHiHatModifier(pitch) || eliteFlamSkillIndex(pitch) >= 0;
 
         // Guitar modifiers (all sustained)
         if (pitch == (uint)Guitar::SP ||
