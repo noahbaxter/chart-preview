@@ -1,0 +1,128 @@
+#pragma once
+
+#include <JuceHeader.h>
+#include "AuthoringControllerBase.h"
+
+class WriteController : public AuthoringControllerBase
+{
+public:
+    explicit WriteController(juce::ValueTree& state);
+
+    bool       writeModeActive() const { return writeModeActiveFlag; }
+    SubMode    subMode()         const { return currentSubMode; }
+
+    // Everything worth preserving about a copied note. velocity carries drum
+    // dynamics, markerMask carries note type (cymbal/tom, HOPO/strum/tap) as
+    // slot flags over modifierMarkerPitches(). Both are per note so a paste
+    // reproduces what was copied, not whatever the toolbar is set to.
+    struct StampNote
+    {
+        int      lane;
+        double   qnOffset;
+        double   duration;
+        int      velocity   = 100;
+        uint32_t markerMask = 0;
+        Gem      gem        = Gem::NOTE;   // preview art, derived at capture
+    };
+    void setStamp(std::vector<StampNote> s);
+    void clearStamp();
+    void shiftStampLanes(int delta);
+    bool hasStamp() const { return !stamp.empty(); }
+    const std::vector<StampNote>& getStamp() const { return stamp; }
+
+    void beginStampCapture();
+
+    void setWriteModeActive(bool active);
+    void setSubMode(SubMode mode);
+    void setStepDivision(int division);
+    void setTuplet(int t);
+    void toggleTuplet();
+    void cycleTuplet();
+    void setSnapEnabled(bool enabled);
+
+    void onPointerMove   (const AuthoringPoint& p, const AuthoringContext& ctx);
+    void onPointerDown   (const AuthoringPoint& p, const AuthoringContext& ctx);
+    void onPointerDrag   (const AuthoringPoint& p, const AuthoringContext& ctx);
+    void onPointerUp     (const AuthoringPoint& p, const AuthoringContext& ctx);
+    void onPointerExit   ()    { lastPointValid = false; recomputeGhost(); }
+    void onPointerCancel ()    {}
+    void stateDidChange();
+    bool onKeyPress      (const juce::KeyPress& key);
+    WriteCommand resolveKeyCommand(const juce::KeyPress& key) const
+    {
+        return commandMapper.resolveKey(writeModeActive(), key);
+    }
+    void onFrameTick     (double currentProjectQN, bool isPlaying);
+
+private:
+    void loadPersistedState();
+
+    juce::ValueTree& state;
+
+    SubMode currentSubMode      = SubMode::Draw;
+    bool    writeModeActiveFlag = false;
+
+    AuthoringPoint lastPoint;
+    bool           lastPointValid = false;
+
+    // Erase drag state (deferred — notes tinted red, erased on commit)
+    bool        eraseDragActive    = false;
+    int         eraseDragTrackIdx  = -1;
+    MarqueeRect eraseRect;
+    double      eraseClickedNoteQN = -1.0;
+    double      eraseClickedSustainQN = -1.0;
+    int         eraseClickedSustainLane = -1;
+
+    // Sustain drag state
+    bool   sustainDragActive   = false;
+    int    sustainDragTrackIdx = -1;
+    double sustainDragStartQN  = 0.0;
+    int    sustainDragLane     = -1;
+    int    sustainDragPitch     = -1;
+    bool   sustainPendingClick    = false;
+    double sustainPendingClickQN  = 0.0;
+
+    // Paint drag state
+    bool   paintDragActive   = false;
+    int    paintDragTrackIdx = -1;
+    double paintStartQN      = 0.0;
+    double paintLastQN        = 0.0;
+    int    paintLastLane      = -1;
+    struct PaintedNote { double qn; int lane; };
+    std::vector<PaintedNote> paintedNotes;
+    void paintFillRange(double fromQN, double toQN, int lane);
+    void paintShrinkTo(double lo, double hi);
+
+    std::vector<StampNote> stamp;
+
+    // Stamp capture (hold C + drag in draw mode)
+    // Value T restores when toggling the tuplet grid back on. Triplet until
+    // Shift+T picks something else.
+    int         lastTuplet = 3;
+
+    // Shift in kick mode arms the alternating 1x/2x paint. Polled per frame so
+    // the hint appears the moment the key goes down, with no mouse move.
+    bool        altKickArmed = false;
+    bool        altKickAvailable() const;
+
+    bool        stampCaptureActive = false;
+    int         stampCaptureTrackIdx = -1;
+    MarqueeRect stampCaptureRect;
+
+    bool   canWrite(const AuthoringPoint& p) const;
+    void   recomputeGhost();
+    void   enterSustainDrag(int trackIdx, double startQN, int lane, int pitch);
+    void   clearSustainDrag();
+
+    void handleBeginSustain  (const AuthoringPoint& p, int trackIdx, int pitch, bool drums);
+    void handleUpdateSustain (const AuthoringPoint& p);
+    void handleCommitSustain (const AuthoringPoint& p);
+    void handleBeginPaint    (const AuthoringPoint& p, int trackIdx, int pitch, bool drums);
+    void handleContinuePaint (const AuthoringPoint& p);
+    void handleCommitPaint   ();
+    void handleBeginErase    (const AuthoringPoint& p, int trackIdx, int pitch, bool drums);
+    void handleContinueErase (const AuthoringPoint& p);
+    void handleEndErase      ();
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WriteController)
+};

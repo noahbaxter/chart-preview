@@ -61,7 +61,7 @@ private:
     std::function<void(const juce::String&)> print;
 
     NoteProcessor noteProcessor;
-    std::string previousMidiHash;
+    std::string previousMidiHash = "__uninitialized__";
 
     std::vector<MidiCache::CachedNote> allNotes;
     TrackTextEvents textEvents;

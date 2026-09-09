@@ -22,13 +22,18 @@
   #define CHARTCHOTIC_VERSION "dev"
 #endif
 
+#if __has_include("BuildInfo.h")
+  #include "BuildInfo.h"
+#endif
+
 //==============================================================================
 ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudioProcessor &p, juce::ValueTree &state)
     : AudioProcessorEditor(&p),
       state(state),
       audioProcessor(p),
-      toolbar(state),
-      assetManager()
+      assetManager(),
+      interactionController(state),
+      toolbar(state, interactionController)
 {
     // Create scratch renderer for shared track image cache
     cacheRenderer = std::make_unique<TrackRenderer>(state);
@@ -39,6 +44,79 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         slots[i].highway = std::make_unique<HighwayComponent>(state, assetManager);
         slots[i].highway->setTrackImageCache(&trackImageCache);
         slots[i].highway->setVisible(false);
+
+        // Wire mouse dispatch into the interaction controller.
+        auto& hw = *slots[i].highway;
+        // Claim focus before dispatching so the edit lands on the highway the
+        // mouse is over. Drags do not re-claim, that would retarget the stroke.
+        hw.setOnPointerMove       ([this, i](const AuthoringPoint& p, const AuthoringContext& c) { focusSlot(i); interactionController.onPointerMove(p, c); });
+        hw.setOnPointerDown       ([this, i](const AuthoringPoint& p, const AuthoringContext& c) { focusSlot(i); interactionController.onPointerDown(p, c); });
+        hw.setOnPointerDrag       ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerDrag(p, c); });
+        hw.setOnPointerUp         ([this](const AuthoringPoint& p, const AuthoringContext& c) { interactionController.onPointerUp(p, c); });
+        hw.setOnPointerExit       ([this]() { interactionController.onPointerExit(); });
+        hw.setOnPointerCancel     ([this]() { interactionController.onPointerCancel(); });
+        hw.setOnPointerDoubleClick([this, i](const AuthoringPoint& p, const AuthoringContext& c) { focusSlot(i); interactionController.onPointerDoubleClick(p, c); });
+        hw.onMouseWheel = [this](const juce::MouseEvent& e, const juce::MouseWheelDetails& w) { handleHighwayScroll(e, w); };
+
+        // Coordinate-domain conversion: HitTestMapper returns "seconds offset
+        // from cursor"; the controller wants project QN. Convert at the
+        // dispatch boundary (M0-G design rule).
+        hw.setSecondsToProjectQN([this](double secondsFromCursor) -> double {
+            double cursorQN = lastKnownPosition.toDouble();
+            auto& reaperProvider = audioProcessor.getReaperMidiProvider();
+            if (reaperProvider.isReaperApiAvailable())
+            {
+                double cursorTime = reaperProvider.ppqToTime(cursorQN);
+                return reaperProvider.timeToPpq(cursorTime + secondsFromCursor);
+            }
+            // Standard fallback: use instantaneous BPM.
+            double bpm = defaultBPM;
+            if (auto* playHead = audioProcessor.getPlayHead())
+            {
+                auto positionInfo = playHead->getPosition();
+                if (positionInfo.hasValue())
+                    bpm = positionInfo->getBpm().orFallback(defaultBPM);
+            }
+            return cursorQN + secondsFromCursor * (bpm / 60.0);
+        });
+
+        // Inverse of the above — used by the hover-ghost renderer to convert a
+        // snapped project QN back into a seconds-from-cursor offset (then into a
+        // normalized highway position).
+        hw.setProjectQNToSeconds([this](double projectQN) -> double {
+            double cursorQN = lastKnownPosition.toDouble();
+            auto& reaperProvider = audioProcessor.getReaperMidiProvider();
+            if (reaperProvider.isReaperApiAvailable())
+            {
+                double cursorTime = reaperProvider.ppqToTime(cursorQN);
+                double targetTime = reaperProvider.ppqToTime(projectQN);
+                return targetTime - cursorTime;
+            }
+            double bpm = defaultBPM;
+            if (auto* playHead = audioProcessor.getPlayHead())
+            {
+                auto positionInfo = playHead->getPosition();
+                if (positionInfo.hasValue())
+                    bpm = positionInfo->getBpm().orFallback(defaultBPM);
+            }
+            return (projectQN - cursorQN) * (60.0 / bpm);
+        });
+
+        // One controller feeds every slot, so gate it or the cursor mirrors.
+        hw.setOverlayStateGetter([this, i]() -> const OverlayState& {
+            static const OverlayState blank;
+            return i == effectiveFocusSlot() ? interactionController.getOverlayState() : blank;
+        });
+
+        // Format a project QN as "M.B" for the ghost cursor position label.
+        hw.setFormatPositionQN([this](double projectQN) -> juce::String {
+            const juce::ScopedLock lock(audioProcessor.getTempoLock());
+            auto& map = audioProcessor.getTempoTimeSignatureMap();
+            auto mb = TempoTimeSignatureEventHelper::pPqToMeasureBeat(PPQ(projectQN), map);
+            if (map.empty()) return juce::String(mb.measure + 1);
+            return TempoTimeSignatureEventHelper::formatMeasureBeat(mb.measure + 1,
+                                                                    mb.beatInMeasure);
+        });
     }
 
     // Activate slot 0 as default
@@ -51,6 +129,8 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
         slot.highway->setActivePart(slot.part);
         slot.highway->setVisible(true);
         activeSlotCount = 1;
+        interactionController.setActivePart(slot.part);
+        toolbar.refreshFromWriteController();
     }
     setLookAndFeel(&chartPreviewLnF);
 
@@ -107,7 +187,31 @@ ChartchoticAudioProcessorEditor::ChartchoticAudioProcessorEditor(ChartchoticAudi
     for (int i = 0; i < activeSlotCount; i++)
         slots[i].highway->setVisible(true);
     addAndMakeVisible(toolbar);
+
+    // Floating write-mode chip — sits over the highway (top-left). Click
+    // toggles write mode (same effect as W); state is pushed via the
+    // WriteController::onStateChanged callback wired below.
+    writeModeIcon.setState(interactionController.writeModeActive(), interactionController.subMode());
+    writeModeIcon.onClick = [this]() {
+        interactionController.setWriteModeActive(!interactionController.writeModeActive());
+    };
+    writeModeIcon.onHoverHelp = [this](const HelpText& h) {
+        footer.setHelpText(h);
+    };
+    writeModeIcon.onHoverHelpClear = [this]() {
+        footer.clearHelpText();
+    };
+    addAndMakeVisible(writeModeIcon);
+    writeModeIcon.toFront(false);
+
     initBottomBar();
+
+#ifdef DEBUG
+    // Ensure debug console renders on top of highways
+    debug.getConsole().toFront(false);
+    debug.getClearButton().toFront(false);
+    debug.getCopyButton().toFront(false);
+#endif
 
     // If REAPER session already exists (editor recreated after track move), rebuild from it
     if (audioProcessor.isReaperHost)
@@ -135,6 +239,20 @@ ChartchoticAudioProcessorEditor::~ChartchoticAudioProcessorEditor()
     // Safe in plugin mode too — typefaces are lazily recreated on next use.
     Theme::clearTypefaces();
     ChartchoticLogo::clearTypefaces();
+}
+
+// The sub-toolbar follows focus, so the modifier buttons always describe the
+// instrument the next click writes to.
+void ChartchoticAudioProcessorEditor::focusSlot(int index)
+{
+    if (index < 0 || index >= activeSlotCount || index == focusedSlot) return;
+
+    focusedSlot = index;
+    const auto& slot = slots[index];
+    interactionController.setActivePart(slot.part);
+    interactionController.setActiveSkill(slot.skillLevel);
+    toolbar.refreshFromWriteController();
+    repaint();
 }
 
 void ChartchoticAudioProcessorEditor::onFrame()
@@ -180,6 +298,30 @@ void ChartchoticAudioProcessorEditor::onFrame()
     {
         toolbar.setReaperMode(true);
         toolbar.updateVisibility();
+    }
+
+    // Per-frame sync — wires MidiWriter, InstrumentSession, playingState,
+    // part, skill into both sub-controllers, then ticks frame timers.
+    if (activeSlotCount > 0)
+    {
+        // Multi-difficulty layouts share a part across slots and differ only by
+        // skill, so take both from the slot rather than the global setting.
+        // Patches are keyed by lane and QN with no track, so an unfocused
+        // highway reading them flashes the note. Routed per frame: the layout
+        // changes in too many places to hook each one.
+        const int fs = effectiveFocusSlot();
+        for (int i = 0; i < MAX_HIGHWAY_SLOTS; i++)
+            slots[i].highway->setPatchBuffer(
+                i == fs ? &interactionController.getPatchBuffer() : nullptr);
+
+        const auto& focus = slots[fs];
+        interactionController.onFrame(
+            audioProcessor.getReaperMidiProvider().getWriter(),
+            audioProcessor.getInstrumentSession(),
+            &lastPlayingState,
+            focus.part,
+            focus.skillLevel,
+            lastKnownPosition.toDouble());
     }
 
     updateTrackInfoDisplay();
@@ -367,6 +509,11 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
         toolbar.setEnabledParts(parts);
         session.rebuildVisibleSlots();
+        if (activeSlotCount > 0)
+        {
+            interactionController.setActivePart(slots[0].part);
+            toolbar.refreshFromWriteController();
+        }
     };
 
     toolbar.onAllInstrumentsClicked = [this]() {
@@ -380,6 +527,11 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
         toolbar.setEnabledParts(parts);
         session.rebuildVisibleSlots();
+        if (activeSlotCount > 0)
+        {
+            interactionController.setActivePart(slots[0].part);
+            toolbar.refreshFromWriteController();
+        }
     };
 
     toolbar.onPartChanged = [this](int id) {
@@ -388,6 +540,8 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
         Part newPart = getPartFromState(state);
         primaryInterpreter().instrumentPart = newPart;
         slots[0].part = newPart;
+        interactionController.setActivePart(newPart);
+        toolbar.refreshFromWriteController();
 
         if (!PositionMath::bemaniMode)
         {
@@ -501,6 +655,8 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
             slot.highway->showDifficultyLabel = false;
             slot.highway->setVisible(true);
             activeSlotCount = 1;
+            interactionController.setActivePart(slot.part);
+            toolbar.refreshFromWriteController();
 
             toolbar.setMultiInstrumentMode(false);
             toolbar.resetToManualMode();
@@ -563,6 +719,29 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
     toolbar.onOpenBackgroundFolder = [this]() { assets.getBackgroundDirectory().revealToUser(); };
     toolbar.onOpenTextureFolder = [this]() { assets.getHighwayTextureDirectory().revealToUser(); };
 
+    // Refresh the floating mode chip + sub-toolbar whenever write-mode state
+    // changes (W/Q toggles, [/]/S/T grid changes). When the sub-toolbar's
+    // visibility flips, the toolbar reports a new height — trigger our own
+    // resized() so the highway reclaims/yields the row's space.
+    interactionController.onStateChanged = [this]() {
+        writeModeIcon.setState(interactionController.writeModeActive(), interactionController.subMode());
+        bool wm = interactionController.writeModeActive();
+        forAllHighways([wm](auto& hw) { hw.setWriteMode(wm); });
+
+        if (toolbar.refreshFromWriteController())
+            resized();
+
+        updateFooterHelpText();
+        forEachHighway([](auto& hw) { hw.repaint(); });
+    };
+
+    toolbar.getWriteSubToolbar().onHoverHelp = [this](const HelpText& h) {
+        footer.setHelpText(h);
+    };
+    toolbar.getWriteSubToolbar().onHoverHelpClear = [this]() {
+        footer.clearHelpText();
+    };
+
 #ifdef DEBUG
     debug.wireCallbacks(toolbar, primaryHighway(), [this]() { repaint(); });
 #endif
@@ -570,7 +749,12 @@ void ChartchoticAudioProcessorEditor::initToolbarCallbacks()
 
 void ChartchoticAudioProcessorEditor::initBottomBar()
 {
+#if defined(CHARTCHOTIC_BUILD_TIMESTAMP) && defined(CHARTCHOTIC_BUILD_SHA)
+    footer.init(juce::String("v") + CHARTCHOTIC_VERSION + "." + CHARTCHOTIC_BUILD_TIMESTAMP + "." + CHARTCHOTIC_BUILD_SHA);
+#else
     footer.init(juce::String("v") + CHARTCHOTIC_VERSION);
+#endif
+    updateFooterHelpText();
     addAndMakeVisible(footer);
 
     updateBanner.onPromptDismissed = [this]() { audioProcessor.updatePromptDismissed = true; };
@@ -579,7 +763,7 @@ void ChartchoticAudioProcessorEditor::initBottomBar()
         if (info.available)
         {
             bool autoPrompt = !audioProcessor.updatePromptDismissed;
-            updateBanner.setUpdateInfo(info.version, info.downloadUrl, autoPrompt);
+            updateBanner.setUpdateInfo(info.version, info.downloadUrl, info.channelLabel, info.displayMessage, autoPrompt);
             footer.setUpdateAvailable();
             resized();
         }
@@ -722,7 +906,11 @@ void ChartchoticAudioProcessorEditor::resized()
     // The 0.09 vertical ratio ensures toolbar + tallest panel + footer all fit.
     int fromWidth = juce::roundToInt(getWidth() * ToolbarComponent::toolbarRatio);
     int fromHeight = juce::roundToInt(getHeight() * 0.09f);
-    int tbHeight = std::min({ fromWidth, fromHeight, ToolbarComponent::maxToolbarHeight });
+    int tbStripHeight = std::min({ fromWidth, fromHeight, ToolbarComponent::maxToolbarHeight });
+
+    // Total toolbar height — grows when write mode is active (sub-toolbar row).
+    int tbHeight = toolbar.getReportedHeight(tbStripHeight);
+
     if (PositionMath::bemaniMode)
     {
         // Bemani: enforce minimum aspect ratio, but grow taller to fill available space
@@ -737,12 +925,22 @@ void ChartchoticAudioProcessorEditor::resized()
 
     const int margin = 10;
 
-    // Toolbar at top — scales with editor width
+    // Toolbar at top — scales with editor width. Height includes sub-toolbar
+    // row when write mode is active.
     toolbar.setBounds(0, 0, getWidth(), tbHeight);
 
-    // Footer bar height — same min(width, height) logic as toolbar
+    // Floating mode chip — top-left of the highway, just below the toolbar.
+    // Sized off the toolbar strip so it scales with the rest of the UI.
+    {
+        int chipSize = juce::jmax(20, juce::roundToInt(tbStripHeight * 0.95f));
+        int chipInset = juce::jmax(6, juce::roundToInt(tbStripHeight * 0.22f));
+        writeModeIcon.setBounds(chipInset, tbHeight + chipInset, chipSize, chipSize);
+        writeModeIcon.toFront(false);
+    }
+
+    // Footer bar height
     int footerFromWidth = juce::roundToInt(getWidth() * FooterComponent::footerRatio);
-    int footerFromHeight = juce::roundToInt(getHeight() * 0.06f);
+    int footerFromHeight = juce::roundToInt(getHeight() * 0.08f);
     int footerH = std::min({ footerFromWidth, footerFromHeight, FooterComponent::maxFooterHeight });
 
     // Tell popup panels where the footer starts so they don't overlap it
@@ -830,7 +1028,6 @@ void ChartchoticAudioProcessorEditor::resized()
         }
     }
 
-    footer.label.setFont(Theme::getUIFont(Theme::fontSize));
     footer.setBounds(0, getHeight() - footerH, getWidth(), footerH);
 
     // Rebake shared track cache when scene dimensions change or cache was externally invalidated
@@ -843,9 +1040,12 @@ void ChartchoticAudioProcessorEditor::resized()
     }
 
     #ifdef DEBUG
-    int stripH = toolbar.getStripHeight();
-    debug.getClearButton().setBounds(margin, stripH + 4, 100, 20);
-    debug.getConsole().setBounds(margin, stripH + 28, getWidth() - (2 * margin), getHeight() - stripH - 38);
+    // Debug console floats below the entire toolbar (including the
+    // sub-toolbar row when write mode is active).
+    int debugTop = tbHeight;
+    debug.getClearButton().setBounds(margin, debugTop + 4, 100, 20);
+    debug.getCopyButton().setBounds(margin + 104, debugTop + 4, 60, 20);
+    debug.getConsole().setBounds(margin, debugTop + 28, getWidth() - (2 * margin), getHeight() - debugTop - 38);
     #endif
 
 }
@@ -893,8 +1093,8 @@ void ChartchoticAudioProcessorEditor::loadState()
     }
 
     // Default to gothic if no saved preference (first launch only)
-    if (!state.hasProperty("highwayTexture") && assets.getHighwayTextureNames().contains("kanaizo_gothic"))
-        state.setProperty("highwayTexture", "kanaizo_gothic", nullptr);
+    if (!state.hasProperty("highwayTexture") && assets.getHighwayTextureNames().contains("gothic_default"))
+        state.setProperty("highwayTexture", "gothic_default", nullptr);
 
     toolbar.loadState();
 
@@ -1058,6 +1258,8 @@ void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::Lo
         slot.highway->setActivePart(slot.part);
         slot.highway->setVisible(true);
         activeSlotCount = 1;
+        interactionController.setActivePart(slot.part);
+        toolbar.refreshFromWriteController();
 
         resized();
         loadState();
@@ -1099,6 +1301,13 @@ void ChartchoticAudioProcessorEditor::rebuildSlots(const DebugMidiFilePlayer::Lo
     }
 
     activeSlotCount = slotIdx;
+
+    // Sync write controller to the primary slot's part.
+    if (activeSlotCount > 0)
+    {
+        interactionController.setActivePart(slots[0].part);
+        toolbar.refreshFromWriteController();
+    }
 
     // Multi-highway mode: show part labels and all toolbar options
     bool multiSlot = activeSlotCount > 1;
@@ -1167,6 +1376,11 @@ float ChartchoticAudioProcessorEditor::computeScrollOffset()
 
 FrameContext ChartchoticAudioProcessorEditor::buildFrameContext()
 {
+    WriteGridConfig wgc;
+    wgc.active        = interactionController.writeModeActive() && interactionController.snapEnabled();
+    wgc.stepDivision  = interactionController.stepDivision();
+    wgc.tuplet        = interactionController.tuplet();
+
     return FrameContext {
         audioProcessor,
         state,
@@ -1176,7 +1390,8 @@ FrameContext ChartchoticAudioProcessorEditor::buildFrameContext()
         computeScrollOffset(),
         smoothedLatencyInPPQ(),
         slots.data(),
-        activeSlotCount
+        activeSlotCount,
+        wgc
     };
 }
 

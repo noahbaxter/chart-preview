@@ -11,6 +11,7 @@
 
 #include "SustainRenderer.h"
 #include "../Utils/RenderTypeConfig.h"
+#include "../../Editor/AuthoringTypes.h"
 
 using namespace PositionConstants;
 
@@ -125,6 +126,15 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     bool starPowerActive = state.getProperty("starPower");
     bool shouldBeWhite = starPowerActive && sustain.gemType.starPower;
     auto colour = assetManager.getLaneColour(sustain.gemColumn, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS, shouldBeWhite);
+
+    for (const auto& ts : tintedSustains)
+    {
+        if (ts.lane != (int)sustain.gemColumn) continue;
+        bool match = ts.matchStart
+            ? std::abs(sustain.startTime - ts.startTime) < kTimeEpsilon
+            : (sustain.endTime > ts.startTime - kTimeEpsilon && sustain.startTime < ts.endTime + kTimeEpsilon);
+        if (match) { colour = ts.colour; break; }
+    }
 
     float opacity, sustainWidth;
     DrawOrder sustainDrawOrder;

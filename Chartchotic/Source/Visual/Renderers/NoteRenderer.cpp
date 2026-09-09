@@ -11,6 +11,18 @@
 
 #include "NoteRenderer.h"
 #include "../Utils/RenderTypeConfig.h"
+#include "../../Editor/AuthoringTypes.h"
+#include "../../Midi/Utils/InstrumentMapper.h"
+
+namespace
+{
+    Render::ClipHalf resolveBarKickClip(bool isDrums, bool barModeActive, uint gemColumn)
+    {
+        if (!isDrums || !barModeActive || !isDrumKick(gemColumn)) return Render::ClipHalf::None;
+        return InstrumentMapper::is2xKickLane(gemColumn) ? Render::ClipHalf::Left
+                                                          : Render::ClipHalf::Right;
+    }
+}
 
 using namespace PositionConstants;
 using namespace Render;
@@ -93,6 +105,7 @@ void NoteRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow
                             float posEnd,
                             float farFadeEnd, float farFadeLen, float farFadeCurve)
 {
+    hitBoxes.clear();
     currentDrawCallMap = &drawCallMap;
     currentConfig = getRenderTypeConfig(getRenderType(activePart));
     currentVpDepth = currentConfig->getPerspectiveParams().vanishingPointDepth;
@@ -129,30 +142,46 @@ void NoteRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow
     }
 }
 
-void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, double frameTime)
+NoteRenderer::SharedFrameContext NoteRenderer::buildFrameContext(float position)
 {
     bool isDrums = isDrumLike(activePart);
+    auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height, HIGHWAY_POS_START, posEnd);
+    auto fbCur    = PositionMath::getFretboardEdge(isDrums, position, width, height, HIGHWAY_POS_START, posEnd);
+    float fbSW = fbStrike.rightX - fbStrike.leftX;
+    float wRatio = (fbSW > 0.0f) ? ((fbCur.rightX - fbCur.leftX) / fbSW) : 1.0f;
 
-    // Shared anchor + scale for the whole row: one projection of the lane plane
-    // at the musical position. Every sprite (bar + gems + overlays) is laid out
-    // in strike-reference pixels relative to this anchor and scaled by the same
-    // frameScale, so the row renders as a single composite — no per-sprite
-    // depth offset, no drift between stacked elements.
-    auto fbStrike = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height,
-                                                    PositionConstants::HIGHWAY_POS_START, posEnd);
-    auto fbCur = PositionMath::getFretboardEdge(isDrums, position, width, height,
-                                                  PositionConstants::HIGHWAY_POS_START, posEnd);
-    float fbStrikeWidth = fbStrike.rightX - fbStrike.leftX;
-    float fbStrikeCenterX = (fbStrike.leftX + fbStrike.rightX) * 0.5f;
-    float fbCurWidth = fbCur.rightX - fbCur.leftX;
-    float fbCurCenterX = (fbCur.leftX + fbCur.rightX) * 0.5f;
-    float widthRatio = (fbStrikeWidth > 0.0f) ? (fbCurWidth / fbStrikeWidth) : 1.0f;
+    return {
+        {(fbCur.leftX + fbCur.rightX) * 0.5f, fbCur.centerY},
+        {wRatio, wRatio},
+        fbSW,
+        (fbStrike.leftX + fbStrike.rightX) * 0.5f
+    };
+}
 
-    SharedFrameContext ctx;
-    ctx.anchor = juce::Point<float>(fbCurCenterX, fbCur.centerY);
-    ctx.frameScale = juce::Point<float>(widthRatio, widthRatio);
-    ctx.fbStrikeWidth = fbStrikeWidth;
-    ctx.fbStrikeCenterX = fbStrikeCenterX;
+void NoteRenderer::renderGhost(DrawCallMap& drawCallMap, int lane, float position,
+                                juce::Image* image, float opacity, Gem gem,
+                                bool selected)
+{
+    auto ctx = buildFrameContext(position);
+    GemWrapper dummy;
+    dummy.gem = gem;
+
+    Render::Frame frame;
+    appendGemSprites(lane, dummy, position, 0.0, ctx, frame, image, opacity);
+
+    for (auto& s : frame.sprites)
+    {
+        s.drawOrder = (int)DrawOrder::OVERLAY;
+        if (selected) s.tint = AuthoringColours::selectTint;
+    }
+
+    if (!frame.sprites.empty())
+        Render::drawFrame(frame, ctx.anchor, ctx.frameScale, drawCallMap);
+}
+
+void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, double frameTime)
+{
+    auto ctx = buildFrameContext(position);
 
     Render::Frame composite;
 
@@ -162,7 +191,29 @@ void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, 
         int gemColumn = drawSequence[i];
         if (gems[gemColumn].gem != Gem::NONE)
         {
+            int spriteStart = (int)composite.sprites.size();
             appendGemSprites(gemColumn, gems[gemColumn], position, frameTime, ctx, composite);
+
+            bool selected = false;
+            for (const auto& sg : selectedGems)
+                if (sg.lane == gemColumn && std::abs(sg.time - frameTime) < 0.002)
+                { selected = true; break; }
+
+            if (selected)
+            {
+                for (int s = spriteStart; s < (int)composite.sprites.size(); ++s)
+                    composite.sprites[s].tint = AuthoringColours::selectTint;
+            }
+            else
+            {
+                bool erasing = false;
+                for (const auto& et : eraseTargets)
+                    if (et.lane == gemColumn && std::abs(et.time - frameTime) < 0.002)
+                    { erasing = true; break; }
+                if (erasing)
+                    for (int s = spriteStart; s < (int)composite.sprites.size(); ++s)
+                        composite.sprites[s].tint = AuthoringColours::eraseTint;
+            }
         }
     }
 
@@ -172,7 +223,9 @@ void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, 
 
 void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper, float position,
                                      double frameTime, const SharedFrameContext& ctx,
-                                     Render::Frame& outFrame)
+                                     Render::Frame& outFrame,
+                                     juce::Image* imageOverride,
+                                     float opacityOverride)
 {
     juce::Image* glyphImage;
     bool barNote;
@@ -180,7 +233,12 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     bool starPowerActive = state.getProperty("starPower");
     bool isDrums = isDrumLike(activePart);
 
-    if (isGuitarLike(activePart))
+    if (imageOverride)
+    {
+        glyphImage = imageOverride;
+        barNote = isBarNote(gemColumn, isDrums ? Part::DRUMS : Part::GUITAR);
+    }
+    else if (isGuitarLike(activePart))
     {
         barNote = isBarNote(gemColumn, Part::GUITAR);
         glyphImage = assetManager.getGuitarGlyphImage(gemWrapper, gemColumn, starPowerActive);
@@ -191,22 +249,24 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         glyphImage = assetManager.getDrumGlyphImage(gemWrapper, gemColumn, starPowerActive);
     }
 
-    // Per-gem clip: bars and notes can have different strike positions
-    double clipTime = barNote ? cachedBarClipTime : cachedNoteClipTime;
-    if (frameTime < clipTime) return;
-
-    if (barNote && !showBars) return;
-    if (!barNote && !showGems) return;
+    if (!imageOverride)
+    {
+        double clipTime = barNote ? cachedBarClipTime : cachedNoteClipTime;
+        if (frameTime < clipTime) return;
+        if (barNote && !showBars) return;
+        if (!barNote && !showGems) return;
+    }
 
     if (glyphImage == nullptr)
         return;
 
     float imageAspect = (float)glyphImage->getWidth() / (float)glyphImage->getHeight();
-    float opacity = calculateOpacity(position);
+    float opacity = (opacityOverride >= 0.0f) ? opacityOverride : calculateOpacity(position);
+    if (!barNote && barModeDim < 1.0f) opacity *= barModeDim;
 
     if (PositionMath::bemaniMode)
     {
-        drawGemBemani(gemColumn, gemWrapper, position, glyphImage, barNote, opacity);
+        drawGemBemani(gemColumn, gemWrapper, position, frameTime, glyphImage, barNote, opacity);
         return;
     }
 
@@ -221,11 +281,13 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
 
     // Strike-reference width + horizontal offset from shared anchor
     float strikeColWidth, strikeOffsetX;
+    Render::ClipHalf barClipHalf = Render::ClipHalf::None;
     if (barNote)
     {
         strikeColWidth = ctx.fbStrikeWidth
                        * PositionConstants::BAR_FRETBOARD_FIT * PositionConstants::BAR_SIZE;
-        strikeOffsetX = 0.0f;  // bar is centered on fretboard
+        strikeOffsetX = 0.0f;
+        barClipHalf = resolveBarKickClip(isDrums, barModeDim < 1.0f, gemColumn);
     }
     else
     {
@@ -303,6 +365,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         s.drawOrder = barNote ? (int)DrawOrder::BAR : (int)DrawOrder::NOTE;
         s.drawColumn = (int)gemColumn;
         s.opacity   = opacity;
+        s.clipHalf  = barClipHalf;
         outFrame.sprites.push_back(s);
     }
 
@@ -345,10 +408,26 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         };
         applyCurvedImageSwap(outFrame, gemIdx, ovlIdx, args);
     }
+
+    // Capture hit box from final gem sprite (uses same transform as drawFrame)
+    if (imageOverride == nullptr)
+    {
+        const auto& gs = outFrame.sprites[gemIdx];
+        float cx = ctx.anchor.x + gs.offsetX * ctx.frameScale.x;
+        float cy = ctx.anchor.y + gs.offsetY * ctx.frameScale.y;
+        float sw = gs.width  * ctx.frameScale.x;
+        float sh = gs.height * ctx.frameScale.y;
+        auto hbRect = juce::Rectangle<float>(cx - sw * 0.5f, cy - sh * 0.5f, sw, sh);
+        if (barClipHalf == Render::ClipHalf::Left)
+            hbRect = hbRect.withWidth(hbRect.getWidth() * 0.5f);
+        else if (barClipHalf == Render::ClipHalf::Right)
+            hbRect = hbRect.withX(hbRect.getCentreX()).withWidth(hbRect.getWidth() * 0.5f);
+        hitBoxes.push_back({ (int)gemColumn, frameTime, hbRect });
+    }
 }
 
 void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, float position,
-                                  juce::Image* glyphImage, bool barNote, float opacity)
+                                  double frameTime, juce::Image* glyphImage, bool barNote, float opacity)
 {
     const auto* config = currentConfig;
     bool isDrums = isDrumLike(activePart);
@@ -432,6 +511,8 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
     Render::Frame frame;
 
     int gemIdx = (int)frame.sprites.size();
+    Render::ClipHalf bemaniClipHalf = barNote ? resolveBarKickClip(isDrums, barModeDim < 1.0f, gemColumn)
+                                              : Render::ClipHalf::None;
     {
         Render::FrameSprite s;
         s.image = glyphImage;
@@ -442,6 +523,7 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
         s.drawOrder = barNote ? (int)DrawOrder::BAR : (int)DrawOrder::NOTE;
         s.drawColumn = (int)gemColumn;
         s.opacity = opacity;
+        s.clipHalf = bemaniClipHalf;
         frame.sprites.push_back(s);
     }
 
@@ -484,13 +566,24 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
     juce::Point<float> bemaniAnchor(glyphRect.getCentreX(), glyphRect.getCentreY());
     juce::Point<float> bemaniScale(1.0f, 1.0f);
     Render::drawFrame(frame, bemaniAnchor, bemaniScale, *currentDrawCallMap);
+
+    const auto& gs = frame.sprites[gemIdx];
+    float sw = gs.width;
+    float sh = gs.height;
+    auto hbRect = juce::Rectangle<float>(bemaniAnchor.x - sw * 0.5f,
+                                          bemaniAnchor.y - sh * 0.5f, sw, sh);
+    if (bemaniClipHalf == Render::ClipHalf::Left)
+        hbRect = hbRect.withWidth(hbRect.getWidth() * 0.5f);
+    else if (bemaniClipHalf == Render::ClipHalf::Right)
+        hbRect = hbRect.withX(hbRect.getCentreX()).withWidth(hbRect.getWidth() * 0.5f);
+    hitBoxes.push_back({ (int)gemColumn, frameTime, hbRect });
 }
 
 float NoteRenderer::getColumnDistFromCenter(int column, bool isDrums)
 {
     const auto& fbCoords = isDrums ? drumFretboardCoords : guitarFretboardCoords;
     const auto& colCoords = isDrums
-        ? laneCoordsDrums[(column == 6) ? 0 : ((column < (int)DRUM_LANE_COUNT) ? column : 1)]
+        ? laneCoordsDrums[drumColumnIndex(column) < DRUM_LANE_COUNT ? drumColumnIndex(column) : 1]
         : laneCoordsGuitar[(column < (int)GUITAR_LANE_COUNT) ? column : 1];
     return PositionMath::columnDistFromCenter(fbCoords, colCoords);
 }
@@ -527,7 +620,7 @@ const NoteRenderer::CurvedImageEntry& NoteRenderer::getCurvedImage(
     float fbHalfWNorm = fbCoords.normWidth1 * 0.5f;
 
     const auto& colCoords = isDrums
-        ? laneCoordsDrums[(column == 6) ? 0 : ((column < (int)DRUM_LANE_COUNT) ? column : 1)]
+        ? laneCoordsDrums[drumColumnIndex(column) < DRUM_LANE_COUNT ? drumColumnIndex(column) : 1]
         : laneCoordsGuitar[(column < (int)GUITAR_LANE_COUNT) ? column : 1];
 
     float fbWidthInCache = (float)srcW * (fbCoords.normWidth1 / colCoords.normWidth1);

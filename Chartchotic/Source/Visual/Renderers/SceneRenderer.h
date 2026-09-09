@@ -55,6 +55,40 @@ class SceneRenderer
         bool showLaneSeparators = true;
         bool showStrikeline = true;
 
+        // Forward write-mode flag to gridline renderer (changes opacities + enables STEP)
+        void setWriteMode(bool on) { gridlineRenderer.writeMode = on; }
+
+        struct GhostCursor
+        {
+            bool   visible = false;
+            int    lane    = -1;
+            float  position = 0.0f;
+            juce::Image* image = nullptr;  // null = use real colored note asset
+            float  opacity = 0.5f;
+            Gem    gem     = Gem::NOTE;
+            juce::String positionLabel;    // "37.2" style label shown in write mode
+            juce::String modeLabel;        // transient mode hint, drawn opposite the position
+            struct StampGhostEntry { int lane; float position; Gem gem = Gem::NOTE; };
+            std::vector<StampGhostEntry> stampGhosts;
+        };
+        GhostCursor ghostCursor;
+        static constexpr bool useColoredGhostCursor = true;
+
+        struct GhostPosition
+        {
+            int   lane = -1;
+            float position = 0.0f;
+            Gem   gem = Gem::NOTE;
+            bool  selected = false;
+        };
+        std::vector<GhostPosition> movePreviewGhosts;
+
+        std::vector<NoteRenderer::SelectedGem>& getSelectedGems() { return noteRenderer.selectedGems; }
+        std::vector<NoteRenderer::SelectedGem>& getEraseTargets() { return noteRenderer.eraseTargets; }
+        std::vector<SustainRenderer::TintedSustain>& getTintedSustains() { return sustainRenderer.tintedSustains; }
+        void setBarModeDim(float dim) { noteRenderer.barModeDim = dim; }
+        const std::vector<NoteRenderer::NoteHitBox>& getNoteHitBoxes() const { return noteRenderer.getHitBoxes(); }
+
 #ifdef DEBUG
         bool collectPhaseTiming = true;
 #else

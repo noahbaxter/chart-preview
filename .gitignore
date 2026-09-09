@@ -7,6 +7,10 @@
 # -----------------------------------------------------------------------------
 **/build/
 build-benchmark/
+build-render*/
+tests/render_harness/*.png
+tests/render_harness/out/
+tests/unit/build*/
 **/DerivedData/
 **/x64/
 **/Debug/
@@ -110,6 +114,9 @@ examples/
 
 # Development/Analysis Notes
 *_ANALYSIS.md
+
+# Internal planning docs
+.planning/
 
 # -----------------------------------------------------------------------------
 # Python

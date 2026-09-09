@@ -11,6 +11,8 @@
 #include "TrackImageCache.h"
 #include "../UI/ControlConstants.h"
 #include "../UI/Theme.h"
+#include "../Midi/Utils/MidiConstants.h"
+#include "../Midi/Utils/InstrumentMapper.h"
 
 HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetManager)
     : state(state),
@@ -117,10 +119,452 @@ void HighwayComponent::paint(juce::Graphics& g)
     if (overflow > 0)
         g.addTransform(juce::AffineTransform::translation(0.0f, (float)overflow));
 
+    // Ghost cursor: set before paint so it renders through the note pipeline.
+    sceneRenderer.ghostCursor.visible = false;
+    sceneRenderer.ghostCursor.positionLabel = {};
+    sceneRenderer.ghostCursor.modeLabel = {};
+    if (overlayStateGetter)
+    {
+        const auto& ov = overlayStateGetter();
+        if (ov.ghostVisible && projectQNToSeconds)
+        {
+            double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
+            if (std::abs(windowSpan) > 1e-9)
+            {
+                double sec = projectQNToSeconds(ov.ghostQN);
+                float pos = (float)((sec - frameData.windowStartTime) / windowSpan);
+                sceneRenderer.ghostCursor.position = pos;
+                sceneRenderer.ghostCursor.positionLabel = formatPositionQN
+                    ? formatPositionQN(ov.ghostQN) : juce::String();
+                sceneRenderer.ghostCursor.modeLabel = ov.ghostModeLabel;
+
+                sceneRenderer.ghostCursor.stampGhosts.clear();
+                if (!ov.stampGhosts.empty())
+                {
+                    for (const auto& sg : ov.stampGhosts)
+                    {
+                        double sgSec = projectQNToSeconds(ov.ghostQN + sg.qnOffset);
+                        float sgPos = (float)((sgSec - frameData.windowStartTime) / windowSpan);
+                        sceneRenderer.ghostCursor.stampGhosts.push_back({ sg.lane, sgPos, sg.gem });
+                    }
+                }
+                else if (ov.ghostLane >= 0)
+                {
+                    sceneRenderer.ghostCursor.visible = true;
+                    sceneRenderer.ghostCursor.lane = ov.ghostLane;
+                    sceneRenderer.ghostCursor.gem = ov.ghostGem;
+                    sceneRenderer.ghostCursor.image = sceneRenderer.useColoredGhostCursor
+                        ? nullptr
+                        : assetManager.getGhostCursorImage(isDrumLike(activePart), ov.ghostLane);
+                }
+            }
+        }
+    }
+
+    // Populate selection state for edit mode.
+    // Selection tint is applied inline during gem rendering (via NoteRenderer::selectedGems).
+    // Move preview ghosts are rendered separately at destination positions.
+    sceneRenderer.getSelectedGems().clear();
+    sceneRenderer.getEraseTargets().clear();
+    sceneRenderer.getTintedSustains().clear();
+    sceneRenderer.movePreviewGhosts.clear();
+    if (overlayStateGetter && projectQNToSeconds)
+    {
+        const auto& ov = overlayStateGetter();
+        double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
+        if (std::abs(windowSpan) > 1e-9)
+        {
+            if (ov.moveDragVisible)
+            {
+                bool autoHopo = !isDrumLike(activePart)
+                    && state.hasProperty("autoHopo") && (bool)state["autoHopo"];
+                PPQ hopoThreshold = PPQ(0.0);
+                if (autoHopo)
+                {
+                    int ti = (int)state.getProperty("hopoThresh", HOPO_THRESHOLD_DEFAULT);
+                    switch (ti)
+                    {
+                        case 0:  hopoThreshold = MIDI_HOPO_SIXTEENTH;  break;
+                        case 2:  hopoThreshold = MIDI_HOPO_EIGHTH;     break;
+                        default: hopoThreshold = MIDI_HOPO_CLASSIC_170; break;
+                    }
+                    hopoThreshold += MIDI_HOPO_THRESHOLD_BUFFER;
+                }
+
+                for (const auto& pn : ov.movePreviewNotes)
+                {
+                    double sec = projectQNToSeconds(pn.startQN);
+                    float pos = (float)((sec - frameData.windowStartTime) / windowSpan);
+
+                    // Start from what the note actually is. Auto-HOPO may only
+                    // upgrade a plain note, since an explicit force marker
+                    // wins, matching GemCalculator's priority order.
+                    Gem gem = pn.gem;
+                    if (autoHopo && gem == Gem::NOTE && secondsToProjectQN)
+                    {
+                        double qn = secondsToProjectQN(sec);
+                        auto it = frameData.trackWindow.lower_bound(sec);
+                        if (it != frameData.trackWindow.begin())
+                        {
+                            --it;
+                            double prevQN = secondsToProjectQN(it->first);
+                            PPQ dist = PPQ(qn - prevQN);
+
+                            int prevLaneCount = 0, prevLane = -1;
+                            for (int l = 0; l < (int)it->second.size(); ++l)
+                                if (it->second[l].gem != Gem::NONE) { ++prevLaneCount; prevLane = l; }
+
+                            bool prevChord = (prevLaneCount >= 2);
+                            if (dist > PPQ(0.0) && dist <= hopoThreshold
+                                && !prevChord && pn.lane != prevLane)
+                                gem = Gem::HOPO_GHOST;
+                        }
+                    }
+
+                    sceneRenderer.movePreviewGhosts.push_back({ pn.lane, pos, gem, true });
+                }
+                for (const auto& pn : ov.movePreviewNotes)
+                {
+                    double sec = projectQNToSeconds(pn.startQN);
+                    double endSec = projectQNToSeconds(pn.endQN);
+                    sceneRenderer.getTintedSustains().push_back(
+                        { pn.lane, sec, endSec, AuthoringColours::selectTint, true });
+                }
+            }
+            else if (!ov.selectedNotes.empty())
+            {
+                for (const auto& sn : ov.selectedNotes)
+                {
+                    double sec = projectQNToSeconds(sn.startQN);
+                    if (!sn.sustainOnly)
+                        sceneRenderer.getSelectedGems().push_back({ sn.lane, sec });
+                    double endSec = projectQNToSeconds(sn.endQN);
+                    sceneRenderer.getTintedSustains().push_back(
+                        { sn.lane, sec, endSec, AuthoringColours::selectTint, true });
+                }
+            }
+
+            // Marquee preview tint: select = blue, erase = red
+            if (ov.marqueeVisible)
+            {
+                const auto& mr = ov.marqueeRect;
+                auto& targets = ov.marqueeErase
+                    ? sceneRenderer.getEraseTargets()
+                    : sceneRenderer.getSelectedGems();
+                double secLo = projectQNToSeconds(mr.qnLo);
+                double secHi = projectQNToSeconds(mr.qnHi);
+                for (const auto& [noteTime, frame] : frameData.trackWindow)
+                {
+                    double qn = secondsToProjectQN(noteTime);
+                    if (qn < mr.qnLo - kQNEpsilon || qn > mr.qnHi + kQNEpsilon) continue;
+                    for (int lane = mr.laneLo; lane <= mr.laneHi; ++lane)
+                    {
+                        if (ov.barMode && !InstrumentMapper::isKickLane(lane)) continue;
+                        if (lane >= 0 && lane < (int)frame.size()
+                            && frame[lane].gem != Gem::NONE)
+                            targets.push_back({ lane, noteTime });
+                    }
+                }
+                auto sustainCol = ov.marqueeErase
+                    ? AuthoringColours::eraseTint : AuthoringColours::selectTint;
+                // Matches the erase rule: a sustain trimmed to end exactly where
+                // the clicked note starts is not part of that click.
+                double clickedSec = ov.eraseClickedNoteQN >= 0.0
+                    ? projectQNToSeconds(ov.eraseClickedNoteQN) : -1.0;
+                for (const auto& s : frameData.sustainWindow)
+                {
+                    int lane = (int)s.gemColumn;
+                    if (ov.barMode && !InstrumentMapper::isKickLane(lane)) continue;
+                    if (lane < mr.laneLo || lane > mr.laneHi) continue;
+                    if (s.startTime > secHi + kTimeEpsilon || s.endTime < secLo - kTimeEpsilon) continue;
+                    if (clickedSec >= 0.0 && std::abs(s.endTime - clickedSec) < kTimeEpsilon) continue;
+                    sceneRenderer.getTintedSustains().push_back(
+                        { lane, secLo, secHi, sustainCol });
+                }
+            }
+
+            // Tint the specific clicked note/sustain (may be outside the rect bounds)
+            if (ov.marqueeErase && ov.eraseClickedNoteQN >= 0.0 && ov.eraseClickedLane >= 0)
+            {
+                double sec = projectQNToSeconds(ov.eraseClickedNoteQN);
+                sceneRenderer.getEraseTargets().push_back({ ov.eraseClickedLane, sec });
+                sceneRenderer.getTintedSustains().push_back(
+                    { ov.eraseClickedLane, sec, sec, AuthoringColours::eraseTint, true });
+            }
+            if (ov.marqueeErase && ov.eraseClickedSustainQN >= 0.0 && ov.eraseClickedSustainLane >= 0)
+            {
+                double sec = projectQNToSeconds(ov.eraseClickedSustainQN);
+                sceneRenderer.getTintedSustains().push_back(
+                    { ov.eraseClickedSustainLane, sec, sec, AuthoringColours::eraseTint, true });
+            }
+        }
+    }
+
+    // Inject sustain drag preview into a local copy of the sustain window.
+    auto sustainWindow = frameData.sustainWindow;
+    if (overlayStateGetter && projectQNToSeconds)
+    {
+        const auto& ov = overlayStateGetter();
+        if (ov.drawPreviewVisible)
+        {
+            for (const auto& pn : ov.drawPreviewNotes)
+            {
+                sustainWindow.push_back({
+                    projectQNToSeconds(pn.startQN),
+                    projectQNToSeconds(pn.endQN),
+                    static_cast<uint>(pn.lane),
+                    SustainType::SUSTAIN,
+                    GemWrapper()
+                });
+            }
+        }
+        if (ov.ghostVisible && !ov.stampGhosts.empty())
+        {
+            for (const auto& sg : ov.stampGhosts)
+            {
+                if (sg.duration < double(MIDI_MIN_SUSTAIN_LENGTH)) continue;
+                double startSec = projectQNToSeconds(ov.ghostQN + sg.qnOffset);
+                double endSec = projectQNToSeconds(ov.ghostQN + sg.qnOffset + sg.duration);
+                sustainWindow.push_back({
+                    startSec, endSec,
+                    static_cast<uint>(sg.lane),
+                    SustainType::SUSTAIN,
+                    GemWrapper()
+                });
+            }
+        }
+
+        // Move drag: hide original sustains, show preview sustains at destination
+        if (ov.moveDragVisible)
+        {
+            for (const auto& sn : ov.selectedNotes)
+            {
+                double sec = projectQNToSeconds(sn.startQN);
+                sustainWindow.erase(
+                    std::remove_if(sustainWindow.begin(), sustainWindow.end(),
+                        [&](const auto& s) {
+                            return s.gemColumn == (uint)sn.lane
+                                && std::abs(s.startTime - sec) < kTimeEpsilon;
+                        }),
+                    sustainWindow.end());
+            }
+            for (const auto& pn : ov.movePreviewNotes)
+            {
+                if (pn.endQN - pn.startQN < double(MIDI_MIN_SUSTAIN_LENGTH)) continue;
+                double pnStartSec = projectQNToSeconds(pn.startQN);
+                double pnEndSec = projectQNToSeconds(pn.endQN);
+                for (const auto& s : sustainWindow)
+                {
+                    if ((int)s.gemColumn != pn.lane) continue;
+                    if (s.startTime > pnStartSec + kTimeEpsilon
+                        && s.startTime < pnEndSec - kTimeEpsilon)
+                    { pnEndSec = s.startTime; break; }
+                }
+                sustainWindow.push_back({
+                    pnStartSec, pnEndSec,
+                    static_cast<uint>(pn.lane),
+                    SustainType::SUSTAIN,
+                    GemWrapper()
+                });
+            }
+            for (const auto& pn : ov.movePreviewNotes)
+            {
+                double pnStartSec = projectQNToSeconds(pn.startQN);
+                for (auto& s : sustainWindow)
+                {
+                    if ((int)s.gemColumn != pn.lane) continue;
+                    if (pnStartSec > s.startTime + kTimeEpsilon
+                        && pnStartSec < s.endTime - kTimeEpsilon)
+                        s.endTime = pnStartSec;
+                }
+            }
+            double minSustainSec = projectQNToSeconds(double(MIDI_MIN_SUSTAIN_LENGTH))
+                                 - projectQNToSeconds(0.0);
+            sustainWindow.erase(
+                std::remove_if(sustainWindow.begin(), sustainWindow.end(),
+                    [&](const auto& s) {
+                        return (s.endTime - s.startTime) < minSustainSec;
+                    }),
+                sustainWindow.end());
+        }
+    }
+
+    // Apply optimistic patches — instant visual feedback before MIDI pipeline catches up.
+    auto trackWindow = frameData.trackWindow;
+    if (projectQNToSeconds)
+    {
+        double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
+
+        // Hide originals during an active move drag
+        if (overlayStateGetter)
+        {
+            const auto& ov = overlayStateGetter();
+            if (ov.moveDragVisible)
+            {
+                for (const auto& sn : ov.selectedNotes)
+                {
+                    double sec = projectQNToSeconds(sn.startQN);
+                    for (auto& [noteTime, frame] : trackWindow)
+                        if (std::abs(noteTime - sec) < kTimeEpsilon
+                            && sn.lane >= 0 && sn.lane < (int)frame.size())
+                            frame[sn.lane].gem = Gem::NONE;
+                }
+                for (const auto& pn : ov.movePreviewNotes)
+                {
+                    double pnStartSec = projectQNToSeconds(pn.startQN);
+                    for (auto& [noteTime, frame] : trackWindow)
+                        if (std::abs(noteTime - pnStartSec) < kTimeEpsilon
+                            && pn.lane >= 0 && pn.lane < (int)frame.size())
+                            frame[pn.lane].gem = Gem::NONE;
+                }
+            }
+        }
+
+        if (patchBuffer)
+        {
+            for (const auto& patch : patchBuffer->getRemoves())
+            {
+                double sec = projectQNToSeconds(patch.startQN);
+                for (auto& [noteTime, frame] : trackWindow)
+                    if (std::abs(noteTime - sec) < kTimeEpsilon
+                        && patch.lane >= 0 && patch.lane < (int)frame.size())
+                        frame[patch.lane].gem = Gem::NONE;
+
+                sustainWindow.erase(
+                    std::remove_if(sustainWindow.begin(), sustainWindow.end(),
+                        [&](const auto& s) {
+                            return (int)s.gemColumn == patch.lane
+                                && std::abs(s.startTime - sec) < kTimeEpsilon;
+                        }),
+                    sustainWindow.end());
+            }
+
+            for (const auto& patch : patchBuffer->getAdds())
+            {
+                double sec = projectQNToSeconds(patch.startQN);
+                bool alreadyExists = false;
+                for (const auto& [noteTime, frame] : trackWindow)
+                {
+                    if (std::abs(noteTime - sec) < kTimeEpsilon
+                        && patch.lane >= 0 && patch.lane < (int)frame.size()
+                        && frame[patch.lane].gem != Gem::NONE)
+                    { alreadyExists = true; break; }
+                }
+                if (!alreadyExists && std::abs(windowSpan) > 1e-9)
+                {
+                    float pos = (float)((sec - frameData.windowStartTime) / windowSpan);
+                    sceneRenderer.movePreviewGhosts.push_back({ patch.lane, pos });
+                }
+            }
+        }
+    }
+
+    bool barModeActive = overlayStateGetter && overlayStateGetter().barMode;
+    sceneRenderer.setBarModeDim(barModeActive ? 0.3f : 1.0f);
+
     sceneRenderer.paint(g, w, h,
-                        frameData.trackWindow, frameData.sustainWindow, frameData.gridlines,
+                        trackWindow, sustainWindow, frameData.gridlines,
                         frameData.flipRegions, frameData.eventMarkers,
                         frameData.windowStartTime, frameData.windowEndTime, frameData.isPlaying);
+
+#ifdef DEBUG
+    if (showClickZones)
+    {
+        bool dbgBarMode = overlayStateGetter && overlayStateGetter().barMode;
+        Part dbgPart = isDrumLike(activePart) ? Part::DRUMS : Part::GUITAR;
+        g.setColour(juce::Colours::lime.withAlpha(0.35f));
+        for (const auto& hb : sceneRenderer.getNoteHitBoxes())
+            if (isBarNote((uint)hb.lane, dbgPart) == dbgBarMode)
+                g.drawEllipse(hb.rect, 1.5f);
+
+        if (debugLastHitY >= 0.0f)
+        {
+            int ly = (int)debugLastHitY;
+            g.setColour(juce::Colours::red.withAlpha(0.8f));
+            g.drawHorizontalLine(ly, 0.0f, (float)w);
+            juce::String label = (formatPositionQN ? formatPositionQN(debugLastResolvedQN)
+                                                   : juce::String(debugLastResolvedQN, 2))
+                + "  lane=" + juce::String(debugLastLane);
+            g.setFont(20.0f);
+            g.setColour(juce::Colours::black.withAlpha(0.6f));
+            g.fillRect(2, ly - 26, 380, 24);
+            g.setColour(juce::Colours::red);
+            g.drawText(label, 6, ly - 26, 372, 24, juce::Justification::left);
+        }
+    }
+#endif
+
+    // Edit-mode overlays (marquee, selection highlight)
+    if (overlayStateGetter && projectQNToSeconds)
+    {
+        const auto& ov = overlayStateGetter();
+        double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
+        bool isDrums = isDrumLike(activePart);
+        float posEnd = sceneRenderer.farFadeEnd;
+
+        auto qnToPos = [&](double qn) -> float {
+            double sec = projectQNToSeconds(qn);
+            return (windowSpan > 1e-9)
+                ? (float)((sec - frameData.windowStartTime) / windowSpan)
+                : 0.0f;
+        };
+
+        bool barModeMarquee = ov.barMode && isDrums;
+        auto laneEdges = [&](int lane, float pos, bool splitKick = false) -> PositionConstants::LaneCorners {
+            if (isDrums && InstrumentMapper::isKickLane(lane))
+            {
+                auto fb = PositionMath::getFretboardEdge(isDrums, pos, (uint)w, (uint)h,
+                    PositionConstants::HIGHWAY_POS_START, posEnd);
+                if (splitKick)
+                {
+                    float mid = (fb.leftX + fb.rightX) * 0.5f;
+                    return InstrumentMapper::is2xKickLane(lane)
+                        ? PositionConstants::LaneCorners{ fb.leftX, mid, fb.centerY }
+                        : PositionConstants::LaneCorners{ mid, fb.rightX, fb.centerY };
+                }
+                return fb;
+            }
+            int laneCount = isDrums ? 5 : 6;
+            int clampedLane = juce::jlimit(0, laneCount - 1, lane);
+            const auto& coords = isDrums
+                ? PositionConstants::drumBezierLaneCoords[clampedLane]
+                : PositionConstants::guitarBezierLaneCoords[clampedLane];
+            return PositionMath::getColumnPosition(isDrums, pos, (uint)w, (uint)h,
+                PositionConstants::HIGHWAY_POS_START, posEnd,
+                coords, 1.0f, PositionConstants::FRETBOARD_SCALE);
+        };
+
+        // Marquee rectangle (blue = select, red = erase)
+        if (ov.marqueeVisible)
+        {
+            const auto& mr = ov.marqueeRect;
+            float posTop = qnToPos(mr.qnHi);
+            float posBot = qnToPos(mr.qnLo);
+
+            bool splitKick = barModeMarquee && !(mr.laneLo != mr.laneHi
+                && InstrumentMapper::isKickLane(mr.laneLo)
+                && InstrumentMapper::isKickLane(mr.laneHi));
+            auto topLeft  = laneEdges(mr.laneLo, posTop, splitKick);
+            auto topRight = laneEdges(mr.laneHi, posTop, splitKick);
+            auto botLeft  = laneEdges(mr.laneLo, posBot, splitKick);
+            auto botRight = laneEdges(mr.laneHi, posBot, splitKick);
+
+            juce::Path marquee;
+            marquee.startNewSubPath(topLeft.leftX, topLeft.centerY);
+            marquee.lineTo(topRight.rightX, topRight.centerY);
+            marquee.lineTo(botRight.rightX, botRight.centerY);
+            marquee.lineTo(botLeft.leftX, botLeft.centerY);
+            marquee.closeSubPath();
+
+            auto col = ov.marqueeErase ? juce::Colour(255, 80, 80)
+                                       : juce::Colour(100, 180, 255);
+            g.setColour(col.withAlpha(0.15f));
+            g.fillPath(marquee);
+            g.setColour(col.withAlpha(0.5f));
+            g.strokePath(marquee, juce::PathStrokeType(1.5f));
+        }
+
+    }
 
     // Bemani sidebar masks — drawn after notes/sustains to clip overflow.
     // Must cover the full component height. In Bemani mode overflow=0 so h=totalH.
@@ -373,6 +817,246 @@ void HighwayComponent::rebuildTrack()
     bakedOverflow = topOverflow;
 
     if (topOverflow != prevOverflow && onOverflowChanged) onOverflowChanged();
+}
+
+// =============================================================================
+// Mouse dispatch (M1.3) — turns JUCE mouse events into AuthoringPoint/Context
+// payloads and forwards them to write-mode callbacks. Callbacks are no-op stubs
+// in M1; this is purely the wire-up.
+// =============================================================================
+
+juce::Point<float> HighwayComponent::screenToRenderCoords(juce::Point<float> screen) const
+{
+    int w        = renderWidth;
+    int h        = renderHeight;
+    int overflow = topOverflow;
+    int totalH   = h + overflow;
+
+    if (w <= 0 || totalH <= 0)
+        return screen;
+
+    if (stretchToFill && !PositionMath::bemaniMode)
+    {
+        float sx = (float)getWidth()  / (float)w;
+        float sy = (float)getHeight() / (float)totalH;
+        return { screen.x / sx, screen.y / sy };
+    }
+    else
+    {
+        float scale = std::min((float)getWidth()  / (float)w,
+                               (float)getHeight() / (float)totalH);
+        float scaledW = (float)w * scale;
+        float scaledH = (float)totalH * scale;
+        float offsetX = ((float)getWidth() - scaledW) * 0.5f;
+        float offsetY = (float)getHeight() - scaledH;
+        return { (screen.x - offsetX) / scale, (screen.y - offsetY) / scale };
+    }
+}
+
+void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
+                                             AuthoringPoint& outPoint,
+                                             AuthoringContext& outContext) const
+{
+    auto local = e.getPosition().toFloat();
+
+    // The hit-test math operates in render space (renderWidth x renderHeight
+    // virtual canvas). Component-local pixels must be inverse-mapped through
+    // the same paint() transform the ghost render uses, otherwise the click
+    // resolves to a different render-space position than the ghost was drawn
+    // at and ghost/click drift apart (especially under stretchToFill or any
+    // letterboxing).
+    auto renderPt = screenToRenderCoords(local);
+    float hitY = renderPt.y - (float)topOverflow;
+
+#ifdef DEBUG
+    debugLastHitY = hitY;
+    debugLastLane = -1;
+    debugLastResolvedQN = 0.0;
+#endif
+
+    bool isDrums = isDrumLike(activePart);
+    auto hit = hitTestMapper.hitTest(renderPt.x, hitY,
+                                     (uint)juce::jmax(0, renderWidth),
+                                     (uint)juce::jmax(0, renderHeight),
+                                     frameData.windowStartTime, frameData.windowEndTime,
+                                     isDrums, sceneRenderer.farFadeEnd);
+
+    outPoint.screenPos = local;
+    if (hit.valid && hit.laneIndex >= 0)
+    {
+        outPoint.onHighway = true;
+        outPoint.laneIndex = hit.laneIndex;
+    }
+    else
+    {
+        outPoint.onHighway = false;
+        outPoint.laneIndex = -1;
+    }
+
+    bool barMode = overlayStateGetter && overlayStateGetter().barMode;
+    if (barMode && outPoint.onHighway)
+    {
+        bool kick2x = isDrums && (bool)state.getProperty("kick2x", false);
+        if (kick2x && renderPt.x < renderWidth * 0.5f)
+            outPoint.laneIndex = 6;
+        else
+            outPoint.laneIndex = 0;
+    }
+
+    // In bar mode, correct for barZ offset so ghost/placement center on the
+    // click point instead of the top of the bar sprite.
+    if (barMode && secondsToProjectQN)
+    {
+        float barZ = (isDrums ? PositionConstants::DRUM_OFFSETS : PositionConstants::GUITAR_OFFSETS).barZ;
+        float resScale = (float)juce::jmax(1, renderHeight) / PositionConstants::REFERENCE_HEIGHT;
+        auto barHit = hitTestMapper.hitTest(renderPt.x, hitY - barZ * resScale,
+                                            (uint)juce::jmax(0, renderWidth),
+                                            (uint)juce::jmax(0, renderHeight),
+                                            frameData.windowStartTime, frameData.windowEndTime,
+                                            isDrums, sceneRenderer.farFadeEnd);
+        outPoint.rawProjectQN = secondsToProjectQN(barHit.timeFromCursor);
+    }
+    else
+    {
+        outPoint.rawProjectQN = secondsToProjectQN ? secondsToProjectQN(hit.timeFromCursor) : 0.0;
+    }
+
+#ifdef DEBUG
+    debugLastResolvedQN = outPoint.rawProjectQN;
+    debugLastLane = hit.laneIndex;
+#endif
+
+    outPoint.overExistingNote = false;
+    outPoint.hitSustainBody   = false;
+    outPoint.hitNoteStartQN   = 0.0;
+    outPoint.hitNotePitch     = -1;
+
+    if (outPoint.onHighway && secondsToProjectQN)
+    {
+        // Geometric hit test against rendered note rects.
+        // Bar mode only matches bars; normal mode only matches gems.
+        for (const auto& hb : sceneRenderer.getNoteHitBoxes())
+        {
+            if (isBarNote((uint)hb.lane, isDrums ? Part::DRUMS : Part::GUITAR) != barMode)
+                continue;
+            if (hb.rect.contains(renderPt.x, hitY))
+            {
+                outPoint.overExistingNote = true;
+                outPoint.hitSustainBody   = false;
+                outPoint.hitNoteStartQN   = secondsToProjectQN(hb.timeSec);
+                outPoint.laneIndex        = hb.lane;
+                break;
+            }
+        }
+
+        // Sustain body check (no rendered rect — use time tolerance)
+        if (!outPoint.overExistingNote)
+        {
+            constexpr float kHeadHitPixels = 32.0f;
+            double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
+            double timeTol = (windowSpan > 0.0 && renderHeight > 0)
+                ? kHeadHitPixels * windowSpan / (double)renderHeight
+                : 0.05;
+            double hitTime = hit.timeFromCursor;
+            uint hitLane = (uint)outPoint.laneIndex;
+
+            for (const auto& s : frameData.sustainWindow)
+            {
+                if (s.gemColumn != hitLane) continue;
+
+                bool nearHead = std::abs(hitTime - s.startTime) < timeTol;
+                bool inBody   = hitTime >= s.startTime && hitTime < s.endTime;
+
+                if (nearHead || inBody)
+                {
+                    outPoint.overExistingNote = true;
+                    outPoint.hitSustainBody   = inBody && !nearHead;
+                    outPoint.hitNoteStartQN   = secondsToProjectQN(s.startTime);
+                    break;
+                }
+            }
+        }
+    }
+
+    outContext.mods = juce::ModifierKeys::getCurrentModifiers();
+    outContext.leftButton  = e.mods.isLeftButtonDown();
+    outContext.rightButton = e.mods.isRightButtonDown();
+}
+
+void HighwayComponent::mouseEnter(const juce::MouseEvent& e)
+{
+    if (!onPointerMove) return;
+    AuthoringPoint p; AuthoringContext ctx;
+    buildAuthoringPayload(e, p, ctx);
+    onPointerMove(p, ctx);
+}
+
+void HighwayComponent::mouseExit(const juce::MouseEvent&)
+{
+    if (onPointerExit) onPointerExit();
+
+    // Clear the hover ghost when the cursor leaves the highway — only repaint
+    // if a ghost was actually being drawn.
+    if (overlayStateGetter && lastGhost.visible)
+    {
+        lastGhost = LastGhostState{};
+        repaint();
+    }
+}
+
+void HighwayComponent::mouseMove(const juce::MouseEvent& e)
+{
+    if (!onPointerMove) return;
+    AuthoringPoint p; AuthoringContext ctx;
+    buildAuthoringPayload(e, p, ctx);
+    onPointerMove(p, ctx);
+
+    // Only repaint when the ghost actually changed. Vblank already handles
+    // continuous repaints at 60fps; this avoids piling extra full-renders on
+    // top during dense step grids (mouseMove fires at 100+ Hz).
+    if (overlayStateGetter)
+    {
+        const auto& ov = overlayStateGetter();
+        if (ov.ghostVisible != lastGhost.visible ||
+            ov.ghostLane    != lastGhost.lane    ||
+            ov.ghostQN      != lastGhost.qn)
+        {
+            lastGhost = { ov.ghostVisible, ov.ghostLane, ov.ghostQN };
+            repaint();
+        }
+    }
+}
+
+void HighwayComponent::mouseDown(const juce::MouseEvent& e)
+{
+    if (!onPointerDown) return;
+    AuthoringPoint p; AuthoringContext ctx;
+    buildAuthoringPayload(e, p, ctx);
+    onPointerDown(p, ctx);
+}
+
+void HighwayComponent::mouseDrag(const juce::MouseEvent& e)
+{
+    if (!onPointerDrag) return;
+    AuthoringPoint p; AuthoringContext ctx;
+    buildAuthoringPayload(e, p, ctx);
+    onPointerDrag(p, ctx);
+}
+
+void HighwayComponent::mouseUp(const juce::MouseEvent& e)
+{
+    if (!onPointerUp) return;
+    AuthoringPoint p; AuthoringContext ctx;
+    buildAuthoringPayload(e, p, ctx);
+    onPointerUp(p, ctx);
+}
+
+void HighwayComponent::mouseDoubleClick(const juce::MouseEvent& e)
+{
+    if (!onPointerDoubleClick) return;
+    AuthoringPoint p; AuthoringContext ctx;
+    buildAuthoringPayload(e, p, ctx);
+    onPointerDoubleClick(p, ctx);
 }
 
 void HighwayComponent::onInstrumentChanged()

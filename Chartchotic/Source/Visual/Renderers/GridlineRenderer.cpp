@@ -13,9 +13,29 @@
 #include "../Utils/RenderTypeConfig.h"
 #include "../Utils/Frame.h"
 #include "../Utils/FrameRenderer.h"
+#include "../../UI/Theme.h"
+#include "../../Midi/Utils/TempoTimeSignatureEventHelper.h"
 
 using namespace PositionConstants;
 using namespace Render;
+
+static int gridlineSubdivLevel(Gridline type, double beatInMeasure)
+{
+    if (type == Gridline::BEAT) return 0;
+    if (type == Gridline::HALF_BEAT) return 1;
+
+    double frac = beatInMeasure - std::floor(beatInMeasure + 1e-9);
+    if (frac < 1e-9) frac = 0.0;
+
+    for (int level = 1; level <= 5; level++)
+    {
+        double divisor = 1.0 / (1 << level);
+        double mod = std::fmod(frac + 1e-9, divisor);
+        if (mod < 2e-9 || std::abs(mod - divisor) < 2e-9)
+            return level;
+    }
+    return 6;
+}
 
 GridlineRenderer::GridlineRenderer(juce::ValueTree& state, AssetManager& assetManager)
     : state(state), assetManager(assetManager)
@@ -47,12 +67,167 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
 
     double windowTimeSpan = windowEndTime - windowStartTime;
 
-    for (const auto& gridline : gridlines)
+    // ------------------------------------------------------------------
+    // LOD budget: classify visible gridlines by subdivision level, then
+    // fill a fixed budget from coarsest (BEAT) to finest (1/64, tuplet),
+    // front-to-back within each level. MEASURE is exempt (always renders).
+    // ------------------------------------------------------------------
+    static constexpr int NUM_SUBDIV_LEVELS = 7;
+
+    struct BudgetEntry { size_t idx; float normPos; };
+    std::array<std::vector<BudgetEntry>, NUM_SUBDIV_LEVELS> buckets;
+
+    for (size_t i = 0; i < gridlines.size(); i++)
     {
-        double gridlineTime = gridline.time;
+        const auto& gl = gridlines[i];
+        if (gl.type == Gridline::MEASURE) continue;
+
+        float normPos = (float)((gl.time - windowStartTime) / windowTimeSpan) + gridlinePosOffset;
+        if (normPos < HIGHWAY_POS_START || normPos > farFadeEnd) continue;
+
+        int level = gridlineSubdivLevel(gl.type, gl.beatInMeasure);
+        level = juce::jlimit(0, NUM_SUBDIV_LEVELS - 1, level);
+        buckets[level].push_back({i, normPos});
+    }
+
+    for (auto& bucket : buckets)
+        std::sort(bucket.begin(), bucket.end(),
+                  [](const BudgetEntry& a, const BudgetEntry& b) { return a.normPos < b.normPos; });
+
+    std::vector<bool> shouldRender(gridlines.size(), false);
+    int budget = MAX_HIGHWAY_GRIDLINES;
+    for (int level = 0; level < NUM_SUBDIV_LEVELS && budget > 0; level++)
+    {
+        int levelCount = (int)buckets[level].size();
+        if (levelCount > budget) break;
+        for (const auto& entry : buckets[level])
+        {
+            shouldRender[entry.idx] = true;
+            budget--;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Pre-pass: build the label set with priority-based density filtering.
+    // MEASUREs always pass; BEATs pass only if far enough from any kept
+    // MEASURE; HALF_BEATs pass only if far enough from any kept MEASURE-or-
+    // BEAT. Threshold compares NORMALIZED HIGHWAY POSITION (linear in
+    // time / scroll speed) — NOT screen Y — so perspective compression at
+    // the back of the highway doesn't aggressively cull labels. The rule
+    // is "labels are at least N measures of music apart" regardless of
+    // where each gridline currently sits on the perspective curve.
+    //
+    // Labels are emitted in a separate post-pass below; the main loop
+    // below renders gridlines + protrusions only.
+    // ------------------------------------------------------------------
+    struct LabelCandidate {
+        size_t gridlineIdx;
+        int    priority;            // 0=MEASURE, 1=BEAT, 2=HALF_BEAT
+        float  widthRatio;
+        float  normalizedPosition;
+        juce::String text;
+    };
+    std::vector<LabelCandidate> labelCandidates;
+    std::map<size_t, juce::String> labelToRender;  // gridlineIdx -> label text
+
+    if (writeMode && !PositionMath::bemaniMode)
+    {
+        for (size_t i = 0; i < gridlines.size(); ++i)
+        {
+            const auto& gl = gridlines[i];
+            if (gl.type != Gridline::MEASURE && !shouldRender[i]) continue;
+            if (gl.measureNumber < 0) continue;
+
+            int prio;
+            juce::String text;
+            if (gl.type == Gridline::MEASURE)
+            {
+                prio = 0;
+                text = juce::String(gl.measureNumber + 1);
+            }
+            else if (gl.beatInMeasure > 0.0)
+            {
+                // Priority order: BEAT > HALF_BEAT > STEP. Tighter divisions
+                // sit lower in priority so the density filter prefers
+                // structural beats first.
+                if      (gl.type == Gridline::BEAT)      prio = 1;
+                else if (gl.type == Gridline::HALF_BEAT) prio = 2;
+                else if (gl.type == Gridline::STEP)      prio = 3;
+                else continue;
+                text = TempoTimeSignatureEventHelper::formatMeasureBeat(
+                           gl.measureNumber + 1, gl.beatInMeasure);
+            }
+            else
+            {
+                continue;
+            }
+
+            float normPos = (float)((gl.time - windowStartTime) / windowTimeSpan) + gridlinePosOffset;
+            if (normPos < HIGHWAY_POS_START || normPos > farFadeEnd) continue;
+
+            auto edge = getColumnEdge(normPos, fbCoords, PositionConstants::GRIDLINE_WIDTH_SCALE);
+            float curWidth = edge.rightX - edge.leftX;
+            float wr = (strikeWidth > 0.0f) ? (curWidth / strikeWidth) : 1.0f;
+
+            labelCandidates.push_back({i, prio, wr, normPos, text});
+        }
+
+        // Sort by priority asc (MEASURE=0 first), then by index (time order)
+        // for stable, predictable filtering within a priority class.
+        std::sort(labelCandidates.begin(), labelCandidates.end(),
+                  [](const LabelCandidate& a, const LabelCandidate& b) {
+                      if (a.priority != b.priority) return a.priority < b.priority;
+                      return a.gridlineIdx < b.gridlineIdx;
+                  });
+
+        // Greedy: accept a candidate if its normalizedPosition is at least
+        // `threshold` away from every already-accepted normalizedPosition.
+        // Threshold derives from the single visibility knob — see comment
+        // on WRITE_LABEL_TARGET_COUNT in DrawingConstants.h.
+        const float threshold = 1.0f / std::max(1.0f, WRITE_LABEL_TARGET_COUNT);
+        std::vector<float> keptNorm;
+        keptNorm.reserve(labelCandidates.size());
+        bool anySubMeasureKept = false;
+        for (const auto& c : labelCandidates)
+        {
+            bool farEnough = true;
+            for (float kn : keptNorm)
+            {
+                if (std::abs(c.normalizedPosition - kn) < threshold) { farEnough = false; break; }
+            }
+            if (farEnough)
+            {
+                keptNorm.push_back(c.normalizedPosition);
+                labelToRender[c.gridlineIdx] = c.text;
+                if (c.priority > 0) anySubMeasureKept = true;
+            }
+        }
+
+        // Precision parity: if any sub-measure label (BEAT/HALF_BEAT/STEP)
+        // survived, MEASURE labels gain a ".1" suffix so the right-side
+        // column reads consistently — "474.1" next to "474.2" / "474.3"
+        // beats more naturally than a bare "474" that looks like it lost
+        // its sub-beat number.
+        if (anySubMeasureKept)
+        {
+            for (const auto& c : labelCandidates)
+            {
+                if (c.priority != 0) continue;
+                auto it = labelToRender.find(c.gridlineIdx);
+                if (it != labelToRender.end()) it->second = c.text + ".1";
+            }
+        }
+    }
+
+    for (size_t i = 0; i < gridlines.size(); i++)
+    {
+        const auto& gridline = gridlines[i];
         Gridline gridlineType = gridline.type;
 
-        float normalizedPosition = (float)((gridlineTime - windowStartTime) / windowTimeSpan) + gridlinePosOffset;
+        if (gridlineType != Gridline::MEASURE && !shouldRender[i])
+            continue;
+
+        float normalizedPosition = (float)((gridline.time - windowStartTime) / windowTimeSpan) + gridlinePosOffset;
 
         if (normalizedPosition < HIGHWAY_POS_START || normalizedPosition > farFadeEnd)
             continue;
@@ -62,14 +237,31 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
             continue;
 
         float baseOpacity = 1.0f;
-        switch (gridlineType) {
-            case Gridline::MEASURE:    baseOpacity = MEASURE_OPACITY;   break;
-            case Gridline::BEAT:       baseOpacity = BEAT_OPACITY;      break;
-            case Gridline::HALF_BEAT:  baseOpacity = HALF_BEAT_OPACITY; break;
+        if (writeMode)
+        {
+            switch (gridlineType) {
+                case Gridline::MEASURE:    baseOpacity = WRITE_MEASURE_OPACITY;   break;
+                case Gridline::BEAT:       baseOpacity = WRITE_BEAT_OPACITY;      break;
+                case Gridline::HALF_BEAT:  baseOpacity = WRITE_HALF_BEAT_OPACITY; break;
+                case Gridline::STEP:       baseOpacity = WRITE_STEP_OPACITY;      break;
+            }
+        }
+        else
+        {
+            switch (gridlineType) {
+                case Gridline::MEASURE:    baseOpacity = MEASURE_OPACITY;   break;
+                case Gridline::BEAT:       baseOpacity = BEAT_OPACITY;      break;
+                case Gridline::HALF_BEAT:  baseOpacity = HALF_BEAT_OPACITY; break;
+                case Gridline::STEP:       baseOpacity = HALF_BEAT_OPACITY; break;
+            }
         }
         float fadeOpacity = PositionMath::bemaniMode
                           ? 1.0f
                           : calculateFarFade(normalizedPosition, farFadeEnd, farFadeLen, farFadeCurve);
+
+        if (writeMode && (gridlineType == Gridline::MEASURE || gridlineType == Gridline::BEAT))
+            fadeOpacity = 1.0f;
+
         float opacity = baseOpacity * fadeOpacity;
 
         if (PositionMath::bemaniMode)
@@ -106,6 +298,17 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
         float curWidth = edge.rightX - edge.leftX;
         float widthRatio = (strikeWidth > 0.0f) ? (curWidth / strikeWidth) : 1.0f;
 
+        // In write mode, swap MEASURE/BEAT to a brighter "write" version of
+        // the marker image. The boosted images have their alpha amplified at
+        // load time in AssetManager, so we get full opacity through the same
+        // perspective sprite path (no parallel rendering code).
+        bool writeAnchor = writeMode && (gridlineType == Gridline::MEASURE || gridlineType == Gridline::BEAT);
+        if (writeMode && gridlineType == Gridline::MEASURE)
+            markerImage = assetManager.getMarkerMeasureWriteImage();
+        else if (writeMode && gridlineType == Gridline::BEAT)
+            markerImage = assetManager.getMarkerBeatWriteImage();
+        if (markerImage == nullptr) markerImage = assetManager.getGridlineImage(gridlineType);
+
         juce::Point<float> anchor((edge.leftX + edge.rightX) * 0.5f, edge.centerY);
         juce::Point<float> frameScale(widthRatio, widthRatio);
 
@@ -117,11 +320,94 @@ void GridlineRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedGridlin
         s.offsetY   = gridZOffset;
         s.width     = strikeWidth;
         s.height    = strikeHeight;
+        // All gridlines render at GRID — above the highway texture, BEHIND
+        // the track sidebars / lane lines / strikeline so the rails clip
+        // the marker's 12% overhang. View-mode parity for the on-highway
+        // line; MEASURE/BEAT distinguish themselves via the side
+        // protrusions below, not via on-highway prominence treatments.
         s.drawOrder = (int)DrawOrder::GRID;
         s.drawColumn = 0;
         s.opacity   = opacity;
         frame.sprites.push_back(s);
 
         drawFrame(frame, anchor, frameScale, drawCallMap);
+
+        // Side-of-highway protrusions: flat white tabs sticking outward from
+        // the highway edges at every write-mode MEASURE/BEAT. Drawn as direct
+        // fillRect — they're NOT on the highway plane (they protrude past the
+        // edges), so the perspective sprite path doesn't apply. Same GRID
+        // draw order as the on-highway line: track frame contains the tabs
+        // visually where they meet the rim. STEP gets no protrusion — the
+        // step grid is the placement grid, kept visually quiet.
+        if (writeAnchor)
+        {
+            bool drums = isDrumLike(activePart);
+            float pos = normalizedPosition;
+            float zoff = gridZOffset;
+            uint w = width, h = height;
+            float pe = posEnd;
+            float wr = widthRatio;
+            float sw = strikeWidth;
+            float op = opacity;
+            float lengthFrac = (gridlineType == Gridline::MEASURE)
+                             ? WRITE_PROTRUSION_MEASURE_LENGTH_FRAC
+                             : WRITE_PROTRUSION_BEAT_LENGTH_FRAC;
+            float thickFrac  = (gridlineType == Gridline::MEASURE)
+                             ? WRITE_PROTRUSION_MEASURE_THICKNESS_FRAC
+                             : WRITE_PROTRUSION_BEAT_THICKNESS_FRAC;
+            drawCallMap[(int)DrawOrder::GRID][0].push_back([drums, pos, zoff, w, h, pe, wr, sw, op, lengthFrac, thickFrac](juce::Graphics& g) {
+                auto fbEdge = PositionMath::getFretboardEdge(drums, pos, w, h,
+                                PositionConstants::HIGHWAY_POS_START, pe);
+                float thickness = std::max(1.5f, sw * thickFrac * wr);
+                float length    = std::max(4.0f, sw * lengthFrac * wr);
+                float zNudge = sw * WRITE_PROTRUSION_Z_NUDGE_FRAC * wr;
+                float lineY = fbEdge.centerY + zoff * wr + zNudge - thickness * 0.5f;
+                g.setColour(juce::Colours::white.withAlpha(op));
+                g.fillRect(fbEdge.leftX  - length, lineY, length, thickness);
+                g.fillRect(fbEdge.rightX,           lineY, length, thickness);
+            });
+        }
+
+    }
+
+    // ------------------------------------------------------------------
+    // Post-pass: emit kept labels. Each label uses MEASURE-protrusion
+    // anchoring so the right-side label column aligns horizontally
+    // regardless of the gridline's type. Labels render at full alpha
+    // (legibility > matching the gridline's faded opacity).
+    // ------------------------------------------------------------------
+    for (const auto& c : labelCandidates)
+    {
+        auto it = labelToRender.find(c.gridlineIdx);
+        if (it == labelToRender.end()) continue;
+
+        bool drums = isDrumLike(activePart);
+        float pos  = c.normalizedPosition;
+        float zoff = gridZOffset;
+        uint  w    = width, h_ = height;
+        float pe   = posEnd;
+        float wr   = c.widthRatio;
+        float sw   = strikeWidth;
+        juce::String labelText = it->second;
+
+        drawCallMap[(int)DrawOrder::GRID][0].push_back([drums, pos, zoff, w, h_, pe, wr, sw, labelText](juce::Graphics& g) {
+            float fontPx = sw * WRITE_MEASURE_LABEL_FONT_FRAC * wr;
+            if (fontPx < WRITE_MEASURE_LABEL_MIN_FONT_PX) return;
+            auto fbEdge = PositionMath::getFretboardEdge(drums, pos, w, h_,
+                            PositionConstants::HIGHWAY_POS_START, pe);
+            // Anchor past the MEASURE protrusion tip — keeps the label
+            // column horizontally aligned across MEASURE/BEAT/HALF_BEAT.
+            float protLen = sw * WRITE_PROTRUSION_MEASURE_LENGTH_FRAC * wr;
+            float gap     = sw * WRITE_MEASURE_LABEL_GAP_FRAC * wr;
+            float textX = fbEdge.rightX + protLen + gap;
+            float textY = fbEdge.centerY + zoff * wr;
+            float textBoxW = fontPx * 6.0f;  // generous: fits "999.4.5" comfortably
+            float textBoxH = fontPx * 1.2f;
+            g.setColour(juce::Colours::white);
+            g.setFont(Theme::getUIFont(fontPx));
+            g.drawText(labelText,
+                       juce::Rectangle<float>(textX, textY - textBoxH * 0.5f, textBoxW, textBoxH),
+                       juce::Justification::centredLeft, false);
+        });
     }
 }

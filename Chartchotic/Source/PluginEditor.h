@@ -23,11 +23,13 @@
 #include "UI/UpdateChecker.h"
 #include "UI/LookAndFeel/ChartchoticLookAndFeel.h"
 #include "UI/ToolbarComponent.h"
+#include "UI/Controls/WriteModeIcon.h"
 #include "UI/UpdateBannerComponent.h"
 #include "UI/FooterComponent.h"
 #include "Editor/AssetController.h"
 #include "Editor/SessionController.h"
 #include "Editor/FrameDataBuilder.h"
+#include "Editor/InteractionController.h"
 #ifdef DEBUG
 #include "DebugTools/DebugEditorController.h"
 #endif
@@ -55,16 +57,39 @@ public:
 
     bool keyPressed(const juce::KeyPress& key) override
     {
+        if (interactionController.onKeyPress(key))
+            return true;
+
 #ifdef DEBUG
         if (debug.keyPressed(key, toolbar))
             return true;
 #endif
 
+        if (forwardToReaper(key))
+            return true;
+
         return false;
     }
 
-    void mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override
+    void handleHighwayScroll(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
     {
+        // Alt+wheel owns the write grid unconditionally. It never falls through
+        // to seeking: moving the playhead when you meant to change the grid is
+        // worse than doing nothing, so this consumes the event either way.
+        // Sits ahead of the debug playhead nudge so it works in standalone too.
+        // Ctrl is deliberately unused: macOS takes Ctrl+wheel for system zoom.
+        if (event.mods.isAltDown())
+        {
+            double wheelDelta = wheel.deltaY != 0.0 ? wheel.deltaY : wheel.deltaX;
+            if (wheelDelta != 0.0)
+            {
+                int div = interactionController.stepDivision();
+                // Up is finer, matching ']'. setStepDivision clamps to 1..64.
+                interactionController.setStepDivision(wheelDelta > 0 ? div * 2
+                                                                     : div / 2);
+            }
+            return;
+        }
 
 #ifdef DEBUG
         if (debug.mouseWheelMove(wheel, event.mods.isShiftDown(),
@@ -72,7 +97,19 @@ public:
             return;
 #endif
 
-        // Get the current playhead position
+        if (event.mods.isCommandDown())
+        {
+            double wheelDelta = wheel.deltaY != 0.0 ? wheel.deltaY : wheel.deltaX;
+            int noteSpeed = state.hasProperty("noteSpeed") ? (int)state["noteSpeed"] : NOTE_SPEED_DEFAULT;
+            noteSpeed = juce::jlimit(NOTE_SPEED_MIN, NOTE_SPEED_MAX, noteSpeed + (wheelDelta > 0 ? 1 : -1));
+            state.setProperty("noteSpeed", noteSpeed, nullptr);
+            toolbar.getNoteSpeedStepper().setDisplayValue(noteSpeed);
+            toolbar.getNoteSpeedStepper().setAtMin(noteSpeed <= NOTE_SPEED_MIN);
+            toolbar.getNoteSpeedStepper().setAtMax(noteSpeed >= NOTE_SPEED_MAX);
+            if (toolbar.onNoteSpeedChanged) toolbar.onNoteSpeedChanged(noteSpeed);
+            return;
+        }
+
         if (auto* playHead = audioProcessor.getPlayHead())
         {
             auto positionInfo = playHead->getPosition();
@@ -81,16 +118,43 @@ public:
                 double currentPPQ = positionInfo->getPpqPosition().orFallback(0.0);
                 double jumpBeats = event.mods.isShiftDown() ? SCROLL_SHIFT_BEATS : SCROLL_NORMAL_BEATS;
 
-                // Note: when shift is held, deltaY might be in deltaX instead
                 double wheelDelta = wheel.deltaY != 0.0 ? wheel.deltaY : wheel.deltaX;
                 double jumpAmount = wheelDelta * jumpBeats;
 
                 double newPPQ = currentPPQ + jumpAmount;
-                newPPQ = std::max(0.0, newPPQ);  // Clamp to 0
+                newPPQ = std::max(0.0, newPPQ);
 
                 audioProcessor.requestTimelinePositionChange(PPQ(newPPQ));
             }
         }
+    }
+
+    bool forwardToReaper(const juce::KeyPress& key)
+    {
+        auto& apis = audioProcessor.getReaperMidiProvider().getAPIs();
+        if (!apis.Main_OnCommand) return false;
+
+        int code = key.getKeyCode();
+        bool cmd = key.getModifiers().isCommandDown();
+        bool shift = key.getModifiers().isShiftDown();
+
+        // Transport
+        if (code == juce::KeyPress::spaceKey)
+            { apis.Main_OnCommand(40044, 0); return true; }
+
+        if (!cmd) return false;
+
+        // Undo / redo
+        if (code == 'Z' && !shift)
+            { apis.Main_OnCommand(40029, 0); interactionController.clearEditSelection(); return true; }
+        if (code == 'Z' && shift)
+            { apis.Main_OnCommand(40030, 0); interactionController.clearEditSelection(); return true; }
+
+        // Save
+        if (code == 'S')
+            { apis.Main_OnCommand(40026, 0); return true; }
+
+        return false;
     }
 
 private:
@@ -102,6 +166,14 @@ private:
     static constexpr int MAX_HIGHWAY_SLOTS = 4;
     std::array<HighwaySlot, MAX_HIGHWAY_SLOTS> slots;
     int activeSlotCount = 0;
+
+    // The highway the mouse is working in. Authoring and the ghost both follow
+    // it, so a multi-highway layout edits one chart at a time.
+    int focusedSlot = 0;
+    void focusSlot(int index);
+    // Layout changes can retire the focused slot, so every read clamps.
+    int effectiveFocusSlot() const
+    { return juce::jlimit(0, juce::jmax(0, activeSlotCount - 1), focusedSlot); }
 
     // Shared track image cache (guitar + drums baked once at full resolution)
     TrackImageCache trackImageCache;
@@ -144,8 +216,16 @@ private:
     // Custom look and feel
     ChartchoticLookAndFeel chartPreviewLnF;
 
+    // Interaction controller (must be declared before toolbar — toolbar holds a reference)
+    InteractionController interactionController;
+
     // UI Components
     ToolbarComponent toolbar;
+
+    // Floating mode chip — owned by the editor so it sits over the highway
+    // (top-left, just below the toolbar). Click toggles write mode; key
+    // shortcuts (W/Q) still work via WriteController.
+    WriteModeIcon writeModeIcon;
 
     //==============================================================================
     // UI Elements
@@ -177,6 +257,59 @@ private:
     void initBottomBar();
     void loadState();
     void updateTrackInfoDisplay();
+    void updateFooterHelpText()
+    {
+        if (!interactionController.writeModeActive())
+        {
+            footer.setModeAccent(juce::Colour(Theme::coral));
+            footer.setDefaultHelpText(makeHelp({
+                key("Scroll"), dim("navigate"),
+                key("Cmd+Scroll"), dim("adjust speed")
+            }));
+            return;
+        }
+
+        bool drawMode = interactionController.subMode() == SubMode::Draw;
+        footer.setModeAccent(drawMode ? juce::Colour(Theme::purple) : juce::Colour(Theme::blue));
+
+        bool stamp = drawMode && interactionController.hasStamp();
+        bool bar = interactionController.barMode();
+        HelpText h;
+
+        if (drawMode)
+        {
+            if (stamp)
+                h = makeHelp({
+                    key("Click"), dim("place stamp"),
+                    key("Shift+drag"), dim("paint"),
+                    key("Left/Right"), dim("shift lanes"),
+                    key("Esc"), dim("clear stamp")
+                });
+            else
+                h = makeHelp({
+                    key("Click"), dim("place note"),
+                    key("Shift+drag"), dim("paint"),
+                    key("Right-click"), dim("erase")
+                });
+        }
+        else
+        {
+            h = makeHelp({
+                key("Click"), dim("select"),
+                key("Drag"), dim("marquee"),
+                key("Double-click"), dim("create/delete"),
+                key("Arrows"), dim("move")
+            });
+        }
+
+        if (bar)
+        {
+            h.push_back(key("B"));
+            h.push_back(dim("exit bar mode"));
+        }
+
+        footer.setDefaultHelpText(h);
+    }
 #ifdef DEBUG
     void rebuildSlots(const DebugMidiFilePlayer::LoadedChart& chart);
 #endif
@@ -229,8 +362,8 @@ private:
     juce::String lastDisplayedTrackName;
 
     // Scroll wheel timeline control
-    static constexpr double SCROLL_NORMAL_BEATS = 2.0;   // Normal scroll: quarter note
-    static constexpr double SCROLL_SHIFT_BEATS = 0.5;     // Shift+scroll: full beat
+    static constexpr double SCROLL_NORMAL_BEATS = 2.0;
+    static constexpr double SCROLL_SHIFT_BEATS  = 8.0;   // Shift+scroll: 4x normal
 
 #ifdef DEBUG
     DebugEditorController debug;

@@ -1,5 +1,67 @@
 # Changelog
 
+## 1.3.0
+Write mode!! - now you can create charts in the same window you're viewing them from
+
+### Write Mode
+- **Draw Mode** - Click to place notes, right-click to erase, shift-drag to paint repeating notes on the grid. Drag to create sustains. The note cursor shows exactly where your note will land.
+- **Edit Mode** - Click to select notes or marquee drag to grab multiple. Move notes by dragging or nudge with the arrow keys. Double-click to create or delete notes.
+- **Write Toolbar** - New sub-toolbar with step grid subdivisions, tuplet controls, snap toggle, and modifier selection (velocity, accent, ghost, tap, forced HOPO/strum, more to come!).
+- **Stamp** - Available in either modes, hold and drag over a selection in DRAW or press while selecting notes in EDIT. Place patterns in one click.
+- **Bar Mode** - Dedicated kick editing for drums or open notes for 5 fret. Non-bar gems dim so you can focus on just the bar lane. On drums shift drag to create alternating 2x kicks.
+- MIDI flags like `ENABLE_CHART_DYNAMICS` and `ENHANCED_OPENS` are automatically added to charts as needed
+
+### Quality of Life
+- Cmd+scroll to zoom note speed
+- Alt+scroll to change grid size
+- Help text in the bottom left on for most modes, and on hover over controls with shortcuts if available!
+
+### Bug Fixes
+- Shift+scroll now scrolls faster than normal instead of slower
+- Instrument and difficulty menus draw on a panel instead of over the highway
+
+### Shortcuts
+
+Write-mode keys sit in the left-hand block so your right hand stays on the mouse.
+
+| Key | Action |
+|---|---|
+| `W` | Toggle write mode (works outside write mode) |
+| `Q` | Switch Draw / Edit |
+| `E` | Toggle snap |
+| `T` | Toggle tuplet on/off (last used value) |
+| `Shift`+`T` | Cycle tuplet 3 / 5 / 7 |
+| `B` | Toggle bar mode |
+| `C` | Hold for stamp |
+| `[` `]` | Grid step down / up |
+| `Delete` / `Backspace` | Delete selection |
+| `Esc` | Deselect all |
+
+Home row sets note type by position, so the same finger means the same slot on every instrument. Pressing an active slot returns that group to its default. Cymbal is its own group, so it toggles freely alongside ghost or accent.
+
+| Key | Drums | 5-fret |
+|---|---|---|
+| `A` | Normal | Auto |
+| `S` | Ghost | HOPO |
+| `D` | Accent | Strum |
+| `F` | Cymbal | Tap |
+
+| Mouse | Draw | Edit |
+|---|---|---|
+| Left click | Place note, drag for sustain | Select |
+| Left drag | — | Marquee |
+| `Alt`+left drag | — | Move selection, axis locked |
+| `Shift`+left drag | Paint | — |
+| Right click / drag | Erase | — |
+| Double-click | — | Create or delete note |
+
+| Scroll | Action |
+|---|---|
+| Scroll | Seek 2 beats |
+| `Shift`+scroll | Seek 8 beats |
+| `Alt`+scroll | Change grid size |
+| `Cmd`+scroll | Note speed |
+
 ## 1.2.3
 
 ### Bug Fixes

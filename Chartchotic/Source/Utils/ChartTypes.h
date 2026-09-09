@@ -32,14 +32,17 @@ inline bool isPart(juce::ValueTree &state, Part part)
     return (int)state.getProperty("part") == (int)part;
 }
 
+constexpr int DRUM_KICK_COLUMN    = 0;
+constexpr int DRUM_KICK_2X_COLUMN = 6;
+
 inline bool isDrumKick(uint gemColumn)
 {
-    return gemColumn == 0 || gemColumn == 6;
+    return gemColumn == DRUM_KICK_COLUMN || gemColumn == DRUM_KICK_2X_COLUMN;
 }
 
 inline uint drumColumnIndex(uint gemColumn)
 {
-    return (gemColumn == 6) ? 0 : gemColumn;
+    return (gemColumn == DRUM_KICK_2X_COLUMN) ? DRUM_KICK_COLUMN : gemColumn;
 }
 
 inline bool isBarNote(uint gemColumn, Part part)
@@ -82,21 +85,27 @@ enum class Gridline
     MEASURE,
     BEAT,
     HALF_BEAT,
+    STEP,
 };
 
 // Tempo and time signature change event (used for REAPER tempo map queries)
 struct TempoTimeSignatureEvent
 {
-    PPQ ppqPosition;           // Musical position (beats)
-    double bpm;                // Tempo in beats per minute
-    int timeSigNumerator;      // Time signature numerator (e.g., 4 in 4/4)
-    int timeSigDenominator;    // Time signature denominator (e.g., 4 in 4/4)
-    bool timeSigReset;         // True if this event explicitly changed the time signature (reset measure anchor). False if carried forward from previous.
+    PPQ ppqPosition;
+    double bpm;
+    int timeSigNumerator;
+    int timeSigDenominator;
+    bool timeSigReset;
+    int measurePos;            // 0-indexed measure number at this position (from host)
+    double beatPos;            // Beat position within the measure (from host, in denominator units)
 
     TempoTimeSignatureEvent()
-        : ppqPosition(0.0), bpm(120.0), timeSigNumerator(4), timeSigDenominator(4), timeSigReset(true) {}
-    TempoTimeSignatureEvent(PPQ ppq, double tempo, int sigNum, int sigDenom, bool sigReset = true)
-        : ppqPosition(ppq), bpm(tempo), timeSigNumerator(sigNum), timeSigDenominator(sigDenom), timeSigReset(sigReset) {}
+        : ppqPosition(0.0), bpm(120.0), timeSigNumerator(4), timeSigDenominator(4),
+          timeSigReset(true), measurePos(0), beatPos(0.0) {}
+    TempoTimeSignatureEvent(PPQ ppq, double tempo, int sigNum, int sigDenom,
+                            bool sigReset = true, int mPos = 0, double bPos = 0.0)
+        : ppqPosition(ppq), bpm(tempo), timeSigNumerator(sigNum), timeSigDenominator(sigDenom),
+          timeSigReset(sigReset), measurePos(mPos), beatPos(bPos) {}
 };
 
 enum class SustainType

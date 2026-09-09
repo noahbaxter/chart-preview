@@ -31,6 +31,15 @@ struct ReaperAPIs
     void* (*GetMediaItem)(void* proj, int itemidx) = nullptr;
     void* (*GetActiveTake)(void* item) = nullptr;
     void* (*GetMediaItemTake_Track)(void* take) = nullptr;
+    int (*CountTrackMediaItems)(void* track) = nullptr;
+    void* (*GetTrackMediaItem)(void* track, int itemidx) = nullptr;
+
+    // Item selection / action invocation (used by lazy item consolidation)
+    void (*Main_OnCommand)(int command, int flag) = nullptr;
+    void (*SetMediaItemSelected)(void* item, bool selected) = nullptr;
+    bool (*IsMediaItemSelected)(void* item) = nullptr;
+    int (*CountSelectedMediaItems)(void* proj) = nullptr;
+    void* (*GetSelectedMediaItem)(void* proj, int selitem) = nullptr;
 
     // Playback state functions
     double (*GetPlayPosition2Ex)(void* proj) = nullptr;
@@ -45,6 +54,48 @@ struct ReaperAPIs
                                  double* ppqposOut, int* typeOut, char* msgOut, int* msgOut_sz) = nullptr;
     double (*MIDI_GetProjQNFromPPQPos)(void* take, double ppqpos) = nullptr;
     bool (*MIDI_GetTrackHash)(void* track, bool notesonly, char* hashOut, int hashOut_sz) = nullptr;
+
+    // MIDI write functions (optional — not required for read-only mode)
+    bool (*MIDI_InsertNote)(void* take, bool selected, bool muted,
+                            double startppqpos, double endppqpos,
+                            int chan, int pitch, int vel,
+                            const bool* noSortInOptional) = nullptr;
+    bool (*MIDI_DeleteNote)(void* take, int noteidx) = nullptr;
+    bool (*MIDI_SetNote)(void* take, int noteidx,
+                         const bool* selectedInOptional, const bool* mutedInOptional,
+                         const double* startppqposInOptional, const double* endppqposInOptional,
+                         const int* chanInOptional, const int* pitchInOptional,
+                         const int* velInOptional,
+                         const bool* noSortInOptional) = nullptr;
+    void (*MIDI_Sort)(void* take) = nullptr;
+    void (*MIDI_DisableSort)(void* take) = nullptr;
+    double (*MIDI_GetPPQPosFromProjQN)(void* take, double projqn) = nullptr;
+
+    // MIDI item extents — the correct way to resize MIDI items (handles PPQ
+    // mapping internally, unlike SetMediaItemInfo_Value("D_POSITION") which corrupts it).
+    bool (*MIDI_SetItemExtents)(void* item, double startQN, double endQN) = nullptr;
+
+    // Media item info accessors
+    double (*GetMediaItemInfo_Value)(void* item, const char* parmname) = nullptr;
+    bool   (*SetMediaItemInfo_Value)(void* item, const char* parmname, double newvalue) = nullptr;
+
+    // Create a new (empty) MIDI item on a track — used when writing to a track
+    // that has no MIDI items at all.
+    void* (*CreateNewMIDIItemInProj)(void* track, double starttime, double endtime,
+                                     const bool* qnInOptional) = nullptr;
+
+    // Text event write functions — chart-level switches are FF 01 text events,
+    // not notes.
+    bool (*MIDI_InsertTextSysexEvt)(void* take, bool selected, bool muted, double ppqpos,
+                                    int type, const char* bytestr, int bytestr_sz) = nullptr;
+    bool (*MIDI_DeleteTextSysexEvt)(void* take, int textsyxevtidx) = nullptr;
+
+    // Undo — only OnStateChange works reliably from plugin GUI threads.
+    // BeginBlock2/EndBlock2 open a block that never closes from plugin context.
+    void (*Undo_OnStateChange)(const char* descchange) = nullptr;
+
+    // Project state
+    void (*MarkProjectDirty)(void* proj) = nullptr;
 
     // Time mapping functions
     double (*TimeMap2_QNToTime)(void* proj, double qn) = nullptr;
@@ -68,6 +119,15 @@ struct ReaperAPIs
                MIDI_CountEvts != nullptr && MIDI_GetNote != nullptr &&
                MIDI_GetProjQNFromPPQPos != nullptr && TimeMap2_QNToTime != nullptr &&
                TimeMap2_timeToBeats != nullptr;
+    }
+
+    // Check if write APIs loaded (optional — don't gate basic operation on these)
+    bool writeApisLoaded() const
+    {
+        return MIDI_InsertNote != nullptr && MIDI_DeleteNote != nullptr &&
+               MIDI_SetNote != nullptr && MIDI_Sort != nullptr &&
+               MIDI_DisableSort != nullptr && MIDI_GetPPQPosFromProjQN != nullptr &&
+               Undo_OnStateChange != nullptr && MarkProjectDirty != nullptr;
     }
 };
 
@@ -131,6 +191,15 @@ public:
         outAPIs.GetMediaItem = (void*(*)(void*, int))apiFunc("GetMediaItem");
         outAPIs.GetActiveTake = (void*(*)(void*))apiFunc("GetActiveTake");
         outAPIs.GetMediaItemTake_Track = (void*(*)(void*))apiFunc("GetMediaItemTake_Track");
+        outAPIs.CountTrackMediaItems = (int(*)(void*))apiFunc("CountTrackMediaItems");
+        outAPIs.GetTrackMediaItem = (void*(*)(void*, int))apiFunc("GetTrackMediaItem");
+
+        // Item selection / action invocation (for item consolidation)
+        outAPIs.Main_OnCommand = (void(*)(int, int))apiFunc("Main_OnCommand");
+        outAPIs.SetMediaItemSelected = (void(*)(void*, bool))apiFunc("SetMediaItemSelected");
+        outAPIs.IsMediaItemSelected = (bool(*)(void*))apiFunc("IsMediaItemSelected");
+        outAPIs.CountSelectedMediaItems = (int(*)(void*))apiFunc("CountSelectedMediaItems");
+        outAPIs.GetSelectedMediaItem = (void*(*)(void*, int))apiFunc("GetSelectedMediaItem");
 
         // Playback state
         outAPIs.GetPlayPosition2Ex = (double(*)(void*))apiFunc("GetPlayPosition2Ex");
@@ -154,6 +223,34 @@ public:
         outAPIs.CountTempoTimeSigMarkers = (int(*)(void*))apiFunc("CountTempoTimeSigMarkers");
         outAPIs.GetTempoTimeSigMarker = (bool(*)(void*, int, double*, int*, double*, double*, int*, int*, bool*))
             apiFunc("GetTempoTimeSigMarker");
+
+        // MIDI write (optional)
+        outAPIs.MIDI_InsertNote = (bool(*)(void*, bool, bool, double, double, int, int, int, const bool*))
+            apiFunc("MIDI_InsertNote");
+        outAPIs.MIDI_DeleteNote = (bool(*)(void*, int))apiFunc("MIDI_DeleteNote");
+        outAPIs.MIDI_SetNote = (bool(*)(void*, int, const bool*, const bool*, const double*, const double*,
+                                        const int*, const int*, const int*, const bool*))
+            apiFunc("MIDI_SetNote");
+        outAPIs.MIDI_Sort = (void(*)(void*))apiFunc("MIDI_Sort");
+        outAPIs.MIDI_DisableSort = (void(*)(void*))apiFunc("MIDI_DisableSort");
+        outAPIs.MIDI_GetPPQPosFromProjQN = (double(*)(void*, double))apiFunc("MIDI_GetPPQPosFromProjQN");
+        outAPIs.MIDI_SetItemExtents = (bool(*)(void*, double, double))apiFunc("MIDI_SetItemExtents");
+
+        // Media item info / creation
+        outAPIs.GetMediaItemInfo_Value = (double(*)(void*, const char*))apiFunc("GetMediaItemInfo_Value");
+        outAPIs.SetMediaItemInfo_Value = (bool(*)(void*, const char*, double))apiFunc("SetMediaItemInfo_Value");
+        outAPIs.CreateNewMIDIItemInProj = (void*(*)(void*, double, double, const bool*))
+            apiFunc("CreateNewMIDIItemInProj");
+
+        // Undo
+        outAPIs.MIDI_InsertTextSysexEvt = (bool(*)(void*, bool, bool, double, int, const char*, int))
+            apiFunc("MIDI_InsertTextSysexEvt");
+        outAPIs.MIDI_DeleteTextSysexEvt = (bool(*)(void*, int))apiFunc("MIDI_DeleteTextSysexEvt");
+
+        outAPIs.Undo_OnStateChange = (void(*)(const char*))apiFunc("Undo_OnStateChange");
+
+        // Project state
+        outAPIs.MarkProjectDirty = (void(*)(void*))apiFunc("MarkProjectDirty");
 
         return outAPIs.isLoaded();
     }

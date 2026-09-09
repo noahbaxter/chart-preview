@@ -33,9 +33,45 @@ namespace Render
             float opacity = sprite.opacity;
             const juce::Image* img = sprite.image;
 
-            drawCalls[order][col].push_back([img, opacity, rect](juce::Graphics& g) {
+            juce::Colour tint = sprite.tint;
+            auto clipHalf = sprite.clipHalf;
+            drawCalls[order][col].push_back([img, opacity, rect, tint, clipHalf](juce::Graphics& g) {
                 g.setOpacity(opacity);
-                g.drawImage(*img, rect);
+                if (clipHalf != ClipHalf::None)
+                {
+                    juce::Graphics::ScopedSaveState save(g);
+                    float halfW = rect.getWidth() * 0.5f;
+                    auto clip = (clipHalf == ClipHalf::Left)
+                        ? rect.withWidth(halfW)
+                        : rect.withX(rect.getX() + halfW).withWidth(halfW);
+                    g.reduceClipRegion(clip.toNearestInt());
+                    g.drawImage(*img, rect);
+                    if (tint.getAlpha() > 0)
+                    {
+                        auto transform = juce::AffineTransform::scale(
+                            rect.getWidth()  / (float)img->getWidth(),
+                            rect.getHeight() / (float)img->getHeight())
+                            .translated(rect.getX(), rect.getY());
+                        g.reduceClipRegion(*img, transform);
+                        g.setColour(tint);
+                        g.fillAll();
+                    }
+                }
+                else
+                {
+                    g.drawImage(*img, rect);
+                    if (tint.getAlpha() > 0)
+                    {
+                        auto transform = juce::AffineTransform::scale(
+                            rect.getWidth()  / (float)img->getWidth(),
+                            rect.getHeight() / (float)img->getHeight())
+                            .translated(rect.getX(), rect.getY());
+                        juce::Graphics::ScopedSaveState save(g);
+                        g.reduceClipRegion(*img, transform);
+                        g.setColour(tint);
+                        g.fillAll();
+                    }
+                }
             });
         }
     }

@@ -1,15 +1,16 @@
 cmake_minimum_required(VERSION 3.22)
 
-# Read version from VERSION file
-file(READ "${CMAKE_SOURCE_DIR}/VERSION" CHARTCHOTIC_VERSION)
-string(STRIP "${CHARTCHOTIC_VERSION}" CHARTCHOTIC_VERSION)
+# Read version from VERSION file (may contain prerelease suffix like 1.3.0-beta.1)
+file(READ "${CMAKE_SOURCE_DIR}/VERSION" CHARTCHOTIC_VERSION_RAW)
+string(STRIP "${CHARTCHOTIC_VERSION_RAW}" CHARTCHOTIC_VERSION_RAW)
+string(REGEX REPLACE "-.*$" "" CHARTCHOTIC_VERSION "${CHARTCHOTIC_VERSION_RAW}")
 
 project(Chartchotic VERSION ${CHARTCHOTIC_VERSION} LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Build channel: DEV or RELEASE (passed via -DBUILD_CHANNEL=...)
+# Build channel: DEV, BETA, or RELEASE (passed via -DBUILD_CHANNEL=...)
 if(NOT DEFINED BUILD_CHANNEL)
     set(BUILD_CHANNEL "DEV")
 endif()
@@ -18,20 +19,35 @@ endif()
 # For local dev builds, generate a timestamped version automatically
 if(NOT DEFINED VERSION_STRING)
     if(BUILD_CHANNEL STREQUAL "DEV")
-        string(TIMESTAMP _timestamp "%Y%m%d%H%M%S" UTC)
-        execute_process(
-            COMMAND git rev-parse --short HEAD
-            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-            OUTPUT_VARIABLE _short_sha
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            ERROR_QUIET
+        # Timestamp and hash are written to a header at build time so they
+        # refresh on every build, not just on CMake configure.
+        set(_gen_script "${CMAKE_BINARY_DIR}/gen_build_info.cmake")
+        set(_build_info_h "${CMAKE_BINARY_DIR}/generated/BuildInfo.h")
+        set(_script_content [=[
+string(TIMESTAMP _ts "%b%d-%Hh%M")
+execute_process(COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY "@_SRC_DIR@"
+    OUTPUT_VARIABLE _sha OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+if(_sha STREQUAL "")
+    set(_sha "local")
+endif()
+file(WRITE "@_OUT_FILE@"
+    "#pragma once\n"
+    "#define CHARTCHOTIC_BUILD_TIMESTAMP \"${_ts}\"\n"
+    "#define CHARTCHOTIC_BUILD_SHA \"${_sha}\"\n")
+]=])
+        string(REPLACE "@_SRC_DIR@" "${CMAKE_SOURCE_DIR}" _script_content "${_script_content}")
+        string(REPLACE "@_OUT_FILE@" "${_build_info_h}" _script_content "${_script_content}")
+        file(WRITE "${_gen_script}" "${_script_content}")
+        add_custom_target(BuildInfo ALL
+            COMMAND ${CMAKE_COMMAND} -P "${_gen_script}"
+            BYPRODUCTS "${_build_info_h}"
+            COMMENT "Generating build timestamp"
+            VERBATIM
         )
-        if(_short_sha STREQUAL "")
-            set(_short_sha "local")
-        endif()
-        set(VERSION_STRING "${CHARTCHOTIC_VERSION}-dev.${_timestamp}.${_short_sha}")
+        set(VERSION_STRING "${CHARTCHOTIC_VERSION}-dev")
     else()
-        set(VERSION_STRING "${CHARTCHOTIC_VERSION}")
+        set(VERSION_STRING "${CHARTCHOTIC_VERSION_RAW}")
     endif()
 endif()
 
@@ -86,6 +102,20 @@ target_sources(Chartchotic
         Chartchotic/Source/Editor/FrameDataBuilder.h
         Chartchotic/Source/Editor/SessionController.cpp
         Chartchotic/Source/Editor/SessionController.h
+        Chartchotic/Source/Editor/AuthoringControllerBase.h
+        Chartchotic/Source/Editor/AuthoringTypes.h
+        Chartchotic/Source/Editor/AuthoringUtils.h
+        Chartchotic/Source/Editor/WriteController.cpp
+        Chartchotic/Source/Editor/WriteController.h
+        Chartchotic/Source/Editor/CommandMapper.cpp
+        Chartchotic/Source/Editor/CommandMapper.h
+        Chartchotic/Source/Editor/ModifierSlots.h
+        Chartchotic/Source/Editor/EditController.cpp
+        Chartchotic/Source/Editor/EditController.h
+        Chartchotic/Source/Editor/InteractionController.cpp
+        Chartchotic/Source/Editor/InteractionController.h
+        Chartchotic/Source/Editor/NoteEditor.cpp
+        Chartchotic/Source/Editor/NoteEditor.h
         Chartchotic/Source/Host/ReaperVST3.h
         # DebugTools
         Chartchotic/Source/DebugTools/DebugEditorController.cpp
@@ -129,8 +159,14 @@ target_sources(Chartchotic
         Chartchotic/Source/Midi/Providers/REAPER/ReaperApiHelpers.h
         Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiProvider.cpp
         Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiProvider.h
+        Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiWriter.cpp
+        Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiWriter.h
+        Chartchotic/Source/Midi/Providers/REAPER/ReaperItemManager.cpp
+        Chartchotic/Source/Midi/Providers/REAPER/ReaperItemManager.h
         Chartchotic/Source/Midi/Providers/REAPER/ReaperNoteFetcher.cpp
         Chartchotic/Source/Midi/Providers/REAPER/ReaperNoteFetcher.h
+        # Midi / Providers
+        Chartchotic/Source/Midi/Providers/MidiWriter.h
         # Midi / Pipelines
         Chartchotic/Source/Midi/Pipelines/MidiPipeline.h
         Chartchotic/Source/Midi/Pipelines/MidiPipelineFactory.cpp
@@ -184,6 +220,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Visual/Utils/FrameRenderer.cpp
         Chartchotic/Source/Visual/Utils/FrameRenderer.h
         Chartchotic/Source/Visual/Utils/PositionConstants.h
+        Chartchotic/Source/Visual/Utils/HitTestMapper.cpp
+        Chartchotic/Source/Visual/Utils/HitTestMapper.h
         Chartchotic/Source/Visual/Utils/PositionMath.cpp
         Chartchotic/Source/Visual/Utils/PositionMath.h
         Chartchotic/Source/Visual/Utils/RenderTypeConfig.cpp
@@ -203,6 +241,8 @@ target_sources(Chartchotic
         Chartchotic/Source/UI/Controls/CircleIconSelector.h
         Chartchotic/Source/UI/Controls/SegmentedButtons.h
         Chartchotic/Source/UI/Controls/ValueStepper.h
+        Chartchotic/Source/UI/Controls/WriteModeIcon.h
+        Chartchotic/Source/UI/Controls/WriteSubToolbar.h
         # UI - LookAndFeel
         Chartchotic/Source/UI/LookAndFeel/ChartchoticLookAndFeel.cpp
         Chartchotic/Source/UI/LookAndFeel/ChartchoticLookAndFeel.h
@@ -228,9 +268,7 @@ target_sources(Chartchotic
 # Generated assets come from assets/generated/<category>/ (via convert_assets.sh)
 # Static assets (no PDF source) come from assets/static/
 # MIDI test files come from assets/midi/
-juce_add_binary_data(ChartchoticData
-    NAMESPACE BinaryData
-    SOURCES
+set(CHARTCHOTIC_ASSETS
         # Fonts
         assets/static/fonts/TurretRoad-Bold.ttf
         assets/static/fonts/TurretRoad-Medium.ttf
@@ -244,12 +282,14 @@ juce_add_binary_data(ChartchoticData
         assets/static/icons/icon_keys.png
         assets/static/icons/icon_vocals.png
         assets/static/icons/icon_drums.png
+        assets/static/icons/icon_snap_magnet.svg
+        assets/static/icons/icon_cursor.svg
         assets/static/icons/discoball.jpg
         assets/static/logo-reaper.svg
         # Default highway textures
         assets/static/highways/kanaizo_amber.png
         assets/static/highways/kanaizo_darkwood.png
-        assets/static/highways/kanaizo_gothic.png
+        assets/static/highways/gothic_default.png
         assets/static/highways/kanaizo_ornate.png
         assets/static/highways/kanaizo_BlueCaustic.png
         assets/static/highways/kanaizo_FretWood.png
@@ -279,6 +319,11 @@ juce_add_binary_data(ChartchoticData
         assets/generated/notes/cym_red.png
         assets/generated/notes/cym_white.png
         assets/generated/notes/cym_yellow.png
+        # Ghost cursor templates (write-mode hover preview)
+        assets/generated/templates/note_blank.png
+        assets/generated/templates/hopo_blank.png
+        assets/generated/templates/cym_blank.png
+        assets/generated/templates/bar_blank.png
         # Bars (generated from PDFs)
         assets/generated/bars/bar_kick.png
         assets/generated/bars/bar_kick_2x.png
@@ -341,11 +386,36 @@ juce_add_binary_data(ChartchoticData
         # MIDI test files loaded from disk at runtime (see CHARTCHOTIC_MIDI_ASSET_DIR)
 )
 
+# A relative path that does not exist when CMake configures is silently treated
+# as a generated file under the build dir, so one missing asset yields a ninja
+# graph no reconfigure can repair. Fail here instead, naming what is missing.
+set(_missing_assets "")
+foreach(asset IN LISTS CHARTCHOTIC_ASSETS)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${asset}")
+        list(APPEND _missing_assets "  ${asset}")
+    endif()
+endforeach()
+if(_missing_assets)
+    string(JOIN "\n" _missing_list ${_missing_assets})
+    message(FATAL_ERROR
+        "Missing binary data assets. Is the assets submodule on the right commit?\n${_missing_list}")
+endif()
+list(TRANSFORM CHARTCHOTIC_ASSETS PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
+
+juce_add_binary_data(ChartchoticData
+    NAMESPACE BinaryData
+    SOURCES ${CHARTCHOTIC_ASSETS}
+)
+
 # REAPER SDK header path
 target_include_directories(Chartchotic
     PRIVATE
         ${CMAKE_SOURCE_DIR}/third_party/reaper-sdk/sdk
+        ${CMAKE_BINARY_DIR}/generated
 )
+if(TARGET BuildInfo)
+    add_dependencies(Chartchotic BuildInfo)
+endif()
 
 # Compile definitions
 target_compile_definitions(Chartchotic
@@ -411,7 +481,11 @@ target_sources(ChartchoticStd PRIVATE ${_chartchotic_sources})
 target_include_directories(ChartchoticStd
     PRIVATE
         ${CMAKE_SOURCE_DIR}/third_party/reaper-sdk/sdk
+        ${CMAKE_BINARY_DIR}/generated
 )
+if(TARGET BuildInfo)
+    add_dependencies(ChartchoticStd BuildInfo)
+endif()
 
 target_compile_definitions(ChartchoticStd
     PUBLIC

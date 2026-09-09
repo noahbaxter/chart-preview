@@ -62,6 +62,10 @@ public:
     juce::Image* getMarkerBeatImage() { return &markerBeatImage; }
     juce::Image* getMarkerHalfBeatImage() { return &markerHalfBeatImage; }
     juce::Image* getMarkerMeasureImage() { return &markerMeasureImage; }
+    // Write-mode boosted variants — alpha amplified at load time so write
+    // mode anchors render at full opacity through the same sprite path.
+    juce::Image* getMarkerMeasureWriteImage() { return &markerMeasureWriteImage; }
+    juce::Image* getMarkerBeatWriteImage()    { return &markerBeatWriteImage; }
 
     // Regular notes
     juce::Image* getNoteBlueImage() { return &noteBlueImage; }
@@ -70,6 +74,13 @@ public:
     juce::Image* getNoteRedImage() { return &noteRedImage; }
     juce::Image* getNoteWhiteImage() { return &noteWhiteImage; }
     juce::Image* getNoteYellowImage() { return &noteYellowImage; }
+
+    // Ghost cursor blanks (write-mode hover preview)
+    juce::Image* getNoteBlankImage() { return &noteBlankImage; }
+    juce::Image* getHopoBlankImage() { return &hopoBlankImage; }
+    juce::Image* getCymBlankImage()  { return &cymBlankImage; }
+    juce::Image* getBarBlankImage()  { return &barBlankImage; }
+    juce::Image* getGhostCursorImage(bool isDrums, int lane);
 
     // Overlay graphics
     juce::Image* getOverlayCymAccentImage() { return &overlayCymAccentImage; }
@@ -160,6 +171,13 @@ private:
     juce::Image markerBeatImage;
     juce::Image markerHalfBeatImage;
     juce::Image markerMeasureImage;
+    juce::Image markerMeasureWriteImage;
+    juce::Image markerBeatWriteImage;
+
+    // Returns a copy of `src` with each pixel's alpha amplified to fully
+    // saturate (any non-zero alpha → 255). Preserves RGB. Used to build the
+    // write-mode marker variants without touching the source PNGs.
+    static juce::Image makeAlphaBoostedCopy(const juce::Image& src);
 
     // Regular notes
     juce::Image noteBlueImage;
@@ -168,6 +186,12 @@ private:
     juce::Image noteRedImage;
     juce::Image noteWhiteImage;
     juce::Image noteYellowImage;
+
+    // Ghost cursor blanks
+    juce::Image noteBlankImage;
+    juce::Image hopoBlankImage;
+    juce::Image cymBlankImage;
+    juce::Image barBlankImage;
 
     // Overlay graphics
     juce::Image overlayCymAccentImage;

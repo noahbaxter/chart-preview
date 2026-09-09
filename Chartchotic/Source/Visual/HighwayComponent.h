@@ -15,10 +15,12 @@
 #include <JuceHeader.h>
 #include "../Utils/ChartTypes.h"
 #include "../Midi/Utils/TimeConverter.h"
+#include "../Editor/AuthoringTypes.h"
 #include "Renderers/SceneRenderer.h"
 #include "Renderers/TrackRenderer.h"
 #include "Managers/AssetManager.h"
 #include "Utils/DrawingConstants.h"
+#include "Utils/HitTestMapper.h"
 
 class TrackImageCache;
 
@@ -50,6 +52,48 @@ public:
     void resized() override;
     void timerCallback() override;
 
+    // Mouse input — dispatches into write-mode callbacks (M1.3).
+    void mouseEnter(const juce::MouseEvent& e) override;
+    void mouseExit (const juce::MouseEvent& e) override;
+    void mouseMove (const juce::MouseEvent& e) override;
+    void mouseDown (const juce::MouseEvent& e) override;
+    void mouseDrag (const juce::MouseEvent& e) override;
+    void mouseUp          (const juce::MouseEvent& e) override;
+    void mouseDoubleClick (const juce::MouseEvent& e) override;
+    void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override
+    {
+        if (onMouseWheel) onMouseWheel(e, wheel);
+    }
+
+    // Authoring dispatch hooks. Wired by PluginEditor; null when unset.
+    using PointerCallback = std::function<void(const AuthoringPoint&, const AuthoringContext&)>;
+    void setOnPointerMove  (PointerCallback cb) { onPointerMove   = std::move(cb); }
+    void setOnPointerDown  (PointerCallback cb) { onPointerDown   = std::move(cb); }
+    void setOnPointerDrag  (PointerCallback cb) { onPointerDrag   = std::move(cb); }
+    void setOnPointerUp    (PointerCallback cb) { onPointerUp     = std::move(cb); }
+    void setOnPointerExit  (std::function<void()> cb) { onPointerExit   = std::move(cb); }
+    void setOnPointerCancel(std::function<void()> cb) { onPointerCancel = std::move(cb); }
+    void setOnPointerDoubleClick(PointerCallback cb) { onPointerDoubleClick = std::move(cb); }
+
+    std::function<void(const juce::MouseEvent&, const juce::MouseWheelDetails&)> onMouseWheel;
+
+    // Coordinate-domain conversion at the dispatch boundary (M0-G design rule).
+    // Takes a "seconds offset from cursor" (the timeFromCursor returned by HitTestMapper)
+    // and returns project QN. If unset, mouse handlers fall back to rawProjectQN = 0.
+    void setSecondsToProjectQN(std::function<double(double)> fn) { secondsToProjectQN = std::move(fn); }
+
+    // Inverse of secondsToProjectQN — given a project QN, return the seconds-offset-from-cursor
+    // used by the rendering window. Required for drawing the hover ghost at the snapped QN.
+    void setProjectQNToSeconds(std::function<double(double)> fn) { projectQNToSeconds = std::move(fn); }
+
+    // Read-only access to the WriteController's overlay state for the ghost cursor.
+    using OverlayStateGetter = std::function<const OverlayState&()>;
+    void setOverlayStateGetter(OverlayStateGetter g) { overlayStateGetter = std::move(g); }
+    void setPatchBuffer(const OptimisticPatchBuffer* buf) { patchBuffer = buf; }
+
+    // Format a project QN as "M.B" position label (e.g. "37.2.5"). Wired by PluginEditor.
+    void setFormatPositionQN(std::function<juce::String(double)> fn) { formatPositionQN = std::move(fn); }
+
     void setFrameData(const HighwayFrameData& data);
     void rebuildTrack();
 
@@ -63,6 +107,7 @@ public:
     void setShowLaneSeparators(bool on) { sceneRenderer.showLaneSeparators = on; repaint(); }
     void setShowStrikeline(bool on)     { sceneRenderer.showStrikeline = on; repaint(); }
     void setShowHighway(bool on)        { showHighway = on; repaint(); }
+    void setWriteMode(bool on)          { sceneRenderer.setWriteMode(on); repaint(); }
 
     void setHighwayLength(float length) { sceneRenderer.farFadeEnd = length; PositionMath::bemaniHwyScale = length; rebuildTrack(); repaint(); }
     void setTexture(const juce::Image& img) { trackRenderer.setTexture(img); }
@@ -114,6 +159,45 @@ private:
 
     HighwayFrameData frameData;
 
+    // M1.3 mouse dispatch
+    HitTestMapper hitTestMapper;
+    PointerCallback onPointerMove;
+    PointerCallback onPointerDown;
+    PointerCallback onPointerDrag;
+    PointerCallback onPointerUp;
+    std::function<void()> onPointerExit;
+    std::function<void()> onPointerCancel;
+    PointerCallback onPointerDoubleClick;
+    std::function<double(double)> secondsToProjectQN;
+    std::function<double(double)> projectQNToSeconds;
+    OverlayStateGetter            overlayStateGetter;
+    const OptimisticPatchBuffer*  patchBuffer = nullptr;
+    std::function<juce::String(double)> formatPositionQN;
+
+    // Last ghost state seen at end of mouseMove. Used to throttle repaint —
+    // vblank already drives 60fps, mouseMove fires at 100+ Hz on fast pointers,
+    // so re-rendering on every cursor pixel saturates the renderer at high
+    // step subdivisions (cost scales with gridline count).
+    struct LastGhostState
+    {
+        bool   visible = false;
+        int    lane = -1;
+        double qn = 0.0;
+    };
+    LastGhostState lastGhost;
+
+    // Build authoring payloads from a JUCE mouse event.
+    void buildAuthoringPayload(const juce::MouseEvent& e,
+                               AuthoringPoint& outPoint,
+                               AuthoringContext& outContext) const;
+
+    // Map a component-local screen-space point into the render-space coordinates
+    // that PositionMath / HitTestMapper operate in. Inverse of the paint()
+    // transform: render canvas is renderWidth x (renderHeight + topOverflow),
+    // mapped to the component via either independent X/Y stretch (stretchToFill)
+    // or uniform letterboxed scale.
+    juce::Point<float> screenToRenderCoords(juce::Point<float> screen) const;
+
     int topOverflow = 0;
 
     // Dimensions of the last full rebuild (track bake + asset rescale)
@@ -122,6 +206,10 @@ private:
 #ifdef DEBUG
 public:
     bool showDebugColour = false;
+    bool showClickZones = false;
+    mutable float debugLastHitY = -1.0f;
+    mutable double debugLastResolvedQN = 0.0;
+    mutable int debugLastLane = -1;
     double debugTrackRender_us = 0.0;
     double debugHighwayPaint_us = 0.0;
 private:

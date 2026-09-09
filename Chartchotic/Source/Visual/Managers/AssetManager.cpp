@@ -48,6 +48,26 @@ void AssetManager::initAssets()
     markerHalfBeatImage = juce::ImageCache::getFromMemory(BinaryData::marker_half_beat_png, BinaryData::marker_half_beat_pngSize);
     markerMeasureImage = juce::ImageCache::getFromMemory(BinaryData::marker_measure_png, BinaryData::marker_measure_pngSize);
 
+    // Write-mode markers: copies of the same source PNGs with their alpha
+    // amplified. The original PNGs bake alpha (~0.75 MEASURE / ~0.50 BEAT)
+    // which caps gridline opacity even with the renderer's per-type
+    // multiplier at 1.0. Boost at load time so write mode can render
+    // structural anchors at full opacity through the same perspective sprite
+    // path as everything else (no parallel render code).
+    markerMeasureWriteImage = makeAlphaBoostedCopy(markerMeasureImage);
+    markerBeatWriteImage    = makeAlphaBoostedCopy(markerBeatImage);
+
+    // STEP gridlines reuse the half-beat marker image — same loading path,
+    // same scaling, same visual treatment. They're differentiated from
+    // half-beats by opacity in GridlineRenderer (STEP 0.25 vs HALF_BEAT 0.35),
+    // not by a separate asset. Adding a dedicated thinner PNG is an asset-pack
+    // task tracked in BACKLOG.md — do not invent parallel rendering paths.
+
+    noteBlankImage = juce::ImageCache::getFromMemory(BinaryData::note_blank_png, BinaryData::note_blank_pngSize);
+    hopoBlankImage = juce::ImageCache::getFromMemory(BinaryData::hopo_blank_png, BinaryData::hopo_blank_pngSize);
+    cymBlankImage  = juce::ImageCache::getFromMemory(BinaryData::cym_blank_png, BinaryData::cym_blank_pngSize);
+    barBlankImage  = juce::ImageCache::getFromMemory(BinaryData::bar_blank_png, BinaryData::bar_blank_pngSize);
+
     noteBlueImage = juce::ImageCache::getFromMemory(BinaryData::note_blue_png, BinaryData::note_blue_pngSize);
     noteGreenImage = juce::ImageCache::getFromMemory(BinaryData::note_green_png, BinaryData::note_green_pngSize);
     noteOrangeImage = juce::ImageCache::getFromMemory(BinaryData::note_orange_png, BinaryData::note_orange_pngSize);
@@ -163,8 +183,37 @@ void AssetManager::initAssets()
         // Gridline markers
         {&markerBeatImage, markerBeatImage}, {&markerHalfBeatImage, markerHalfBeatImage},
         {&markerMeasureImage, markerMeasureImage},
+        {&markerMeasureWriteImage, markerMeasureWriteImage},
+        {&markerBeatWriteImage,    markerBeatWriteImage},
+        // Ghost cursor blanks
+        {&noteBlankImage, noteBlankImage}, {&hopoBlankImage, hopoBlankImage},
+        {&cymBlankImage, cymBlankImage}, {&barBlankImage, barBlankImage},
     };
 #endif // CHARTCHOTIC_NO_BINARY_DATA
+}
+
+juce::Image AssetManager::makeAlphaBoostedCopy(const juce::Image& src)
+{
+    if (!src.isValid())
+        return {};
+
+    juce::Image out = src.createCopy();
+    juce::Image::BitmapData bd(out, juce::Image::BitmapData::readWrite);
+    for (int y = 0; y < bd.height; ++y)
+    {
+        juce::uint8* line = bd.getLinePointer(y);
+        for (int x = 0; x < bd.width; ++x)
+        {
+            juce::uint8* px = line + x * bd.pixelStride;
+            // ARGB byte order on macOS/Win is BGRA in memory; alpha is the
+            // 4th byte regardless. juce::PixelARGB stores it as the A
+            // component — use the explicit getter for portability.
+            juce::PixelARGB* pixel = reinterpret_cast<juce::PixelARGB*>(px);
+            if (pixel->getAlpha() > 0)
+                pixel->setAlpha(255);
+        }
+    }
+    return out;
 }
 
 juce::Image AssetManager::downscale(const juce::Image& src, int targetWidth)
@@ -193,6 +242,13 @@ void AssetManager::rescaleForWidth(int viewportWidth)
         *asset.target = downscale(asset.fullRes, targetWidth);
 
     lastScaledWidth = targetWidth;
+}
+
+juce::Image* AssetManager::getGhostCursorImage(bool isDrums, int lane)
+{
+    if (lane == DRUM_KICK_COLUMN) return &barBlankImage;
+    if (isDrums && lane == DRUM_KICK_2X_COLUMN) return &barBlankImage;
+    return &noteBlankImage;
 }
 
 juce::Image* AssetManager::getGuitarGlyphImage(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive)
@@ -366,6 +422,7 @@ juce::Image* AssetManager::getGridlineImage(Gridline gridlineType)
     case Gridline::MEASURE: return getMarkerMeasureImage();
     case Gridline::BEAT: return getMarkerBeatImage();
     case Gridline::HALF_BEAT: return getMarkerHalfBeatImage();
+    case Gridline::STEP: return getMarkerHalfBeatImage(); // alias — opacity differentiates
     }
 
     return nullptr;

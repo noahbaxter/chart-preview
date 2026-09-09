@@ -85,7 +85,7 @@ void AssetController::scanHighwayTextures()
     const BundledTexture bundled[] = {
         { "kanaizo_amber.png",             BinaryData::kanaizo_amber_png,             BinaryData::kanaizo_amber_pngSize },
         { "kanaizo_darkwood.png",          BinaryData::kanaizo_darkwood_png,          BinaryData::kanaizo_darkwood_pngSize },
-        { "kanaizo_gothic.png",            BinaryData::kanaizo_gothic_png,            BinaryData::kanaizo_gothic_pngSize },
+        { "gothic_default.png",            BinaryData::gothic_default_png,            BinaryData::gothic_default_pngSize },
         { "kanaizo_ornate.png",            BinaryData::kanaizo_ornate_png,            BinaryData::kanaizo_ornate_pngSize },
         { "kanaizo_BlueCaustic.png",       BinaryData::kanaizo_BlueCaustic_png,       BinaryData::kanaizo_BlueCaustic_pngSize },
         { "kanaizo_BlueMagentaHex.png",    BinaryData::kanaizo_BlueMagentaHex_png,    BinaryData::kanaizo_BlueMagentaHex_pngSize },

@@ -11,6 +11,7 @@
 #include "SceneRenderer.h"
 #include "../Utils/DrawingConstants.h"
 #include "../Utils/PositionConstants.h"
+#include "../../UI/Theme.h"
 
 using namespace PositionConstants;
 
@@ -93,6 +94,81 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
             noteRenderer.populate(drawCallMap, trackWindow, windowStartTime, windowEndTime,
                                   width, height, highwayPosEnd,
                                   farFadeEnd, farFadeLen, farFadeCurve);
+
+        if (!ghostCursor.stampGhosts.empty())
+        {
+            for (const auto& sg : ghostCursor.stampGhosts)
+                noteRenderer.renderGhost(drawCallMap, sg.lane, sg.position,
+                                         nullptr, ghostCursor.opacity, sg.gem);
+        }
+        else if (ghostCursor.visible)
+        {
+            noteRenderer.renderGhost(drawCallMap, ghostCursor.lane, ghostCursor.position,
+                                     ghostCursor.image, ghostCursor.opacity, ghostCursor.gem);
+        }
+
+        if (ghostCursor.positionLabel.isNotEmpty())
+        {
+            bool drums = isDrumLike(activePart);
+            float pos = ghostCursor.position;
+            float pe = highwayPosEnd;
+            uint w = width, h = height;
+            juce::String label = ghostCursor.positionLabel;
+            auto strikeEdge = PositionMath::getFretboardEdge(drums, 0.0f, w, h, HIGHWAY_POS_START, pe);
+            float sw = strikeEdge.rightX - strikeEdge.leftX;
+
+            drawCallMap[(int)DrawOrder::OVERLAY][0].push_back([drums, pos, w, h, pe, sw, label](juce::Graphics& g) {
+                auto fbEdge = PositionMath::getFretboardEdge(drums, pos, w, h,
+                                  PositionConstants::HIGHWAY_POS_START, pe);
+                float wr = (sw > 0.0f) ? ((fbEdge.rightX - fbEdge.leftX) / sw) : 1.0f;
+                float fontPx = sw * WRITE_MEASURE_LABEL_FONT_FRAC * wr;
+                if (fontPx < WRITE_MEASURE_LABEL_MIN_FONT_PX) return;
+
+                float protLen = sw * WRITE_PROTRUSION_MEASURE_LENGTH_FRAC * wr;
+                float gap     = sw * WRITE_MEASURE_LABEL_GAP_FRAC * wr;
+                float textX = fbEdge.leftX - protLen - gap;
+                float textY = fbEdge.centerY;
+                float textBoxW = fontPx * 6.0f;
+                float textBoxH = fontPx * 1.2f;
+                g.setColour(juce::Colours::white.withAlpha(0.9f));
+                g.setFont(Theme::getUIFont(fontPx));
+                g.drawText(label,
+                           juce::Rectangle<float>(textX - textBoxW, textY - textBoxH * 0.5f, textBoxW, textBoxH),
+                           juce::Justification::centredRight, false);
+            });
+        }
+
+        // Mode hint is deliberately NOT projected into the highway: it is a
+        // statement about the tool, not about a place on the board, so it sits
+        // at a fixed spot above the strikeline at a fixed size rather than
+        // swimming with the cursor's depth.
+        if (ghostCursor.modeLabel.isNotEmpty())
+        {
+            juce::String label = ghostCursor.modeLabel;
+            auto strikeEdge = PositionMath::getFretboardEdge(isDrums, 0.0f, width, height,
+                                                             HIGHWAY_POS_START, highwayPosEnd);
+            float sw = strikeEdge.rightX - strikeEdge.leftX;
+            float cx = (strikeEdge.leftX + strikeEdge.rightX) * 0.5f;
+            float sy = strikeEdge.centerY;
+
+            drawCallMap[(int)DrawOrder::OVERLAY][0].push_back([sw, cx, sy, label](juce::Graphics& g) {
+                float fontPx = sw * WRITE_MEASURE_LABEL_FONT_FRAC;
+                if (fontPx < WRITE_MEASURE_LABEL_MIN_FONT_PX) return;
+
+                float boxW = fontPx * 14.0f;
+                float boxH = fontPx * 1.2f;
+                float y = sy - boxH * 2.5f;
+                g.setColour(juce::Colours::white.withAlpha(0.9f));
+                g.setFont(Theme::getUIFont(fontPx));
+                g.drawText(label,
+                           juce::Rectangle<float>(cx - boxW * 0.5f, y - boxH * 0.5f, boxW, boxH),
+                           juce::Justification::centred, false);
+            });
+        }
+
+        for (const auto& ghost : movePreviewGhosts)
+            noteRenderer.renderGhost(drawCallMap, ghost.lane, ghost.position, nullptr, 1.0f, ghost.gem, ghost.selected);
+        movePreviewGhosts.clear();
     }
 
     {

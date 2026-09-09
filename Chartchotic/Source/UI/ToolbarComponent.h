@@ -12,10 +12,13 @@
 #include "Controls/SegmentedButtons.h"
 #include "Controls/PanelSectionHeader.h"
 #include "Controls/PopupMenuButton.h"
+#include "Controls/WriteSubToolbar.h"
 #include "MenuGroup.h"
 #include "../Utils/ChartTypes.h"
 #include "../Visual/Utils/DrawingConstants.h"
 #include "ControlConstants.h"
+
+class InteractionController;
 #ifdef DEBUG
 #include "../DebugTools/DebugToolbarPanel.h"
 #include "../DebugTools/DebugTuningPanel.h"
@@ -24,15 +27,25 @@
 class ToolbarComponent : public juce::Component
 {
 public:
-    static constexpr float toolbarRatio = 0.06f;    // fraction of editor width (single strip)
-    static constexpr int maxToolbarHeight = 100;    // cap toolbar height (pixels)
-    static constexpr int referenceHeight = 36;     // design reference for the strip portion
-    static constexpr float stripFraction = 1.0f;   // strip is the full toolbar height
-    static constexpr float logoFontRatio = 0.90f;  // logo font size as fraction of strip height
+    static constexpr float toolbarRatio = TOOLBAR_RATIO;
+    static constexpr int maxToolbarHeight = TOOLBAR_MAX_HEIGHT;
+    static constexpr int referenceHeight = 36;
+    static constexpr float stripFraction = 1.0f;
+    static constexpr float logoFontRatio = 0.90f;
 
-    int getStripHeight() const { return getHeight(); }
+    static constexpr float subToolbarHeightRatio = SUBTOOLBAR_HEIGHT_RATIO;
 
-    ToolbarComponent(juce::ValueTree& state);
+    // Total height the toolbar reports to its parent. Equals baseStripHeight
+    // when write mode is off; baseStripHeight + sub-row when on. PluginEditor
+    // calls this in resized() to compute the toolbar bounds and reflow the
+    // highway below.
+    int getReportedHeight(int baseStripHeight) const;
+
+    // Strip-only height (top row). When the sub-toolbar is visible, this is
+    // less than getHeight(); when off, it equals getHeight().
+    int getStripHeight() const;
+
+    ToolbarComponent(juce::ValueTree& state, InteractionController& interactionController);
     ~ToolbarComponent() override;
 
     void paint(juce::Graphics& g) override;
@@ -133,9 +146,22 @@ public:
     // Expose for scroll-wheel handling in editor
     ValueStepper& getNoteSpeedStepper() { return noteSpeedStepper; }
     ChartchoticLogo& getLogo() { return logo; }
+    WriteSubToolbar& getWriteSubToolbar() { return writeSubToolbar; }
+
+    // Re-read write-mode state from WriteController and refresh the
+    // sub-toolbar. Wired to WriteController::onStateChanged in PluginEditor.
+    // Returns true if the toolbar's reported height changed (i.e. write-mode
+    // visibility flipped) so the caller can trigger a parent re-layout to
+    // reclaim/yield highway space.
+    bool refreshFromWriteController();
+
+    // Back-compat alias — equivalent to refreshFromWriteController() but
+    // discards the height-changed return.
+    void repaintModePill() { refreshFromWriteController(); }
 
 private:
     juce::ValueTree& state;
+    InteractionController& interactionController;
     bool reaperMode = false;
     bool multiInstrumentMode = false;
 
@@ -146,6 +172,9 @@ private:
     CircleIconSelector instrumentSelector;
     CircleIconSelector difficultySelector;
     ValueStepper noteSpeedStepper{"Speed"};
+
+    // Second toolbar row — only visible while write mode is active.
+    WriteSubToolbar writeSubToolbar { interactionController };
 
     // Multi-select instrument state (Global mode with 2+ parts)
     std::vector<Part> discoveredParts;

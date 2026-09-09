@@ -183,6 +183,76 @@ public:
         return PPQ(0.0);
     }
 
+    // 0-indexed measure plus the 1-indexed beat within it (1.0 on the downbeat).
+    struct MeasureBeat
+    {
+        int    measure       = 0;
+        double beatInMeasure = 1.0;
+    };
+
+    static MeasureBeat pPqToMeasureBeat(PPQ targetPpq, const TempoTimeSignatureMap& map)
+    {
+        double t = targetPpq.toDouble();
+        if (t <= 0.0 || map.empty()) return {};
+
+        auto it = map.upper_bound(targetPpq);
+        if (it != map.begin()) --it;
+
+        const auto& anchor = it->second;
+        int denom = anchor.timeSigDenominator > 0 ? anchor.timeSigDenominator : 4;
+        int num = anchor.timeSigNumerator > 0 ? anchor.timeSigNumerator : 4;
+        double beatSpacing  = 4.0 / (double)denom;
+        double measureLenQN = (double)num * beatSpacing;
+        if (measureLenQN <= 0.0) return { anchor.measurePos, 1.0 };
+
+        double beatPosQN = anchor.beatPos * beatSpacing;
+        double measureStartPpq = anchor.ppqPosition.toDouble() - beatPosQN;
+        double rel = t - measureStartPpq;
+
+        double measOff = std::fmod(rel, measureLenQN);
+        if (measOff < 0.0) measOff += measureLenQN;
+
+        return { anchor.measurePos + (int)std::floor(rel / measureLenQN + 1e-6),
+                 measOff / beatSpacing + 1.0 };
+    }
+
+    /** Return the 0-indexed bar/measure number at a given PPQ. */
+    static int pPqToMeasureNumber(PPQ targetPpq, const TempoTimeSignatureMap& map)
+    {
+        return pPqToMeasureBeat(targetPpq, map).measure;
+    }
+
+    // One MIDI tick at 480 PPQN, in beats. A fraction closer than this to a
+    // shorter decimal is that decimal, not a position of its own.
+    static constexpr double beatTick = 1.0 / 480.0;
+
+    /** "M", "M.B" or "M.B.frac". Shared by the gridline column and ghost cursor. */
+    static juce::String formatMeasureBeat(int measureOneIndexed, double beatInMeasure)
+    {
+        int beatInt = (int)std::floor(beatInMeasure + beatTick);
+        double frac = beatInMeasure - (double)beatInt;
+
+        // Print at the fewest decimals that still land within a tick of the
+        // real value, so an inexact 0.2505 reads ".25" and a triplet's 0.3333
+        // keeps all three places.
+        for (int dp = 0; dp <= 3; ++dp)
+        {
+            double scale = std::pow(10.0, dp);
+            double rounded = std::round(frac * scale) / scale;
+            if (std::abs(frac - rounded) >= beatTick) continue;
+
+            if (rounded >= 1.0) { ++beatInt; rounded = 0.0; }
+            juce::String out = juce::String(measureOneIndexed) + "." + juce::String(beatInt);
+            if (rounded <= 0.0) return out;
+
+            juce::String fracStr = juce::String(rounded, dp).substring(1);
+            while (fracStr.endsWith("0")) fracStr = fracStr.dropLastCharacters(1);
+            return out + fracStr;
+        }
+
+        return juce::String(measureOneIndexed) + "." + juce::String(beatInt);
+    }
+
     /**
      * Build event markers for tempo and time signature changes.
      * Skips the first event (initial state) and emits a marker for each
