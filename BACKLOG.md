@@ -6,7 +6,9 @@ Work from the top.
 
 ## Up Next
 
-- **Export dialog visual redesign**: the layout grew field by field and reads as a form dump. It is a song list plus two columns of unaligned label/box pairs, with dead space in the middle and controls of three different widths stacked at the bottom. Needs a deliberate design pass, not another field.
+- **Export dialog layout needs rebuilding, not adjusting**: `ExportDialogComponent::resized()` is 211 lines of imperative `removeFrom*` with four independent branches (settings open, drums present, create-region visible, selection present), and every measurement is an ad-hoc literal (66, 40, 44, 52, 70, 96, 110, 140, 200, 210, 132, 190, 260, 300). There is no spacing scale and no grid, so each fix moves one control and misaligns another. Several rounds of targeted adjustment made it worse, not better. Replace with a declarative layout over a fixed column grid and one spacing scale, then port the controls onto it.
+- **Painted panel rects go stale**: headings and status lines are drawn in `paint()` from rectangles computed in `resized()` (`railBounds`, `songPanel`, `albumPanel`, `footerBounds`, `settingsSummary`). Any branch that stops laying a section out has to clear its rect or the old one keeps painting. The collapsed-settings branch clears `albumPanel` and not `footerBounds`, so opening then closing settings draws the OUTPUT path on top of the time-selection block. Two places that must agree is the actual defect; a layout that owns its own drawing would not have it.
+- **`ValueStepper` does not match the dialog's type**: it draws its label and value in `Theme::controlFont`, which is sized from the toolbar's control height, so DRUMS and PRO render larger than every other label beside them and the value truncates to "unrat..." in a narrow column. It needs a font that follows the control it is placed in.
 - **Per-song data lives in the plugin, not the project**: it is the plugin's ValueTree keyed by region GUID, so removing and re-adding the plugin loses every title, rating and artwork path. `SetProjExtState` / `GetProjExtState` store key/value data in the .RPP under our own extname, keyed by the same GUID, and would survive that.
 - **A song can still exist without being a region**: the time selection gets a provisional row so metadata can be typed before committing, kept alive across selection changes by matching ranges. Every data-loss bug in the dialog so far has come from that one exception. Making a song always a region would delete the sentinel GUID, the range matching and the adopt path with it.
 - **Export: read artwork and audio back out of a `.sng`**: reuse needs the audio out of the container (parse the index, unmask one file), and the same parsing would let a re-opened chart show the artwork it already shipped. Reuse is force-disabled in `.sng` mode until then.
@@ -209,6 +211,24 @@ Current: 58 tests covering GemCalculator (20), InstrumentMapper (15), GridlineGe
 
 Unordered. Pull into Up Next when the time comes.
 
+**Chart preview video (export step):** render the whole song to an mp4 for sharing.
+Options wanted: resolution/fps, instrument + difficulty, album-art background on/off.
+Research already done, don't redo it:
+- Encode by piping raw RGBA frames to a bundled `ffmpeg` over `popen(..., "w")`.
+  `juce::ChildProcess` cannot write to child stdin (`juce_ChildProcess.h:77-105`, read-only),
+  and dumping raw frames to disk first is not viable (4min 1080p30 is ~60 GB).
+  Chartchotic is MIT; invoking a bundled ffmpeg as a separate process keeps that intact.
+- REAPER's video processor API (`getReaperParent(4)` + `getReaperApi("video_CreateVideoProcessor")`,
+  which would let REAPER do the encode and audio mux for free) was rejected: the feature must
+  also work outside REAPER, and two encode paths for one feature is worse than one.
+- Shape: `ChartSnapshot` (immutable notes, built once from the same source `ChartMidiWriter`
+  uses, so the audio thread and `noteStateMapArray` are never involved) → `FrameRenderer`
+  (time in, `juce::Image` out; generalize `tests/render_harness/render_main.cpp:256-358` so the
+  harness and the exporter share one path) → `VideoExporter` (pipe, progress, cancel).
+- Highest-risk detail: time-to-scroll mapping must reuse the plugin's, not a reimplementation,
+  or the video drifts against the audio. Test that first.
+- Measure single-frame cost early: 1080p30 over 4 minutes is 7,200 frames.
+
 **Chart Features:**
 - Instrument autodetection (by track name — depends on EVENTS parsing)
 - Note color customization (CH color profile templates)
@@ -256,6 +276,12 @@ Blocked or no clear path forward.
 
 ## Notes
 
+- **Release ladder out of beta**: ship three separate releases to main, then retire beta.
+  1.3.0 = write mode + jank fixes (matches what 1.3.0-beta.2 already promised testers),
+  1.4.0 = elite drums, 1.5.0 = chart export. Fixes bump the last number, features bump the
+  middle one. Elite and export are both unfinished, so they wait.
+  The 8 jank commits sit on top of elite in the graph but rebase off it cleanly onto beta.2
+  (verified: 24 files, 605 insertions, 76 deletions, no conflicts, no elite files pulled in).
 - **Moonscraper overlap**: Community consensus is Chartchotic is for preview, not charting.
 - **Key dependency chain**: EVENTS parsing -> section detection -> autodetection -> Real Drums MIDI refactor -> generic gem system
 - **Community feedback source**: Discord #chartchotic channel
