@@ -1,5 +1,6 @@
 #include "ReaperMidiProvider.h"
 #include "ReaperNoteFetcher.h"
+#include "ReaperMidiWriter.h"
 #include "ReaperApiHelpers.h"
 #include "../../../Host/ReaperTrackDetector.h"
 
@@ -35,6 +36,9 @@ bool ReaperMidiProvider::initialize(void* (*reaperGetApiFunc)(const char*))
             noteFetcher = std::make_unique<ReaperNoteFetcher>(getReaperApi, apis);
             if (logger)
                 noteFetcher->setLogger(logger);
+
+            if (apis.writeApisLoaded())
+                midiWriter = std::make_unique<ReaperMidiWriter>(apis, getReaperApi);
         }
 
         return reaperApiInitialized;

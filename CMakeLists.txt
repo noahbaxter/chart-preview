@@ -123,8 +123,12 @@ target_sources(Chartchotic
         Chartchotic/Source/Midi/Providers/REAPER/ReaperApiHelpers.h
         Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiProvider.cpp
         Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiProvider.h
+        Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiWriter.cpp
+        Chartchotic/Source/Midi/Providers/REAPER/ReaperMidiWriter.h
         Chartchotic/Source/Midi/Providers/REAPER/ReaperNoteFetcher.cpp
         Chartchotic/Source/Midi/Providers/REAPER/ReaperNoteFetcher.h
+        # Midi / Providers
+        Chartchotic/Source/Midi/Providers/MidiWriter.h
         # Midi / Pipelines
         Chartchotic/Source/Midi/Pipelines/MidiPipeline.h
         Chartchotic/Source/Midi/Pipelines/MidiPipelineFactory.cpp
@@ -178,6 +182,8 @@ target_sources(Chartchotic
         Chartchotic/Source/Visual/Utils/FrameRenderer.cpp
         Chartchotic/Source/Visual/Utils/FrameRenderer.h
         Chartchotic/Source/Visual/Utils/PositionConstants.h
+        Chartchotic/Source/Visual/Utils/HitTestMapper.cpp
+        Chartchotic/Source/Visual/Utils/HitTestMapper.h
         Chartchotic/Source/Visual/Utils/PositionMath.cpp
         Chartchotic/Source/Visual/Utils/PositionMath.h
         Chartchotic/Source/Visual/Utils/RenderTypeConfig.cpp
@@ -243,7 +249,7 @@ juce_add_binary_data(ChartchoticData
         # Default highway textures
         assets/static/highways/kanaizo_amber.png
         assets/static/highways/kanaizo_darkwood.png
-        assets/static/highways/kanaizo_gothic.png
+        assets/static/highways/gothic_default.png
         assets/static/highways/kanaizo_ornate.png
         assets/static/highways/kanaizo_BlueCaustic.png
         assets/static/highways/kanaizo_FretWood.png
