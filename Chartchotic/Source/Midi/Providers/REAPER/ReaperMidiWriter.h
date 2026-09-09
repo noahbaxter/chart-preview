@@ -27,19 +27,19 @@ public:
     bool isAvailable() const override;
 
     // Single-note operations
-    bool insertNote(int trackIndex, double startPPQ, double endPPQ,
+    bool insertNote(int trackIndex, double startQN, double endQN,
                    int channel, int pitch, int velocity) override;
     bool deleteNote(int trackIndex, int noteIndex) override;
     bool moveNote(int trackIndex, int noteIndex,
-                 double newStartPPQ, double newEndPPQ, int newPitch) override;
+                 double newStartQN, double newEndQN, int newPitch) override;
 
     // Batch operations
     void beginBatch(const char* undoDescription) override;
-    bool batchInsertNote(int trackIndex, double startPPQ, double endPPQ,
+    bool batchInsertNote(int trackIndex, double startQN, double endQN,
                         int channel, int pitch, int velocity) override;
     bool batchDeleteNote(int trackIndex, int noteIndex) override;
     bool batchMoveNote(int trackIndex, int noteIndex,
-                      double newStartPPQ, double newEndPPQ, int newPitch) override;
+                      double newStartQN, double newEndQN, int newPitch) override;
     void endBatch() override;
 
 private:
@@ -48,6 +48,12 @@ private:
 
     // Resolve the first MIDI take on the given track
     void* getFirstMidiTake(void* project, int trackIndex);
+
+    // If the target track has >1 MIDI item, glue them into one item via
+    // REAPER action 40543. Wrapped in its own undo step so it's distinct
+    // from the subsequent write. Logs once per consolidation event.
+    // Returns true if consolidation either succeeded or was unnecessary.
+    bool consolidateItemsIfNeeded(void* project, int trackIndex);
 
     // Undo/sort helpers
     void beginUndoBlock(void* project, const char* description);

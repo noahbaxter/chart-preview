@@ -19,6 +19,16 @@
 #include "../../Midi/Utils/TimeConverter.h"
 #include "../../Midi/Utils/TempoTimeSignatureEventHelper.h"
 
+// Write-mode gridline overlay config — drives optional STEP lines that mark
+// the active snap division while authoring. When `active` is false the
+// generator behaves exactly as before (MEASURE / BEAT / HALF_BEAT only).
+struct WriteGridConfig
+{
+    bool active = false;       // writeModeActive AND snapEnabled
+    int  stepDivision = 8;     // 1..64, e.g. 8 -> 1/8 notes
+    int  tuplet = 0;           // 0 = off, else 3/5/7
+};
+
 class GridlineGenerator
 {
 public:
@@ -31,22 +41,26 @@ public:
     //   - endPPQ: End of the visible window
     //   - cursorPPQ: Current playback position (time zero)
     //   - ppqToTime: Function to convert PPQ to absolute time
+    //   - writeGridConfig: Optional STEP overlay config (off by default)
     template<typename PPQToTimeFunc>
     static TimeBasedGridlineMap generateGridlines(
         const TempoTimeSignatureMap& tempoTimeSigMap,
         PPQ startPPQ,
         PPQ endPPQ,
         PPQ cursorPPQ,
-        PPQToTimeFunc ppqToTime)
+        PPQToTimeFunc ppqToTime,
+        const WriteGridConfig& writeGridConfig = WriteGridConfig{})
     {
         TimeBasedGridlineMap result;
         double cursorTime = ppqToTime(cursorPPQ.toDouble());
 
-        // If no tempo/timesig events, use default 120 BPM, 4/4
+        // If no tempo/timesig events, use default 120 BPM, 4/4. The empty
+        // map still works for measure numbering — pPqToMeasureNumber falls
+        // through to the default 4/4 segment math.
         if (tempoTimeSigMap.empty())
         {
             generateGridlinesForSection(result, startPPQ, endPPQ, cursorPPQ, cursorTime,
-                                       PPQ(0.0), 120.0, 4, 4, ppqToTime);
+                                       PPQ(0.0), 120.0, 4, 4, ppqToTime, writeGridConfig, &tempoTimeSigMap);
             return result;
         }
 
@@ -81,7 +95,7 @@ public:
             generateGridlinesForSection(result, sectionStart, sectionEnd, cursorPPQ, cursorTime,
                                        sectionMeasureAnchor, event.bpm,
                                        event.timeSigNumerator, event.timeSigDenominator,
-                                       ppqToTime);
+                                       ppqToTime, writeGridConfig, &tempoTimeSigMap);
 
             // Move to next section
             ++it;
@@ -98,13 +112,15 @@ private:
         TimeBasedGridlineMap& result,
         PPQ sectionStart,
         PPQ sectionEnd,
-        PPQ cursorPPQ,
+        PPQ /*cursorPPQ*/,
         double cursorTime,
         PPQ tempoChangePos,
         double bpm,
         int timeSigNum,
         int timeSigDenom,
-        PPQToTimeFunc ppqToTime)
+        PPQToTimeFunc ppqToTime,
+        const WriteGridConfig& writeGridConfig,
+        const TempoTimeSignatureMap* tempoMapForMeasureNumbering)
     {
         // Safety check: invalid time signature or empty section
         if (timeSigDenom <= 0 || timeSigNum <= 0 || sectionStart >= sectionEnd)
@@ -133,6 +149,16 @@ private:
         double nextHalfBeat = std::ceil(relativeToAnchor / halfBeatSpacing) * halfBeatSpacing;
         currentPPQ = measureAnchor + nextHalfBeat;
 
+        // Pre-compute write-mode step spacing for the BEAT alignment filter
+        // below. Only meaningful when writeGridConfig.active.
+        double stepSpacingForFilter = 0.0;
+        if (writeGridConfig.active && writeGridConfig.stepDivision > 0)
+        {
+            stepSpacingForFilter = (writeGridConfig.tuplet > 0)
+                ? (8.0 / (static_cast<double>(writeGridConfig.stepDivision) * writeGridConfig.tuplet))
+                : (4.0 / static_cast<double>(writeGridConfig.stepDivision));
+        }
+
         // Generate gridlines from first half-beat to section end
         int iterationCount = 0;
         const int maxIterations = 100000; // Safety limit
@@ -160,13 +186,115 @@ private:
                 lineType = Gridline::HALF_BEAT;
             }
 
-            // Add the gridline
-            double time = ppqToTime(currentPPQ) - cursorTime;
-            result.push_back({time, lineType});
+            // Write-mode alignment filter: in write mode, BEAT and HALF_BEAT
+            // lines only render if they coincide with the user's step grid.
+            // A beat or half-beat that falls between step positions is
+            // misleading (looks snappable but isn't). MEASURE always renders
+            // (it's the structural anchor regardless of the user's grid).
+            bool emit = true;
+            if (writeGridConfig.active
+                && (lineType == Gridline::BEAT || lineType == Gridline::HALF_BEAT)
+                && stepSpacingForFilter > 0.0)
+            {
+                double stepCount = relativePos / stepSpacingForFilter;
+                double stepFrac  = std::abs(stepCount - std::round(stepCount));
+                // 1/480 QN = one MIDI tick at 480 PPQN; matches dedupEpsilon below.
+                const double alignEpsilon = 1.0 / 480.0;
+                if (stepFrac > alignEpsilon)
+                    emit = false;
+            }
+
+            if (emit)
+            {
+                double time = ppqToTime(currentPPQ) - cursorTime;
+                int measureNumber = -1;
+                double beatInMeasure = -1.0;
+                if (tempoMapForMeasureNumbering != nullptr
+                    && (lineType == Gridline::MEASURE
+                        || lineType == Gridline::BEAT
+                        || lineType == Gridline::HALF_BEAT))
+                {
+                    measureNumber = TempoTimeSignatureEventHelper::pPqToMeasureNumber(
+                        PPQ(currentPPQ), *tempoMapForMeasureNumbering);
+                    // beatInMeasure: 1-indexed continuous beat position within
+                    // the measure. 1.0 / 2.0 / ... for BEATs; 1.5 / 2.5 / ...
+                    // for HALF_BEATs. Used by the renderer for "M.B" / "M.B.5"
+                    // label formatting.
+                    if (lineType != Gridline::MEASURE)
+                    {
+                        double beatsFromAnchor = relativePos / beatSpacing;
+                        // measure-relative beat index, 1-indexed
+                        beatInMeasure = std::fmod(beatsFromAnchor, (double)timeSigNum) + 1.0;
+                    }
+                }
+                result.push_back({time, lineType, measureNumber, beatInMeasure});
+            }
 
             // Move to next half-beat
             currentPPQ += halfBeatSpacing;
             iterationCount++;
+        }
+
+        // STEP overlay: only when write mode + snap are active
+        if (!writeGridConfig.active)
+            return;
+        if (writeGridConfig.stepDivision <= 0)
+            return;
+
+        // Spacing formula (in QN):
+        //   No tuplet (T == 0): spacing = 4.0 / stepDivision
+        //   Tuplet T > 0:        spacing = 8.0 / (stepDivision * T)
+        double stepSpacing = (writeGridConfig.tuplet > 0)
+            ? (8.0 / (static_cast<double>(writeGridConfig.stepDivision) * writeGridConfig.tuplet))
+            : (4.0 / static_cast<double>(writeGridConfig.stepDivision));
+
+        if (stepSpacing <= 0.0)
+            return;
+
+        // Snap to first step boundary at or after sectionStart, anchored to the
+        // same measure anchor as the higher-priority lines.
+        double stepCurrent = sectionStart.toDouble();
+        double stepRel = stepCurrent - measureAnchor;
+        if (stepRel < 0.0) stepRel = 0.0;
+        double nextStep = std::ceil(stepRel / stepSpacing) * stepSpacing;
+        stepCurrent = measureAnchor + nextStep;
+
+        // Dedup epsilon: if a step lands within ~1 PPQ of a higher-priority
+        // line (measure / beat / half-beat) we skip emitting it. Higher-priority
+        // lines are spaced at halfBeatSpacing within this section.
+        // PPQ here uses quarter-note units (1.0 == one QN), so 1 MIDI tick at
+        // 480 PPQN ~= 1/480 QN. We use a slightly looser epsilon to absorb
+        // floating-point error from tuplet divisions.
+        const double dedupEpsilon = 1.0 / 480.0;
+
+        int stepIterCount = 0;
+        while (stepCurrent < sectionEnd.toDouble() && stepIterCount < maxIterations)
+        {
+            double stepRelPos = stepCurrent - measureAnchor;
+
+            // Distance to nearest half-beat (covers MEASURE / BEAT / HALF_BEAT
+            // — they're all on the half-beat lattice).
+            double hbMod = std::fmod(stepRelPos, halfBeatSpacing);
+            if (hbMod < 0.0) hbMod += halfBeatSpacing;
+            double distToHalfBeat = std::min(hbMod, halfBeatSpacing - hbMod);
+
+            if (distToHalfBeat > dedupEpsilon)
+            {
+                double time = ppqToTime(stepCurrent) - cursorTime;
+                int measureNumber = -1;
+                double beatInMeasure = -1.0;
+                if (tempoMapForMeasureNumbering != nullptr)
+                {
+                    measureNumber = TempoTimeSignatureEventHelper::pPqToMeasureNumber(
+                        PPQ(stepCurrent), *tempoMapForMeasureNumbering);
+                    double beatsFromAnchor = stepRelPos / beatSpacing;
+                    beatInMeasure = std::fmod(beatsFromAnchor, (double)timeSigNum) + 1.0;
+                }
+                result.push_back({time, Gridline::STEP, measureNumber, beatInMeasure});
+            }
+
+            stepCurrent += stepSpacing;
+            stepIterCount++;
         }
     }
 };

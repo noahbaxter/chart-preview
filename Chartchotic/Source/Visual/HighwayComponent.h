@@ -87,6 +87,7 @@ public:
     void setShowLaneSeparators(bool on) { sceneRenderer.showLaneSeparators = on; repaint(); }
     void setShowStrikeline(bool on)     { sceneRenderer.showStrikeline = on; repaint(); }
     void setShowHighway(bool on)        { showHighway = on; repaint(); }
+    void setWriteMode(bool on)          { sceneRenderer.setWriteMode(on); repaint(); }
 
     void setHighwayLength(float length) { sceneRenderer.farFadeEnd = length; PositionMath::bemaniHwyScale = length; rebuildTrack(); repaint(); }
     void setTexture(const juce::Image& img) { trackRenderer.setTexture(img); }

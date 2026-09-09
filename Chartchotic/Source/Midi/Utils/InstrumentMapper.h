@@ -125,6 +125,106 @@ public:
         return INVALID_COLUMN;
     }
 
+    // Inverse of getGuitarColumn: given a lane the user clicked, return the
+    // MIDI pitch to write. col 0 = open, col 1-5 = green/red/yellow/blue/orange.
+    // Returns -1 for invalid (col, skill) combinations.
+    static int columnToGuitarPitch(SkillLevel skill, int col)
+    {
+        using Guitar = MidiPitchDefinitions::Guitar;
+        switch (skill)
+        {
+            case SkillLevel::EXPERT:
+                switch (col) {
+                    case 0: return (int)Guitar::EXPERT_OPEN;
+                    case 1: return (int)Guitar::EXPERT_GREEN;
+                    case 2: return (int)Guitar::EXPERT_RED;
+                    case 3: return (int)Guitar::EXPERT_YELLOW;
+                    case 4: return (int)Guitar::EXPERT_BLUE;
+                    case 5: return (int)Guitar::EXPERT_ORANGE;
+                }
+                break;
+            case SkillLevel::HARD:
+                switch (col) {
+                    case 0: return (int)Guitar::HARD_OPEN;
+                    case 1: return (int)Guitar::HARD_GREEN;
+                    case 2: return (int)Guitar::HARD_RED;
+                    case 3: return (int)Guitar::HARD_YELLOW;
+                    case 4: return (int)Guitar::HARD_BLUE;
+                    case 5: return (int)Guitar::HARD_ORANGE;
+                }
+                break;
+            case SkillLevel::MEDIUM:
+                switch (col) {
+                    case 0: return (int)Guitar::MEDIUM_OPEN;
+                    case 1: return (int)Guitar::MEDIUM_GREEN;
+                    case 2: return (int)Guitar::MEDIUM_RED;
+                    case 3: return (int)Guitar::MEDIUM_YELLOW;
+                    case 4: return (int)Guitar::MEDIUM_BLUE;
+                    case 5: return (int)Guitar::MEDIUM_ORANGE;
+                }
+                break;
+            case SkillLevel::EASY:
+                switch (col) {
+                    case 0: return (int)Guitar::EASY_OPEN;
+                    case 1: return (int)Guitar::EASY_GREEN;
+                    case 2: return (int)Guitar::EASY_RED;
+                    case 3: return (int)Guitar::EASY_YELLOW;
+                    case 4: return (int)Guitar::EASY_BLUE;
+                    case 5: return (int)Guitar::EASY_ORANGE;
+                }
+                break;
+        }
+        return -1;
+    }
+
+    // Inverse of getDrumColumn: given a lane the user clicked, return the
+    // MIDI pitch to write. col 0 = kick (or 2x-kick if kick2x and EXPERT),
+    // col 1-4 = red/yellow/blue/green pads. Returns -1 for invalid combos.
+    static int columnToDrumPitch(SkillLevel skill, int col, bool kick2x)
+    {
+        using Drums = MidiPitchDefinitions::Drums;
+        switch (skill)
+        {
+            case SkillLevel::EXPERT:
+                switch (col) {
+                    case 0: return kick2x ? (int)Drums::EXPERT_KICK_2X : (int)Drums::EXPERT_KICK;
+                    case 1: return (int)Drums::EXPERT_RED;
+                    case 2: return (int)Drums::EXPERT_YELLOW;
+                    case 3: return (int)Drums::EXPERT_BLUE;
+                    case 4: return (int)Drums::EXPERT_GREEN;
+                }
+                break;
+            case SkillLevel::HARD:
+                switch (col) {
+                    case 0: return (int)Drums::HARD_KICK;
+                    case 1: return (int)Drums::HARD_RED;
+                    case 2: return (int)Drums::HARD_YELLOW;
+                    case 3: return (int)Drums::HARD_BLUE;
+                    case 4: return (int)Drums::HARD_GREEN;
+                }
+                break;
+            case SkillLevel::MEDIUM:
+                switch (col) {
+                    case 0: return (int)Drums::MEDIUM_KICK;
+                    case 1: return (int)Drums::MEDIUM_RED;
+                    case 2: return (int)Drums::MEDIUM_YELLOW;
+                    case 3: return (int)Drums::MEDIUM_BLUE;
+                    case 4: return (int)Drums::MEDIUM_GREEN;
+                }
+                break;
+            case SkillLevel::EASY:
+                switch (col) {
+                    case 0: return (int)Drums::EASY_KICK;
+                    case 1: return (int)Drums::EASY_RED;
+                    case 2: return (int)Drums::EASY_YELLOW;
+                    case 3: return (int)Drums::EASY_BLUE;
+                    case 4: return (int)Drums::EASY_GREEN;
+                }
+                break;
+        }
+        return -1;
+    }
+
     // Playable pitch helpers
     static std::vector<uint> getGuitarPitchesForSkill(SkillLevel skill)
     {

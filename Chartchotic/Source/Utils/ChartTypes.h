@@ -82,6 +82,7 @@ enum class Gridline
     MEASURE,
     BEAT,
     HALF_BEAT,
+    STEP,
 };
 
 // Tempo and time signature change event (used for REAPER tempo map queries)

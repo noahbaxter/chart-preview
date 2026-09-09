@@ -27,6 +27,9 @@ struct FrameContext
     // Slot access (for batched mode)
     HighwaySlot* slots;
     int activeSlotCount;
+
+    // Write-mode STEP gridline overlay config (defaults to inactive)
+    WriteGridConfig writeGridConfig;
 };
 
 class FrameDataBuilder

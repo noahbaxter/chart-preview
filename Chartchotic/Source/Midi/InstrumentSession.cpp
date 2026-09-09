@@ -94,3 +94,10 @@ void InstrumentSession::fetchTrackData(int idx)
     td.discoFlipState.buildFromTextEvents(td.textEvents);
     td.lastHash = provider->getTrackHash(tracks[idx]);
 }
+
+void InstrumentSession::invalidateTrack(int trackIdx)
+{
+    if (trackIdx < 0 || trackIdx >= (int)trackData.size())
+        return;
+    fetchTrackData(trackIdx);
+}
