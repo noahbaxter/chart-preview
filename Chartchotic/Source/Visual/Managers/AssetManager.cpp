@@ -673,5 +673,5 @@ juce::Colour AssetManager::getLaneColour(uint gemColumn, Part part, bool starPow
     }
     // 4-lane drums: kick(orange), red, yellow, blue, green.
     static const T d[5] = { T::Orange, T::Red, T::Yellow, T::Blue, T::Green };
-    return fromTint(d[std::min(drumColumnIndex(gemColumn), 4u)]);
+    return fromTint(d[std::min(drumColumnIndex(gemColumn, part), 4u)]);
 }

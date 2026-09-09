@@ -16,11 +16,15 @@
 
 namespace
 {
-    Render::ClipHalf resolveBarKickClip(bool isDrums, bool barModeActive, uint gemColumn)
+    // Kick mode splits the bar down the middle: 2x on the left half, 1x on the right. Both
+    // the "is this a kick" and "is this the 2x" questions are per-part, since elite puts its
+    // 2x on column 9 while column 6 is Tom 3.
+    Render::ClipHalf resolveBarKickClip(Part part, bool barModeActive, uint gemColumn)
     {
-        if (!isDrums || !barModeActive || !isDrumKick(gemColumn)) return Render::ClipHalf::None;
-        return InstrumentMapper::is2xKickLane(gemColumn) ? Render::ClipHalf::Left
-                                                          : Render::ClipHalf::Right;
+        if (!isDrumLike(part) || !barModeActive || !isDrumKick(gemColumn, part))
+            return Render::ClipHalf::None;
+        return isDrum2xKick(gemColumn, part) ? Render::ClipHalf::Left
+                                             : Render::ClipHalf::Right;
     }
 }
 
@@ -317,7 +321,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         strikeColWidth = ctx.fbStrikeWidth
                        * PositionConstants::BAR_FRETBOARD_FIT * PositionConstants::BAR_SIZE;
         strikeOffsetX = 0.0f;
-        barClipHalf = resolveBarKickClip(isDrums, barModeDim < 1.0f, gemColumn);
+        barClipHalf = resolveBarKickClip(activePart, barModeDim < 1.0f, gemColumn);
     }
     else
     {
@@ -569,7 +573,7 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
     Render::Frame frame;
 
     int gemIdx = (int)frame.sprites.size();
-    Render::ClipHalf bemaniClipHalf = barNote ? resolveBarKickClip(isDrums, barModeDim < 1.0f, gemColumn)
+    Render::ClipHalf bemaniClipHalf = barNote ? resolveBarKickClip(activePart, barModeDim < 1.0f, gemColumn)
                                               : Render::ClipHalf::None;
     {
         Render::FrameSprite s;

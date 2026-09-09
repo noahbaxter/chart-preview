@@ -303,7 +303,8 @@ void AnimationRenderer::renderFretAnimation(juce::Graphics &g, const AnimationCo
     // Z offset: bar uses hitBarZOffset, gems use hitGemZOffset + per-column offset
     float zOff = barNote ? hitBarZOffset : hitGemZOffset;
     if (!barNote && isDrums) {
-        uint drumIdx = drumColumnIndex(anim.lane) < DRUM_LANE_COUNT ? drumColumnIndex(anim.lane) : 1;
+        uint mapped = drumColumnIndex(anim.lane, activePart);
+        uint drumIdx = mapped < DRUM_LANE_COUNT ? mapped : 1;
         zOff += drumColAdjust[drumIdx].z * resScale;   // .z is at REFERENCE_HEIGHT
     }
 

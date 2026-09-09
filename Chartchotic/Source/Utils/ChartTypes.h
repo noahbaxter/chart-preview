@@ -37,14 +37,24 @@ constexpr int DRUM_KICK_2X_COLUMN  = 6;   // 4-lane: 2x kick shares the kick lan
 constexpr int ELITE_KICK_2X_COLUMN = 9;   // elite: col 6 is a real hand lane (Tom 3), so 2x kick moves to a virtual column
 constexpr int ELITE_HIHAT_COLUMN   = 2;   // elite: the yellow cymbal lane, the only lane with open/closed/indifferent state
 
-inline bool isDrumKick(uint gemColumn, Part part = Part::DRUMS)
+// `part` is deliberately NOT defaulted. A default of Part::DRUMS silently answers the
+// 4-lane question for elite, where column 6 is Tom 3 rather than the 2x kick, and every
+// caller that forgot it became a bug (kick split, sustain widths, marquee rects, note
+// pitches). Making it explicit means the compiler finds the next one.
+inline bool isDrumKick(uint gemColumn, Part part)
 {
     if (part == Part::ELITE_DRUMS)
         return gemColumn == DRUM_KICK_COLUMN || gemColumn == ELITE_KICK_2X_COLUMN;
     return gemColumn == DRUM_KICK_COLUMN || gemColumn == DRUM_KICK_2X_COLUMN;
 }
 
-inline uint drumColumnIndex(uint gemColumn, Part part = Part::DRUMS)
+// The 2x kick's own column, whichever one this part puts it on.
+inline bool isDrum2xKick(uint gemColumn, Part part)
+{
+    return isDrumKick(gemColumn, part) && gemColumn != (uint)DRUM_KICK_COLUMN;
+}
+
+inline uint drumColumnIndex(uint gemColumn, Part part)
 {
     if (part == Part::ELITE_DRUMS)
         return (gemColumn == ELITE_KICK_2X_COLUMN) ? DRUM_KICK_COLUMN : gemColumn;
