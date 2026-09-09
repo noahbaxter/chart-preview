@@ -56,9 +56,9 @@ public:
 
     void clearCurvedCache() { curvedCache.clear(); }
 
-    // Flam sub-lane shape (see FLAM_SUBLANE_WIDTH / _SPREAD). Both feed the curvature warp,
-    // whose bakes are keyed on curvature alone, so a change has to drop the cache or the
-    // panel's slider moves the gems while their warp stays where it was.
+    // Flam sub-lane shape (see FLAM_TYPE_WIDTHS / FLAM_SUBLANE_SPREAD). Placement only: they
+    // never reach the curvature bake, which is why they can't drive gem height. Only
+    // flamTilt feeds the warp.
     PositionConstants::FlamTypeWidths flamTypeWidths = PositionConstants::FLAM_TYPE_WIDTHS;
     float flamSubLaneSpread = PositionConstants::FLAM_SUBLANE_SPREAD;
     // Ghost rings and accent chevrons are per-gem, so a flam draws two of them and they cross
@@ -69,11 +69,11 @@ public:
                       float tilt, bool singleOverlay)
     {
         flamSingleOverlay = singleOverlay;
-        if (std::memcmp(&widths, &flamTypeWidths, sizeof(widths)) == 0
-            && spread == flamSubLaneSpread && tilt == flamTilt)
-            return;
         flamTypeWidths = widths;
         flamSubLaneSpread = spread;
+        // Only the tilt is baked in, so only the tilt invalidates the bakes.
+        if (tilt == flamTilt)
+            return;
         flamTilt = tilt;
         clearCurvedCache();
     }
