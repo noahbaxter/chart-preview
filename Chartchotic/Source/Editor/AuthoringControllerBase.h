@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "AuthoringTypes.h"
+#include "AuthoringConfig.h"
 #include "AuthoringUtils.h"
 #include "CommandMapper.h"
 #include "NoteEditor.h"
@@ -46,12 +47,17 @@ protected:
     bool isPlaying() const { return playingStatePtr && *playingStatePtr; }
     bool isDrums()   const { return isDrumLike(currentActivePart); }
     bool isElite()   const { return getRenderType(currentActivePart) == RenderType::ELITE_DRUMS; }
-    int  maxLane()   const
+
+    // Null for a part that isn't authorable. Write mode is only offered for parts that are,
+    // so the controllers deref it directly and a null would be a loud bug rather than a
+    // silently wrong instrument.
+    const AuthoringConfig* authoring() const { return getAuthoringConfig(currentActivePart); }
+
+    int maxLane() const
     {
-        // Elite's 2x kick is a virtual column ABOVE its 8 hand lanes, where 4-lane's sits
-        // inside the range at column 6, so the two can't share one expression.
-        if (isElite()) return kick2xEnabled ? ELITE_KICK_2X_COLUMN : 8;
-        return isDrums() ? (kick2xEnabled ? 6 : 4) : 5;
+        const auto* cfg = authoring();
+        if (cfg == nullptr) return 0;
+        return kick2xEnabled ? cfg->highestLaneKick2x : cfg->highestLane;
     }
 
     // Gem for a note whose properties we already hold, as opposed to
@@ -102,25 +108,15 @@ protected:
         }
     }
 
-    int resolvePitch(int laneIndex, bool drums) const
+    int resolvePitch(int laneIndex) const
     {
-        // Elite first: isKickLane() tests the 4-lane 2x column (6), which on elite is a real
-        // hand lane (Tom 3), so a part-blind check writes a kick for a tom.
-        if (drums && isElite())
-        {
-            if (laneIndex == ELITE_KICK_2X_COLUMN && !kick2xEnabled) return -1;
-            return InstrumentMapper::columnToEliteDrumPitch(currentActiveSkill, laneIndex);
-        }
-        if (drums && InstrumentMapper::isKickLane(laneIndex))
-            return InstrumentMapper::resolveKickPitch(currentActiveSkill, laneIndex, kick2xEnabled);
-        return drums
-            ? InstrumentMapper::columnToDrumPitch(currentActiveSkill, laneIndex, false)
-            : InstrumentMapper::columnToGuitarPitch(currentActiveSkill, laneIndex);
+        const auto* cfg = authoring();
+        return cfg ? cfg->laneToPitch(currentActiveSkill, laneIndex, kick2xEnabled) : -1;
     }
 
     int resolveActivePitch(int laneIndex) const
     {
-        return barModeFlag ? resolveBarPitch(laneIndex) : resolvePitch(laneIndex, isDrums());
+        return barModeFlag ? resolveBarPitch(laneIndex) : resolvePitch(laneIndex);
     }
 
     int resolveTrackIdx() const
@@ -141,12 +137,10 @@ protected:
     // never touch OptimisticPatchBuffer directly.
     void eraseConflictingKick(int trackIdx, double qn, int pitch)
     {
-        if (!isDrums() || !kick2xEnabled) return;
-        const bool elite = isElite();
-        if (elite ? !InstrumentMapper::isEliteDrumKick((uint)pitch, currentActiveSkill)
-                  : !InstrumentMapper::isDrumKick((uint)pitch)) return;
-        auto other = elite ? InstrumentMapper::getConflictingEliteKick(pitch, currentActiveSkill)
-                           : InstrumentMapper::getConflictingKick(pitch);
+        const auto* cfg = authoring();
+        if (cfg == nullptr || !kick2xEnabled) return;
+        if (!cfg->isKickPitch((uint)pitch, currentActiveSkill)) return;
+        auto other = cfg->conflictingKick(pitch, currentActiveSkill);
         auto conflict = findNote(trackIdx, qn, other.pitch);
         if (conflict.noteIndex >= 0 && std::abs(conflict.startQN - qn) < kQNEpsilon)
         {
@@ -341,7 +335,7 @@ protected:
 
     int resolveBarPitch(int barLane = 0) const
     {
-        return isDrums() ? resolvePitch(barLane, true)
+        return isDrums() ? resolvePitch(barLane)
                          : InstrumentMapper::columnToGuitarPitch(currentActiveSkill, 0);
     }
 

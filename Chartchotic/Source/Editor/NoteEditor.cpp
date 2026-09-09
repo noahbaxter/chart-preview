@@ -1,5 +1,6 @@
 #include "NoteEditor.h"
 #include "AuthoringTypes.h"
+#include "AuthoringConfig.h"
 
 #include "../Midi/Providers/MidiWriter.h"
 #include "../Midi/InstrumentSession.h"
@@ -32,13 +33,14 @@ bool NoteEditor::eraseNoteAt(int trackIdx, double rawQN, int pitch,
 
     auto note = midiWriter->findNote(trackIdx, rawQN, pitch);
 
-    // Erasing the kick also clears a 2x kick sitting under it, whose pitch differs per part.
-    if (note.noteIndex < 0 && isDrumLike(part) && lane == DRUM_KICK_COLUMN)
+    // Erasing the kick also clears a 2x kick sitting under it, on whichever column and
+    // pitch this instrument puts it.
+    const auto* cfg = getAuthoringConfig(part);
+    if (note.noteIndex < 0 && lane == DRUM_KICK_COLUMN && cfg && cfg->kick2xColumn >= 0)
     {
-        int kick2xPitch = getRenderType(part) == RenderType::ELITE_DRUMS
-            ? InstrumentMapper::columnToEliteDrumPitch(skill, ELITE_KICK_2X_COLUMN)
-            : InstrumentMapper::columnToDrumPitch(skill, DRUM_KICK_COLUMN, true);
-        note = midiWriter->findNote(trackIdx, rawQN, kick2xPitch);
+        int kick2xPitch = cfg->laneToPitch(skill, cfg->kick2xColumn, true);
+        if (kick2xPitch >= 0)
+            note = midiWriter->findNote(trackIdx, rawQN, kick2xPitch);
     }
 
     if (note.noteIndex < 0) return false;

@@ -394,7 +394,7 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
         for (const auto& sn : stamp)
         {
             int lane = sn.lane;
-            int sp = resolvePitch(lane, drums);
+            int sp = resolvePitch(lane);
             if (sp >= 0)
             {
                 // Velocity and markers come from the captured note, not the
@@ -465,7 +465,7 @@ void WriteController::handleUpdateSustain(const AuthoringPoint& p)
         {
             int lane = sn.lane;
             overlayState.drawPreviewNotes.push_back({
-                lane, sustainDragStartQN + sn.qnOffset, dragQN, resolvePitch(lane, drums)
+                lane, sustainDragStartQN + sn.qnOffset, dragQN, resolvePitch(lane)
             });
         }
     }
@@ -489,7 +489,7 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
             for (const auto& sn : stamp)
             {
                 int lane = sn.lane;
-                int sp = resolvePitch(lane, drums);
+                int sp = resolvePitch(lane);
                 if (sp >= 0)
                     chainExtendNotes(sustainDragTrackIdx,
                                      sustainDragStartQN + sn.qnOffset,
@@ -591,7 +591,7 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
             for (const auto& sn : stamp)
             {
                 int lane = sn.lane;
-                int sp = resolvePitch(lane, drums);
+                int sp = resolvePitch(lane);
                 if (sp >= 0)
                 {
                     // Painting a stamp is still a paste, so it carries the
@@ -613,12 +613,15 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
             {
                 long long step = std::llround((snapped - paintStartQN) / spacing);
                 bool offbeat = ((step % 2) + 2) % 2 == 1;
-                paintLane = offbeat ? DRUM_KICK_2X_COLUMN : DRUM_KICK_COLUMN;
+                // The 2x column is per-instrument (4-lane 6, elite 9). Hardcoding 6 painted
+                // elite's alternating kicks into Tom 3.
+                const auto* cfg = authoring();
+                paintLane = (offbeat && cfg && cfg->kick2xColumn >= 0)
+                    ? cfg->kick2xColumn : DRUM_KICK_COLUMN;
             }
 
-            int pitch = alternatingKicks
-                ? InstrumentMapper::resolveKickPitch(currentActiveSkill, paintLane, kick2xEnabled)
-                : resolveActivePitch(lane);
+            int pitch = alternatingKicks ? resolvePitch(paintLane)
+                                         : resolveActivePitch(lane);
             if (pitch < 0) continue;
             auto pre = findNote(paintDragTrackIdx, snapped, pitch);
             if (pre.noteIndex >= 0 && std::abs(pre.startQN - snapped) < 0.001)
@@ -643,7 +646,7 @@ void WriteController::paintShrinkTo(double lo, double hi)
                 for (const auto& sn : stamp)
                 {
                     int lane = sn.lane;
-                    int sp = resolvePitch(lane, drums);
+                    int sp = resolvePitch(lane);
                     if (sp >= 0)
                         eraseNote(paintDragTrackIdx, it->qn + sn.qnOffset, sp, lane, currentActiveSkill);
                 }
@@ -722,9 +725,9 @@ void WriteController::handleEndErase()
     {
         if (barModeFlag && drums)
         {
-            // Bar lanes are kick + 2x kick, and the 2x column differs per part (4-lane 6,
-            // elite 9), so it can't be a literal pair.
-            const int kick2xLane = isElite() ? ELITE_KICK_2X_COLUMN : DRUM_KICK_2X_COLUMN;
+            const auto* cfg = authoring();
+            const int kick2xLane = (cfg && cfg->kick2xColumn >= 0) ? cfg->kick2xColumn
+                                                                   : DRUM_KICK_COLUMN;
             for (int tryLane : {DRUM_KICK_COLUMN, kick2xLane})
             {
                 int tryPitch = resolveBarPitch(tryLane);

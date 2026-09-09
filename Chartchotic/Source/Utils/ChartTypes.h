@@ -62,7 +62,8 @@ inline bool isEliteCymbalLane(uint gemColumn)
 // Whether authoring on `lane` writes a cymbal. Elite is fixed by lane and ignores the Cym
 // toggle; 4-lane/5-lane put cymbals on 2..4 behind it. The write path MUST agree with what
 // TrackResolver decides on parse, or the ghost preview draws with gemZ while the note it
-// places lands on cymZ.
+// places lands on cymZ. AuthoringConfig::hasCymbalToggle is the same fact from the other
+// direction: no toggle means the lane decides.
 inline bool authorsCymbal(uint lane, Part part, bool cymbalToggle)
 {
     if (part == Part::ELITE_DRUMS) return isEliteCymbalLane(lane);
