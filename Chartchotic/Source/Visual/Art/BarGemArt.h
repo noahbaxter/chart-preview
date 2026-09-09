@@ -32,10 +32,22 @@ namespace GemArt
     // and the gems that sit on it don't move. Elite bakes thin (kEliteBarThickness) because
     // its 9 lanes shrink the gems while a full-width bar keeps 4-lane proportions.
     constexpr float kEliteBarThickness = 0.5f;
+
+    // Elite kick dynamics, as a placeholder treatment until there is real art. An accent
+    // bakes at double thickness with a bright line down its centreline; a ghost reuses the
+    // normal bake and is drawn at kBarGhostOpacity. Both keep the arc and the centreline, so
+    // a dynamic kick sits exactly where a normal one would.
+    constexpr float kAccentBarThickness = kEliteBarThickness * 2.0f;
+    constexpr float kBarGhostOpacity    = 0.45f;
+
+    // `centreLineAlpha` > 0 draws that bright line, as a fraction of the tube height.
+    constexpr float kAccentLineHeight = 0.16f;
+
     juce::Image bakeBar(const BarRamp& ramp,
                         juce::Rectangle<int> canvas,
                         juce::Rectangle<int> contentBounds,
-                        float thickness = 1.0f);
+                        float thickness = 1.0f,
+                        float centreLineAlpha = 0.0f);
 
     inline juce::Rectangle<int> barCanvas()        { return { 0, 0, 2432, 152 }; }
     inline juce::Rectangle<int> barContentBounds() { return { 86, 0, 2260, 152 }; }

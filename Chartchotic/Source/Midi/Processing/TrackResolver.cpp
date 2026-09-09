@@ -214,7 +214,10 @@ void TrackResolver::resolveNotes(PartWindow& result,
 
                     bool isKick = isElite ? isDrumKick(gemColumn, cfg.part)
                                           : InstrumentMapper::isDrumKick(evt.pitch);
-                    bool canHaveDynamics = cfg.dynamics && !isKick;
+                    // Elite kicks carry dynamics, 4-lane kicks don't: stock 4L kits send no
+                    // kick velocity, which is also why the spec says kick dynamics are not
+                    // carried down to 4L. Stomps and Splashes never have them either.
+                    bool canHaveDynamics = cfg.dynamics && (isElite || !isKick);
                     gemType = GemCalculator::resolveDrumGem(cymbal, canHaveDynamics, dynamic);
 
                     // Disco flip (4-lane only; elite has its own MIDI disco marker, deferred)

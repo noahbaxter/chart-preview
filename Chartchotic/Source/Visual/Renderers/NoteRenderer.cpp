@@ -10,6 +10,7 @@
 */
 
 #include "NoteRenderer.h"
+#include "../Art/BarGemArt.h"
 #include "../Geometry/RenderTypeConfig.h"
 #include "../../Editor/AuthoringTypes.h"
 #include "../../Midi/Utils/InstrumentMapper.h"
@@ -288,6 +289,10 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     float imageAspect = (float)glyphImage->getWidth() / (float)glyphImage->getHeight();
     float opacity = (opacityOverride >= 0.0f) ? opacityOverride : calculateOpacity(position);
     if (!barNote && barModeDim < 1.0f) opacity *= barModeDim;
+    // Ghost kicks read as a fainter bar. Placeholder for elite kick dynamics until there is
+    // real art; the accent half is a separate thicker bake, so only the ghost needs this.
+    if (barNote && gemWrapper.gem == Gem::HOPO_GHOST)
+        opacity *= GemArt::kBarGhostOpacity;
 
     if (PositionMath::bemaniMode)
     {

@@ -33,6 +33,7 @@ namespace
                                  :  PositionConstants::NOTE_CURVATURE_DRUMS;
     constexpr float kArch        = 2.0f * kArcHalf * kCurv;
     constexpr float kTubeX0      = 40.0f;    // tube runs under the caps
+    constexpr float kAccentLineInset = 120.0f;  // clears the leaning end caps
 
     BarRamp makeRamp(std::initializer_list<std::pair<float, juce::uint32>> stops)
     {
@@ -329,7 +330,8 @@ juce::Image bakeGridline(float thickness, juce::Colour colour, float arch)
 juce::Image bakeBar(const BarRamp& ramp,
                     juce::Rectangle<int> canvas,
                     juce::Rectangle<int> contentBounds,
-                    float thickness)
+                    float thickness,
+                    float centreLineAlpha)
 {
     juce::Image img(juce::Image::ARGB, canvas.getWidth(), canvas.getHeight(), true);
 
@@ -389,6 +391,35 @@ juce::Image bakeBar(const BarRamp& ramp,
 
     shadeCap(img, contentBounds, true, thickness);
     shadeCap(img, contentBounds, false, thickness);
+
+    // Accent line: a bright stripe along the tube's own centreline, so it follows the arc
+    // rather than cutting straight across it. Drawn last, over the caps.
+    if (centreLineAlpha > 0.0f)
+    {
+        juce::Image::BitmapData bd(img, juce::Image::BitmapData::readWrite);
+        const float sx = contentBounds.getWidth() / kSrcW;
+        const float sy = contentBounds.getHeight() / kSrcH;
+        const float halfBand = kTubeH * kAccentLineHeight * 0.5f;
+
+        for (int px = 0; px < canvas.getWidth(); ++px)
+        {
+            float x = (px - contentBounds.getX()) / sx;
+            // Stop short of the end caps. They lean, so a horizontal band through them
+            // flares into a bowtie instead of reading as a line down the tube.
+            if (x < kAccentLineInset || x > kSrcW - kAccentLineInset) continue;
+            const float cy = arcTopAt(x) + kTubeH * 0.5f;
+
+            for (int py = 0; py < canvas.getHeight(); ++py)
+            {
+                float y = unsqueezeY(x, (py - contentBounds.getY()) / sy, thickness);
+                if (std::abs(y - cy) > halfBand) continue;
+                auto base = bd.getPixelColour(px, py);
+                if (base.getAlpha() == 0) continue;   // never widen the bar
+                bd.setPixelColour(px, py,
+                    base.interpolatedWith(juce::Colours::white, centreLineAlpha));
+            }
+        }
+    }
 
     return img;
 }

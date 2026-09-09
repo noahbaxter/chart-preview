@@ -39,6 +39,9 @@ public:
     juce::Image* getBarKickEliteImage()   { return &barKickEliteImage; }
     juce::Image* getBarKick2xEliteImage() { return &barKick2xEliteImage; }
     juce::Image* getBarWhiteEliteImage()  { return &barWhiteEliteImage; }
+    juce::Image* getBarKickAccentImage()   { return &barKickAccentImage; }
+    juce::Image* getBarKick2xAccentImage() { return &barKick2xAccentImage; }
+    juce::Image* getBarWhiteAccentImage()  { return &barWhiteAccentImage; }
     // Elite pedal/stomp bar (extracted). Loaded but not yet drawn: col 10/11 stomp lane is unmapped.
     juce::Image* getBarStompImage() { return &barStompImage; }
 
@@ -153,6 +156,9 @@ private:
     juce::Image barKickEliteImage;      // Elite variants: thinner tube, same arc/centreline
     juce::Image barKick2xEliteImage;
     juce::Image barWhiteEliteImage;
+    juce::Image barKickAccentImage;     // Elite accent kicks: double thickness + centre line
+    juce::Image barKick2xAccentImage;
+    juce::Image barWhiteAccentImage;
     juce::Image barStompImage;           // Extracted elite pedal/stomp bar (col 10/11 still unmapped)
 
     // Cymbal notes

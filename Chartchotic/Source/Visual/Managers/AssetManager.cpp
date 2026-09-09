@@ -96,6 +96,14 @@ void AssetManager::initAssets()
         barWhiteEliteImage  = GemArt::bakeBar(GemArt::barRampWhite(),  canvas, content, eliteTh);
         barKickEliteImage   = GemArt::bakeBar(GemArt::barRampKick(),   canvas, content, eliteTh);
         barKick2xEliteImage = GemArt::bakeBar(GemArt::barRampKick2x(), canvas, content, eliteTh);
+
+        // Accent kicks: double thickness with a bright centre line. Placeholder treatment
+        // for elite kick dynamics until there is real art. Ghosts reuse the normal bake at
+        // reduced opacity, so they need no variant here.
+        const float accentTh = GemArt::kAccentBarThickness;
+        barKickAccentImage   = GemArt::bakeBar(GemArt::barRampKick(),   canvas, content, accentTh, 0.85f);
+        barKick2xAccentImage = GemArt::bakeBar(GemArt::barRampKick2x(), canvas, content, accentTh, 0.85f);
+        barWhiteAccentImage  = GemArt::bakeBar(GemArt::barRampWhite(),  canvas, content, accentTh, 0.85f);
     }
     // Elite Stomp/Splash pedal bar: procedurally baked FLAT (like the kick bars). The highway
     // curve is applied at render time (over the bar's off-centre span) so it matches the tilted
@@ -252,6 +260,8 @@ void AssetManager::initAssets()
         {&barOpenImage, barOpenImage}, {&barWhiteImage, barWhiteImage},
         {&barKickEliteImage, barKickEliteImage}, {&barKick2xEliteImage, barKick2xEliteImage},
         {&barWhiteEliteImage, barWhiteEliteImage},
+        {&barKickAccentImage, barKickAccentImage}, {&barKick2xAccentImage, barKick2xAccentImage},
+        {&barWhiteAccentImage, barWhiteAccentImage},
         {&barStompImage, barStompImage},
         // Overlays
         {&overlayCymAccentImage, overlayCymAccentImage}, {&overlayCymGhostImage, overlayCymGhostImage},
@@ -516,8 +526,14 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
             default:        return ghost ? getHopoWhiteImage()  : getNoteWhiteImage();
             }
         }
-        if (gemColumn == 9) return shouldBeWhite ? getBarWhiteEliteImage() : getBarKick2xEliteImage();  // 2x Kick
-        return shouldBeWhite ? getBarWhiteEliteImage() : getBarKickEliteImage();                        // Kick / other
+        // Kick / 2x Kick. Elite kicks carry dynamics (spec), so an accent swaps to the
+        // thicker centre-lined bake; a ghost keeps this art and is dimmed at draw time.
+        const bool accent = gemWrapper.gem == Gem::TAP_ACCENT || gemWrapper.gem == Gem::CYM_ACCENT;
+        if (gemColumn == ELITE_KICK_2X_COLUMN)
+            return shouldBeWhite ? (accent ? getBarWhiteAccentImage() : getBarWhiteEliteImage())
+                                 : (accent ? getBarKick2xAccentImage() : getBarKick2xEliteImage());
+        return shouldBeWhite ? (accent ? getBarWhiteAccentImage() : getBarWhiteEliteImage())
+                             : (accent ? getBarKickAccentImage() : getBarKickEliteImage());
     }
 
     if (shouldBeWhite)
