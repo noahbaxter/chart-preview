@@ -320,12 +320,8 @@ void WriteController::onPointerUp(const AuthoringPoint& p,
         double duration = (existing.noteIndex >= 0
                            && std::abs(existing.startQN - sustainPendingClickQN) < kQNEpsilon)
                         ? existing.endQN - existing.startQN : 0.0;
-        createNote(sustainDragTrackIdx, sustainPendingClickQN,
-                   sustainDragPitch, sustainDragLane, resolveVelocity(), duration);
-        if (isDrums())
-            writeTomMarker(sustainDragTrackIdx, sustainPendingClickQN, sustainDragLane);
-        else
-            writeGuitarForceMarker(sustainDragTrackIdx, sustainPendingClickQN);
+        placeNote(sustainDragTrackIdx, sustainPendingClickQN,
+                  sustainDragPitch, sustainDragLane, resolveVelocity(), duration);
         endBatch();
         clearSustainDrag();
         recomputeGhost();
@@ -405,8 +401,8 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
                 // current toolbar state, so a paste round-trips drum dynamics
                 // and note type exactly as copied. One path for both
                 // instruments: the mask says which markers to reproduce.
-                createNote(trackIdx, clickQN + sn.qnOffset, sp, lane, sn.velocity, sn.duration);
-                writeMarkerMask(trackIdx, clickQN + sn.qnOffset, lane, sn.markerMask);
+                placeStampNote(trackIdx, clickQN + sn.qnOffset, sp, lane,
+                               sn.velocity, sn.duration, sn.markerMask);
             }
         }
         if (drums) { endBatch(); return; }
@@ -431,8 +427,7 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
             auto found = findNote(trackIdx, p.hitNoteStartQN, pitch);
             if (found.noteIndex >= 0) duration = found.endQN - found.startQN;
         }
-        createNote(trackIdx, clickQN, pitch, p.laneIndex, resolveVelocity(), duration);
-        writeTomMarker(trackIdx, clickQN, p.laneIndex);
+        placeNote(trackIdx, clickQN, pitch, p.laneIndex, resolveVelocity(), duration);
         return;
     }
 
@@ -440,8 +435,7 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
 
     if (!onExistingNote)
     {
-        createNote(trackIdx, clickQN, pitch, p.laneIndex, resolveVelocity());
-        writeGuitarForceMarker(trackIdx, clickQN);
+        placeNote(trackIdx, clickQN, pitch, p.laneIndex, resolveVelocity());
         enterSustainDrag(trackIdx, clickQN, p.laneIndex, pitch);
         return;
     }
@@ -602,8 +596,8 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
                 {
                     // Painting a stamp is still a paste, so it carries the
                     // captured velocity and markers like the click path does.
-                    createNote(paintDragTrackIdx, snapped + sn.qnOffset, sp, lane, sn.velocity);
-                    writeMarkerMask(paintDragTrackIdx, snapped + sn.qnOffset, lane, sn.markerMask);
+                    placeStampNote(paintDragTrackIdx, snapped + sn.qnOffset, sp, lane,
+                                   sn.velocity, 0.0, sn.markerMask);
                 }
             }
         }
@@ -629,11 +623,7 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
             auto pre = findNote(paintDragTrackIdx, snapped, pitch);
             if (pre.noteIndex >= 0 && std::abs(pre.startQN - snapped) < 0.001)
                 continue;
-            createNote(paintDragTrackIdx, snapped, pitch, paintLane, resolveVelocity());
-            if (drums)
-                writeTomMarker(paintDragTrackIdx, snapped, paintLane);
-            else
-                writeGuitarForceMarker(paintDragTrackIdx, snapped);
+            placeNote(paintDragTrackIdx, snapped, pitch, paintLane, resolveVelocity());
             paintedNotes.push_back({ snapped, paintLane });
             continue;
         }

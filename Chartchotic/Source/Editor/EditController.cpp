@@ -413,11 +413,7 @@ void EditController::handleDoubleClick(const AuthoringPoint& p)
             eraseNote(trackIdx, qn, pitch, drums, p.laneIndex, currentActiveSkill);
         else
         {
-            createNote(trackIdx, qn, pitch, p.laneIndex, resolveVelocity());
-            if (drums)
-                writeTomMarker(trackIdx, qn, p.laneIndex);
-            else
-                writeGuitarForceMarker(trackIdx, qn);
+            placeNote(trackIdx, qn, pitch, p.laneIndex, resolveVelocity());
         }
     }
 

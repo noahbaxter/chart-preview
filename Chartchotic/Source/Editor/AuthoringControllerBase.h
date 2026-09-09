@@ -176,6 +176,52 @@ protected:
                 dynamicsEnsuredTrack = trackIdx;
     }
 
+    static constexpr const char* kPlaceNoteUndo = "Chartchotic: Place note";
+
+    // Opens a batch only when one is not already open, and closes only what it
+    // opened. A lone placement is its own undo point; the same call inside a
+    // paint or paste stroke folds into that stroke instead of splitting it.
+    class BatchScope
+    {
+    public:
+        BatchScope(AuthoringControllerBase& c, const char* desc) : owner(c)
+        {
+            opened = !owner.noteEditor.isBatching();
+            if (opened) owner.beginBatch(desc);
+        }
+        ~BatchScope() { if (opened) owner.endBatch(); }
+        BatchScope(const BatchScope&) = delete;
+        BatchScope& operator=(const BatchScope&) = delete;
+
+    private:
+        AuthoringControllerBase& owner;
+        bool opened = false;
+    };
+
+    // Every placement goes through here. A note and its tom/cymbal or guitar
+    // force marker are separate MIDI notes, so they share one undo block and
+    // one placement never costs two undos.
+    bool placeNote(int trackIdx, double qn, int pitch, int lane, int velocity,
+                   double duration = 0.0)
+    {
+        BatchScope batch(*this, kPlaceNoteUndo);
+        if (!createNote(trackIdx, qn, pitch, lane, velocity, duration)) return false;
+        if (isDrums()) writeTomMarker(trackIdx, qn, lane);
+        else           writeGuitarForceMarker(trackIdx, qn);
+        return true;
+    }
+
+    // Paste variant: markers come from the captured note's mask rather than
+    // the current toolbar state, so a round trip reproduces the original.
+    bool placeStampNote(int trackIdx, double qn, int pitch, int lane, int velocity,
+                        double duration, uint32_t markerMask)
+    {
+        BatchScope batch(*this, kPlaceNoteUndo);
+        if (!createNote(trackIdx, qn, pitch, lane, velocity, duration)) return false;
+        writeMarkerMask(trackIdx, qn, lane, markerMask);
+        return true;
+    }
+
     bool eraseNote(int trackIdx, double qn, int pitch, bool drums, int lane, SkillLevel skill)
     {
         if (!noteEditor.eraseNoteAt(trackIdx, qn, pitch, drums, lane, skill)) return false;
