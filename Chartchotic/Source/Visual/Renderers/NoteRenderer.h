@@ -120,6 +120,8 @@ private:
         juce::Point<float> frameScale;    // uniform (x == y); applied to all offsets and sprite sizes
         float fbStrikeWidth = 0.0f;        // fretboard width at strike (pixels)
         float fbStrikeCenterX = 0.0f;      // fretboard center X at strike (pixels)
+        // Both kicks on this row, i.e. a kick flam. Draws as KICK mode's split bar.
+        bool  kickFlam = false;
     };
 
     // A flam draws the gem twice inside its own lane, each copy squished horizontally and
@@ -138,7 +140,8 @@ private:
     // Frame directly (anchor at gem's screen position, scale 1.0). Doesn't
     // contribute to the shared composite — bemani has no chord-stack drift.
     void drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, float position,
-                       double frameTime, juce::Image* glyphImage, bool barNote, float opacity);
+                       double frameTime, juce::Image* glyphImage, bool barNote, float opacity,
+                       bool kickFlam);
 
     const PositionConstants::OverlayAdjust& getOverlayAdjustForGem(Gem gem, bool isDrums, bool hiHat, bool hiHatOpen) const;
 

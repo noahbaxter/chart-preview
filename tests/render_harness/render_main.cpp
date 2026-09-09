@@ -172,6 +172,11 @@ static FakeScene makeEliteScene(float farEnd)
     s.track[4 * BEAT][0]  = GemWrapper(Gem::NOTE);
     s.track[6 * BEAT][0]  = GemWrapper(Gem::TAP_ACCENT);
 
+    // Kick flam: both kicks on one tick, which is how the format notates it. They should
+    // draw as the two halves of one bar, 2x left and 1x right, not two stacked full bars.
+    s.track[8 * BEAT][0]                      = GemWrapper(Gem::NOTE);
+    s.track[8 * BEAT][ELITE_KICK_2X_COLUMN]   = GemWrapper(Gem::NOTE);
+
     // Stomp (col 10) and Splash (col 11) pedal bars: mini kick-bars centered on the hi-hat.
     // Kept clear of the front hi-hat cluster (beats 1-13) and the permutation block (beat 14+).
     s.track[15 * BEAT][10] = GemWrapper(Gem::STOMP);

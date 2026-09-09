@@ -20,9 +20,9 @@ namespace
     // Kick mode splits the bar down the middle: 2x on the left half, 1x on the right. Both
     // the "is this a kick" and "is this the 2x" questions are per-part, since elite puts its
     // 2x on column 9 while column 6 is Tom 3.
-    Render::ClipHalf resolveBarKickClip(Part part, bool barModeActive, uint gemColumn)
+    Render::ClipHalf resolveBarKickClip(Part part, bool barModeActive, bool kickFlam, uint gemColumn)
     {
-        if (!isDrumLike(part) || !barModeActive || !isDrumKick(gemColumn, part))
+        if (!isDrumLike(part) || !(barModeActive || kickFlam) || !isDrumKick(gemColumn, part))
             return Render::ClipHalf::None;
         return isDrum2xKick(gemColumn, part) ? Render::ClipHalf::Left
                                              : Render::ClipHalf::Right;
@@ -243,6 +243,12 @@ void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, 
     const bool elite = (activePart == Part::ELITE_DRUMS);
     const uint* drawSequence = elite ? eliteSeq : drumSeq;
     const int   seqLen       = elite ? (int)std::size(eliteSeq) : (int)std::size(drumSeq);
+
+    // A kick flam is both kicks on one tick. Spot it once for the row, not per gem.
+    const uint kick2xColumn = elite ? (uint)ELITE_KICK_2X_COLUMN : (uint)DRUM_KICK_2X_COLUMN;
+    ctx.kickFlam = isDrumLike(activePart)
+                && gems[DRUM_KICK_COLUMN].gem != Gem::NONE
+                && gems[kick2xColumn].gem != Gem::NONE;
     for (int i = 0; i < seqLen; i++)
     {
         int gemColumn = drawSequence[i];
@@ -349,7 +355,8 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         // Bemani has no flam treatment yet, so the two halves would stack as one gem drawn
         // twice. Draw the left call only and skip its twin.
         if (flamHalf == FlamHalf::Right) return;
-        drawGemBemani(gemColumn, gemWrapper, position, frameTime, glyphImage, barNote, opacity);
+        drawGemBemani(gemColumn, gemWrapper, position, frameTime, glyphImage, barNote, opacity,
+                      ctx.kickFlam);
         return;
     }
 
@@ -379,7 +386,7 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
         strikeColWidth = ctx.fbStrikeWidth
                        * PositionConstants::BAR_FRETBOARD_FIT * PositionConstants::BAR_SIZE;
         strikeOffsetX = 0.0f;
-        barClipHalf = resolveBarKickClip(activePart, barModeDim < 1.0f, gemColumn);
+        barClipHalf = resolveBarKickClip(activePart, barModeDim < 1.0f, ctx.kickFlam, gemColumn);
     }
     else
     {
@@ -606,7 +613,8 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
 }
 
 void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, float position,
-                                  double frameTime, juce::Image* glyphImage, bool barNote, float opacity)
+                                  double frameTime, juce::Image* glyphImage, bool barNote, float opacity,
+                                  bool kickFlam)
 {
     const auto* config = currentConfig;
     bool isDrums = isDrumLike(activePart);
@@ -679,7 +687,7 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
     Render::Frame frame;
 
     int gemIdx = (int)frame.sprites.size();
-    Render::ClipHalf bemaniClipHalf = barNote ? resolveBarKickClip(activePart, barModeDim < 1.0f, gemColumn)
+    Render::ClipHalf bemaniClipHalf = barNote ? resolveBarKickClip(activePart, barModeDim < 1.0f, kickFlam, gemColumn)
                                               : Render::ClipHalf::None;
     {
         Render::FrameSprite s;
