@@ -58,7 +58,8 @@ public:
     void mouseMove (const juce::MouseEvent& e) override;
     void mouseDown (const juce::MouseEvent& e) override;
     void mouseDrag (const juce::MouseEvent& e) override;
-    void mouseUp   (const juce::MouseEvent& e) override;
+    void mouseUp          (const juce::MouseEvent& e) override;
+    void mouseDoubleClick (const juce::MouseEvent& e) override;
 
     // Authoring dispatch hooks. Wired by PluginEditor; null when unset.
     using PointerCallback = std::function<void(const AuthoringPoint&, const AuthoringContext&)>;
@@ -68,6 +69,7 @@ public:
     void setOnPointerUp    (PointerCallback cb) { onPointerUp     = std::move(cb); }
     void setOnPointerExit  (std::function<void()> cb) { onPointerExit   = std::move(cb); }
     void setOnPointerCancel(std::function<void()> cb) { onPointerCancel = std::move(cb); }
+    void setOnPointerDoubleClick(PointerCallback cb) { onPointerDoubleClick = std::move(cb); }
 
     // Coordinate-domain conversion at the dispatch boundary (M0-G design rule).
     // Takes a "seconds offset from cursor" (the timeFromCursor returned by HitTestMapper)
@@ -81,6 +83,7 @@ public:
     // Read-only access to the WriteController's overlay state for the ghost cursor.
     using OverlayStateGetter = std::function<const OverlayState&()>;
     void setOverlayStateGetter(OverlayStateGetter g) { overlayStateGetter = std::move(g); }
+    void setPatchBuffer(const OptimisticPatchBuffer* buf) { patchBuffer = buf; }
 
     // Format a project QN as "M.B" position label (e.g. "37.2.5"). Wired by PluginEditor.
     void setFormatPositionQN(std::function<juce::String(double)> fn) { formatPositionQN = std::move(fn); }
@@ -158,9 +161,11 @@ private:
     PointerCallback onPointerUp;
     std::function<void()> onPointerExit;
     std::function<void()> onPointerCancel;
+    PointerCallback onPointerDoubleClick;
     std::function<double(double)> secondsToProjectQN;
     std::function<double(double)> projectQNToSeconds;
     OverlayStateGetter            overlayStateGetter;
+    const OptimisticPatchBuffer*  patchBuffer = nullptr;
     std::function<juce::String(double)> formatPositionQN;
 
     // Last ghost state seen at end of mouseMove. Used to throttle repaint —

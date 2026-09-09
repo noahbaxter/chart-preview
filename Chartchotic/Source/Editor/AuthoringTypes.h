@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <cmath>
 #include <vector>
 #include <JuceHeader.h>
@@ -28,6 +27,14 @@ struct AuthoringContext
     bool rightButton = false;
 };
 
+struct SelectedNote
+{
+    int    trackIdx = -1;
+    double startQN  = 0.0;
+    int    pitch    = -1;
+    int    lane     = -1;
+};
+
 struct OverlayState
 {
     struct PreviewNote
@@ -52,19 +59,63 @@ struct OverlayState
     bool                     eraseSweepVisible = false;
     std::vector<PreviewNote> eraseSweepTargets;
 
-    // Selection
-    std::vector<PreviewNote> selectedNotes;
+    // Selection (edit mode)
+    std::vector<SelectedNote> selectedNotes;
+    bool selectionBoundsVisible = false;
+    struct SelectionBounds {
+        int    minLane = 0;
+        int    maxLane = 0;
+        double minQN  = 0.0;
+        double maxQN  = 0.0;
+    } selectionBounds;
 
     // Move drag preview
     bool                     moveDragVisible = false;
     std::vector<PreviewNote> movePreviewNotes;
 
-    // Marquee selection
-    bool                              marqueeVisible = false;
-    std::array<juce::Point<float>, 4> marqueeQuad{};
+    // Marquee selection (edit mode) — highway-space coordinates
+    bool   marqueeVisible = false;
+    int    marqueeLaneStart = 0;
+    int    marqueeLaneEnd   = 0;
+    double marqueeQNStart   = 0.0;
+    double marqueeQNEnd     = 0.0;
 };
 
-enum class EventType { Down, Drag, Up };
+//==============================================================================
+
+class OptimisticPatchBuffer
+{
+public:
+    struct Patch {
+        int    lane = -1;
+        double startQN = 0.0;
+        int    framesLeft = 0;
+    };
+
+    void addRemove(int lane, double qn) { removes.push_back({ lane, qn, kFrames }); }
+    void addAdd(int lane, double qn)    { adds.push_back({ lane, qn, kFrames }); }
+
+    void tick()
+    {
+        auto expire = [](auto& vec) {
+            for (auto& p : vec) --p.framesLeft;
+            vec.erase(std::remove_if(vec.begin(), vec.end(),
+                [](const auto& p) { return p.framesLeft <= 0; }), vec.end());
+        };
+        expire(adds);
+        expire(removes);
+    }
+
+    const std::vector<Patch>& getAdds()    const { return adds; }
+    const std::vector<Patch>& getRemoves() const { return removes; }
+
+private:
+    std::vector<Patch> adds;
+    std::vector<Patch> removes;
+    static constexpr int kFrames = 4;
+};
+
+enum class EventType { Down, Drag, Up, DoubleClick };
 
 enum class MouseButton { None, Left, Right, Middle };
 
@@ -83,7 +134,7 @@ inline bool operator&(ModifierFlags a, ModifierFlags b) {
 
 enum class WriteCommand {
     None,
-    // Mouse commands
+    // Draw-mode mouse commands
     BeginSustain,
     UpdateSustain,
     CommitSustain,
@@ -93,6 +144,15 @@ enum class WriteCommand {
     BeginErase,
     ContinueErase,
     EndErase,
+    // Edit-mode mouse commands
+    SelectAt,
+    BeginMarquee,
+    ContinueMarquee,
+    CommitMarquee,
+    BeginMove,
+    ContinueMove,
+    CommitMove,
+    DoubleClick,
     // Key commands
     ToggleWriteMode,
     ToggleSubMode,
@@ -100,6 +160,8 @@ enum class WriteCommand {
     CycleTuplet,
     StepDown,
     StepUp,
+    DeleteSelection,
+    DeselectAll,
 };
 
 enum class SubMode { Draw, Edit };

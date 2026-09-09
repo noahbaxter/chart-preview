@@ -11,6 +11,7 @@
 #include "TrackImageCache.h"
 #include "../UI/ControlConstants.h"
 #include "../UI/Theme.h"
+#include "../Midi/Utils/MidiConstants.h"
 
 HighwayComponent::HighwayComponent(juce::ValueTree& state, AssetManager& assetManager)
     : state(state),
@@ -141,6 +142,75 @@ void HighwayComponent::paint(juce::Graphics& g)
         }
     }
 
+    // Populate selection state for edit mode.
+    // Selection tint is applied inline during gem rendering (via NoteRenderer::selectedGems).
+    // Move preview ghosts are rendered separately at destination positions.
+    sceneRenderer.getSelectedGems().clear();
+    sceneRenderer.movePreviewGhosts.clear();
+    if (overlayStateGetter && projectQNToSeconds)
+    {
+        const auto& ov = overlayStateGetter();
+        double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
+        if (std::abs(windowSpan) > 1e-9)
+        {
+            if (ov.moveDragVisible)
+            {
+                bool autoHopo = !isDrumLike(activePart)
+                    && state.hasProperty("autoHopo") && (bool)state["autoHopo"];
+                PPQ hopoThreshold = PPQ(0.0);
+                if (autoHopo)
+                {
+                    int ti = (int)state.getProperty("hopoThresh", HOPO_THRESHOLD_DEFAULT);
+                    switch (ti)
+                    {
+                        case 0:  hopoThreshold = MIDI_HOPO_SIXTEENTH;  break;
+                        case 2:  hopoThreshold = MIDI_HOPO_EIGHTH;     break;
+                        default: hopoThreshold = MIDI_HOPO_CLASSIC_170; break;
+                    }
+                    hopoThreshold += MIDI_HOPO_THRESHOLD_BUFFER;
+                }
+
+                for (const auto& pn : ov.movePreviewNotes)
+                {
+                    double sec = projectQNToSeconds(pn.startQN);
+                    float pos = (float)((sec - frameData.windowStartTime) / windowSpan);
+
+                    Gem gem = Gem::NOTE;
+                    if (autoHopo && secondsToProjectQN)
+                    {
+                        double qn = secondsToProjectQN(sec);
+                        auto it = frameData.trackWindow.lower_bound(sec);
+                        if (it != frameData.trackWindow.begin())
+                        {
+                            --it;
+                            double prevQN = secondsToProjectQN(it->first);
+                            PPQ dist = PPQ(qn - prevQN);
+
+                            int prevLaneCount = 0, prevLane = -1;
+                            for (int l = 0; l < (int)it->second.size(); ++l)
+                                if (it->second[l].gem != Gem::NONE) { ++prevLaneCount; prevLane = l; }
+
+                            bool prevChord = (prevLaneCount >= 2);
+                            if (dist > PPQ(0.0) && dist <= hopoThreshold
+                                && !prevChord && pn.lane != prevLane)
+                                gem = Gem::HOPO_GHOST;
+                        }
+                    }
+
+                    sceneRenderer.movePreviewGhosts.push_back({ pn.lane, pos, gem });
+                }
+            }
+            else if (!ov.selectedNotes.empty())
+            {
+                for (const auto& sn : ov.selectedNotes)
+                {
+                    double sec = projectQNToSeconds(sn.startQN);
+                    sceneRenderer.getSelectedGems().push_back({ sn.lane, sec });
+                }
+            }
+        }
+    }
+
     // Inject sustain drag preview into a local copy of the sustain window.
     auto sustainWindow = frameData.sustainWindow;
     if (overlayStateGetter && projectQNToSeconds)
@@ -161,10 +231,119 @@ void HighwayComponent::paint(juce::Graphics& g)
         }
     }
 
+    // Apply optimistic patches — instant visual feedback before MIDI pipeline catches up.
+    auto trackWindow = frameData.trackWindow;
+    if (projectQNToSeconds)
+    {
+        constexpr double kMatchTol = 0.002;
+        double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
+
+        // Hide originals during an active move drag
+        if (overlayStateGetter)
+        {
+            const auto& ov = overlayStateGetter();
+            if (ov.moveDragVisible)
+            {
+                for (const auto& sn : ov.selectedNotes)
+                {
+                    double sec = projectQNToSeconds(sn.startQN);
+                    for (auto& [noteTime, frame] : trackWindow)
+                        if (std::abs(noteTime - sec) < kMatchTol
+                            && sn.lane >= 0 && sn.lane < (int)frame.size())
+                            frame[sn.lane].gem = Gem::NONE;
+                }
+            }
+        }
+
+        if (patchBuffer)
+        {
+            for (const auto& patch : patchBuffer->getRemoves())
+            {
+                double sec = projectQNToSeconds(patch.startQN);
+                for (auto& [noteTime, frame] : trackWindow)
+                    if (std::abs(noteTime - sec) < kMatchTol
+                        && patch.lane >= 0 && patch.lane < (int)frame.size())
+                        frame[patch.lane].gem = Gem::NONE;
+            }
+
+            for (const auto& patch : patchBuffer->getAdds())
+            {
+                double sec = projectQNToSeconds(patch.startQN);
+                bool alreadyExists = false;
+                for (const auto& [noteTime, frame] : trackWindow)
+                {
+                    if (std::abs(noteTime - sec) < kMatchTol
+                        && patch.lane >= 0 && patch.lane < (int)frame.size()
+                        && frame[patch.lane].gem != Gem::NONE)
+                    { alreadyExists = true; break; }
+                }
+                if (!alreadyExists && std::abs(windowSpan) > 1e-9)
+                {
+                    float pos = (float)((sec - frameData.windowStartTime) / windowSpan);
+                    sceneRenderer.movePreviewGhosts.push_back({ patch.lane, pos });
+                }
+            }
+        }
+    }
+
     sceneRenderer.paint(g, w, h,
-                        frameData.trackWindow, sustainWindow, frameData.gridlines,
+                        trackWindow, sustainWindow, frameData.gridlines,
                         frameData.flipRegions, frameData.eventMarkers,
                         frameData.windowStartTime, frameData.windowEndTime, frameData.isPlaying);
+
+    // Edit-mode overlays (marquee, selection highlight)
+    if (overlayStateGetter && projectQNToSeconds)
+    {
+        const auto& ov = overlayStateGetter();
+        double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
+        bool isDrums = isDrumLike(activePart);
+        float posEnd = sceneRenderer.farFadeEnd;
+
+        auto qnToPos = [&](double qn) -> float {
+            double sec = projectQNToSeconds(qn);
+            return (windowSpan > 1e-9)
+                ? (float)((sec - frameData.windowStartTime) / windowSpan)
+                : 0.0f;
+        };
+
+        auto laneEdges = [&](int lane, float pos) -> PositionConstants::LaneCorners {
+            int laneCount = isDrums ? 5 : 6;
+            int clampedLane = juce::jlimit(0, laneCount - 1, lane);
+            const auto& coords = isDrums
+                ? PositionConstants::drumBezierLaneCoords[clampedLane]
+                : PositionConstants::guitarBezierLaneCoords[clampedLane];
+            return PositionMath::getColumnPosition(isDrums, pos, (uint)w, (uint)h,
+                PositionConstants::HIGHWAY_POS_START, posEnd,
+                coords, 1.0f, PositionConstants::FRETBOARD_SCALE);
+        };
+
+        // Marquee rectangle
+        if (ov.marqueeVisible)
+        {
+            float posTop = qnToPos(ov.marqueeQNEnd);
+            float posBot = qnToPos(ov.marqueeQNStart);
+            int laneMin = ov.marqueeLaneStart;
+            int laneMax = ov.marqueeLaneEnd;
+
+            auto topLeft  = laneEdges(laneMin, posTop);
+            auto topRight = laneEdges(laneMax, posTop);
+            auto botLeft  = laneEdges(laneMin, posBot);
+            auto botRight = laneEdges(laneMax, posBot);
+
+            juce::Path marquee;
+            marquee.startNewSubPath(topLeft.leftX, topLeft.centerY);
+            marquee.lineTo(topRight.rightX, topRight.centerY);
+            marquee.lineTo(botRight.rightX, botRight.centerY);
+            marquee.lineTo(botLeft.leftX, botLeft.centerY);
+            marquee.closeSubPath();
+
+            g.setColour(juce::Colour(100, 180, 255).withAlpha(0.15f));
+            g.fillPath(marquee);
+            g.setColour(juce::Colour(100, 180, 255).withAlpha(0.5f));
+            g.strokePath(marquee, juce::PathStrokeType(1.5f));
+        }
+
+    }
 
     // Bemani sidebar masks — drawn after notes/sustains to clip overflow.
     // Must cover the full component height. In Bemani mode overflow=0 so h=totalH.
@@ -498,7 +677,7 @@ void HighwayComponent::buildAuthoringPayload(const juce::MouseEvent& e,
 
     if (outPoint.onHighway && secondsToProjectQN)
     {
-        constexpr float kHeadHitPixels = 20.0f;
+        constexpr float kHeadHitPixels = 32.0f;
         double windowSpan = frameData.windowEndTime - frameData.windowStartTime;
         double timeTol = (windowSpan > 0.0 && renderHeight > 0)
             ? kHeadHitPixels * windowSpan / (double)renderHeight
@@ -611,6 +790,14 @@ void HighwayComponent::mouseUp(const juce::MouseEvent& e)
     AuthoringPoint p; AuthoringContext ctx;
     buildAuthoringPayload(e, p, ctx);
     onPointerUp(p, ctx);
+}
+
+void HighwayComponent::mouseDoubleClick(const juce::MouseEvent& e)
+{
+    if (!onPointerDoubleClick) return;
+    AuthoringPoint p; AuthoringContext ctx;
+    buildAuthoringPayload(e, p, ctx);
+    onPointerDoubleClick(p, ctx);
 }
 
 void HighwayComponent::onInstrumentChanged()

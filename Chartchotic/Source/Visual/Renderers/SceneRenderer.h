@@ -70,6 +70,16 @@ class SceneRenderer
         GhostCursor ghostCursor;
         static constexpr bool useColoredGhostCursor = true;
 
+        struct GhostPosition
+        {
+            int   lane = -1;
+            float position = 0.0f;
+            Gem   gem = Gem::NOTE;
+        };
+        std::vector<GhostPosition> movePreviewGhosts;
+
+        std::vector<NoteRenderer::SelectedGem>& getSelectedGems() { return noteRenderer.selectedGems; }
+
 #ifdef DEBUG
         bool collectPhaseTiming = true;
 #else

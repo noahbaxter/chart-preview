@@ -83,11 +83,17 @@ target_sources(Chartchotic
         Chartchotic/Source/Editor/FrameDataBuilder.h
         Chartchotic/Source/Editor/SessionController.cpp
         Chartchotic/Source/Editor/SessionController.h
+        Chartchotic/Source/Editor/AuthoringControllerBase.h
         Chartchotic/Source/Editor/AuthoringTypes.h
+        Chartchotic/Source/Editor/AuthoringUtils.h
         Chartchotic/Source/Editor/WriteController.cpp
         Chartchotic/Source/Editor/WriteController.h
         Chartchotic/Source/Editor/CommandMapper.cpp
         Chartchotic/Source/Editor/CommandMapper.h
+        Chartchotic/Source/Editor/EditController.cpp
+        Chartchotic/Source/Editor/EditController.h
+        Chartchotic/Source/Editor/InteractionController.cpp
+        Chartchotic/Source/Editor/InteractionController.h
         Chartchotic/Source/Editor/NoteEditor.cpp
         Chartchotic/Source/Editor/NoteEditor.h
         Chartchotic/Source/Host/ReaperVST3.h

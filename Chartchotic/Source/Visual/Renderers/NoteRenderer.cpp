@@ -146,11 +146,11 @@ NoteRenderer::SharedFrameContext NoteRenderer::buildFrameContext(float position)
 }
 
 void NoteRenderer::renderGhost(DrawCallMap& drawCallMap, int lane, float position,
-                                juce::Image* image, float opacity)
+                                juce::Image* image, float opacity, Gem gem)
 {
     auto ctx = buildFrameContext(position);
     GemWrapper dummy;
-    dummy.gem = Gem::NOTE;
+    dummy.gem = gem;
 
     Render::Frame frame;
     // image=nullptr → appendGemSprites falls through to the real colored asset
@@ -175,7 +175,20 @@ void NoteRenderer::drawNoteRow(const TimeBasedTrackFrame& gems, float position, 
         int gemColumn = drawSequence[i];
         if (gems[gemColumn].gem != Gem::NONE)
         {
+            int spriteStart = (int)composite.sprites.size();
             appendGemSprites(gemColumn, gems[gemColumn], position, frameTime, ctx, composite);
+
+            bool selected = false;
+            for (const auto& sg : selectedGems)
+                if (sg.lane == gemColumn && std::abs(sg.time - frameTime) < 0.002)
+                { selected = true; break; }
+
+            if (selected)
+            {
+                static const juce::Colour kSelTint = juce::Colour(180, 220, 255).withAlpha((uint8)140);
+                for (int s = spriteStart; s < (int)composite.sprites.size(); ++s)
+                    composite.sprites[s].tint = kSelTint;
+            }
         }
     }
 

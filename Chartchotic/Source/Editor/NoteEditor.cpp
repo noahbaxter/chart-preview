@@ -123,6 +123,29 @@ MidiWriter::NoteInfo NoteEditor::findNote(int trackIdx, double qn, int pitch)
     return midiWriter->findNote(trackIdx, qn, pitch);
 }
 
+bool NoteEditor::moveNote(int trackIdx, double oldStartQN, int oldPitch,
+                          double newStartQN, double newEndQN, int newPitch)
+{
+    if (!midiWriter || !instrumentSession) return false;
+
+    auto note = midiWriter->findNote(trackIdx, oldStartQN, oldPitch);
+    if (note.noteIndex < 0) return false;
+
+    bool ok = batchActive
+        ? midiWriter->batchMoveNote(trackIdx, note.noteIndex, newStartQN, newEndQN, newPitch)
+        : midiWriter->moveNote(trackIdx, note.noteIndex, newStartQN, newEndQN, newPitch);
+
+    if (ok) instrumentSession->invalidateTrack(trackIdx);
+    return ok;
+}
+
+std::vector<MidiWriter::NoteInfo> NoteEditor::findNotesInRange(int trackIdx, double startQN,
+                                                                double endQN, int pitch)
+{
+    if (!midiWriter) return {};
+    return midiWriter->findNotesInRange(trackIdx, startQN, endQN, pitch);
+}
+
 void NoteEditor::beginBatch(const char* description)
 {
     if (!midiWriter) return;
