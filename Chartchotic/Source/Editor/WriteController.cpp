@@ -704,7 +704,16 @@ void WriteController::handleEndErase()
     for (const auto& cn : classifyNotesInRect(eraseDragTrackIdx, eraseRect))
     {
         if (cn.sustainOnly)
+        {
+            // A predecessor trimmed to butt against the note being clicked ends
+            // exactly where the click is, so the raw cursor QN can land a hair
+            // inside it. Erasing a head is not a reason to shorten its
+            // neighbour.
+            if (eraseClickedNoteQN >= 0.0
+                && std::abs(cn.note.endQN - eraseClickedNoteQN) < kQNEpsilon)
+                continue;
             truncateNote(eraseDragTrackIdx, cn.note.startQN, cn.note.pitch);
+        }
         else
             eraseNote(eraseDragTrackIdx, cn.note.startQN, cn.note.pitch,
                       drums, cn.lane, currentActiveSkill);

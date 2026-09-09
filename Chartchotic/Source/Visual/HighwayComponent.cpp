@@ -267,12 +267,17 @@ void HighwayComponent::paint(juce::Graphics& g)
                 }
                 auto sustainCol = ov.marqueeErase
                     ? AuthoringColours::eraseTint : AuthoringColours::selectTint;
+                // Matches the erase rule: a sustain trimmed to end exactly where
+                // the clicked note starts is not part of that click.
+                double clickedSec = ov.eraseClickedNoteQN >= 0.0
+                    ? projectQNToSeconds(ov.eraseClickedNoteQN) : -1.0;
                 for (const auto& s : frameData.sustainWindow)
                 {
                     int lane = (int)s.gemColumn;
                     if (ov.barMode && !InstrumentMapper::isKickLane(lane)) continue;
                     if (lane < mr.laneLo || lane > mr.laneHi) continue;
                     if (s.startTime > secHi + kTimeEpsilon || s.endTime < secLo - kTimeEpsilon) continue;
+                    if (clickedSec >= 0.0 && std::abs(s.endTime - clickedSec) < kTimeEpsilon) continue;
                     sceneRenderer.getTintedSustains().push_back(
                         { lane, secLo, secHi, sustainCol });
                 }
@@ -284,13 +289,13 @@ void HighwayComponent::paint(juce::Graphics& g)
                 double sec = projectQNToSeconds(ov.eraseClickedNoteQN);
                 sceneRenderer.getEraseTargets().push_back({ ov.eraseClickedLane, sec });
                 sceneRenderer.getTintedSustains().push_back(
-                    { ov.eraseClickedLane, sec, sec, AuthoringColours::eraseTint });
+                    { ov.eraseClickedLane, sec, sec, AuthoringColours::eraseTint, true });
             }
             if (ov.marqueeErase && ov.eraseClickedSustainQN >= 0.0 && ov.eraseClickedSustainLane >= 0)
             {
                 double sec = projectQNToSeconds(ov.eraseClickedSustainQN);
                 sceneRenderer.getTintedSustains().push_back(
-                    { ov.eraseClickedSustainLane, sec, sec, AuthoringColours::eraseTint });
+                    { ov.eraseClickedSustainLane, sec, sec, AuthoringColours::eraseTint, true });
             }
         }
     }
