@@ -27,8 +27,8 @@ ensure_venv() {
 
     source "$VENV_DIR/bin/activate"
 
-    if [ -f "$TESTS_DIR/requirements.txt" ]; then
-        pip install -q -r "$TESTS_DIR/requirements.txt"
+    if [ -f "$PROJECT_ROOT/requirements.txt" ]; then
+        pip install -q -r "$PROJECT_ROOT/requirements.txt"
     fi
 }
 
