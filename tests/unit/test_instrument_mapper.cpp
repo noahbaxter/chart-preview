@@ -397,10 +397,17 @@ TEST_CASE("InstrumentMapper - getEliteRollLaneColumn", "[instrument_mapper][elit
         REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_RCRASH) == 8);
     }
 
+    SECTION("the stomp/splash lane lands on the pedal column")
+    {
+        // 108 sits below the contiguous 110-118 block, so it needs its own case.
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_STOMP)
+                == (uint)ELITE_STOMP_COLUMN);
+        REQUIRE(InstrumentMapper::isEliteRollLane((uint)EliteDrums::ROLL_STOMP));
+    }
+
     SECTION("non-roll pitches return INVALID_COLUMN")
     {
         REQUIRE(InstrumentMapper::getEliteRollLaneColumn(109) == uint(-1));   // unused (no 2x-kick roll)
-        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_STOMP) == uint(-1)); // 108, no column yet
         REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::EXPERT_SNARE) == uint(-1));
         REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::SP) == uint(-1));
     }

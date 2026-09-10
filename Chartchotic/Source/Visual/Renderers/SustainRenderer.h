@@ -50,4 +50,7 @@ private:
     void drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime);
     void drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition,
                          float opacity, float sustainWidth, juce::Colour colour, bool isLane);
+
+    // Elite hi-hat ringing zone, solid to fadeStartTime then a fainter tail.
+    void drawHiHatSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime);
 };

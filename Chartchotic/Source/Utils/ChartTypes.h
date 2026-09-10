@@ -36,6 +36,8 @@ constexpr int DRUM_KICK_COLUMN     = 0;
 constexpr int DRUM_KICK_2X_COLUMN  = 6;   // 4-lane: 2x kick shares the kick lane
 constexpr int ELITE_KICK_2X_COLUMN = 9;   // elite: col 6 is a real hand lane (Tom 3), so 2x kick moves to a virtual column
 constexpr int ELITE_HIHAT_COLUMN   = 2;   // elite: the yellow cymbal lane, the only lane with open/closed/indifferent state
+constexpr int ELITE_STOMP_COLUMN   = 10;  // elite: virtual lanes for the pedal bars, drawn over the hi-hat zone
+constexpr int ELITE_SPLASH_COLUMN  = 11;
 
 // `part` is deliberately NOT defaulted. A default of Part::DRUMS silently answers the
 // 4-lane question for elite, where column 6 is Tom 3 rather than the 2x kick, and every
@@ -59,6 +61,13 @@ inline uint drumColumnIndex(uint gemColumn, Part part)
     if (part == Part::ELITE_DRUMS)
         return (gemColumn == ELITE_KICK_2X_COLUMN) ? DRUM_KICK_COLUMN : gemColumn;
     return (gemColumn == DRUM_KICK_2X_COLUMN) ? DRUM_KICK_COLUMN : gemColumn;
+}
+
+// Elite pedal columns are virtual: they have no lane coords, so anything drawn on them has to
+// borrow the hi-hat's and span the pedal zone.
+inline bool isElitePedalColumn(uint gemColumn)
+{
+    return gemColumn == (uint)ELITE_STOMP_COLUMN || gemColumn == (uint)ELITE_SPLASH_COLUMN;
 }
 
 // Elite hand lanes that are cymbals (Hi-Hat, L-Crash, Ride, R-Crash); the rest
@@ -175,7 +184,8 @@ enum class SustainType
     SUSTAIN,
     LANE,
     SOLO,
-    BRE
+    BRE,
+    HIHAT       // elite hi-hat ringing zone
 };
 
 struct SustainEvent
@@ -185,6 +195,7 @@ struct SustainEvent
     uint gemColumn;
     SustainType sustainType;
     GemWrapper gemType;
+    PPQ fadeStartPPQ = PPQ(0.0);   // HIHAT only; equal to endPPQ means no fade tail
 };
 
 //==============================================================================

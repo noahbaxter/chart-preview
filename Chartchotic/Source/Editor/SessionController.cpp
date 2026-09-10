@@ -66,6 +66,9 @@ void SessionController::updateSessionData(InstrumentSession& session)
         const auto& discoFlip = session.getDiscoFlipState(i);
         data.discoFlipState = discoFlip.hasRegions() ? &discoFlip : nullptr;
 
+        const auto& strictHat = session.getStrictHatPedalState(i);
+        data.strictHatPedalState = strictHat.hasFlag() ? &strictHat : nullptr;
+
         if (std::find(discoveredParts.begin(), discoveredParts.end(), part) == discoveredParts.end())
             discoveredParts.push_back(part);
 
@@ -243,6 +246,9 @@ void SessionController::updateVisibleSlots()
 
             if (cached.discoFlipState)
                 slot.interpreter->setDiscoFlipState(cached.discoFlipState);
+
+            if (cached.strictHatPedalState)
+                slot.interpreter->setStrictHatPedalState(cached.strictHatPedalState);
 
             slot.highway->setActivePart(cached.part);
             slotIdx++;

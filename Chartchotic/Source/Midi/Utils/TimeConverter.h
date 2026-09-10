@@ -35,6 +35,7 @@ struct TimeBasedSustainEvent
     uint gemColumn;
     SustainType sustainType;
     GemWrapper gemType;
+    double fadeStartTime = 0.0;   // HIHAT only; == endTime means no tail
 };
 
 using TimeBasedSustainWindow = std::vector<TimeBasedSustainEvent>;
@@ -96,6 +97,7 @@ public:
             timeSustain.gemColumn = sustain.gemColumn;
             timeSustain.sustainType = sustain.sustainType;
             timeSustain.gemType = sustain.gemType;
+            timeSustain.fadeStartTime = ppqToTime(sustain.fadeStartPPQ.toDouble()) - cursorTime;
             result.push_back(timeSustain);
         }
 

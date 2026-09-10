@@ -161,15 +161,17 @@ public:
         return exp - (4 - (int)skill) * 24;
     }
 
-    // Elite roll/tremolo lane pitch -> hand-lane column. Pitches 110 (kick) .. 118
-    // (R-crash) map linearly onto the same columns as getEliteDrumColumn (0..8); 109
-    // is unused and 108 (stomp/splash) has no rendered column yet. Pan-difficulty, so
-    // no skill normalisation. Returns INVALID_COLUMN for any non-roll pitch.
+    // Elite roll/tremolo lane pitch -> column. Pitches 110 (kick) .. 118 (R-crash) map
+    // linearly onto the same columns as getEliteDrumColumn (0..8); 109 is unused and 108 is
+    // the Stomp/Splash lane, which lands on the pedal column. Pan-difficulty, so no skill
+    // normalisation. Returns INVALID_COLUMN for any non-roll pitch.
     static uint getEliteRollLaneColumn(uint pitch)
     {
         using ED = MidiPitchDefinitions::EliteDrums;
         if (pitch >= (uint)ED::ROLL_KICK && pitch <= (uint)ED::ROLL_RCRASH)
             return pitch - (uint)ED::ROLL_KICK;   // 110..118 -> 0..8
+        if (pitch == (uint)ED::ROLL_STOMP)
+            return (uint)ELITE_STOMP_COLUMN;
         return INVALID_COLUMN;
     }
     static bool isEliteRollLane(uint pitch) { return getEliteRollLaneColumn(pitch) != INVALID_COLUMN; }

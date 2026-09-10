@@ -124,6 +124,7 @@ void ReaperMidiPipeline::fetchAllTextEvents()
     int configuredTrackIndex = (int)state.getProperty("reaperTrack") - 1;
     textEvents = reaperProvider.getAllTextEventsFromTrack(configuredTrackIndex);
     discoFlipState.buildFromTextEvents(textEvents);
+    strictHatPedalState.buildFromTextEvents(textEvents);
 }
 
 void ReaperMidiPipeline::processCachedNotesIntoState(PPQ currentPos)

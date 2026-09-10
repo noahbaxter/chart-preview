@@ -51,7 +51,10 @@ void FrameDataBuilder::buildReaper(HighwayFrameData& out,
     if (!ctx.processor.getInstrumentSession())
     {
         if (reaperPipeline)
+        {
             flipState = reaperPipeline->getDiscoFlipState();
+            interpreter.setStrictHatPedalState(reaperPipeline->getStrictHatPedalState());
+        }
         interpreter.setDiscoFlipState(flipState);
     }
     else
@@ -150,6 +153,7 @@ void FrameDataBuilder::buildReaperBatched(HighwayFrameData& primaryOut,
         cfg.starPower = (bool)firstInterp.getState().getProperty("starPower");
         cfg.bemaniMode = PositionMath::bemaniMode;
         cfg.discoFlipState = firstInterp.getDiscoFlipState();
+        cfg.strictHatPedalState = firstInterp.getStrictHatPedalState();
 
         int thresholdIndex = (int)firstInterp.getState().getProperty("hopoThresh", HOPO_THRESHOLD_DEFAULT);
         if (cfg.autoHopo)

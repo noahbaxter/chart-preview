@@ -15,6 +15,7 @@
 #include "../Utils/InstrumentMapper.h"
 #include "../Utils/GemCalculator.h"
 #include "../DiscoFlipState.h"
+#include "../StrictHatPedalState.h"
 #include "../../Utils/ChartTypes.h"
 
 class TrackResolver
@@ -32,6 +33,7 @@ public:
         bool starPower = false;
         bool bemaniMode = false;
         const DiscoFlipState* discoFlipState = nullptr;
+        const StrictHatPedalState* strictHatPedalState = nullptr;   // elite [STRICT_HAT_PEDAL_STATE]
     };
 
     // Full resolve: SharedWindow + config → PartWindow (all 4 difficulties)
@@ -71,6 +73,18 @@ private:
                              const SharedWindow& shared,
                              const Config& cfg,
                              const std::array<DiffContext, 4>& diffs);
+
+    // Elite Pedal Down notes → Stomp/Splash gems, suppressed by a coincident Yellow unless strict.
+    static void resolveHiHatPedalGems(PartWindow& result,
+                                      const SharedWindow& shared,
+                                      const Config& cfg,
+                                      const std::array<DiffContext, 4>& diffs);
+
+    // Elite Open Hi-Hat / Splash gems → HIHAT ringing sustains. Generators are the resolved gems.
+    static void resolveHiHatSustains(PartWindow& result,
+                                     const SharedWindow& shared,
+                                     const Config& cfg,
+                                     const std::array<DiffContext, 4>& diffs);
 
     // Disco flip: replace cymbal/tom flag while preserving dynamic
     static Gem swapCymbalFlag(Gem gem, bool cymbal);

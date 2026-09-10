@@ -63,9 +63,17 @@ struct RawLaneMarker {
     uint8_t laneVelocity;
 };
 
+// Elite Pedal Down note: velocity picks the gem (1 none, 2-126 Stomp, 127 Splash).
+struct PedalNote {
+    PPQ startPPQ;
+    PPQ endPPQ;
+    uint8_t velocity;
+};
+
 struct SharedWindow {
     std::map<PPQ, std::vector<RawNoteEvent>> positions;
     ModifierRanges modifiers;
     std::vector<RawSustainPair> sustains;
     std::vector<RawLaneMarker> lanes;
+    std::array<std::vector<PedalNote>, 4> hihatPedalNotes;   // elite: Pedal Down notes, indexed by SkillLevel
 };
