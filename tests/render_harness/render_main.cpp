@@ -145,6 +145,12 @@ static FakeScene makeEliteScene(float farEnd)
     putHat(11, Gem::CYM_ACCENT, HiHatState::Closed);
     putHat(13, Gem::CYM,        HiHatState::Indifferent);
 
+    // Kick dynamics up front, where they are big enough to eyeball: ghost / normal / accent.
+    // The permutation block below also charts kicks, but it sits past the visible window.
+    s.track[2 * BEAT][0]  = GemWrapper(Gem::HOPO_GHOST);
+    s.track[4 * BEAT][0]  = GemWrapper(Gem::NOTE);
+    s.track[6 * BEAT][0]  = GemWrapper(Gem::TAP_ACCENT);
+
     // Stomp (col 10) and Splash (col 11) pedal bars: mini kick-bars centered on the hi-hat.
     // Kept clear of the front hi-hat cluster (beats 1-13) and the permutation block (beat 14+).
     s.track[15 * BEAT][10] = GemWrapper(Gem::STOMP);
@@ -162,8 +168,10 @@ static FakeScene makeEliteScene(float farEnd)
         {
             for (int lane = 1; lane <= 8; ++lane)
                 put(beat, lane, gemFor(lane, d), sp);
-            put(beat, 0, Gem::NOTE, sp);            // kick every row
-            if (sp) put(beat, 9, Gem::NOTE, sp);    // 2x kick on the star-power rows
+            // Elite kicks carry dynamics, so the kick takes the row's dynamic like the hand
+            // lanes do (ghost = fainter bar, accent = thicker bar with a centre line).
+            put(beat, 0, gemFor(0, d), sp);
+            if (sp) put(beat, 9, gemFor(0, d), sp);   // 2x kick on the star-power rows
             beat += 2;                              // one empty beat between rows
         }
         beat += 1;                                  // extra gap between the normal and SP groups
@@ -248,12 +256,14 @@ int main(int argc, char** argv)
     if (dumpKick.isNotEmpty())
     {
         // Fat over thin on one canvas: the two arcs must trace the same curve.
-        auto* fat  = assets.getBarKickImage();
-        auto* thin = assets.getBarKickEliteImage();
-        juce::Image sheet(juce::Image::ARGB, fat->getWidth(), fat->getHeight() * 2, true);
+        auto* fat    = assets.getBarKickImage();
+        auto* thin   = assets.getBarKickEliteImage();
+        auto* accent = assets.getBarKickAccentImage();
+        juce::Image sheet(juce::Image::ARGB, fat->getWidth(), fat->getHeight() * 3, true);
         juce::Graphics g(sheet);
         g.drawImageAt(*fat, 0, 0);
         g.drawImageAt(*thin, 0, fat->getHeight());
+        g.drawImageAt(*accent, 0, fat->getHeight() * 2);
         juce::File f(dumpKick);
         f.deleteFile();
         juce::FileOutputStream os(f);
