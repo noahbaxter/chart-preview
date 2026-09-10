@@ -69,6 +69,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
 
     noteRenderer.noteCurvatureGuitar = noteCurvatureGuitar;
     noteRenderer.noteCurvatureDrums = noteCurvatureDrums;
+    noteRenderer.setFlamShape(flamTypeWidths, flamSubLaneSpread, flamTilt, flamSingleOverlay);
     noteRenderer.gemScale = isDrums ? drumGemScale : guitarGemScale;
     noteRenderer.barScale = isDrums ? drumBarScale : guitarBarScale;
     float strikePosGem = offsets.strikePosGem;
@@ -284,7 +285,10 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     {
         ScopedPhaseMeasure m(lastPhaseTiming.execute_us, collectPhaseTiming);
         if (collectPhaseTiming)
+        {
             std::fill(std::begin(lastPhaseTiming.layer_us), std::end(lastPhaseTiming.layer_us), 0.0);
+            lastPhaseTiming.drawCalls = 0;
+        }
 
         for (int d = 0; d < DRAW_ORDER_COUNT; d++)
         {
@@ -292,6 +296,8 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
             for (int c = 0; c < MAX_DRAW_COLUMNS; c++)
             {
                 auto& bucket = drawCallMap[d][c];
+                if (collectPhaseTiming)
+                    lastPhaseTiming.drawCalls += (int)bucket.size();
                 // Draw each layer from back to front
                 for (auto it = bucket.rbegin(); it != bucket.rend(); ++it)
                 {

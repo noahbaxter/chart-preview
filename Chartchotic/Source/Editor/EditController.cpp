@@ -594,6 +594,25 @@ void EditController::applyCymbalModeToSelection(bool cymbal)
     endBatch();
 }
 
+// Kicks are skipped: their flam adds and removes notes rather than qualifying one.
+void EditController::applyFlamModeToSelection(bool flam)
+{
+    if (selection.empty() || !noteEditorAvailable()) return;
+    int trackIdx = resolveTrackIdx();
+    if (trackIdx < 0) return;
+
+    beginBatch("Set flam");
+    for (const auto& sel : selection)
+    {
+        if (sel.sustainOnly || eliteFlamMarkerPitch(sel.lane) < 0) continue;
+        bool saved = flamModeFlag;
+        flamModeFlag = flam;
+        writeMarkers(trackIdx, sel.startQN, sel.lane);
+        flamModeFlag = saved;
+    }
+    endBatch();
+}
+
 void EditController::updateCursorLabel(const AuthoringPoint& p)
 {
     overlayState.ghostVisible = false;

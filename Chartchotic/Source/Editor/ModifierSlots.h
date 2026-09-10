@@ -22,6 +22,7 @@ enum class ModifierGroup
 {
     Dynamic,   // DrumDynamic: Normal / Ghost / Accent
     Cymbal,    // bool
+    Flam,      // bool
     Force,     // GuitarForce: None / Hopo / Strum / Tap
 };
 
@@ -58,6 +59,9 @@ inline std::vector<ModifierSlot> modifierSlotsFor(RenderType type)
             const auto* cfg = getAuthoringConfig(type);
             if (cfg && cfg->hasCymbalToggle)
                 slots.push_back({ ModifierGroup::Cymbal, 1, "cymbal" });
+            // Elite has no cymbal toggle, so flam lands on F with nothing above it shifting.
+            if (cfg && cfg->hasFlamToggle)
+                slots.push_back({ ModifierGroup::Flam, 1, "flam" });
             return slots;
         }
 

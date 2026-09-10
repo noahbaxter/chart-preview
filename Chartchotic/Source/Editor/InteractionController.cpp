@@ -199,6 +199,13 @@ void InteractionController::applyModifierSlot(const ModifierSlot& slot)
             if (isEditActive()) applyCymbalModeToSelection(next);
             break;
         }
+        case ModifierGroup::Flam:
+        {
+            bool next = !writeController.flamMode();
+            setFlamMode(next);
+            if (isEditActive()) applyFlamModeToSelection(next);
+            break;
+        }
         case ModifierGroup::Force:
         {
             auto target = (GuitarForce)slot.value;
