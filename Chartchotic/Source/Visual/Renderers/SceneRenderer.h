@@ -65,7 +65,7 @@ class SceneRenderer
             float  position = 0.0f;
             juce::Image* image = nullptr;  // null = use real colored note asset
             float  opacity = 0.5f;
-            Gem    gem     = Gem::NOTE;
+            GemWrapper gem;   // whole wrapper: the ghost previews SP and flam too
             juce::String positionLabel;    // "37.2" style label shown in write mode
             juce::String modeLabel;        // transient mode hint, drawn opposite the position
             struct StampGhostEntry { int lane; float position; Gem gem = Gem::NOTE; };

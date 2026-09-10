@@ -86,8 +86,8 @@ public:
 
     // Render a single ghost sprite through the same pipeline as real notes.
     // Call AFTER populate() so internal state (curvature, scales, etc.) is configured.
-    // Takes a whole GemWrapper: a bare Gem silently drops star power and flam, and the ghost
-    // has to preview EXACTLY what placing would draw.
+    // Whole GemWrapper, not a bare Gem: the ghost must preview exactly what placing draws,
+    // and a Gem drops star power and flam.
     void renderGhost(DrawCallMap& drawCallMap, int lane, float position,
                      juce::Image* image, float opacity, const GemWrapper& gem = GemWrapper(),
                      bool selected = false);

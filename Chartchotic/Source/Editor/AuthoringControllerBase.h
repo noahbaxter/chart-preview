@@ -407,6 +407,36 @@ protected:
         }
     }
 
+    // findNote, not InstrumentSession::getNotes: getNotes indexes trackData by position while
+    // resolveTrackIdx returns a REAPER track index, so it reads the wrong track. findNote
+    // takes the REAPER index and matches inside a note body, which is the phrase test.
+    bool isStarPowerAt(double qn)
+    {
+        int trackIdx = resolveTrackIdx();
+        if (trackIdx < 0) return false;
+        // Elite keeps SP at 104; guitar and the other kits use 116.
+        int spPitch = isElite() ? (int)MidiPitchDefinitions::EliteDrums::SP
+                                : (int)MidiPitchDefinitions::Guitar::SP;
+        return findNote(trackIdx, qn, spPitch).noteIndex >= 0;
+    }
+
+    // Everything the hover previews, so the ghost and the placement can't disagree.
+    GemWrapper resolveGhostWrapper(int lane, double qn)
+    {
+        GemWrapper g(resolveGhostGem(lane));
+        g.starPower = isStarPowerAt(qn);
+        g.flam = flamModeFlag && canFlamLane(lane);
+        return g;
+    }
+
+    // Marker on a hand lane, stacked 1x + 2x on a kick. The kick form needs the 2x enabled.
+    bool canFlamLane(int lane) const
+    {
+        if (eliteFlamMarkerPitch(lane) >= 0) return true;
+        const auto* cfg = authoring();
+        return isElite() && kick2xEnabled && cfg != nullptr && isDrumKick((uint)lane, currentActivePart);
+    }
+
     // Flam marker for this lane, or -1 where a flam cannot go. Elite only, and never on a
     // kick: a kick flam is a stacked 1x + 2x pair, which placeNote handles itself.
     int eliteFlamMarkerPitch(int lane) const

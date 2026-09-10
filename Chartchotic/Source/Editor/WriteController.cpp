@@ -77,7 +77,7 @@ void WriteController::recomputeGhost()
     overlayState.ghostLane       = -1;
     overlayState.ghostQN         = 0.0;
     overlayState.ghostShowsErase = false;
-    overlayState.ghostGem        = Gem::NOTE;
+    overlayState.ghostGem        = GemWrapper();
     overlayState.ghostModeLabel  = {};
     overlayState.stampGhosts.clear();
 
@@ -115,12 +115,12 @@ void WriteController::recomputeGhost()
             // on 1x, so preview the 1x lane rather than whichever side the
             // mouse is on.
             overlayState.ghostLane = DRUM_KICK_COLUMN;
-            overlayState.ghostGem  = resolveGhostGem(DRUM_KICK_COLUMN);
+            overlayState.ghostGem  = resolveGhostWrapper(DRUM_KICK_COLUMN, qn);
         }
         else
         {
             overlayState.ghostLane = lastPoint.laneIndex;
-            overlayState.ghostGem = resolveGhostGem(lastPoint.laneIndex);
+            overlayState.ghostGem = resolveGhostWrapper(lastPoint.laneIndex, qn);
         }
     }
 }

@@ -208,9 +208,6 @@ NoteRenderer::SharedFrameContext NoteRenderer::buildFrameContext(float position)
     };
 }
 
-// The ghost takes a whole GemWrapper, not a bare Gem, so every bit that changes how a note
-// draws (dynamics, star power, hat state, flam) previews the same way it will render once
-// placed. A Gem alone silently dropped star power and flam.
 void NoteRenderer::renderGhost(DrawCallMap& drawCallMap, int lane, float position,
                                 juce::Image* image, float opacity, const GemWrapper& gem,
                                 bool selected)
@@ -219,8 +216,7 @@ void NoteRenderer::renderGhost(DrawCallMap& drawCallMap, int lane, float positio
     ghostPass = true;
 
     Render::Frame frame;
-    // A kick flam is both kicks at once, so it previews as the split bar the pair renders
-    // as. A hand flam is one lane split in two, same as the real note.
+    // A kick flam is both kicks at once, so preview the pair, not one lane split.
     bool kickFlam = gem.flam && isDrumLike(activePart) && isDrumKick((uint)lane, activePart);
     if (kickFlam)
     {

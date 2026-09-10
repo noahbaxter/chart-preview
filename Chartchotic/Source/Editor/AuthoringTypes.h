@@ -107,7 +107,7 @@ struct OverlayState
     int    ghostLane = -1;
     double ghostQN = 0.0;
     bool   ghostShowsErase = false;
-    Gem    ghostGem = Gem::NOTE;
+    GemWrapper ghostGem;   // whole wrapper: hover must show exactly what will be placed
     // Transient hint for a modifier-held mode, e.g. alternating kick paint.
     juce::String ghostModeLabel;
     struct StampGhost { int lane; double qnOffset; double duration; Gem gem = Gem::NOTE; };
