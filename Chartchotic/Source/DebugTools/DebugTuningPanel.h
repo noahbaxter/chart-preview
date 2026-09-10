@@ -6,13 +6,20 @@
 #include "../UI/Controls/PopupMenuButton.h"
 #include "../UI/SectionHeader.h"
 #include "../Utils/ChartTypes.h"
-#include "../Visual/Utils/PositionConstants.h"
-#include "../Visual/Utils/PositionMath.h"
+#include "../Visual/Geometry/PositionConstants.h"
+#include "../Visual/Geometry/PositionMath.h"
 #include "../Visual/Utils/DrawingConstants.h"
-#include "../Visual/Renderers/TrackRenderer.h"
+#include "../Visual/Art/TrackRenderer.h"
 
 class SceneRenderer;
 class AssetManager;
+
+// Debug-panel chrome colours (kept as named constants — no inline hex in the panel).
+namespace DebugColours
+{
+    static const juce::Colour accent  = juce::Colour(0xFF4FC3F7);  // section header / label blue
+    static const juce::Colour warning = juce::Colour(0xFFFF6B6B);  // warning label red
+}
 
 // Universal descriptor for a single debug tuning slider
 struct DebugTunable
@@ -285,6 +292,16 @@ private:
     ScrollableLabel curvatureLabels[CURVATURE_COUNT];
     DebugTunable curvatureTunables[CURVATURE_COUNT];
 
+    // --- Flam section (elite): per-glyph-type squish widths, centre spread, overlay toggle ---
+    SectionHeader flamHeader;
+    static constexpr int FLAM_COUNT = 8;   // 6 per-type widths + spread + tilt
+    PositionConstants::FlamTypeWidths flamTypeWidths = PositionConstants::FLAM_TYPE_WIDTHS;
+    float flamSubLaneSpread = PositionConstants::FLAM_SUBLANE_SPREAD;
+    float flamTilt = PositionConstants::FLAM_TILT;
+    ScrollableLabel flamLabels[FLAM_COUNT];
+    DebugTunable flamTunables[FLAM_COUNT];
+    juce::ToggleButton flamOneOverlayToggle;
+
     // --- Base Scale table (2 rows x 2 cols: W, H) ---
     SectionHeader baseScaleHeader;
     static constexpr int BASE_SCALE_ROWS = 2;
@@ -385,7 +402,7 @@ private:
     SectionHeader overlayAdjustHeader;
     static constexpr int NUM_OVERLAY_TYPES = PositionConstants::NUM_OVERLAY_TYPES;
     static constexpr int OVERLAY_PARAMS = 5;
-    static constexpr const char* overlayRowNames[NUM_OVERLAY_TYPES] = {"GTap", "DGho", "DAcc", "CGho", "CAcc"};
+    static constexpr const char* overlayRowNames[NUM_OVERLAY_TYPES] = {"GTap", "DGho", "DAcc", "CGho", "CAcc", "HGho", "HAcc", "HOGh", "HOAc"};
     static constexpr const char* overlayColNames[OVERLAY_PARAMS] = {"X", "Y", "W", "H", "S"};
     juce::Label overlayColHeaderLabels[OVERLAY_PARAMS];
     juce::Label overlayRowNameLabels[NUM_OVERLAY_TYPES];
@@ -396,12 +413,13 @@ private:
     //     Rows pull from baseScale (gem/bar), gemTypeScales, and overlayAdjusts.
     //     Cells for data that doesn't exist render as "—" and do nothing.
     SectionHeader adjustHeader;
-    static constexpr int ADJUST_ROWS = 11;
+    static constexpr int ADJUST_ROWS = 15;
     static constexpr int ADJUST_COLS = 5;
     static constexpr const char* adjustRowNames[ADJUST_ROWS] = {
         "Note", "Cymbal", "HOPO", "Bar",
         "Gtr Tap", "Drm Gho", "Drm Acc", "Cym Gho", "Cym Acc",
-        "SP Gem", "SP Bar"
+        "SP Gem", "SP Bar",
+        "Hat Gho", "Hat Acc", "Hat OGho", "Hat OAcc"
     };
     static constexpr const char* adjustColNames[ADJUST_COLS] = {"X", "Y", "W", "H", "S"};
 

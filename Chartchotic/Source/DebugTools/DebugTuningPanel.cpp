@@ -18,7 +18,7 @@ void DebugTuningPanel::initTunableSliders(ScrollableLabel* labels, const DebugTu
         static const auto monoFont = juce::Font(juce::Font::getDefaultMonospacedFontName(), 13.0f, juce::Font::plain);
         labels[i].setFont(monoFont);
         if (t.featured)
-            labels[i].setColour(juce::Label::textColourId, juce::Colour(0xFF4FC3F7));
+            labels[i].setColour(juce::Label::textColourId, DebugColours::accent);
         auto fmtRow = [](const char* name, float v, int dec) {
             juce::String s;
             s << "  " << name;
@@ -230,7 +230,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     auto setupSubHeader = [](juce::Label& lbl, const juce::String& text) {
         lbl.setText(text, juce::dontSendNotification);
         lbl.setJustificationType(juce::Justification::centredLeft);
-        lbl.setColour(juce::Label::textColourId, juce::Colour(0xFFFF6B6B));
+        lbl.setColour(juce::Label::textColourId, DebugColours::warning);
         lbl.setFont(juce::Font(12.0f, juce::Font::bold));
     };
     setupSubHeader(bemaniGroupHeaders[0], "Position");
@@ -244,7 +244,7 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         if (t.featured)
         {
             bemaniLabels[i].setFont(juce::Font(13.0f).boldened());
-            bemaniLabels[i].setColour(juce::Label::textColourId, juce::Colour(0xFF4FC3F7));
+            bemaniLabels[i].setColour(juce::Label::textColourId, DebugColours::accent);
         }
         float& val = bemaniConfig.*t.field;
         bemaniLabels[i].setText(juce::String(t.name) + ": " + juce::String(val, t.decimals), juce::dontSendNotification);
@@ -277,6 +277,36 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
         initTunableSliders(curvatureLabels, curvatureTunables, CURVATURE_COUNT,
                            [this]() { fireChanged(); });
     }
+
+    // --- Flam section (elite): how far each copy is squished, per glyph type, plus the gap
+    // between their centres. All fractions of the lane; Spread = 1 - Width sits a pair flush
+    // with the lane's edges. Height is never scaled, so these squish rather than shrink. ---
+    setupSectionHeader(flamHeader, "Flam");
+    flamHeader.setExpanded(true);
+    {
+        static constexpr const char* names[FLAM_COUNT] = {
+            "W Note", "W Ghost", "W Accent", "W Cym", "W CymGh", "W CymAc", "Spread", "Tilt"
+        };
+        float* ptrs[FLAM_COUNT] = {
+            &flamTypeWidths.note, &flamTypeWidths.ghost, &flamTypeWidths.accent,
+            &flamTypeWidths.cymbal, &flamTypeWidths.cymGhost, &flamTypeWidths.cymAccent,
+            &flamSubLaneSpread, &flamTilt
+        };
+        static constexpr float lo[FLAM_COUNT]    = {0.20f, 0.20f, 0.20f, 0.20f, 0.20f, 0.20f, 0.00f, 0.00f};
+        static constexpr float hi[FLAM_COUNT]    = {1.00f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f};
+        static constexpr float steps[FLAM_COUNT] = {0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f};
+        static constexpr int   dec[FLAM_COUNT]   = {2, 2, 2, 2, 2, 2, 2, 2};
+
+        for (int i = 0; i < FLAM_COUNT; i++)
+            flamTunables[i] = {names[i], ptrs[i], lo[i], hi[i], steps[i], dec[i]};
+
+        initTunableSliders(flamLabels, flamTunables, FLAM_COUNT,
+                           [this]() { fireChanged(); });
+    }
+    flamOneOverlayToggle.setButtonText("One Overlay");
+    flamOneOverlayToggle.setToggleState(PositionConstants::FLAM_SINGLE_OVERLAY,
+                                        juce::dontSendNotification);
+    flamOneOverlayToggle.onClick = [this]() { fireChanged(); };
 
     // --- Base Scale table (Gem/Bar x W/H) ---
     setupSectionHeader(baseScaleHeader, "Base Scale");
@@ -872,6 +902,10 @@ DebugTuningPanel::DebugTuningPanel(juce::ValueTree& state)
     tuningButton.addPanelChild(&curvatureHeader);
     addTunableChildren(curvatureLabels, CURVATURE_COUNT);
 
+    tuningButton.addPanelChild(&flamHeader);
+    addTunableChildren(flamLabels, FLAM_COUNT);
+    tuningButton.addPanelChild(&flamOneOverlayToggle);
+
     // Base Scale table
     tuningButton.addPanelChild(&baseScaleHeader);
     for (int c = 0; c < BASE_SCALE_COLS; c++)
@@ -1014,6 +1048,10 @@ void DebugTuningPanel::applyTo(SceneRenderer& sr) const
 {
     sr.noteCurvatureGuitar = guitarCurvature;
     sr.noteCurvatureDrums = drumCurvature;
+    sr.flamTypeWidths    = flamTypeWidths;
+    sr.flamSubLaneSpread = flamSubLaneSpread;
+    sr.flamTilt          = flamTilt;
+    sr.flamSingleOverlay = flamOneOverlayToggle.getToggleState();
     sr.guitarGemScale = guitarGemScale;
     sr.drumGemScale   = drumGemScale;
     sr.guitarBarScale = guitarBarScale;
@@ -1135,8 +1173,8 @@ void DebugTuningPanel::fireChanged()
 
 float* DebugTuningPanel::getAdjustPtr(int r, int c)
 {
-    // Overlay rows (4-8) map to OVERLAY_* enums — columns are X/Y/W/H/S in order.
-    if (r >= 4 && r <= 8)
+    // Overlay rows (4-8 = tap/drum/cym, 11-14 = hi-hat closed/open) map to OVERLAY_* enums; cols X/Y/W/H/S.
+    if ((r >= 4 && r <= 8) || (r >= 11 && r <= 14))
     {
         static constexpr int overlayIdx[5] = {
             PositionConstants::OVERLAY_GUITAR_TAP,
@@ -1145,7 +1183,14 @@ float* DebugTuningPanel::getAdjustPtr(int r, int c)
             PositionConstants::OVERLAY_DRUM_CYM_GHOST,
             PositionConstants::OVERLAY_DRUM_CYM_ACCENT
         };
-        auto& ov = overlayAdjusts[overlayIdx[r - 4]];
+        static constexpr int hiHatIdx[4] = {
+            PositionConstants::OVERLAY_DRUM_HIHAT_GHOST,       // r 11
+            PositionConstants::OVERLAY_DRUM_HIHAT_ACCENT,      // r 12
+            PositionConstants::OVERLAY_DRUM_HIHAT_OPEN_GHOST,  // r 13
+            PositionConstants::OVERLAY_DRUM_HIHAT_OPEN_ACCENT  // r 14
+        };
+        int idx = (r <= 8) ? overlayIdx[r - 4] : hiHatIdx[r - 11];
+        auto& ov = overlayAdjusts[idx];
         switch (c) {
         case 0: return &ov.offsetX;
         case 1: return &ov.offsetY;
@@ -1207,6 +1252,10 @@ void DebugTuningPanel::setAssetManager(AssetManager& am)
         am.getOverlayCymAccentImage(),    // Cym Accent
         am.getNoteWhiteImage(),           // SP Gem (white = star power)
         am.getBarWhiteImage(),            // SP Bar
+        am.getCymHiHatClosedImage(),      // Hat Gho  (closed hi-hat art)
+        am.getCymHiHatClosedImage(),      // Hat Acc  (closed)
+        am.getCymHiHatOpenImage(),        // Hat OGho (open hi-hat art)
+        am.getCymHiHatOpenImage(),        // Hat OAcc (open)
     };
     for (int r = 0; r < ADJUST_ROWS; r++)
     {
@@ -1248,6 +1297,9 @@ void DebugTuningPanel::refreshLabels()
 
     // Curvature labels
     refreshTunableLabels(curvatureLabels, curvatureTunables, CURVATURE_COUNT);
+
+    // Flam labels
+    refreshTunableLabels(flamLabels, flamTunables, FLAM_COUNT);
 
     // Base Scale table — reflects the active instrument's scales
     for (int r = 0; r < BASE_SCALE_ROWS; r++)
@@ -1322,7 +1374,7 @@ void DebugTuningPanel::setupSectionHeader(SectionHeader& header, const juce::Str
 {
     header.setTitle(text.toUpperCase());
     header.setJustificationType(juce::Justification::centredLeft);
-    header.setColour(juce::Label::textColourId, juce::Colour(0xFF4FC3F7));
+    header.setColour(juce::Label::textColourId, DebugColours::accent);
     header.setFont(juce::Font(14.0f).boldened());
     header.setInterceptsMouseClicks(true, true);
     header.onToggle = [this]() {
@@ -1419,6 +1471,13 @@ void DebugTuningPanel::layoutPanel(juce::Component* panel)
     curvatureHeader.setBounds(margin, y, w, rowHeight);
     y += rowHeight + gap;
     layoutTunableRows(curvatureLabels, CURVATURE_COUNT, curvatureHeader.expanded, margin, w, rowHeight, gap, y);
+    y += headerGap;
+
+    // --- Flam (elite sub-lane width / spread) ---
+    flamHeader.setBounds(margin, y, w, rowHeight);
+    y += rowHeight + gap;
+    layoutTunableRows(flamLabels, FLAM_COUNT, flamHeader.expanded, margin, w, rowHeight, gap, y);
+    layoutRow(flamOneOverlayToggle, flamHeader.expanded);
     y += headerGap;
 
     // --- Lane Width sliders (always visible — quick tune) ---

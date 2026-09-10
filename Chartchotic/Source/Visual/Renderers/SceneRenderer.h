@@ -23,8 +23,8 @@
 #include "SustainRenderer.h"
 #include "GridlineRenderer.h"
 #include "TextEventRenderer.h"
-#include "../Utils/PositionConstants.h"
-#include "../Utils/PositionMath.h"
+#include "../Geometry/PositionConstants.h"
+#include "../Geometry/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
 #include "../Utils/RenderTiming.h"
 
@@ -65,10 +65,10 @@ class SceneRenderer
             float  position = 0.0f;
             juce::Image* image = nullptr;  // null = use real colored note asset
             float  opacity = 0.5f;
-            Gem    gem     = Gem::NOTE;
+            GemWrapper gem;   // whole wrapper: the ghost previews SP and flam too
             juce::String positionLabel;    // "37.2" style label shown in write mode
             juce::String modeLabel;        // transient mode hint, drawn opposite the position
-            struct StampGhostEntry { int lane; float position; Gem gem = Gem::NOTE; };
+            struct StampGhostEntry { int lane; float position; GemWrapper gem; };
             std::vector<StampGhostEntry> stampGhosts;
         };
         GhostCursor ghostCursor;
@@ -78,7 +78,7 @@ class SceneRenderer
         {
             int   lane = -1;
             float position = 0.0f;
-            Gem   gem = Gem::NOTE;
+            GemWrapper gem;
             bool  selected = false;
         };
         std::vector<GhostPosition> movePreviewGhosts;
@@ -101,6 +101,11 @@ class SceneRenderer
         // Note curvature and scaling (runtime-adjustable for debug UI)
         float noteCurvatureGuitar = PositionConstants::NOTE_CURVATURE;
         float noteCurvatureDrums = PositionConstants::NOTE_CURVATURE_DRUMS;
+        // Elite flam: how wide each of the two copies is, and how far apart their centres sit.
+        PositionConstants::FlamTypeWidths flamTypeWidths = PositionConstants::FLAM_TYPE_WIDTHS;
+        float flamSubLaneSpread = PositionConstants::FLAM_SUBLANE_SPREAD;
+        bool  flamSingleOverlay = PositionConstants::FLAM_SINGLE_OVERLAY;
+        float flamTilt = PositionConstants::FLAM_TILT;
         // Per-instrument base scales — paint() picks the active one.
         PositionConstants::ElementScale guitarGemScale = PositionConstants::GUITAR_GEM_SCALE;
         PositionConstants::ElementScale drumGemScale   = PositionConstants::DRUM_GEM_SCALE;
@@ -127,6 +132,12 @@ class SceneRenderer
             PositionConstants::DRUM_COL_ADJUST[0], PositionConstants::DRUM_COL_ADJUST[1],
             PositionConstants::DRUM_COL_ADJUST[2], PositionConstants::DRUM_COL_ADJUST[3],
             PositionConstants::DRUM_COL_ADJUST[4]};
+        PositionConstants::ColumnAdjust eliteDrumColAdjust[9] = {
+            PositionConstants::ELITE_DRUM_COL_ADJUST[0], PositionConstants::ELITE_DRUM_COL_ADJUST[1],
+            PositionConstants::ELITE_DRUM_COL_ADJUST[2], PositionConstants::ELITE_DRUM_COL_ADJUST[3],
+            PositionConstants::ELITE_DRUM_COL_ADJUST[4], PositionConstants::ELITE_DRUM_COL_ADJUST[5],
+            PositionConstants::ELITE_DRUM_COL_ADJUST[6], PositionConstants::ELITE_DRUM_COL_ADJUST[7],
+            PositionConstants::ELITE_DRUM_COL_ADJUST[8]};
 
         // Gridline position nudge (normalized position space, exposed for debug UI)
         float gridlinePosOffset = PositionConstants::GRIDLINE_POS_OFFSET;
@@ -155,6 +166,17 @@ class SceneRenderer
             PositionConstants::drumBezierLaneCoords[2],
             PositionConstants::drumBezierLaneCoords[3],
             PositionConstants::drumBezierLaneCoords[4]
+        };
+        PositionConstants::NormalizedCoordinates eliteDrumLaneCoordsLocal[9] = {
+            PositionConstants::eliteDrumBezierLaneCoords[0],
+            PositionConstants::eliteDrumBezierLaneCoords[1],
+            PositionConstants::eliteDrumBezierLaneCoords[2],
+            PositionConstants::eliteDrumBezierLaneCoords[3],
+            PositionConstants::eliteDrumBezierLaneCoords[4],
+            PositionConstants::eliteDrumBezierLaneCoords[5],
+            PositionConstants::eliteDrumBezierLaneCoords[6],
+            PositionConstants::eliteDrumBezierLaneCoords[7],
+            PositionConstants::eliteDrumBezierLaneCoords[8]
         };
 
     private:

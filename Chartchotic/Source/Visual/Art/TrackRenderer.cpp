@@ -8,18 +8,38 @@
 */
 
 #include "TrackRenderer.h"
-#include "../Utils/RenderTypeConfig.h"
+#include "../Geometry/RenderTypeConfig.h"
+#include "../Utils/LaneColours.h"
+#include "ProceduralTrackArt.h"
 
 using namespace PositionConstants;
+
+// Vertical arc shared by the strikeline pads/grooves and the lane-lines so both bow
+// up at the board centre by the same amount (matching the bar/gem curve). Without
+// this the flat lane-lines diverge from the arced grooves, worst toward the edges.
+// arc = curv * fretboardWidth * (1 - dist^2); up at centre.
+static int strikeGroupKey(Part part, int lane);   // defined below; used by lane-lines + pads
+
+// Per-lane strikeline pad colours: {top (duller), bottom (brighter)}, sampled from the reference
+// PNG's vertical gradient. Declared here so BOTH the bemani overlay and the baked perspective
+// strikeline colour their pads from the one part-aware (elite-aware) source.
+struct PadColours { juce::Colour top, bottom; };
+static PadColours strikePadColours(Part part, int lane);   // defined below
+
+static float strikelineArcY(const LaneCorners& e, float x)
+{
+    const float arcFrac = -NOTE_CURVATURE;   // +0.02, magnitude of the bar curve
+    float c  = (e.leftX + e.rightX) * 0.5f;
+    float wd = (e.rightX - e.leftX) * FRETBOARD_SCALE;
+    float d  = juce::jlimit(-1.0f, 1.0f, (x - c) / (wd * 0.5f));
+    return e.centerY - arcFrac * wd * (1.0f - d * d);
+}
 
 TrackRenderer::TrackRenderer(juce::ValueTree& state)
     : state(state)
 {
 #ifndef CHARTCHOTIC_NO_BINARY_DATA
     // Load layer images from BinaryData
-    sidebarsImage = juce::ImageCache::getFromMemory(BinaryData::sidebars_png, BinaryData::sidebars_pngSize);
-    strikelineGuitarImage = juce::ImageCache::getFromMemory(BinaryData::strikeline_guitar_png, BinaryData::strikeline_guitar_pngSize);
-    strikelineDrumsImage = juce::ImageCache::getFromMemory(BinaryData::strikeline_drums_png, BinaryData::strikeline_drums_pngSize);
     strikelineConnectorsImage = juce::ImageCache::getFromMemory(BinaryData::strikeline_connectors_png, BinaryData::strikeline_connectors_pngSize);
     kickSmashersImage = juce::ImageCache::getFromMemory(BinaryData::kick_smashers_png, BinaryData::kick_smashers_pngSize);
 #endif
@@ -32,10 +52,9 @@ void TrackRenderer::paint(juce::Graphics& g, int viewportWidth, int viewportHeig
         bool showTrack = !state.hasProperty("showTrack") || (bool)state["showTrack"];
         if (showTrack)
         {
-            bool isDrums = isDrumLike(activePart);
-            auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+            auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, viewportWidth, viewportHeight,
                             HIGHWAY_POS_START, cached.posEnd);
-            g.setColour(juce::Colour(0xFF111111));
+            g.setColour(TrackColours::highwayFill);
             g.fillRect(edge.leftX, 0.0f, edge.rightX - edge.leftX, (float)viewportHeight);
         }
         return;
@@ -57,7 +76,7 @@ void TrackRenderer::paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int
 
     bool isDrums = isDrumLike(activePart);
     const auto* config = getRenderTypeConfig(getRenderType(activePart));
-    auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+    auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, viewportWidth, viewportHeight,
                     HIGHWAY_POS_START, cached.posEnd);
     float leftX = edge.leftX;
     float rightX = edge.rightX;
@@ -94,35 +113,30 @@ void TrackRenderer::paintBemaniOverlay(juce::Graphics& g, int viewportWidth, int
         float inset = colW * 0.08f;
         float corner = colW * 0.15f;
 
-        // Guitar: Green Red Yellow Blue Orange
-        // Drums:  Red Yellow Blue Green
-        static const juce::Colour guitarCols[] = {
-            juce::Colours::green, juce::Colours::red, juce::Colours::yellow,
-            juce::Colours::blue, juce::Colours::orange
-        };
-        static const juce::Colour drumCols[] = {
-            juce::Colours::red, juce::Colours::yellow, juce::Colours::blue, juce::Colours::green
-        };
-        const juce::Colour* cols = isDrums ? drumCols : guitarCols;
-
         for (int i = 0; i < numCols; i++)
         {
+            // Pad i is the i-th playable lane; column i+1 skips the kick/open bar lane (col 0).
+            // strikePadColours is part-aware -- elite reads its 8-lane tint table -- so it colours
+            // all 8 elite pads correctly and matches the gems. (Was a hardcoded 4/5-colour array
+            // indexed by i, which read out of bounds past lane 3 for elite's 8 lanes.)
+            juce::Colour padCol = strikePadColours(activePart, i + 1).bottom;
+
             float cx = leftX + ((float)i + 0.5f) / (float)numCols * fbWidth;
             float pw = colW - inset * 2.0f;
             auto padRect = juce::Rectangle<float>(cx - pw * 0.5f, padY, pw, padH);
 
             // Outer rounded square — gem color, semi-transparent
-            g.setColour(cols[i].withAlpha(strikeAlpha * 0.5f));
+            g.setColour(padCol.withAlpha(strikeAlpha * 0.5f));
             g.fillRoundedRectangle(padRect, corner);
 
             // Darker inner rectangle — darker center chunk
             float innerInset = pw * 0.15f;
             auto innerRect = padRect.reduced(innerInset, padH * 0.2f);
-            g.setColour(cols[i].darker(0.6f).withAlpha(strikeAlpha * 0.7f));
+            g.setColour(padCol.darker(0.6f).withAlpha(strikeAlpha * 0.7f));
             g.fillRoundedRectangle(innerRect, corner * 0.5f);
 
             // Thin bright border
-            g.setColour(cols[i].withAlpha(strikeAlpha * 0.8f));
+            g.setColour(padCol.withAlpha(strikeAlpha * 0.8f));
             g.drawRoundedRectangle(padRect, corner, 1.0f);
         }
 
@@ -137,8 +151,7 @@ void TrackRenderer::paintBemaniSidebars(juce::Graphics& g, int viewportWidth, in
 {
     if (!PositionMath::bemaniMode) return;
 
-    bool isDrums = isDrumLike(activePart);
-    auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+    auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, viewportWidth, viewportHeight,
                     HIGHWAY_POS_START, cached.posEnd);
     float leftX = edge.leftX;
     float rightX = edge.rightX;
@@ -161,8 +174,7 @@ void TrackRenderer::paintBemaniRails(juce::Graphics& g, int viewportWidth, int v
 {
     if (!PositionMath::bemaniMode) return;
 
-    bool isDrums = isDrumLike(activePart);
-    auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, viewportWidth, viewportHeight,
+    auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, viewportWidth, viewportHeight,
                     HIGHWAY_POS_START, cached.posEnd);
     float leftX = edge.leftX;
     float rightX = edge.rightX;
@@ -176,9 +188,9 @@ void TrackRenderer::paintBemaniRails(juce::Graphics& g, int viewportWidth, int v
     float innerGreyW = std::max(1.5f, fbW * 0.006f);
     float totalRailW = outerGreyW + blackW + innerGreyW;
 
-    auto innerGrey = juce::Colour(0xff8c8c8c);
-    auto outerGrey = juce::Colour(0xff606060);
-    auto darkCol   = juce::Colour(0xff1a1a1a);
+    auto innerGrey = TrackColours::padBevelInner;
+    auto outerGrey = TrackColours::padBevelOuter;
+    auto darkCol   = TrackColours::padBevelDark;
 
     // Left rail (outer→inner = left→right)
     {
@@ -214,7 +226,7 @@ void TrackRenderer::paintTexture(juce::Graphics& g, float scrollOffset, int targ
         if (!textureEnabled || !sourceTexture.isValid()) return;
 
         bool isDrums = isDrumLike(activePart);
-        auto edge = PositionMath::getFretboardEdge(isDrums, 0.0f, targetW, targetH,
+        auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), 0.0f, targetW, targetH,
                         HIGHWAY_POS_START, cached.posEnd);
         float leftX = edge.leftX;
         float hwyW = edge.rightX - edge.leftX;
@@ -334,9 +346,9 @@ void TrackRenderer::compositeLayers(juce::Image& target, int w, int h, bool isDr
     fretboardPath.closeSubPath();
 
 #ifdef DEBUG
-    g.setColour(PositionMath::debugPolyShade ? juce::Colour(0xFFFF0000) : juce::Colour(0xFF111111));
+    g.setColour(PositionMath::debugPolyShade ? TrackColours::debugPoly : TrackColours::highwayFill);
 #else
-    g.setColour(juce::Colour(0xFF111111));
+    g.setColour(TrackColours::highwayFill);
 #endif
     g.fillPath(fretboardPath);
 }
@@ -395,7 +407,7 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     if (width == cached.width && height == cached.height && overflow == cached.overflow &&
         posEnd == cached.posEnd && farFadeEnd == cached.fadeEnd &&
         farFadeLen == cached.fadeLen && farFadeCurve == cached.fadeCurve &&
-        (isDrumLike(activePart)) == cached.isDrums)
+        getRenderType(activePart) == cached.renderType)
         return;
 
     bool isDrums = isDrumLike(activePart);
@@ -408,6 +420,7 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
         cached.height = height;
         cached.overflow = overflow;
         cached.isDrums = isDrums;
+        cached.renderType = getRenderType(activePart);
         cached.posEnd = posEnd;
         cached.fadeEnd = farFadeEnd;
         cached.fadeLen = farFadeLen;
@@ -424,9 +437,9 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     float effectiveEnd = std::max(posEnd, farFadeEnd);
     float posRange = effectiveEnd - HIGHWAY_POS_START;
 
-    auto edgeNear = PositionMath::getFretboardEdge(isDrums, HIGHWAY_POS_START, width, height,
+    auto edgeNear = PositionMath::getFretboardEdge(getRenderType(activePart), HIGHWAY_POS_START, width, height,
                                                     HIGHWAY_POS_START, posEnd);
-    auto edgeFar = PositionMath::getFretboardEdge(isDrums, effectiveEnd, width, height,
+    auto edgeFar = PositionMath::getFretboardEdge(getRenderType(activePart), effectiveEnd, width, height,
                                                    HIGHWAY_POS_START, posEnd);
     int pixelHeight = std::max(1, (int)(edgeNear.centerY - edgeFar.centerY));
     cached.stripCount = std::clamp(pixelHeight / PIXELS_PER_STRIP, MIN_STRIPS, MAX_STRIPS);
@@ -435,7 +448,7 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     for (int i = 0; i <= cached.stripCount; i++)
     {
         float pos = HIGHWAY_POS_START + posRange * (float)i / (float)cached.stripCount;
-        auto edge = PositionMath::getFretboardEdge(isDrums, pos, width, height,
+        auto edge = PositionMath::getFretboardEdge(getRenderType(activePart), pos, width, height,
                                                     HIGHWAY_POS_START, posEnd);
         edge.centerY += (float)overflow;  // offset into taller bitmap
         cached.edges[i] = { edge, pos };
@@ -445,6 +458,7 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
     cached.height = height;
     cached.overflow = overflow;
     cached.isDrums = isDrums;
+    cached.renderType = getRenderType(activePart);
     cached.posEnd = posEnd;
     cached.fadeEnd = farFadeEnd;
     cached.fadeLen = farFadeLen;
@@ -463,13 +477,23 @@ void TrackRenderer::rebuild(int width, int height, int overflow,
 
         // Bake individual overlay layers (drawn at interleaved z-positions by SceneRenderer)
         auto* layers = isDrums ? layersDrums : layersGuitar;
-        bakeLayerImage(layerImages[SIDEBARS], sidebarsImage, layers[SIDEBARS],
-                       width, totalH, overflow, isDrums, true, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+        // Side rails are stroked procedurally along the actual board edges for every
+        // part (they replaced the fixed sidebars PNG, which could only match one board
+        // width).
+        bakeSidebarRailsPerspective(width, totalH, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
         bakeLaneLinesPerspective(width, totalH, overflow, isDrums,
                                   farFadeEnd, farFadeLen, farFadeCurve, posEnd);
-        bakeLayerImage(layerImages[STRIKELINE], isDrums ? strikelineDrumsImage : strikelineGuitarImage, layers[STRIKELINE],
-                       width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
-        bakeLayerImage(layerImages[CONNECTORS], isDrums ? kickSmashersImage : strikelineConnectorsImage, layers[CONNECTORS],
+        // Strikeline pads are drawn procedurally for every part (they replaced the
+        // fixed strikeline PNGs).
+        bakeStrikelinePadsPerspective(width, totalH, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
+        // Kick smashers (CONNECTORS) are a fixed-width PNG scaled to the RENDER width, so unlike
+        // the procedural rails/lanes/strikeline they don't follow the wider elite board coords.
+        // Widen the transform by the same board factor so the end-caps sit on the elite board edge
+        // instead of floating inside it.
+        LayerTransform connectors = layers[CONNECTORS];
+        if (activePart == Part::ELITE_DRUMS)
+            connectors.scale *= PositionConstants::ELITE_BOARD_WIDTH_SCALE;
+        bakeLayerImage(layerImages[CONNECTORS], isDrums ? kickSmashersImage : strikelineConnectorsImage, connectors,
                        width, totalH, overflow, isDrums, false, farFadeEnd, farFadeLen, farFadeCurve, posEnd);
     }
 
@@ -492,10 +516,14 @@ void TrackRenderer::bakeLaneLinesPerspective(int w, int h, int overflow, bool is
     const auto* config = getRenderTypeConfig(getRenderType(activePart));
     const auto& fbCoords = *config->fretboardCoords;
 
-    // Compute boundary fractions between adjacent inner lanes (skip bar lane 0)
+    // Compute boundary fractions between adjacent inner lanes (skip bar lane 0). Skip the
+    // boundary between two lanes in the same strike group (e.g. within the tom group) so
+    // the merged pad reads as one lane with no divider inside it.
     std::vector<float> boundaryFracs;
     for (int i = 1; i < laneCount_ - 1; i++)
     {
+        if (strikeGroupKey(activePart, i) == strikeGroupKey(activePart, i + 1))
+            continue;
         float rightNorm = laneCoords_[i].normX1 + laneCoords_[i].normWidth1;
         float leftNorm = laneCoords_[i + 1].normX1;
         float midNorm = (rightNorm + leftNorm) * 0.5f;
@@ -506,7 +534,7 @@ void TrackRenderer::bakeLaneLinesPerspective(int w, int h, int overflow, bool is
 
     {
         juce::Graphics g(out);
-        g.setColour(juce::Colour(0x40FFFFFF));
+        g.setColour(TrackColours::sheenWhite);
 
         for (float frac : boundaryFracs)
         {
@@ -520,17 +548,261 @@ void TrackRenderer::bakeLaneLinesPerspective(int w, int h, int overflow, bool is
                 float edgeWidth = (edge.rightX - edge.leftX) * FRETBOARD_SCALE;
                 float scaledLeft = edgeCenter - edgeWidth * 0.5f;
                 float x = scaledLeft + frac * edgeWidth;
+                float y = strikelineArcY(edge, x);
 
                 if (!started) {
-                    path.startNewSubPath(x, edge.centerY);
+                    path.startNewSubPath(x, y);
                     started = true;
                 } else {
-                    path.lineTo(x, edge.centerY);
+                    path.lineTo(x, y);
                 }
             }
 
             g.strokePath(path, juce::PathStrokeType(1.5f));
         }
+    }
+
+    applyFarFade(out, w, h, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
+                 posEnd);
+}
+
+void TrackRenderer::bakeSidebarRailsPerspective(int w, int h, int overflow, bool isDrums,
+                                                 float farFadeEnd, float farFadeLen, float farFadeCurve,
+                                                 float posEnd)
+{
+    auto& out = layerImages[SIDEBARS];
+    out = juce::Image(juce::Image::ARGB, w, h, true);
+
+    if (cached.stripCount < 1) { out = {}; return; }
+
+    {
+        juce::Graphics g(out);
+        ProceduralTrackArt::drawSidebarRails(g, cached.edges, cached.stripCount);
+    }
+
+    applyFarFade(out, w, h, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,
+                 posEnd);
+}
+
+// Strikeline pad colours. The lane hues come from the shared LaneColours table (single
+// source of truth, also drives gem tints); pad top = lane dark, bottom = lane bright.
+namespace FretColour
+{
+    static PadColours pad(const LaneColours::Lane& l) { return { LaneColours::dark(l), LaneColours::bright(l) }; }
+    const PadColours none     { juce::Colours::transparentBlack,          juce::Colours::transparentBlack };          // kick / open lane (undrawn)
+    const PadColours red      = pad(LaneColours::red);
+    const PadColours yellow   = pad(LaneColours::yellow);
+    const PadColours blue     = pad(LaneColours::blue);
+    const PadColours green    = pad(LaneColours::green);
+    const PadColours orange   = pad(LaneColours::orange);
+    const PadColours purple   = pad(LaneColours::purple);
+    const PadColours white    = pad(LaneColours::white);
+    const PadColours fallback { TrackColours::padFallbackDark, TrackColours::padFallbackLite };  // unmapped lane
+}
+
+// Map the shared lane tint (PositionConstants::ELITE_LANE_STYLES) to pad colours, so the
+// strikeline and the gems read from the same colour scheme.
+static PadColours tintToPad(PositionConstants::DrumLaneTint t)
+{
+    using namespace FretColour;
+    using T = PositionConstants::DrumLaneTint;
+    switch (t)
+    {
+        case T::Red:    return red;
+        case T::Yellow: return yellow;
+        case T::Purple: return purple;
+        case T::Orange: return orange;
+        case T::Blue:   return blue;
+        case T::Green:  return green;
+        case T::White:  return white;
+        case T::None:   return none;
+    }
+    return fallback;
+}
+
+// Strikeline grouping key: consecutive hand lanes with the same key merge into one wide
+// pad (no groove/divider between them) while their gems still render individually. Elite's
+// toms all share the Orange tint, so an arbitrary run of toms reads as one tom group; every
+// other lane gets a unique key and never merges.
+static int strikeGroupKey(Part part, int lane)
+{
+    if (part == Part::ELITE_DRUMS && lane >= 0 && lane < 9)
+        return (int) PositionConstants::ELITE_LANE_STYLES[lane].tint;
+    return 1000 + lane;
+}
+
+static PadColours strikePadColours(Part part, int lane)
+{
+    using namespace FretColour;
+    if (part == Part::ELITE_DRUMS)
+        return (lane >= 0 && lane < 9) ? tintToPad(PositionConstants::ELITE_LANE_STYLES[lane].tint)
+                                       : fallback;
+    if (isGuitarLike(part))
+    {
+        // 5-fret GRYBO (lane 0 = open).
+        static const PadColours g[6] = { none, green, red, yellow, blue, orange };
+        return (lane >= 0 && lane < 6) ? g[lane] : fallback;
+    }
+    // 4-lane drums: kick, red, yellow, blue, green.
+    static const PadColours d[5] = { none, red, yellow, blue, green };
+    return (lane >= 0 && lane < 5) ? d[lane] : fallback;
+}
+
+void TrackRenderer::bakeStrikelinePadsPerspective(int w, int h, int overflow, bool isDrums,
+                                                   float farFadeEnd, float farFadeLen, float farFadeCurve,
+                                                   float posEnd)
+{
+    auto& out = layerImages[STRIKELINE];
+    out = juce::Image(juce::Image::ARGB, w, h, true);
+
+    if (!laneCoords_ || laneCount_ < 3 || cached.stripCount < 1) { out = {}; return; }
+
+    const auto* config = getRenderTypeConfig(getRenderType(activePart));
+    const auto& fb = *config->fretboardCoords;
+
+    // Interpolate the cached board edge at an arbitrary highway position. The strips
+    // are evenly spaced over [edges.front().pos, edges.back().pos] (which runs to
+    // max(posEnd, farFadeEnd), NOT posEnd), so map pos->index against that actual span
+    // -- using posEnd here would sample the wrong strip whenever farFadeEnd > posEnd,
+    // scaling the strikeline slightly wider than the lane-lines (which read the strips
+    // directly).
+    auto edgeAt = [&](float pos)
+    {
+        float posStart = cached.edges.front().second;
+        float posSpan  = cached.edges.back().second - posStart;
+        float f = posSpan > 1e-6f ? (pos - posStart) / posSpan * (float)cached.stripCount : 0.0f;
+        f = juce::jlimit(0.0f, (float)cached.stripCount, f);
+        int i0 = (int)f, i1 = std::min(i0 + 1, cached.stripCount);
+        float t = f - (float)i0;
+        const auto& a = cached.edges[i0].first;
+        const auto& b = cached.edges[i1].first;
+        return PositionConstants::LaneCorners{
+            a.leftX  + (b.leftX  - a.leftX)  * t,
+            a.rightX + (b.rightX - a.rightX) * t,
+            a.centerY + (b.centerY - a.centerY) * t };
+    };
+    auto xAtFrac = [](const PositionConstants::LaneCorners& e, float frac)
+    {
+        float c  = (e.leftX + e.rightX) * 0.5f;
+        float wd = (e.rightX - e.leftX) * FRETBOARD_SCALE;
+        return (c - wd * 0.5f) + frac * wd;
+    };
+    auto normToFrac = [&](float norm) { return (norm - fb.normX1) / fb.normWidth1; };
+
+    // Arc the pad top/bottom edges to match the bar/gem curve (bows up at center).
+    // Shared with the lane-lines (strikelineArcY) so grooves and lanes stay coincident.
+    auto arcY = [](const PositionConstants::LaneCorners& e, float x) { return strikelineArcY(e, x); };
+
+    // Pad band straddling the strike (pos 0). Tunable against the PNG.
+    const float pNear = -0.034f, pFar = 0.012f;
+    // Outer-end treatment: with caps, a silver end bar sits just outside the first/last
+    // pad (drum/elite reference); without, the outer pads run out to the rail themselves
+    // with only a thin margin (guitar reference). Single toggle -- flip per part or
+    // hard-set either way.
+    const bool drawEndCaps = false;      // was isDrumLike(activePart); but didnt like it as much
+    const float gapInsetFrac = 0.105f;   // pad inset as a fraction of the average pad width (leaves the separator gap)
+    auto eN = edgeAt(pNear);
+    auto eF = edgeAt(pFar);
+
+    const int firstHand = 1;
+    const int lastHand  = laneCount_ - 1;
+
+    // One inset shared by every pad (based on the average pad width), so the separator
+    // gaps stay symmetric even when adjacent lanes differ in width (elite's wide cymbal
+    // lanes next to narrow drum lanes). A per-pad-proportional inset would pull a wide
+    // pad's colour block off-centre within its slot, leaving uneven space on each side.
+    const float avgPadWidth = (laneCoords_[lastHand].normX1 + laneCoords_[lastHand].normWidth1
+                               - laneCoords_[firstHand].normX1) / (float)(lastHand - firstHand + 1);
+    const float padInset = avgPadWidth * gapInsetFrac;
+
+    // Snap the outer pads to the side rails: their outermost mark (the end cap when
+    // present, else the coloured pad edge) lands just inside the rail's inner edge,
+    // which sits at a fixed board fraction for every part (see RailGeom). capExt is how
+    // far the cap sticks out past the pad edge as a fraction of the pad's own width,
+    // matching chromeBar's end-cap width. Solving in colour-edge fraction space keeps
+    // both sides symmetric by construction (no per-part recentre/pull needed).
+    const float railInnerFrac = ProceduralTrackArt::RailGeom::innerEdgeFraction();
+    const float outerGapFrac  = 0.010f;   // dark gap between rail inner edge and cap/pad
+    const float capExt        = drawEndCaps ? 0.14f : 0.0f;
+    const float insetFrac     = padInset / fb.normWidth1;
+    // Given the pad's inner coloured-edge fraction, return the outer boundary (pre-inset)
+    // norm so the outermost mark lands at the rail. leftEdge picks which rail.
+    auto outerBoundaryNorm = [&](bool leftEdge, float innerFrac)
+    {
+        float target = leftEdge ? railInnerFrac + outerGapFrac
+                                : (1.0f - railInnerFrac) - outerGapFrac;
+        // cap outer = edge -/+ capExt*(padWidth); solve edge frac, then undo the inset.
+        float edge = (target + capExt * innerFrac) / (1.0f + capExt);
+        return fb.normX1 + (leftEdge ? edge - insetFrac : edge + insetFrac) * fb.normWidth1;
+    };
+
+    std::vector<ProceduralTrackArt::StrikePad> pads;
+    // Walk the hand lanes in groups: a run of consecutive lanes sharing a strike-group
+    // key (e.g. the orange toms) becomes ONE wide pad with no internal groove, but the
+    // lanes themselves stay separate so their gems still render individually.
+    for (int gi = firstHand; gi <= lastHand; )
+    {
+        int gj = gi;
+        while (gj < lastHand && strikeGroupKey(activePart, gj + 1) == strikeGroupKey(activePart, gi))
+            gj++;
+
+        float leftNorm  = laneCoords_[gi].normX1;                                   // group's left lane
+        float rightNorm = laneCoords_[gj].normX1 + laneCoords_[gj].normWidth1;      // group's right lane
+
+        // Group boundaries: midpoint to the neighbouring lane outside the group. The
+        // exterior boundary (first/last group) is snapped to the side rail so the row
+        // fills the board.
+        float padLNorm, padRNorm;
+        if (gi > firstHand)  padLNorm = (laneCoords_[gi - 1].normX1 + laneCoords_[gi - 1].normWidth1 + leftNorm) * 0.5f;
+        if (gj < lastHand)   padRNorm = (rightNorm + laneCoords_[gj + 1].normX1) * 0.5f;
+        if (gi == firstHand) padLNorm = outerBoundaryNorm(true,  normToFrac(padRNorm - padInset));
+        if (gj == lastHand)  padRNorm = outerBoundaryNorm(false, normToFrac(padLNorm + padInset));
+
+        float lf = normToFrac(padLNorm + padInset);
+        float rf = normToFrac(padRNorm - padInset);
+        // Perspective-projected edges (near wider than far) so the strip tapers to
+        // match the reference; Y also carries the arc bow.
+        float xnl = xAtFrac(eN, lf), xnr = xAtFrac(eN, rf);
+        float xfl = xAtFrac(eF, lf), xfr = xAtFrac(eF, rf);
+
+        // Right lane boundary (pre-inset) = the lane-line position; the connector
+        // groove is centred here so it lines up with the gridline.
+        float bf  = normToFrac(padRNorm);
+        float xnb = xAtFrac(eN, bf), xfb = xAtFrac(eF, bf);
+
+        ProceduralTrackArt::StrikePad pad;
+        pad.nearL = { xnl, arcY(eN, xnl) };
+        pad.nearR = { xnr, arcY(eN, xnr) };
+        pad.farL  = { xfl, arcY(eF, xfl) };
+        pad.farR  = { xfr, arcY(eF, xfr) };
+        pad.sepNear = { xnb, arcY(eN, xnb) };
+        pad.sepFar  = { xfb, arcY(eF, xfb) };
+
+        // Sample the top/bottom edges along the arc so wide (grouped) pads bow with the
+        // board instead of drawing a straight chord between the corners.
+        const int kEdge = 14;
+        for (int k = 0; k < kEdge; k++)
+        {
+            float f  = lf + (rf - lf) * (float)k / (float)(kEdge - 1);
+            float xf = xAtFrac(eF, f), xn = xAtFrac(eN, f);
+            pad.farEdge.push_back ({ xf, arcY(eF, xf) });
+            pad.nearEdge.push_back({ xn, arcY(eN, xn) });
+        }
+
+        auto pc = strikePadColours(activePart, gi);
+        pad.baseColour = pc.top;
+        pad.bottomColour = pc.bottom;
+        pads.push_back(pad);
+
+        gi = gj + 1;
+    }
+
+    {
+        juce::Graphics g(out);
+        // Guitar's narrower lanes need wider chrome bars to read the same as the
+        // wider-lane references.
+        const float barHalfFrac = isGuitarLike(activePart) ? 0.35f : 0.28f;
+        ProceduralTrackArt::drawStrikelinePads(g, pads, drawEndCaps, barHalfFrac);   // builds its own arc-hugging dark frame
     }
 
     applyFarFade(out, w, h, overflow, isDrums, farFadeEnd, farFadeLen, farFadeCurve,

@@ -145,8 +145,7 @@ bool InteractionController::onKeyPress(const juce::KeyPress& key)
                 auto info = editController.lookupNote(n.trackIdx, n.startQN, n.pitch);
                 double dur = (info.noteIndex >= 0) ? (info.endQN - info.startQN) : kShortNoteDurationQN;
                 uint32_t mask = editController.markerMaskAt(n.trackIdx, n.startQN, n.lane);
-                notes.push_back({ n.lane, n.startQN - minQN, dur, info.velocity, mask,
-                                  editController.capturedGem(n.lane, info.velocity, mask) });
+                notes.push_back({ n.lane, n.startQN - minQN, dur, info.velocity, mask });
             }
             if (notes.size() >= 2)
             {
@@ -197,6 +196,13 @@ void InteractionController::applyModifierSlot(const ModifierSlot& slot)
             bool next = !writeController.cymbalMode();
             setCymbalMode(next);
             if (isEditActive()) applyCymbalModeToSelection(next);
+            break;
+        }
+        case ModifierGroup::Flam:
+        {
+            bool next = !writeController.flamMode();
+            setFlamMode(next);
+            if (isEditActive()) applyFlamModeToSelection(next);
             break;
         }
         case ModifierGroup::Force:

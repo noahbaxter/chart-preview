@@ -18,20 +18,19 @@
 #include "../../Utils/ChartTypes.h"
 #include "../../Midi/Utils/TimeConverter.h"
 #include "../Managers/AssetManager.h"
-#include "../Utils/PositionConstants.h"
-#include "../Utils/PositionMath.h"
+#include "../Geometry/PositionConstants.h"
+#include "../Geometry/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
 #include "../Utils/Frame.h"
 #include "../Utils/FrameRenderer.h"
+#include "HighwayRenderer.h"
 
 namespace PositionConstants { struct RenderTypeConfig; }
 
-class NoteRenderer
+class NoteRenderer : public HighwayRenderer
 {
 public:
     NoteRenderer(juce::ValueTree& state, AssetManager& assetManager);
-
-    Part activePart = Part::GUITAR;
 
     bool showGems = true;
     bool showBars = true;
@@ -47,11 +46,8 @@ public:
     const PositionConstants::OverlayAdjust* overlayAdjusts = PositionConstants::OVERLAY_DEFAULTS;
     const PositionConstants::ColumnAdjust* guitarColAdjust = PositionConstants::GUITAR_COL_ADJUST;
     const PositionConstants::ColumnAdjust* drumColAdjust   = PositionConstants::DRUM_COL_ADJUST;
-    const PositionConstants::NormalizedCoordinates* laneCoordsGuitar = nullptr;
-    const PositionConstants::NormalizedCoordinates* laneCoordsDrums = nullptr;
-    // Z values in ColumnAdjust are tuned at REFERENCE_HEIGHT — multiply by
-    // resScale at the read site instead of pre-baking per-frame.
-    float resScale = 1.0f;
+    // Active highway's lane coords are held by HighwayRenderer (set per-part by
+    // SceneRenderer); resScale (ColumnAdjust::z reads) too.
     float gemZOffset = 0.0f;
     float cymZOffset = 0.0f;  // Drums only — cymbals tuned separately from toms
     float barZOffset = 0.0f;
@@ -59,6 +55,28 @@ public:
     float strikePosBar = 0.0f;
 
     void clearCurvedCache() { curvedCache.clear(); }
+
+    // Flam sub-lane shape (see FLAM_TYPE_WIDTHS / FLAM_SUBLANE_SPREAD). Placement only: they
+    // never reach the curvature bake, which is why they can't drive gem height. Only
+    // flamTilt feeds the warp.
+    PositionConstants::FlamTypeWidths flamTypeWidths = PositionConstants::FLAM_TYPE_WIDTHS;
+    float flamSubLaneSpread = PositionConstants::FLAM_SUBLANE_SPREAD;
+    // Ghost rings and accent chevrons are per-gem, so a flam draws two of them and they cross
+    // in the overlap. On: draw one overlay centred on the whole lane instead.
+    bool flamSingleOverlay = PositionConstants::FLAM_SINGLE_OVERLAY;
+    float flamTilt = PositionConstants::FLAM_TILT;
+    void setFlamShape(const PositionConstants::FlamTypeWidths& widths, float spread,
+                      float tilt, bool singleOverlay)
+    {
+        flamSingleOverlay = singleOverlay;
+        flamTypeWidths = widths;
+        flamSubLaneSpread = spread;
+        // Only the tilt is baked in, so only the tilt invalidates the bakes.
+        if (tilt == flamTilt)
+            return;
+        flamTilt = tilt;
+        clearCurvedCache();
+    }
 
     void populate(DrawCallMap& drawCallMap, const TimeBasedTrackWindow& trackWindow,
                   double windowStartTime, double windowEndTime,
@@ -68,9 +86,15 @@ public:
 
     // Render a single ghost sprite through the same pipeline as real notes.
     // Call AFTER populate() so internal state (curvature, scales, etc.) is configured.
+    // Whole GemWrapper, not a bare Gem: the ghost must preview exactly what placing draws,
+    // and a Gem drops star power and flam.
     void renderGhost(DrawCallMap& drawCallMap, int lane, float position,
-                     juce::Image* image, float opacity, Gem gem = Gem::NOTE,
+                     juce::Image* image, float opacity, const GemWrapper& gem = GemWrapper(),
                      bool selected = false);
+
+    // Suppresses hitBoxes while renderGhost runs, or the cursor invents a note under itself.
+    // Used to key off a null imageOverride, which broke when every ghost started passing one.
+    bool ghostPass = false;
 
     struct SelectedGem { int lane; double time; };
     std::vector<SelectedGem> selectedGems;
@@ -88,34 +112,11 @@ private:
     juce::ValueTree& state;
     AssetManager& assetManager;
 
-    // Cached per-populate call
+    // Cached per-populate call (frame geometry state lives in HighwayRenderer)
     DrawCallMap* currentDrawCallMap = nullptr;
-    const PositionConstants::RenderTypeConfig* currentConfig = nullptr;
     float currentVpDepth = 1.0f;
     float currentNoteCurvature = PositionConstants::NOTE_CURVATURE;
-    uint width = 0, height = 0;
-    float posEnd = 0;
-    float farFadeEnd = 0, farFadeLen = 0, farFadeCurve = 0;
     double cachedNoteClipTime = 0, cachedBarClipTime = 0;
-
-    using LaneCorners = PositionConstants::LaneCorners;
-    using NormalizedCoordinates = PositionConstants::NormalizedCoordinates;
-
-    LaneCorners getColumnEdge(float position, const NormalizedCoordinates& colCoords,
-                              float sizeScale, float fretboardScale = 1.0f,
-                              int bemaniLaneIdx = -1)
-    {
-        bool isDrums = isDrumLike(activePart);
-        return PositionMath::getColumnPosition(isDrums, position, width, height,
-                                               PositionConstants::HIGHWAY_POS_START, posEnd,
-                                               colCoords, sizeScale, fretboardScale, bemaniLaneIdx);
-    }
-
-    float calculateOpacity(float position)
-    {
-        if (PositionMath::bemaniMode) return 1.0f;
-        return calculateFarFade(position, farFadeEnd, farFadeLen, farFadeCurve);
-    }
 
     // Per-time-slice composite context: one anchor + one scale shared by every
     // sprite in the row, so the bar and its stacked gems can't drift apart.
@@ -125,7 +126,13 @@ private:
         juce::Point<float> frameScale;    // uniform (x == y); applied to all offsets and sprite sizes
         float fbStrikeWidth = 0.0f;        // fretboard width at strike (pixels)
         float fbStrikeCenterX = 0.0f;      // fretboard center X at strike (pixels)
+        // Both kicks on this row, i.e. a kick flam. Draws as KICK mode's split bar.
+        bool  kickFlam = false;
     };
+
+    // A flam draws the gem twice inside its own lane, each copy squished horizontally and
+    // pushed off the lane centre. None = an ordinary single gem filling the lane.
+    enum class FlamHalf { None, Left, Right };
 
     SharedFrameContext buildFrameContext(float position);
     void drawNoteRow(const TimeBasedTrackFrame& gems, float position, double frameTime);
@@ -133,14 +140,20 @@ private:
                           double frameTime, const SharedFrameContext& ctx,
                           Render::Frame& outFrame,
                           juce::Image* imageOverride = nullptr,
-                          float opacityOverride = -1.0f);
+                          float opacityOverride = -1.0f,
+                          FlamHalf flamHalf = FlamHalf::None);
     // Bemani path: flat / no perspective. Builds and draws its own single-gem
     // Frame directly (anchor at gem's screen position, scale 1.0). Doesn't
     // contribute to the shared composite — bemani has no chord-stack drift.
     void drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, float position,
-                       double frameTime, juce::Image* glyphImage, bool barNote, float opacity);
+                       double frameTime, juce::Image* glyphImage, bool barNote, float opacity,
+                       bool kickFlam);
 
-    const PositionConstants::OverlayAdjust& getOverlayAdjustForGem(Gem gem, bool isDrums) const;
+    const PositionConstants::OverlayAdjust& getOverlayAdjustForGem(Gem gem, bool isDrums, bool hiHat, bool hiHatOpen) const;
+
+    // True when this gem renders the elite Hi-Hat gem art (col 2, not star-power, not Indifferent)
+    // -- mirrors getDrumGlyphImage's hi-hat branch so the overlay adjust matches the drawn glyph.
+    bool isEliteHiHatGlyph(const GemWrapper& gemWrapper, uint gemColumn, bool starPowerActive) const;
 
     // Replace gem (and optional overlay) sprite images with cached curved variants
     // and adjust their height/offsetY accordingly. Shared between perspective and
@@ -156,8 +169,11 @@ private:
         float gemBaseW;            // base width before scale
         float gemBaseH;            // base height before scale
         float hScale;              // height scale multiplier
+        float overlayBaseW;        // width the overlay's HEIGHT comes from. Whole lane, like
+                                   // gemBaseW: the sprite rect already carries any squish
         float overlayAnchorX;      // overlay offsetX baseline
         float overlayAnchorY;      // overlay offsetY baseline
+        float pixelScale;          // strike-reference px -> on-screen px, for bake sizing
     };
     void applyCurvedImageSwap(Render::Frame& frame, int gemIdx, int ovlIdx,
                               const CurvedSwapArgs& args);
@@ -167,6 +183,13 @@ private:
     {
         juce::Image image;
         float yOffsetFraction;  // baseline shift as fraction of dest height
+        // Rows of the baked image that are glyph rather than arc padding. Sprite height is
+        // derived from the CONTENT (contentHeight / contentFraction), never from the padded
+        // image's aspect: the padding is `ceil(maxShift) + 2` whole pixels, which is a bigger
+        // slice of a small bake than a large one, so sizing off the image aspect made a gem's
+        // height drift with its bake bucket — visible as a flam changing height as its width
+        // slider moves.
+        float contentFraction = 1.0f;
     };
 
     // Cache key includes curvature (quantized to 1e-4) so dragging the curvature
@@ -177,15 +200,42 @@ private:
         int column;
         bool isDrums;
         int curvatureQ;   // curvature * 10000, rounded
+        int sizeBucket;   // baked width in px, snapped to a power of two
         bool operator<(const CurveKey& o) const {
-            return std::tie(src, column, isDrums, curvatureQ)
-                 < std::tie(o.src, o.column, o.isDrums, o.curvatureQ);
+            return std::tie(src, column, isDrums, curvatureQ, sizeBucket)
+                 < std::tie(o.src, o.column, o.isDrums, o.curvatureQ, o.sizeBucket);
         }
     };
     std::map<CurveKey, CurvedImageEntry> curvedCache;
 
-    const CurvedImageEntry& getCurvedImage(juce::Image* src, int column, bool isDrums);
+    // A cached curved gem is baked at roughly the size it will be DRAWN at, not at a fixed
+    // fraction of the source art. JUCE's image blit cost tracks the source size (a big source
+    // blows the cache line budget per destination pixel), so blitting a strikeline-sized
+    // master into a far-away 40px gem was costing an order of magnitude more than the pixels
+    // warranted: on elite that was ~230us a sprite against ~45us right-sized. Sizes snap to
+    // powers of two so a gem sliding down the highway reuses a handful of bakes instead of
+    // baking a new one every frame.
+    static constexpr int CURVE_BAKE_MIN_WIDTH = 32;
+    static int curveSizeBucket(float drawnWidthPx, int sourceWidth);
+
+    // When set, getCurvedImage warps across THESE coords instead of a single lane's. Only the
+    // elite Stomp/Splash bar uses it, which spans the ~3-lane pedal zone (off-centre), so its
+    // warp picks up the gridline's tilt AND curve over that span. Paired with a synthetic
+    // cache-key column (PEDAL_CURVE_COLUMN). Reset to nullptr after each swap.
+    const PositionConstants::NormalizedCoordinates* curveCoordsOverride = nullptr;
+    // Multiplies the warp curvature for the current swap. 1.0 for everything except the pedal
+    // bar, which steepens its tilt (ELITE_PEDAL_CURVE_GAIN) so its warp matches the FRETBOARD_SCALE
+    // its whole-bar lift already carries, and a flam half, which scales it by FLAM_TILT.
+    // Reset to 1.0 after each swap. It is part of the bake's cache key, so the variants
+    // don't collide.
+    float curveScaleOverride = 1.0f;
+    static constexpr int PEDAL_CURVE_COLUMN = -100;   // synthetic cache-key column for the pedal bar
+
+    const CurvedImageEntry& getCurvedImage(juce::Image* src, int column, bool isDrums,
+                                           float drawnWidthPx);
     float getColumnDistFromCenter(int column, bool isDrums);
+    float getColumnDistFromCenter(const PositionConstants::NormalizedCoordinates& colCoords,
+                                  bool isDrums);
 
     std::vector<NoteHitBox> hitBoxes;
 };

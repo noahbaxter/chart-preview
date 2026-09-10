@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "AuthoringTypes.h"
+#include "AuthoringConfig.h"
 #include "AuthoringUtils.h"
 #include "CommandMapper.h"
 #include "NoteEditor.h"
@@ -28,6 +29,7 @@ public:
     void setDrumDynamic(DrumDynamic d)             { currentDrumDynamic = d; }
     void setGuitarForce(GuitarForce f)             { currentGuitarForce = f; }
     void setCymbalMode(bool c)                     { cymbalModeFlag = c; }
+    void setFlamMode(bool f)                       { flamModeFlag = f; }
 
     Part        activePart()    const { return currentActivePart; }
     SkillLevel  activeSkill()   const { return currentActiveSkill; }
@@ -37,6 +39,7 @@ public:
     DrumDynamic drumDynamic()   const { return currentDrumDynamic; }
     GuitarForce guitarForce()   const { return currentGuitarForce; }
     bool        cymbalMode()    const { return cymbalModeFlag; }
+    bool        flamMode()      const { return flamModeFlag; }
 
     const OverlayState& getOverlayState() const { return overlayState; }
 
@@ -45,7 +48,19 @@ public:
 protected:
     bool isPlaying() const { return playingStatePtr && *playingStatePtr; }
     bool isDrums()   const { return isDrumLike(currentActivePart); }
-    int  maxLane()   const { return isDrums() ? (kick2xEnabled ? 6 : 4) : 5; }
+    bool isElite()   const { return getRenderType(currentActivePart) == RenderType::ELITE_DRUMS; }
+
+    // Null for a part that isn't authorable. Write mode is only offered for parts that are,
+    // so the controllers deref it directly and a null would be a loud bug rather than a
+    // silently wrong instrument.
+    const AuthoringConfig* authoring() const { return getAuthoringConfig(currentActivePart); }
+
+    int maxLane() const
+    {
+        const auto* cfg = authoring();
+        if (cfg == nullptr) return 0;
+        return kick2xEnabled ? cfg->highestLaneKick2x : cfg->highestLane;
+    }
 
     // Gem for a note whose properties we already hold, as opposed to
     // resolveGhostGem which reads the current toolbar state. Routed through
@@ -55,9 +70,9 @@ protected:
     {
         if (isDrums())
         {
-            // Cymbal is the absence of the tom marker, which is slot 0.
-            bool canBeCymbal = (lane >= 2 && lane <= 4);
-            bool cymbal = canBeCymbal && (markerMask & 1u) == 0;
+            // Cymbal is the absence of the tom marker, which is slot 0. Elite has no tom
+            // marker at all (lane decides), so authorsCymbal ignores the mask there.
+            bool cymbal = authorsCymbal((uint)lane, currentActivePart, (markerMask & 1u) == 0);
             return GemCalculator::resolveDrumGem(cymbal, true, (Dynamic)velocity);
         }
         // Guitar slots follow modifierMarkerPitches order: hopo, strum, tap.
@@ -69,17 +84,13 @@ protected:
 
     Gem resolveGhostGem(int lane) const
     {
+        // Same GemCalculator call resolveCapturedGem and the parse pipeline use, fed the same
+        // velocity this click will write. The switch that used to live here duplicated
+        // resolveDrumGem exactly, which is how the preview drifted from what landed.
         if (isDrums())
-        {
-            bool canBeCymbal = (lane >= 2 && lane <= 4);
-            bool cymbal = canBeCymbal && cymbalModeFlag;
-            switch (currentDrumDynamic)
-            {
-                case DrumDynamic::Ghost:  return cymbal ? Gem::CYM_GHOST  : Gem::HOPO_GHOST;
-                case DrumDynamic::Accent: return cymbal ? Gem::CYM_ACCENT : Gem::TAP_ACCENT;
-                default:                  return cymbal ? Gem::CYM        : Gem::NOTE;
-            }
-        }
+            return GemCalculator::resolveDrumGem(
+                authorsCymbal((uint)lane, currentActivePart, cymbalModeFlag),
+                true, (Dynamic)resolveVelocity());
         switch (currentGuitarForce)
         {
             case GuitarForce::Hopo: return Gem::HOPO_GHOST;
@@ -99,26 +110,36 @@ protected:
         }
     }
 
-    int resolvePitch(int laneIndex, bool drums) const
+    int resolvePitch(int laneIndex) const
     {
-        if (drums && InstrumentMapper::isKickLane(laneIndex))
-            return InstrumentMapper::resolveKickPitch(currentActiveSkill, laneIndex, kick2xEnabled);
-        return drums
-            ? InstrumentMapper::columnToDrumPitch(currentActiveSkill, laneIndex, false)
-            : InstrumentMapper::columnToGuitarPitch(currentActiveSkill, laneIndex);
+        const auto* cfg = authoring();
+        return cfg ? cfg->laneToPitch(currentActiveSkill, laneIndex, kick2xEnabled) : -1;
     }
 
     int resolveActivePitch(int laneIndex) const
     {
-        return barModeFlag ? resolveBarPitch(laneIndex) : resolvePitch(laneIndex, isDrums());
+        return barModeFlag ? resolveBarPitch(laneIndex) : resolvePitch(laneIndex);
     }
 
+    // Backend track id, for anything going out to the MIDI provider (findNote, writes).
     int resolveTrackIdx() const
     {
         if (instrumentSession == nullptr) return -1;
         for (const auto& info : instrumentSession->getTracks())
             if (info.part == currentActivePart)
                 return info.sourceTrackIndex;
+        return -1;
+    }
+
+    // Position in the session's track vector, what getNotes / getStarPowerState index by. NOT
+    // interchangeable with resolveTrackIdx: both are ints, and mixing them fails silently.
+    int resolveSessionTrackIdx() const
+    {
+        if (instrumentSession == nullptr) return -1;
+        const auto& tracks = instrumentSession->getTracks();
+        for (int i = 0; i < (int)tracks.size(); ++i)
+            if (tracks[i].part == currentActivePart)
+                return i;
         return -1;
     }
 
@@ -131,12 +152,14 @@ protected:
     // never touch OptimisticPatchBuffer directly.
     void eraseConflictingKick(int trackIdx, double qn, int pitch)
     {
-        if (!isDrums() || !kick2xEnabled || !InstrumentMapper::isDrumKick((uint)pitch)) return;
-        auto other = InstrumentMapper::getConflictingKick(pitch);
+        const auto* cfg = authoring();
+        if (cfg == nullptr || !kick2xEnabled || placingKickFlam) return;
+        if (!cfg->isKickPitch((uint)pitch, currentActiveSkill)) return;
+        auto other = cfg->conflictingKick(pitch, currentActiveSkill);
         auto conflict = findNote(trackIdx, qn, other.pitch);
         if (conflict.noteIndex >= 0 && std::abs(conflict.startQN - qn) < kQNEpsilon)
         {
-            noteEditor.eraseNoteAt(trackIdx, qn, other.pitch, true, other.lane, currentActiveSkill);
+            noteEditor.eraseNoteAt(trackIdx, qn, other.pitch, currentActivePart, other.lane, currentActiveSkill);
             patchRemove(other.lane, qn);
         }
     }
@@ -145,14 +168,14 @@ protected:
     {
         auto existing = findNote(trackIdx, qn, pitch);
         if (existing.noteIndex >= 0 && std::abs(existing.startQN - qn) < kQNEpsilon)
-            eraseNote(trackIdx, qn, pitch, isDrums(), lane, currentActiveSkill);
+            eraseNote(trackIdx, qn, pitch, lane, currentActiveSkill);
         eraseConflictingKick(trackIdx, qn, pitch);
         if (!noteEditor.createNote(trackIdx, qn, pitch, velocity, duration))
         {
             DBG("createNote: noteEditor rejected QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
             return false;
         }
-        patchAdd(lane, qn);
+        patchAdd(lane, qn, resolveGhostWrapper(lane, qn));
         ensureChartDynamics(trackIdx, velocity);
         ensureEnhancedOpens(trackIdx, lane);
         return true;
@@ -218,7 +241,24 @@ protected:
                    double duration = 0.0)
     {
         BatchScope batch(*this, kPlaceNoteUndo);
-        if (!createNote(trackIdx, qn, pitch, lane, velocity, duration)) return false;
+
+        // A kick flam is the pair sounding together, not a marker, so either kick places both
+        // and exclusivity stands down. Needs the 2x enabled to have a lane.
+        const auto* cfg = authoring();
+        bool kickFlam = flamModeFlag && kick2xEnabled && cfg != nullptr
+                     && cfg->isKickPitch((uint)pitch, currentActiveSkill);
+        placingKickFlam = kickFlam;
+
+        bool placed = createNote(trackIdx, qn, pitch, lane, velocity, duration);
+        if (placed && kickFlam)
+        {
+            auto other = cfg->conflictingKick(pitch, currentActiveSkill);
+            if (other.pitch >= 0 && findNote(trackIdx, qn, other.pitch).noteIndex < 0)
+                createNote(trackIdx, qn, other.pitch, other.lane, velocity, duration);
+        }
+
+        placingKickFlam = false;
+        if (!placed) return false;
         writeMarkers(trackIdx, qn, lane);
         return true;
     }
@@ -234,9 +274,12 @@ protected:
         return true;
     }
 
-    bool eraseNote(int trackIdx, double qn, int pitch, bool drums, int lane, SkillLevel skill)
+    // The part comes from currentActivePart rather than a caller-passed flag: every caller
+    // was forwarding its own isDrums(), and threading instrument facts by hand is what put
+    // elite's 2x kick on the 4-lane column in the first place.
+    bool eraseNote(int trackIdx, double qn, int pitch, int lane, SkillLevel skill)
     {
-        if (!noteEditor.eraseNoteAt(trackIdx, qn, pitch, drums, lane, skill)) return false;
+        if (!noteEditor.eraseNoteAt(trackIdx, qn, pitch, currentActivePart, lane, skill)) return false;
         patchRemove(lane, qn);
         if (!barModeFlag)
             eraseConflictingKick(trackIdx, qn, pitch);
@@ -248,7 +291,10 @@ protected:
     {
         if (!noteEditor.moveNote(trackIdx, oldQN, oldPitch, newQN, newEndQN, newPitch)) return false;
         patchRemove(oldLane, oldQN);
-        patchAdd(newLane, newQN);
+        // SelectedNote carries no gem, so the moved note's own dynamic isn't available here.
+        // The lane still decides cymbal-ness, which is what sets the Z offset, so the preview
+        // lands at the right height; only a moved ghost/accent previews as the toolbar's.
+        patchAdd(newLane, newQN, resolveGhostWrapper(newLane, newQN));
         return true;
     }
 
@@ -321,7 +367,7 @@ protected:
 
     int resolveBarPitch(int barLane = 0) const
     {
-        return isDrums() ? resolvePitch(barLane, true)
+        return isDrums() ? resolvePitch(barLane)
                          : InstrumentMapper::columnToGuitarPitch(currentActiveSkill, 0);
     }
 
@@ -336,7 +382,7 @@ protected:
     {
         int pitch = resolveBarPitch(barLane);
         if (pitch < 0) return false;
-        if (!noteEditor.eraseNoteAt(trackIdx, qn, pitch, isDrums(), barLane, currentActiveSkill)) return false;
+        if (!noteEditor.eraseNoteAt(trackIdx, qn, pitch, currentActivePart, barLane, currentActiveSkill)) return false;
         patchRemove(barLane, qn);
         return true;
     }
@@ -360,6 +406,10 @@ protected:
     int resolveTomMarkerPitch(int lane) const
     {
         if (!isDrums()) return -1;
+        // Elite has no tom markers: cymbal-ness is fixed by lane. Its lanes 2/3/4 are real
+        // hand lanes, and 110/111/112 are its ROLL LANES, so answering here would have
+        // every placement on those lanes write a stray roll.
+        if (isElite()) return -1;
         using Drums = MidiPitchDefinitions::Drums;
         switch (lane)
         {
@@ -368,6 +418,50 @@ protected:
             case 4: return (int)Drums::TOM_GREEN;
             default: return -1;
         }
+    }
+
+    // Cheap enough to ask per note per frame.
+    bool isStarPowerAt(double qn) const
+    {
+        if (instrumentSession == nullptr) return false;
+        int idx = resolveSessionTrackIdx();
+        if (idx < 0) return false;
+        return instrumentSession->getStarPowerState(idx).isActiveAt(PPQ(qn));
+    }
+
+    // Moved or pasted note: gem and flam from the captured note, star power from where it is
+    // LANDING. Elite's marker list holds only the flam, so bit 0 is it.
+    GemWrapper resolveCapturedWrapper(int lane, int velocity, uint32_t markerMask, double qn) const
+    {
+        GemWrapper g(resolveCapturedGem(lane, velocity, markerMask));
+        g.starPower = isStarPowerAt(qn);
+        g.flam = eliteFlamMarkerPitch(lane) >= 0 && (markerMask & 1u) != 0;
+        return g;
+    }
+
+    // Everything the hover previews, so the ghost and the placement can't disagree.
+    GemWrapper resolveGhostWrapper(int lane, double qn) const
+    {
+        GemWrapper g(resolveGhostGem(lane));
+        g.starPower = isStarPowerAt(qn);
+        g.flam = flamModeFlag && canFlamLane(lane);
+        return g;
+    }
+
+    // Marker on a hand lane, stacked 1x + 2x on a kick. The kick form needs the 2x enabled.
+    bool canFlamLane(int lane) const
+    {
+        if (eliteFlamMarkerPitch(lane) >= 0) return true;
+        const auto* cfg = authoring();
+        return isElite() && kick2xEnabled && cfg != nullptr && isDrumKick((uint)lane, currentActivePart);
+    }
+
+    // Flam marker for this lane, or -1 where a flam cannot go. Elite only, and never on a
+    // kick: a kick flam is a stacked 1x + 2x pair, which placeNote handles itself.
+    int eliteFlamMarkerPitch(int lane) const
+    {
+        if (!isElite() || isDrumKick((uint)lane, currentActivePart)) return -1;
+        return InstrumentMapper::eliteFlamPitch(currentActiveSkill);
     }
 
     // Every marker pitch that can qualify a note in this lane, in a stable
@@ -384,6 +478,14 @@ protected:
         std::vector<int> out;
         if (isDrums())
         {
+            // Elite's one marker is the flam, and it is per TICK, not per lane: same pitch
+            // whatever lane you clicked, resolver hands it to the leftmost hand gem.
+            if (isElite())
+            {
+                int p = eliteFlamMarkerPitch(lane);
+                if (p >= 0) out.push_back(p);
+                return out;
+            }
             int p = resolveTomMarkerPitch(lane);
             if (p >= 0) out.push_back(p);
             return out;
@@ -420,7 +522,7 @@ protected:
             if (want && existing.noteIndex < 0)
                 createMarkerNote(trackIdx, qn, candidates[i]);
             else if (!want && existing.noteIndex >= 0)
-                eraseNote(trackIdx, qn, candidates[i], isDrums(), lane, currentActiveSkill);
+                eraseNote(trackIdx, qn, candidates[i], lane, currentActiveSkill);
         }
     }
 
@@ -428,6 +530,9 @@ protected:
     // absence; guitar force is one-of.
     uint32_t currentMarkerMask(int lane) const
     {
+        if (isElite())
+            return (eliteFlamMarkerPitch(lane) >= 0 && flamModeFlag) ? 1u : 0u;
+
         if (isDrums())
             return (resolveTomMarkerPitch(lane) >= 0 && !cymbalModeFlag) ? 1u : 0u;
 
@@ -498,11 +603,13 @@ protected:
     DrumDynamic             currentDrumDynamic   = DrumDynamic::Normal;
     GuitarForce             currentGuitarForce   = GuitarForce::None;
     bool                    cymbalModeFlag       = false;
+    bool                    flamModeFlag         = false;
+    bool                    placingKickFlam      = false;   // set only inside placeNote
     CommandMapper           commandMapper;
     OverlayState            overlayState;
 
 private:
-    void patchAdd(int lane, double qn)    { if (patchBuffer) patchBuffer->addAdd(lane, qn); }
+    void patchAdd(int lane, double qn, const GemWrapper& gem) { if (patchBuffer) patchBuffer->addAdd(lane, qn, gem); }
     void patchRemove(int lane, double qn) { if (patchBuffer) patchBuffer->addRemove(lane, qn); }
 
     NoteEditor              noteEditor;

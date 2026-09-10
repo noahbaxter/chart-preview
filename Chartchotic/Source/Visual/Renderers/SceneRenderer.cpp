@@ -10,7 +10,8 @@
 
 #include "SceneRenderer.h"
 #include "../Utils/DrawingConstants.h"
-#include "../Utils/PositionConstants.h"
+#include "../Geometry/PositionConstants.h"
+#include "../Geometry/RenderTypeConfig.h"
 #include "../../UI/Theme.h"
 
 using namespace PositionConstants;
@@ -68,6 +69,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
 
     noteRenderer.noteCurvatureGuitar = noteCurvatureGuitar;
     noteRenderer.noteCurvatureDrums = noteCurvatureDrums;
+    noteRenderer.setFlamShape(flamTypeWidths, flamSubLaneSpread, flamTilt, flamSingleOverlay);
     noteRenderer.gemScale = isDrums ? drumGemScale : guitarGemScale;
     noteRenderer.barScale = isDrums ? drumBarScale : guitarBarScale;
     float strikePosGem = offsets.strikePosGem;
@@ -82,11 +84,20 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     noteRenderer.strikePosBar = strikePosBar;
     noteRenderer.gemTypeScales = gemTypeScales;
     noteRenderer.overlayAdjusts = overlayAdjusts;       // pointer to scene-side array
+    bool isElite = (activePart == Part::ELITE_DRUMS);
     noteRenderer.guitarColAdjust = guitarColAdjust;
-    noteRenderer.drumColAdjust = drumColAdjust;
+    noteRenderer.drumColAdjust = isElite ? eliteDrumColAdjust : drumColAdjust;
     noteRenderer.resScale = resScale;                    // applied to ColumnAdjust::z reads
-    noteRenderer.laneCoordsGuitar = guitarLaneCoordsLocal;
-    noteRenderer.laneCoordsDrums = drumLaneCoordsLocal;
+
+    // ONE active lane-coord source for EVERY positioner (gems, roll lanes, hit animations)
+    // so a column resolves to the same place everywhere. Count comes from the render config,
+    // so any highway with any number of lanes works with no per-renderer baked-in counts.
+    const auto* rtConfig = getRenderTypeConfig(getRenderType(activePart));
+    const PositionConstants::NormalizedCoordinates* activeLaneCoords =
+        !isDrums ? guitarLaneCoordsLocal : (isElite ? eliteDrumLaneCoordsLocal : drumLaneCoordsLocal);
+    size_t activeLaneCount = rtConfig->laneCount;
+    noteRenderer.laneCoords = activeLaneCoords;
+    noteRenderer.laneCount  = activeLaneCount;
 
     {
         ScopedPhaseMeasure m(lastPhaseTiming.notes_us, collectPhaseTiming);
@@ -109,16 +120,16 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
 
         if (ghostCursor.positionLabel.isNotEmpty())
         {
-            bool drums = isDrumLike(activePart);
+            RenderType rt = getRenderType(activePart);
             float pos = ghostCursor.position;
             float pe = highwayPosEnd;
             uint w = width, h = height;
             juce::String label = ghostCursor.positionLabel;
-            auto strikeEdge = PositionMath::getFretboardEdge(drums, 0.0f, w, h, HIGHWAY_POS_START, pe);
+            auto strikeEdge = PositionMath::getFretboardEdge(rt, 0.0f, w, h, HIGHWAY_POS_START, pe);
             float sw = strikeEdge.rightX - strikeEdge.leftX;
 
-            drawCallMap[(int)DrawOrder::OVERLAY][0].push_back([drums, pos, w, h, pe, sw, label](juce::Graphics& g) {
-                auto fbEdge = PositionMath::getFretboardEdge(drums, pos, w, h,
+            drawCallMap[(int)DrawOrder::OVERLAY][0].push_back([rt, pos, w, h, pe, sw, label](juce::Graphics& g) {
+                auto fbEdge = PositionMath::getFretboardEdge(rt, pos, w, h,
                                   PositionConstants::HIGHWAY_POS_START, pe);
                 float wr = (sw > 0.0f) ? ((fbEdge.rightX - fbEdge.leftX) / sw) : 1.0f;
                 float fontPx = sw * WRITE_MEASURE_LABEL_FONT_FRAC * wr;
@@ -178,7 +189,7 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
                                  width, height, showLanes, showSustains,
                                  highwayPosEnd,
                                  farFadeEnd, farFadeLen, farFadeCurve,
-                                 guitarLaneCoordsLocal, drumLaneCoordsLocal);
+                                 activeLaneCoords);
     }
 
     {
@@ -216,8 +227,8 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
             double strikeTimeOffset = strikePosGem * windowTimeSpan;
             if (isPlaying) { animationRenderer.detectAndTriggerAnimations(trackWindow, strikeTimeOffset); }
 
-            animationRenderer.laneCoordsGuitar = guitarLaneCoordsLocal;
-            animationRenderer.laneCoordsDrums = drumLaneCoordsLocal;
+            animationRenderer.laneCoords = activeLaneCoords;
+            animationRenderer.laneCount  = activeLaneCount;
             animationRenderer.hitGemZOffset = offsets.hitGemZ * resScale;
             animationRenderer.hitBarZOffset = offsets.hitBarZ * resScale;
             animationRenderer.noteCurvature = isDrums ? noteCurvatureDrums : noteCurvatureGuitar;
@@ -274,7 +285,10 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
     {
         ScopedPhaseMeasure m(lastPhaseTiming.execute_us, collectPhaseTiming);
         if (collectPhaseTiming)
+        {
             std::fill(std::begin(lastPhaseTiming.layer_us), std::end(lastPhaseTiming.layer_us), 0.0);
+            lastPhaseTiming.drawCalls = 0;
+        }
 
         for (int d = 0; d < DRAW_ORDER_COUNT; d++)
         {
@@ -282,6 +296,8 @@ void SceneRenderer::paint(juce::Graphics &g, int viewportWidth, int viewportHeig
             for (int c = 0; c < MAX_DRAW_COLUMNS; c++)
             {
                 auto& bucket = drawCallMap[d][c];
+                if (collectPhaseTiming)
+                    lastPhaseTiming.drawCalls += (int)bucket.size();
                 // Draw each layer from back to front
                 for (auto it = bucket.rbegin(); it != bucket.rend(); ++it)
                 {

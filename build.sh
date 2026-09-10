@@ -28,6 +28,7 @@ BUILD_VST3=true
 BUILD_AU=true
 BUILD_STANDALONE=false
 BUILD_BENCHMARK=false
+BUILD_RENDER_HARNESS=false
 BUILD_STD=false
 SKIN_DIR=""
 NEXT_IS_SKIN_DIR=false
@@ -78,10 +79,11 @@ for arg in "$@"; do
         --au-only)      BUILD_VST3=false; BUILD_STANDALONE=false ;;
         --standalone)   BUILD_STANDALONE=true; BUILD_VST3=false; BUILD_AU=false ;;
         --benchmark)    BUILD_BENCHMARK=true; BUILD_VST3=false; BUILD_AU=false ;;
+        --render-harness) BUILD_RENDER_HARNESS=true; BUILD_VST3=false; BUILD_AU=false ;;
         --std)          BUILD_STD=true ;;
         --skin-dir)     NEXT_IS_SKIN_DIR=true ;;
         -h|--help)
-            echo "Usage: ./build.sh [release|clean|uninstall] [--reaper] [--vst3-only] [--au-only] [--standalone] [--benchmark] [--std] [--skin-dir <path>]"
+            echo "Usage: ./build.sh [release|clean|uninstall] [--reaper] [--vst3-only] [--au-only] [--standalone] [--benchmark] [--render-harness] [--std] [--skin-dir <path>]"
             exit 0
             ;;
         *)
@@ -296,6 +298,30 @@ if [ "$BUILD_BENCHMARK" = true ]; then
     fi
 fi
 
+if [ "$BUILD_RENDER_HARNESS" = true ]; then
+    echo ""
+    echo "Building Render Harness..."
+    RH_BUILD_DIR="$SCRIPT_DIR/build-render-harness"
+    cmake -B "$RH_BUILD_DIR" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -S "$SCRIPT_DIR/tests/render_harness"
+    cmake --build "$RH_BUILD_DIR" --config Release
+
+    RH_BIN="$RH_BUILD_DIR/render_harness_artefacts/Release/render_harness"
+    if [ ! -f "$RH_BIN" ]; then
+        # Try without Release subdirectory (Makefile generator)
+        RH_BIN="$RH_BUILD_DIR/render_harness_artefacts/render_harness"
+    fi
+    if [ -f "$RH_BIN" ]; then
+        echo "  Render harness built: $RH_BIN"
+    else
+        echo "  Render harness build output not found"
+        echo "  Searched: $RH_BUILD_DIR/render_harness_artefacts/"
+        ls -R "$RH_BUILD_DIR/render_harness_artefacts/" 2>/dev/null || true
+        exit 1
+    fi
+fi
+
 # Summary
 echo ""
 echo "========================================"
@@ -305,6 +331,7 @@ echo "========================================"
 [ "$BUILD_AU" = true ]         && echo "  AU:         ~/Library/Audio/Plug-Ins/Components/Chartchotic.component"
 [ "$BUILD_STANDALONE" = true ] && echo "  Standalone: $APP_PATH"
 [ "$BUILD_BENCHMARK" = true ]  && echo "  Benchmark:  $BENCH_BIN"
+[ "$BUILD_RENDER_HARNESS" = true ] && echo "  Render harness: $RH_BIN"
 echo ""
 
 # Restart REAPER if requested. It is killed here rather than before the build

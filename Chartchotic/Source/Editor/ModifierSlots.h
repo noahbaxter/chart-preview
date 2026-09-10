@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AuthoringTypes.h"
+#include "AuthoringConfig.h"
 #include "../UI/ControlConstants.h"
 #include <vector>
 
@@ -21,6 +22,7 @@ enum class ModifierGroup
 {
     Dynamic,   // DrumDynamic: Normal / Ghost / Accent
     Cymbal,    // bool
+    Flam,      // bool
     Force,     // GuitarForce: None / Hopo / Strum / Tap
 };
 
@@ -42,15 +44,26 @@ inline std::vector<ModifierSlot> modifierSlotsFor(RenderType type)
 {
     switch (type)
     {
+        // Dynamics come from velocity on every drum type. The Cymbal slot is present only
+        // where the instrument actually has a toggle: elite fixes cymbal-ness by lane, so
+        // the slot would be inert there. That fact lives in AuthoringConfig, not here.
         case RenderType::FOUR_LANE_DRUMS:
         case RenderType::FIVE_LANE_DRUMS:
         case RenderType::ELITE_DRUMS:
-            return {
+        {
+            std::vector<ModifierSlot> slots = {
                 { ModifierGroup::Dynamic, (int)DrumDynamic::Normal, "normal" },
                 { ModifierGroup::Dynamic, (int)DrumDynamic::Ghost,  "ghost"  },
                 { ModifierGroup::Dynamic, (int)DrumDynamic::Accent, "accent" },
-                { ModifierGroup::Cymbal,  1,                        "cymbal" },
             };
+            const auto* cfg = getAuthoringConfig(type);
+            if (cfg && cfg->hasCymbalToggle)
+                slots.push_back({ ModifierGroup::Cymbal, 1, "cymbal" });
+            // Elite has no cymbal toggle, so flam lands on F with nothing above it shifting.
+            if (cfg && cfg->hasFlamToggle)
+                slots.push_back({ ModifierGroup::Flam, 1, "flam" });
+            return slots;
+        }
 
         case RenderType::FIVE_FRET:
         case RenderType::SIX_FRET:

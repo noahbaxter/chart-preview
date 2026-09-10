@@ -2,6 +2,7 @@
 
 using Guitar = MidiPitchDefinitions::Guitar;
 using Drums = MidiPitchDefinitions::Drums;
+using EliteDrums = MidiPitchDefinitions::EliteDrums;
 
 // ============================================================================
 // getGuitarColumn
@@ -285,5 +286,144 @@ TEST_CASE("InstrumentMapper - isModifier", "[instrument_mapper]")
         REQUIRE(InstrumentMapper::isModifier((uint)Guitar::EXPERT_RED) == false);
         REQUIRE(InstrumentMapper::isModifier((uint)Drums::EXPERT_KICK) == false);
         REQUIRE(InstrumentMapper::isModifier((uint)Drums::EXPERT_RED) == false);
+    }
+}
+
+// ============================================================================
+// columnToEliteDrumPitch (write-mode inverse of getEliteDrumColumn)
+
+TEST_CASE("InstrumentMapper - columnToEliteDrumPitch", "[instrument_mapper][elite]")
+{
+    SECTION("EXPERT columns map to the Expert octave")
+    {
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EXPERT, 0) == (int)EliteDrums::EXPERT_KICK);
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EXPERT, 1) == (int)EliteDrums::EXPERT_SNARE);
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EXPERT, 2) == (int)EliteDrums::EXPERT_HIHAT);
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EXPERT, 3) == (int)EliteDrums::EXPERT_LCRASH);
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EXPERT, 4) == (int)EliteDrums::EXPERT_TOM1);
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EXPERT, 5) == (int)EliteDrums::EXPERT_TOM2);
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EXPERT, 6) == (int)EliteDrums::EXPERT_TOM3);
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EXPERT, 7) == (int)EliteDrums::EXPERT_RIDE);
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EXPERT, 8) == (int)EliteDrums::EXPERT_RCRASH);
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EXPERT, ELITE_KICK_2X_COLUMN)
+                == (int)EliteDrums::EXPERT_KICK_2X);
+    }
+
+    SECTION("lower difficulties sit a fixed -24 per step")
+    {
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::HARD,   0) == (int)EliteDrums::HARD_KICK);
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::MEDIUM, 0) == (int)EliteDrums::MEDIUM_KICK);
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EASY,   0) == (int)EliteDrums::EASY_KICK);
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::HARD,   8) == (int)EliteDrums::HARD_RCRASH);
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EASY,   8) == (int)EliteDrums::EASY_RCRASH);
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EASY, ELITE_KICK_2X_COLUMN)
+                == (int)EliteDrums::EASY_KICK_2X);
+    }
+
+    SECTION("round-trips through getEliteDrumColumn for every skill and column")
+    {
+        for (auto skill : {SkillLevel::EASY, SkillLevel::MEDIUM, SkillLevel::HARD, SkillLevel::EXPERT})
+            for (int col = 0; col <= ELITE_KICK_2X_COLUMN; ++col)
+            {
+                int pitch = InstrumentMapper::columnToEliteDrumPitch(skill, col);
+                REQUIRE(pitch >= 0);
+                REQUIRE(InstrumentMapper::getEliteDrumColumn((uint)pitch, skill, true) == (uint)col);
+            }
+    }
+
+    SECTION("lane 6 is Tom 3, not a 2x kick")
+    {
+        // 4-lane puts the 2x kick on column 6, so a part-blind write path turns an elite
+        // Tom 3 click into a kick. Pin the elite meaning.
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EXPERT, 6) == (int)EliteDrums::EXPERT_TOM3);
+        REQUIRE(isDrumKick(6, Part::ELITE_DRUMS) == false);
+        REQUIRE(isDrumKick(ELITE_KICK_2X_COLUMN, Part::ELITE_DRUMS) == true);
+    }
+
+    SECTION("out-of-range columns return -1")
+    {
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EXPERT, -1) == -1);
+        REQUIRE(InstrumentMapper::columnToEliteDrumPitch(SkillLevel::EXPERT, 10) == -1);
+    }
+}
+
+TEST_CASE("InstrumentMapper - elite kick conflicts", "[instrument_mapper][elite]")
+{
+    SECTION("only the kick pair counts as a kick")
+    {
+        REQUIRE(InstrumentMapper::isEliteDrumKick((uint)EliteDrums::EXPERT_KICK,    SkillLevel::EXPERT));
+        REQUIRE(InstrumentMapper::isEliteDrumKick((uint)EliteDrums::EXPERT_KICK_2X, SkillLevel::EXPERT));
+        REQUIRE(InstrumentMapper::isEliteDrumKick((uint)EliteDrums::EXPERT_TOM3,    SkillLevel::EXPERT) == false);
+        REQUIRE(InstrumentMapper::isEliteDrumKick((uint)EliteDrums::EXPERT_SNARE,   SkillLevel::EXPERT) == false);
+    }
+
+    SECTION("a kick at the wrong difficulty is not this skill's kick")
+    {
+        REQUIRE(InstrumentMapper::isEliteDrumKick((uint)EliteDrums::EXPERT_KICK, SkillLevel::HARD) == false);
+        REQUIRE(InstrumentMapper::isEliteDrumKick((uint)EliteDrums::HARD_KICK,   SkillLevel::HARD));
+    }
+
+    SECTION("each kick names the other as its conflict")
+    {
+        auto a = InstrumentMapper::getConflictingEliteKick((int)EliteDrums::EXPERT_KICK, SkillLevel::EXPERT);
+        REQUIRE(a.pitch == (int)EliteDrums::EXPERT_KICK_2X);
+        REQUIRE(a.lane  == ELITE_KICK_2X_COLUMN);
+
+        auto b = InstrumentMapper::getConflictingEliteKick((int)EliteDrums::EXPERT_KICK_2X, SkillLevel::EXPERT);
+        REQUIRE(b.pitch == (int)EliteDrums::EXPERT_KICK);
+        REQUIRE(b.lane  == DRUM_KICK_COLUMN);
+
+        auto c = InstrumentMapper::getConflictingEliteKick((int)EliteDrums::EASY_KICK_2X, SkillLevel::EASY);
+        REQUIRE(c.pitch == (int)EliteDrums::EASY_KICK);
+        REQUIRE(c.lane  == DRUM_KICK_COLUMN);
+    }
+}
+
+// ============================================================================
+// getEliteRollLaneColumn / isEliteRollLane (elite roll/tremolo lanes 110..118)
+
+TEST_CASE("InstrumentMapper - getEliteRollLaneColumn", "[instrument_mapper][elite]")
+{
+    SECTION("roll pitches 110..118 map linearly to columns 0..8")
+    {
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_KICK)   == 0);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_SNARE)  == 1);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_HIHAT)  == 2);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_LCRASH) == 3);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_TOM1)   == 4);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_TOM2)   == 5);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_TOM3)   == 6);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_RIDE)   == 7);
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_RCRASH) == 8);
+    }
+
+    SECTION("the stomp/splash lane lands on the pedal column")
+    {
+        // 108 sits below the contiguous 110-118 block, so it needs its own case.
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::ROLL_STOMP)
+                == (uint)ELITE_STOMP_COLUMN);
+        REQUIRE(InstrumentMapper::isEliteRollLane((uint)EliteDrums::ROLL_STOMP));
+    }
+
+    SECTION("non-roll pitches return INVALID_COLUMN")
+    {
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn(109) == uint(-1));   // unused (no 2x-kick roll)
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::EXPERT_SNARE) == uint(-1));
+        REQUIRE(InstrumentMapper::getEliteRollLaneColumn((uint)EliteDrums::SP) == uint(-1));
+    }
+
+    SECTION("isEliteRollLane matches the mapping")
+    {
+        REQUIRE(InstrumentMapper::isEliteRollLane((uint)EliteDrums::ROLL_KICK)   == true);
+        REQUIRE(InstrumentMapper::isEliteRollLane((uint)EliteDrums::ROLL_RCRASH) == true);
+        REQUIRE(InstrumentMapper::isEliteRollLane(109) == false);
+        REQUIRE(InstrumentMapper::isEliteRollLane((uint)EliteDrums::SP) == false);
+    }
+
+    SECTION("elite isModifier accepts SP and roll lanes, not notes")
+    {
+        REQUIRE(InstrumentMapper::isModifier((uint)EliteDrums::SP, true) == true);
+        REQUIRE(InstrumentMapper::isModifier((uint)EliteDrums::ROLL_TOM3, true) == true);
+        REQUIRE(InstrumentMapper::isModifier((uint)EliteDrums::EXPERT_LCRASH, true) == false); // 77 = elite note, not modifier
     }
 }

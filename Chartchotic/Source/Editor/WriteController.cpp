@@ -77,7 +77,7 @@ void WriteController::recomputeGhost()
     overlayState.ghostLane       = -1;
     overlayState.ghostQN         = 0.0;
     overlayState.ghostShowsErase = false;
-    overlayState.ghostGem        = Gem::NOTE;
+    overlayState.ghostGem        = GemWrapper();
     overlayState.ghostModeLabel  = {};
     overlayState.stampGhosts.clear();
 
@@ -107,7 +107,9 @@ void WriteController::recomputeGhost()
             // in time only; left/right arrows are the only way to move it
             // across lanes, via shiftStampLanes.
             for (const auto& sn : stamp)
-                overlayState.stampGhosts.push_back({ sn.lane, sn.qnOffset, sn.duration, sn.gem });
+                overlayState.stampGhosts.push_back({
+                    sn.lane, sn.qnOffset, sn.duration,
+                    resolveCapturedWrapper(sn.lane, sn.velocity, sn.markerMask, qn + sn.qnOffset) });
         }
         else if (altKickArmed)
         {
@@ -115,12 +117,12 @@ void WriteController::recomputeGhost()
             // on 1x, so preview the 1x lane rather than whichever side the
             // mouse is on.
             overlayState.ghostLane = DRUM_KICK_COLUMN;
-            overlayState.ghostGem  = resolveGhostGem(DRUM_KICK_COLUMN);
+            overlayState.ghostGem  = resolveGhostWrapper(DRUM_KICK_COLUMN, qn);
         }
         else
         {
             overlayState.ghostLane = lastPoint.laneIndex;
-            overlayState.ghostGem = resolveGhostGem(lastPoint.laneIndex);
+            overlayState.ghostGem = resolveGhostWrapper(lastPoint.laneIndex, qn);
         }
     }
 }
@@ -369,8 +371,7 @@ void WriteController::onFrameTick([[maybe_unused]] double currentProjectQN,
             uint32_t mask = captureMarkerMask(stampCaptureTrackIdx, cn.note.startQN, cn.lane);
             notes.push_back({ cn.lane, cn.note.startQN - minQN,
                               cn.note.endQN - cn.note.startQN,
-                              cn.note.velocity, mask,
-                              resolveCapturedGem(cn.lane, cn.note.velocity, mask) });
+                              cn.note.velocity, mask });
         }
         if (notes.size() >= 2)
             setStamp(std::move(notes));
@@ -394,7 +395,7 @@ void WriteController::handleBeginSustain(const AuthoringPoint& p, int trackIdx, 
         for (const auto& sn : stamp)
         {
             int lane = sn.lane;
-            int sp = resolvePitch(lane, drums);
+            int sp = resolvePitch(lane);
             if (sp >= 0)
             {
                 // Velocity and markers come from the captured note, not the
@@ -465,7 +466,7 @@ void WriteController::handleUpdateSustain(const AuthoringPoint& p)
         {
             int lane = sn.lane;
             overlayState.drawPreviewNotes.push_back({
-                lane, sustainDragStartQN + sn.qnOffset, dragQN, resolvePitch(lane, drums)
+                lane, sustainDragStartQN + sn.qnOffset, dragQN, resolvePitch(lane)
             });
         }
     }
@@ -489,7 +490,7 @@ void WriteController::handleCommitSustain(const AuthoringPoint& p)
             for (const auto& sn : stamp)
             {
                 int lane = sn.lane;
-                int sp = resolvePitch(lane, drums);
+                int sp = resolvePitch(lane);
                 if (sp >= 0)
                     chainExtendNotes(sustainDragTrackIdx,
                                      sustainDragStartQN + sn.qnOffset,
@@ -591,7 +592,7 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
             for (const auto& sn : stamp)
             {
                 int lane = sn.lane;
-                int sp = resolvePitch(lane, drums);
+                int sp = resolvePitch(lane);
                 if (sp >= 0)
                 {
                     // Painting a stamp is still a paste, so it carries the
@@ -613,12 +614,15 @@ void WriteController::paintFillRange(double fromQN, double toQN, int lane)
             {
                 long long step = std::llround((snapped - paintStartQN) / spacing);
                 bool offbeat = ((step % 2) + 2) % 2 == 1;
-                paintLane = offbeat ? DRUM_KICK_2X_COLUMN : DRUM_KICK_COLUMN;
+                // The 2x column is per-instrument (4-lane 6, elite 9). Hardcoding 6 painted
+                // elite's alternating kicks into Tom 3.
+                const auto* cfg = authoring();
+                paintLane = (offbeat && cfg && cfg->kick2xColumn >= 0)
+                    ? cfg->kick2xColumn : DRUM_KICK_COLUMN;
             }
 
-            int pitch = alternatingKicks
-                ? InstrumentMapper::resolveKickPitch(currentActiveSkill, paintLane, kick2xEnabled)
-                : resolveActivePitch(lane);
+            int pitch = alternatingKicks ? resolvePitch(paintLane)
+                                         : resolveActivePitch(lane);
             if (pitch < 0) continue;
             auto pre = findNote(paintDragTrackIdx, snapped, pitch);
             if (pre.noteIndex >= 0 && std::abs(pre.startQN - snapped) < 0.001)
@@ -643,16 +647,16 @@ void WriteController::paintShrinkTo(double lo, double hi)
                 for (const auto& sn : stamp)
                 {
                     int lane = sn.lane;
-                    int sp = resolvePitch(lane, drums);
+                    int sp = resolvePitch(lane);
                     if (sp >= 0)
-                        eraseNote(paintDragTrackIdx, it->qn + sn.qnOffset, sp, drums, lane, currentActiveSkill);
+                        eraseNote(paintDragTrackIdx, it->qn + sn.qnOffset, sp, lane, currentActiveSkill);
                 }
             }
             else
             {
                 int oldPitch = resolveActivePitch(it->lane);
                 if (oldPitch >= 0)
-                    eraseNote(paintDragTrackIdx, it->qn, oldPitch, drums, it->lane, currentActiveSkill);
+                    eraseNote(paintDragTrackIdx, it->qn, oldPitch, it->lane, currentActiveSkill);
             }
             it = paintedNotes.erase(it);
         }
@@ -716,18 +720,21 @@ void WriteController::handleEndErase()
         }
         else
             eraseNote(eraseDragTrackIdx, cn.note.startQN, cn.note.pitch,
-                      drums, cn.lane, currentActiveSkill);
+                      cn.lane, currentActiveSkill);
     }
     if (eraseClickedNoteQN >= 0.0)
     {
         if (barModeFlag && drums)
         {
-            for (int tryLane : {0, 6})
+            const auto* cfg = authoring();
+            const int kick2xLane = (cfg && cfg->kick2xColumn >= 0) ? cfg->kick2xColumn
+                                                                   : DRUM_KICK_COLUMN;
+            for (int tryLane : {DRUM_KICK_COLUMN, kick2xLane})
             {
                 int tryPitch = resolveBarPitch(tryLane);
                 if (tryPitch >= 0 && findNote(eraseDragTrackIdx, eraseClickedNoteQN, tryPitch).noteIndex >= 0)
                 {
-                    eraseNote(eraseDragTrackIdx, eraseClickedNoteQN, tryPitch, true, tryLane, currentActiveSkill);
+                    eraseNote(eraseDragTrackIdx, eraseClickedNoteQN, tryPitch, tryLane, currentActiveSkill);
                     break;
                 }
             }
@@ -736,7 +743,7 @@ void WriteController::handleEndErase()
         {
             int pitch = resolveActivePitch(eraseRect.startLane);
             if (pitch >= 0)
-                eraseNote(eraseDragTrackIdx, eraseClickedNoteQN, pitch, drums,
+                eraseNote(eraseDragTrackIdx, eraseClickedNoteQN, pitch,
                           eraseRect.startLane, currentActiveSkill);
         }
     }

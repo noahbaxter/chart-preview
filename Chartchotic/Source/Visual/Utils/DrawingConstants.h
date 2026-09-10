@@ -18,7 +18,7 @@
 #include <map>
 #include <vector>
 #include <functional>
-#include "BemaniConfig.h"
+#include "../Geometry/BemaniConfig.h"
 
 // Windows compatibility
 #if defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(_MSC_VER)
@@ -32,6 +32,12 @@
 // Gem and note opacity
 constexpr float SUSTAIN_OPACITY = 0.7f;      // Sustain note opacity
 constexpr float LANE_OPACITY = 0.4f;         // Lane sustain opacity
+
+// Elite hi-hat ringing zone: solid until fadeStart, then a fainter tail. The span matches the
+// pedal bar's so a ring lines up with the bar that generated it.
+constexpr float HIHAT_SUSTAIN_LANE_SPAN = 3.0f;      // full lane widths, cols 1-3
+constexpr float HIHAT_SUSTAIN_OPACITY = 0.30f;
+constexpr float HIHAT_SUSTAIN_FADE_OPACITY = 0.11f;
 
 // Gridline opacity by type
 constexpr float MEASURE_OPACITY = 1.0f;      // Gridline opacity for measure lines

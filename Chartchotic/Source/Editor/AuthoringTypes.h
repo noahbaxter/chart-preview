@@ -24,8 +24,10 @@ constexpr double kSustainLookbackQN = 32.0;
 
 namespace AuthoringColours
 {
-    static const juce::Colour selectTint = juce::Colour(180, 220, 255).withAlpha((uint8)140);
-    static const juce::Colour eraseTint  = juce::Colour(255, 80, 80).withAlpha((uint8)160);
+    static const juce::Colour selectTint   = juce::Colour(180, 220, 255).withAlpha((uint8)140);
+    static const juce::Colour eraseTint    = juce::Colour(255, 80, 80).withAlpha((uint8)160);
+    static const juce::Colour marqueeErase  = juce::Colour(255, 80, 80);    // erase marquee outline/fill
+    static const juce::Colour marqueeSelect = juce::Colour(100, 180, 255);  // select marquee outline/fill
 }
 
 struct AuthoringPoint
@@ -97,7 +99,7 @@ struct OverlayState
         // What the note actually is. Faded previews have to show the real
         // gem, otherwise dragging a ghost or a cymbal makes it look like it
         // turned into a plain note for the duration of the drag.
-        Gem    gem = Gem::NOTE;
+        GemWrapper gem;
     };
 
     // Hover ghost
@@ -105,10 +107,10 @@ struct OverlayState
     int    ghostLane = -1;
     double ghostQN = 0.0;
     bool   ghostShowsErase = false;
-    Gem    ghostGem = Gem::NOTE;
+    GemWrapper ghostGem;   // whole wrapper: hover must show exactly what will be placed
     // Transient hint for a modifier-held mode, e.g. alternating kick paint.
     juce::String ghostModeLabel;
-    struct StampGhost { int lane; double qnOffset; double duration; Gem gem = Gem::NOTE; };
+    struct StampGhost { int lane; double qnOffset; double duration; GemWrapper gem; };
     std::vector<StampGhost> stampGhosts;
 
     // Draw stroke preview
@@ -150,14 +152,17 @@ struct OverlayState
 class OptimisticPatchBuffer
 {
 public:
+    // `gem` is what the add renders as for the few frames before the reparse lands, so it has
+    // to be everything the note will parse back as or the preview flashes and snaps.
     struct Patch {
         int    lane = -1;
         double startQN = 0.0;
         int    framesLeft = 0;
+        GemWrapper gem;
     };
 
     void addRemove(int lane, double qn) { removes.push_back({ lane, qn, kFrames }); }
-    void addAdd(int lane, double qn)    { adds.push_back({ lane, qn, kFrames }); }
+    void addAdd(int lane, double qn, const GemWrapper& gem) { adds.push_back({ lane, qn, kFrames, gem }); }
 
     void tick()
     {

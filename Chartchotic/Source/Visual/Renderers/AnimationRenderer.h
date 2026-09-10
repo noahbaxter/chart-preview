@@ -19,17 +19,17 @@
 #include "../../Midi/Utils/TimeConverter.h"
 #include "../Managers/AnimationManager.h"
 #include "../Managers/AssetManager.h"
-#include "../Utils/PositionConstants.h"
-#include "../Utils/PositionMath.h"
+#include "../Geometry/PositionConstants.h"
+#include "../Geometry/PositionMath.h"
 #include "../Utils/DrawingConstants.h"
 #include "../../UI/ControlConstants.h"
+#include "HighwayRenderer.h"
 
-class AnimationRenderer
+class AnimationRenderer : public HighwayRenderer
 {
 public:
     AnimationRenderer(juce::ValueTree &state, AssetManager &assetManager);
 
-    Part activePart = Part::GUITAR;
     ~AnimationRenderer();
 
     /**
@@ -45,19 +45,18 @@ public:
      */
     void updateSustainStates(const TimeBasedSustainWindow& sustainWindow, bool isPlaying);
 
-    // Tuning params — set by SceneRenderer before calling renderToDrawCallMap
-    const PositionConstants::NormalizedCoordinates* laneCoordsGuitar = nullptr;
-    const PositionConstants::NormalizedCoordinates* laneCoordsDrums = nullptr;
+    // Tuning params — set by SceneRenderer before calling renderToDrawCallMap.
+    // Active highway's lane coords + count live in HighwayRenderer (generic;
+    // any number of lanes).
     float hitGemZOffset = 0.0f;
     float hitBarZOffset = 0.0f;
     float noteCurvature = 0.0f;
     PositionConstants::HitScale hitGemScale = PositionConstants::HIT_GEM_SCALE;
     PositionConstants::HitScale hitBarScale = PositionConstants::HIT_BAR_SCALE;
     PositionConstants::HitTypeConfig hitTypeConfig;
-    // Pointer into scene-side drumColAdjust + resScale — multiply ca.z * resScale
+    // Pointer into scene-side drumColAdjust — multiply ca.z * resScale (HighwayRenderer)
     // at use site so we don't pre-bake the full array per frame.
     const PositionConstants::ColumnAdjust* drumColAdjust = PositionConstants::DRUM_COL_ADJUST;
-    float resScale = 1.0f;
 
     /**
      * Populate drawCallMap with animation render calls.
@@ -84,25 +83,14 @@ private:
     AnimationManager animationManager;
     AssetManager& assetManager;
 
-    // Track the last note time per column to ensure every note triggers an animation
-    std::array<double, 7> lastNoteTimePerColumn = {-999.0, -999.0, -999.0, -999.0, -999.0, -999.0, -999.0};
+    // Track the last note time per column to ensure every note triggers an animation. Sized to
+    // LANE_COUNT (not 7): elite has columns up to 11, and a smaller array was indexed out of
+    // bounds by the detection loop (which iterates all LANE_COUNT columns) -> corrupted/dropped
+    // hits. Filled to -999 in the constructor.
+    std::array<double, LANE_COUNT> lastNoteTimePerColumn;
 
     // Helper: Trigger animation for a specific gem column
     void triggerAnimationForColumn(uint gemColumn, Gem gemType = Gem::NOTE, bool starPower = false);
-
-    // Bezier column edge helper
-    PositionConstants::LaneCorners getColumnEdge(float position, const PositionConstants::NormalizedCoordinates& colCoords,
-                                                  float sizeScale, float posEnd,
-                                                  float fretboardScale = 1.0f,
-                                                  int bemaniLaneIdx = -1)
-    {
-        bool isDrums = isDrumLike(activePart);
-        return PositionMath::getColumnPosition(isDrums, position, cachedWidth, cachedHeight,
-                                               PositionConstants::HIGHWAY_POS_START, posEnd,
-                                               colCoords, sizeScale, fretboardScale, bemaniLaneIdx);
-    }
-
-    uint cachedWidth = 0, cachedHeight = 0;
 
     // Rendering helpers
     void renderKickAnimation(juce::Graphics &g, const AnimationConstants::HitAnimation& anim, uint width, uint height, const PositionConstants::CoordinateOffset& offset,

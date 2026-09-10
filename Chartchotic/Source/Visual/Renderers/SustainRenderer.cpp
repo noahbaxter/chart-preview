@@ -10,7 +10,8 @@
 */
 
 #include "SustainRenderer.h"
-#include "../Utils/RenderTypeConfig.h"
+#include "../Geometry/RenderTypeConfig.h"
+#include "../Art/BarGemArt.h"
 #include "../../Editor/AuthoringTypes.h"
 
 using namespace PositionConstants;
@@ -25,21 +26,13 @@ void SustainRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedSustainW
                                uint width, uint height, bool showLanes, bool showSustains,
                                float posEnd,
                                float farFadeEnd, float farFadeLen, float farFadeCurve,
-                               const NormalizedCoordinates* laneCoordsGuitar,
-                               const NormalizedCoordinates* laneCoordsDrums)
+                               const NormalizedCoordinates* laneCoords)
 {
     currentDrawCallMap = &drawCallMap;
-    currentConfig = getRenderTypeConfig(getRenderType(activePart));
-    this->width = width;
-    this->height = height;
     this->showLanes = showLanes;
     this->showSustains = showSustains;
-    this->posEnd = posEnd;
-    this->farFadeEnd = farFadeEnd;
-    this->farFadeLen = farFadeLen;
-    this->farFadeCurve = farFadeCurve;
-    this->laneCoordsGuitar = laneCoordsGuitar;
-    this->laneCoordsDrums = laneCoordsDrums;
+    this->laneCoords = laneCoords;
+    setFrame(activePart, width, height, posEnd, farFadeEnd, farFadeLen, farFadeCurve);
 
     for (const auto& sustain : sustainWindow)
     {
@@ -49,9 +42,21 @@ void SustainRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedSustainW
 
 void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime)
 {
+    if (sustain.sustainType == SustainType::HIHAT)
+    {
+        drawHiHatSustain(sustain, windowStartTime, windowEndTime);
+        return;
+    }
+
     double windowTimeSpan = windowEndTime - windowStartTime;
 
     bool isLane = (sustain.sustainType == SustainType::LANE);
+
+    // The 108 roll lane sits on a virtual pedal column, which has no lane coords of its own, so
+    // it borrows the hi-hat's and spans the pedal zone like the bars it covers.
+    bool pedalLane = isLane && getRenderType(activePart) == RenderType::ELITE_DRUMS
+                            && isElitePedalColumn(sustain.gemColumn);
+    uint drawColumn = pedalLane ? (uint)ELITE_HIHAT_COLUMN : sustain.gemColumn;
 
     // Gate by render toggle
     if (isLane && !showLanes) return;
@@ -125,7 +130,7 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     bool starPowerActive = state.getProperty("starPower");
     bool shouldBeWhite = starPowerActive && sustain.gemType.starPower;
-    auto colour = assetManager.getLaneColour(sustain.gemColumn, isGuitarLike(activePart) ? Part::GUITAR : Part::DRUMS, shouldBeWhite);
+    auto colour = assetManager.getLaneColour(drawColumn, isGuitarLike(activePart) ? Part::GUITAR : activePart, shouldBeWhite);
 
     for (const auto& ts : tintedSustains)
     {
@@ -138,11 +143,13 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     float opacity, sustainWidth;
     DrawOrder sustainDrawOrder;
-    bool isKickCol = isDrumKick(sustain.gemColumn);
+    bool isKickCol = isDrumKick(sustain.gemColumn, activePart);
     switch (sustain.sustainType) {
         case SustainType::LANE:
             opacity = LANE_OPACITY;
-            sustainWidth = isKickCol ? LANE_OPEN_WIDTH : LANE_WIDTH;
+            if (pedalLane)      sustainWidth = HIHAT_SUSTAIN_LANE_SPAN / PositionConstants::GEM_SIZE;
+            else if (isKickCol) sustainWidth = LANE_OPEN_WIDTH;
+            else                sustainWidth = LANE_WIDTH;
             sustainDrawOrder = DrawOrder::LANE;
             break;
         case SustainType::SUSTAIN:
@@ -153,32 +160,65 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
             break;
     }
 
-    (*currentDrawCallMap)[static_cast<int>(sustainDrawOrder)][sustain.gemColumn].push_back([=](juce::Graphics& g) {
-        this->drawSustainBody(g, sustain.gemColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane);
+    (*currentDrawCallMap)[static_cast<int>(sustainDrawOrder)][drawColumn].push_back([=](juce::Graphics& g) {
+        this->drawSustainBody(g, drawColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane);
     });
+}
+
+void SustainRenderer::drawHiHatSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime)
+{
+    if (!showSustains) return;
+
+    const uint col = (uint)ELITE_HIHAT_COLUMN;
+    double windowTimeSpan = windowEndTime - windowStartTime;
+    double clipTime = HIGHWAY_POS_START * windowTimeSpan;
+    if (sustain.endTime < clipTime) return;
+
+    auto toPos = [&](double t) {
+        return (float)((std::max(clipTime, t) - windowStartTime) / windowTimeSpan);
+    };
+    float startPos = std::max((float)HIGHWAY_POS_START, toPos(sustain.startTime));
+    float endPos   = std::min(farFadeEnd, toPos(sustain.endTime));
+    float fadePos  = juce::jlimit(startPos, endPos, toPos(sustain.fadeStartTime));
+
+    if (endPos <= (float)HIGHWAY_POS_START || startPos >= farFadeEnd) return;
+
+    // One colour for every generator: a ring means the hat is open, however it got opened. Under
+    // strict an Open hat and a Splash both fire on one tick, and two colours there just stack.
+    const juce::Colour body = GemArt::kStompBarFace;
+
+    // drawSustainBody measures off a GEM_SIZE-scaled lane, so divide it back out for a true span.
+    const float w = HIHAT_SUSTAIN_LANE_SPAN / PositionConstants::GEM_SIZE;
+
+    if (fadePos > startPos)
+        (*currentDrawCallMap)[(int)DrawOrder::LANE][col].push_back([=](juce::Graphics& g) {
+            this->drawSustainBody(g, col, startPos, fadePos, HIHAT_SUSTAIN_OPACITY, w, body, true);
+        });
+    if (endPos > fadePos)
+        (*currentDrawCallMap)[(int)DrawOrder::LANE][col].push_back([=](juce::Graphics& g) {
+            this->drawSustainBody(g, col, fadePos, endPos, HIHAT_SUSTAIN_FADE_OPACITY, w, body, true);
+        });
 }
 
 void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane)
 {
     bool isDrums = isDrumLike(activePart);
     const auto* config = currentConfig;
-    bool isBar = isBarNote(gemColumn, isDrums ? Part::DRUMS : Part::GUITAR);
+    // Guitar-like keeps GUITAR bar semantics (bar = col 0); drums pass the real
+    // part so elite's kick columns (0 and the 2x virtual col) resolve correctly.
+    bool isBar = isBarNote(gemColumn, isDrums ? activePart : Part::GUITAR);
 
     // Look up lane coords
     NormalizedCoordinates colCoords;
     float laneScale;
     int bemaniIdx = -1;
-    if (isDrums) {
-        bool isKick = isDrumKick(gemColumn);
-        uint dIdx = drumColumnIndex(gemColumn);
-        colCoords = laneCoordsDrums[dIdx];
-        laneScale = isKick ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
-        bemaniIdx = (int)dIdx - 1;
-    } else {
-        colCoords = laneCoordsGuitar[gemColumn];
+    uint laneCoordIdx = resolveLaneIndex(gemColumn);
+    colCoords = laneCoords[laneCoordIdx];
+    bemaniIdx = (int)laneCoordIdx - 1;
+    if (isDrums)
+        laneScale = isDrumKick(gemColumn, activePart) ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
+    else
         laneScale = (gemColumn == 0) ? PositionConstants::BAR_SIZE : PositionConstants::GEM_SIZE;
-        bemaniIdx = (int)gemColumn - 1;
-    }
 
     int laneIdx = PositionMath::bemaniMode ? bemaniIdx : -1;
     auto startLane = getColumnEdge(startPosition, colCoords, laneScale, PositionConstants::FRETBOARD_SCALE, laneIdx);
@@ -210,7 +250,7 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
 
         if (isBar)
         {
-            auto fb = PositionMath::getFretboardEdge(isDrums, startPosition, width, height,
+            auto fb = PositionMath::getFretboardEdge(getRenderType(activePart), startPosition, width, height,
                 PositionConstants::HIGHWAY_POS_START, posEnd);
             centerX = (fb.leftX + fb.rightX) * 0.5f;
             laneWidth = fb.rightX - fb.leftX;
@@ -331,9 +371,9 @@ void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float s
     if (endPosition > fadeStart)
     {
         float fadeStartClamped = std::max(fadeStart, startPosition);
-        auto fadeStartEdge = PositionMath::getFretboardEdge(isDrums, fadeStartClamped, width, height,
+        auto fadeStartEdge = PositionMath::getFretboardEdge(getRenderType(activePart), fadeStartClamped, width, height,
             PositionConstants::HIGHWAY_POS_START, posEnd);
-        auto fadeEndEdge = PositionMath::getFretboardEdge(isDrums, farFadeEnd, width, height,
+        auto fadeEndEdge = PositionMath::getFretboardEdge(getRenderType(activePart), farFadeEnd, width, height,
             PositionConstants::HIGHWAY_POS_START, posEnd);
 
         float gradStartY = fadeStartEdge.centerY;

@@ -155,6 +155,12 @@ void ToolbarComponent::initTopBar()
         if (interactionController.subMode() == SubMode::Edit)
             interactionController.applyCymbalModeToSelection(on);
     };
+
+    writeSubToolbar.onFlamModeChanged = [this](bool on) {
+        interactionController.setFlamMode(on);
+        if (interactionController.subMode() == SubMode::Edit)
+            interactionController.applyFlamModeToSelection(on);
+    };
 }
 
 //==============================================================================
@@ -657,7 +663,9 @@ void ToolbarComponent::loadState()
     if (!showMultiInstrument)
     {
         int part = (int)state["part"];
-        if (part == (int)Part::DRUMS)
+        if (part == (int)Part::ELITE_DRUMS)
+            instrumentSelector.setSelectedIndex(2);
+        else if (part == (int)Part::DRUMS)
             instrumentSelector.setSelectedIndex(1);
         else if (part == (int)Part::GUITAR)
             instrumentSelector.setSelectedIndex(0);
@@ -1059,14 +1067,16 @@ void ToolbarComponent::initManualInstrumentSelector()
 {
     auto guitarImg = juce::ImageCache::getFromMemory(BinaryData::icon_guitar_png, BinaryData::icon_guitar_pngSize);
     auto drumsImg  = juce::ImageCache::getFromMemory(BinaryData::icon_drums_png, BinaryData::icon_drums_pngSize);
+    auto eliteImg  = juce::ImageCache::getFromMemory(BinaryData::icon_drums_png, BinaryData::icon_drums_pngSize);  // reuse drums icon until elite has its own
     instrumentSelector.setMultiSelectMode(false);
     instrumentSelector.setItems({
         { "Guitar", guitarImg },
-        { "Drums",  drumsImg }
+        { "Drums",  drumsImg },
+        { "Elite Drums", eliteImg }
     });
     instrumentSelector.onSelectionChanged = [this](int index) {
-        static constexpr int selectorToPart[] = { (int)Part::GUITAR, (int)Part::DRUMS };
-        if (onPartChanged && index >= 0 && index < 2)
+        static constexpr int selectorToPart[] = { (int)Part::GUITAR, (int)Part::DRUMS, (int)Part::ELITE_DRUMS };
+        if (onPartChanged && index >= 0 && index < 3)
             onPartChanged(selectorToPart[index]);
         updateVisibility();
         if (chartButton.isPanelVisible())
@@ -1087,7 +1097,9 @@ void ToolbarComponent::resetToManualMode()
 
     // Set selector to match current state
     int part = (int)state["part"];
-    if (part == (int)Part::DRUMS)
+    if (part == (int)Part::ELITE_DRUMS)
+        instrumentSelector.setSelectedIndex(2);
+    else if (part == (int)Part::DRUMS)
         instrumentSelector.setSelectedIndex(1);
     else
         instrumentSelector.setSelectedIndex(0);

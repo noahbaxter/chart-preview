@@ -34,6 +34,7 @@ public:
     DrumDynamic drumDynamic()     const { return writeController.drumDynamic(); }
     GuitarForce guitarForce()     const { return writeController.guitarForce(); }
     bool        cymbalMode()      const { return writeController.cymbalMode(); }
+    bool        flamMode()        const { return writeController.flamMode(); }
     bool        hasStamp()        const { return writeController.hasStamp(); }
     bool        hasEditSelection() const { return !editController.getSelection().empty(); }
 
@@ -50,10 +51,12 @@ public:
     void setDrumDynamic(DrumDynamic d){ writeController.setDrumDynamic(d); editController.setDrumDynamic(d); }
     void setGuitarForce(GuitarForce f){ writeController.setGuitarForce(f); editController.setGuitarForce(f); }
     void setCymbalMode(bool c)        { writeController.setCymbalMode(c);  editController.setCymbalMode(c); }
+    void setFlamMode(bool f)          { writeController.setFlamMode(f);    editController.setFlamMode(f); }
 
     void applyDrumDynamicToSelection(DrumDynamic d) { editController.applyDrumDynamicToSelection(d); }
     void applyGuitarForceToSelection(GuitarForce f) { editController.applyGuitarForceToSelection(f); }
     void applyCymbalModeToSelection(bool c)         { editController.applyCymbalModeToSelection(c); }
+    void applyFlamModeToSelection(bool f)           { editController.applyFlamModeToSelection(f); }
 
     const OverlayState& getOverlayState() const;
     const OptimisticPatchBuffer& getPatchBuffer() const { return patchBuffer; }

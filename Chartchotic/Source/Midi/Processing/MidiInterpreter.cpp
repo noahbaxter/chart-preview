@@ -10,7 +10,7 @@
 
 #include "MidiInterpreter.h"
 #include "../Utils/MidiConstants.h"
-#include "../../Visual/Utils/PositionMath.h"
+#include "../../Visual/Geometry/PositionMath.h"
 
 MidiInterpreter::MidiInterpreter(juce::ValueTree &state, NoteStateMapArray &noteStateMapArray, juce::CriticalSection &noteStateMapLock)
     : noteStateMapArray(noteStateMapArray),
@@ -49,6 +49,7 @@ PartWindow MidiInterpreter::resolveAllDifficulties(PPQ windowStart, PPQ windowEn
     cfg.starPower = (bool)state.getProperty("starPower");
     cfg.bemaniMode = PositionMath::bemaniMode;
     cfg.discoFlipState = discoFlip;
+    cfg.strictHatPedalState = strictHatPedal;
 
     int thresholdIndex = (int)state.getProperty("hopoThresh", HOPO_THRESHOLD_DEFAULT);
     if (cfg.autoHopo)
@@ -67,7 +68,8 @@ PartWindow MidiInterpreter::resolveAllDifficulties(PPQ windowStart, PPQ windowEn
     SharedWindow shared;
     {
         const juce::ScopedLock lock(noteStateMapLock);
-        shared = TrackResolver::extract(noteStateMapArray, windowStart, windowEnd, latencyEnd, cfg.bemaniMode);
+        bool isElite = getRenderType(cfg.part) == RenderType::ELITE_DRUMS;
+        shared = TrackResolver::extract(noteStateMapArray, windowStart, windowEnd, latencyEnd, cfg.bemaniMode, isElite);
     }
 
     // Resolve on local data — no locks

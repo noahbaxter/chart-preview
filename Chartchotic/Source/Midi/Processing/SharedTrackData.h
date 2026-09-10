@@ -34,6 +34,9 @@ struct ModifierRanges {
     std::vector<ModifierRange> tomYellow;
     std::vector<ModifierRange> tomBlue;
     std::vector<ModifierRange> tomGreen;
+    std::array<std::vector<ModifierRange>, 4> hihatPedal;        // elite: Pedal Down under Yellow => Closed hat (indexed by SkillLevel)
+    std::array<std::vector<ModifierRange>, 4> hihatIndifferent;  // elite: Indifferent marker over Yellow => Indifferent hat
+    std::array<std::vector<ModifierRange>, 4> flam;              // elite: Flam marker => the hand gem under it is a flam (indexed by SkillLevel)
 
     static bool isActiveAt(const std::vector<ModifierRange>& ranges, PPQ position)
     {
@@ -60,9 +63,17 @@ struct RawLaneMarker {
     uint8_t laneVelocity;
 };
 
+// Elite Pedal Down note: velocity picks the gem (1 none, 2-126 Stomp, 127 Splash).
+struct PedalNote {
+    PPQ startPPQ;
+    PPQ endPPQ;
+    uint8_t velocity;
+};
+
 struct SharedWindow {
     std::map<PPQ, std::vector<RawNoteEvent>> positions;
     ModifierRanges modifiers;
     std::vector<RawSustainPair> sustains;
     std::vector<RawLaneMarker> lanes;
+    std::array<std::vector<PedalNote>, 4> hihatPedalNotes;   // elite: Pedal Down notes, indexed by SkillLevel
 };

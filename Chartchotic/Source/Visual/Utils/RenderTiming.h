@@ -26,6 +26,10 @@ struct PhaseTiming
     double execute_us = 0.0;
     double total_us = 0.0;
     double layer_us[DRAW_ORDER_COUNT] = {};
+    // Draw calls executed this frame. execute_us on its own can't tell "too many sprites"
+    // apart from "each sprite is slow", which is the first question when a part renders
+    // slower than another.
+    int drawCalls = 0;
 };
 
 class ScopedPhaseMeasure

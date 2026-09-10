@@ -125,6 +125,122 @@ public:
         return INVALID_COLUMN;
     }
 
+    // Elite drums: kick(0) snare(1) hi-hat(2) L-crash(3) tom1(4) tom2(5) tom3(6)
+    // ride(7) R-crash(8); 2x kick -> virtual column 9. Each lower difficulty is a
+    // fixed -24 from Expert, so normalise to the Expert octave then map. Only called
+    // with pitches already filtered to this skill (getEliteDrumPitchesForSkill).
+    static uint getEliteDrumColumn(uint pitch, SkillLevel skill, bool kick2xEnabled)
+    {
+        int exp = (int)pitch + (4 - (int)skill) * 24;   // normalise to Expert octave
+        switch (exp)
+        {
+            case 74: return 0;   // kick
+            case 75: return 1;   // snare
+            case 76: return 2;   // hi-hat
+            case 77: return 3;   // left crash
+            case 78: return 4;   // tom 1
+            case 79: return 5;   // tom 2
+            case 80: return 6;   // tom 3
+            case 81: return 7;   // ride
+            case 82: return 8;   // right crash
+            case 73: return kick2xEnabled ? (uint)ELITE_KICK_2X_COLUMN : INVALID_COLUMN;
+            default: return INVALID_COLUMN;
+        }
+    }
+
+    // Inverse of getEliteDrumColumn, for write mode. Hand lanes 0..8 are contiguous from
+    // Expert kick (74), and 2x kick sits one BELOW the kick at its virtual column, so both
+    // fall out of the same -24-per-difficulty shift. Returns -1 for an out-of-range column.
+    static int columnToEliteDrumPitch(SkillLevel skill, int col)
+    {
+        constexpr int kExpertKick = (int)MidiPitchDefinitions::EliteDrums::EXPERT_KICK;
+        int exp;
+        if (col >= 0 && col <= 8)             exp = kExpertKick + col;
+        else if (col == ELITE_KICK_2X_COLUMN) exp = kExpertKick - 1;
+        else                                  return -1;
+        return exp - (4 - (int)skill) * 24;
+    }
+
+    // Elite roll/tremolo lane pitch -> column. Pitches 110 (kick) .. 118 (R-crash) map
+    // linearly onto the same columns as getEliteDrumColumn (0..8); 109 is unused and 108 is
+    // the Stomp/Splash lane, which lands on the pedal column. Pan-difficulty, so no skill
+    // normalisation. Returns INVALID_COLUMN for any non-roll pitch.
+    static uint getEliteRollLaneColumn(uint pitch)
+    {
+        using ED = MidiPitchDefinitions::EliteDrums;
+        if (pitch >= (uint)ED::ROLL_KICK && pitch <= (uint)ED::ROLL_RCRASH)
+            return pitch - (uint)ED::ROLL_KICK;   // 110..118 -> 0..8
+        if (pitch == (uint)ED::ROLL_STOMP)
+            return (uint)ELITE_STOMP_COLUMN;
+        return INVALID_COLUMN;
+    }
+    static bool isEliteRollLane(uint pitch) { return getEliteRollLaneColumn(pitch) != INVALID_COLUMN; }
+
+    // Hi-hat pedal-state modifiers, returning the SkillLevel index (0 Easy .. 3 Expert) the
+    // modifier belongs to, or -1 if the pitch is not that modifier. Pedal Down and Indifferent
+    // sit a fixed -24 per difficulty (Expert 72/88, Hard 48/64, Medium 24/40, Easy 0/16).
+    static int eliteHiHatPedalSkillIndex(uint pitch)
+    {
+        using ED = MidiPitchDefinitions::EliteDrums;
+        switch (pitch) {
+        case (uint)ED::EASY_PEDAL:   return 0;
+        case (uint)ED::MEDIUM_PEDAL: return 1;
+        case (uint)ED::HARD_PEDAL:   return 2;
+        case (uint)ED::EXPERT_PEDAL: return 3;
+        default: return -1;
+        }
+    }
+    static int eliteHiHatIndifferentSkillIndex(uint pitch)
+    {
+        using ED = MidiPitchDefinitions::EliteDrums;
+        switch (pitch) {
+        case (uint)ED::EASY_INDIFFERENT:   return 0;
+        case (uint)ED::MEDIUM_INDIFFERENT: return 1;
+        case (uint)ED::HARD_INDIFFERENT:   return 2;
+        case (uint)ED::EXPERT_INDIFFERENT: return 3;
+        default: return -1;
+        }
+    }
+    static bool isEliteHiHatModifier(uint pitch)
+    {
+        return eliteHiHatPedalSkillIndex(pitch) >= 0 || eliteHiHatIndifferentSkillIndex(pitch) >= 0;
+    }
+
+    // Flam marker, same per-difficulty shape as the hi-hat modifiers (upper-octave Eb,
+    // -24 per difficulty). Expert 87 is guitar's HARD_BLUE, so this only ever runs on an
+    // elite track.
+    static int eliteFlamSkillIndex(uint pitch)
+    {
+        using ED = MidiPitchDefinitions::EliteDrums;
+        switch (pitch) {
+        case (uint)ED::EASY_FLAM:   return 0;
+        case (uint)ED::MEDIUM_FLAM: return 1;
+        case (uint)ED::HARD_FLAM:   return 2;
+        case (uint)ED::EXPERT_FLAM: return 3;
+        default: return -1;
+        }
+    }
+
+    // Elite keeps SP at 104; 116 is Tom 3's roll lane there, not star power.
+    static int starPowerPitch(Part part)
+    {
+        return part == Part::ELITE_DRUMS ? (int)MidiPitchDefinitions::EliteDrums::SP
+                                         : (int)MidiPitchDefinitions::Guitar::SP;
+    }
+
+    // Inverse of eliteFlamSkillIndex: the flam marker pitch to write at this difficulty.
+    static int eliteFlamPitch(SkillLevel skill)
+    {
+        using ED = MidiPitchDefinitions::EliteDrums;
+        switch (skill) {
+        case SkillLevel::EXPERT: return (int)ED::EXPERT_FLAM;
+        case SkillLevel::HARD:   return (int)ED::HARD_FLAM;
+        case SkillLevel::MEDIUM: return (int)ED::MEDIUM_FLAM;
+        case SkillLevel::EASY:   return (int)ED::EASY_FLAM;
+        }
+        return -1;
+    }
+
     // Inverse of getGuitarColumn: given a lane the user clicked, return the
     // MIDI pitch to write. col 0 = open, col 1-5 = green/red/yellow/blue/orange.
     // Returns -1 for invalid (col, skill) combinations.
@@ -260,6 +376,27 @@ public:
         return {}; // Empty vector for invalid skill level
     }
 
+    static std::vector<uint> getEliteDrumPitchesForSkill(SkillLevel skill)
+    {
+        using E = MidiPitchDefinitions::EliteDrums;
+        switch (skill)
+        {
+            case SkillLevel::EASY:
+                return {(uint)E::EASY_KICK,(uint)E::EASY_KICK_2X,(uint)E::EASY_SNARE,(uint)E::EASY_HIHAT,(uint)E::EASY_LCRASH,
+                        (uint)E::EASY_TOM1,(uint)E::EASY_TOM2,(uint)E::EASY_TOM3,(uint)E::EASY_RIDE,(uint)E::EASY_RCRASH};
+            case SkillLevel::MEDIUM:
+                return {(uint)E::MEDIUM_KICK,(uint)E::MEDIUM_KICK_2X,(uint)E::MEDIUM_SNARE,(uint)E::MEDIUM_HIHAT,(uint)E::MEDIUM_LCRASH,
+                        (uint)E::MEDIUM_TOM1,(uint)E::MEDIUM_TOM2,(uint)E::MEDIUM_TOM3,(uint)E::MEDIUM_RIDE,(uint)E::MEDIUM_RCRASH};
+            case SkillLevel::HARD:
+                return {(uint)E::HARD_KICK,(uint)E::HARD_KICK_2X,(uint)E::HARD_SNARE,(uint)E::HARD_HIHAT,(uint)E::HARD_LCRASH,
+                        (uint)E::HARD_TOM1,(uint)E::HARD_TOM2,(uint)E::HARD_TOM3,(uint)E::HARD_RIDE,(uint)E::HARD_RCRASH};
+            case SkillLevel::EXPERT:
+                return {(uint)E::EXPERT_KICK,(uint)E::EXPERT_KICK_2X,(uint)E::EXPERT_SNARE,(uint)E::EXPERT_HIHAT,(uint)E::EXPERT_LCRASH,
+                        (uint)E::EXPERT_TOM1,(uint)E::EXPERT_TOM2,(uint)E::EXPERT_TOM3,(uint)E::EXPERT_RIDE,(uint)E::EXPERT_RCRASH};
+        }
+        return {};
+    }
+
     // Modifier pitch helpers
     static std::vector<uint> getGuitarModifierPitchesForSkill(SkillLevel skill)
     {
@@ -333,10 +470,35 @@ public:
         return { (int)Drums::EXPERT_KICK_2X, DRUM_KICK_2X_COLUMN };
     }
 
-    static bool isModifier(uint pitch)
+    // Elite equivalents. Elite kick pitches move per difficulty and its 2x kick sits at a
+    // virtual column, so neither isDrumKick(pitch) nor getConflictingKick applies.
+    static bool isEliteDrumKick(uint pitch, SkillLevel skill)
+    {
+        return (int)pitch == columnToEliteDrumPitch(skill, DRUM_KICK_COLUMN)
+            || (int)pitch == columnToEliteDrumPitch(skill, ELITE_KICK_2X_COLUMN);
+    }
+
+    static KickConflict getConflictingEliteKick(int pitch, SkillLevel skill)
+    {
+        if (pitch == columnToEliteDrumPitch(skill, ELITE_KICK_2X_COLUMN))
+            return { columnToEliteDrumPitch(skill, DRUM_KICK_COLUMN), DRUM_KICK_COLUMN };
+        return { columnToEliteDrumPitch(skill, ELITE_KICK_2X_COLUMN), ELITE_KICK_2X_COLUMN };
+    }
+
+    static bool isModifier(uint pitch, bool isElite = false)
     {
         using Guitar = MidiPitchDefinitions::Guitar;
         using Drums = MidiPitchDefinitions::Drums;
+
+        // Elite drums own the whole 72-82 note octave (kick..R-crash), which overlaps
+        // guitar's MEDIUM_HOPO (77) / MEDIUM_STRUM (78) etc. Those are ELITE NOTES, not
+        // modifiers, so for elite only its genuine modifiers count: Star Power (104), the
+        // roll/tremolo lanes (110-118), the hi-hat pedal-state modifiers (Pedal Down +
+        // Indifferent, all four difficulties) and the flam markers. Disco markers are still
+        // not parsed.
+        if (isElite)
+            return pitch == (uint)MidiPitchDefinitions::EliteDrums::SP || isEliteRollLane(pitch)
+                || isEliteHiHatModifier(pitch) || eliteFlamSkillIndex(pitch) >= 0;
 
         // Guitar modifiers (all sustained)
         if (pitch == (uint)Guitar::SP ||
