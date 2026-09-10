@@ -32,6 +32,10 @@ Still published from this repo, because the hub only handles stable:
 `UpdateChecker` reads those two tags for the DEV and BETA channels, so retiring
 either workflow retires that channel.
 
+`beta` is a release channel, not a development line. It does not have to exist:
+cut it from `dev` when a beta is wanted, push a `VERSION` bump, delete it after.
+Keeping a long-lived `beta` is what let it fork from the trunk before.
+
 ## Pull requests
 
 `pr-check.yml` runs `build.yml` on PRs to `main`: all three platforms, plus
