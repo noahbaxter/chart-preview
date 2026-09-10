@@ -1,8 +1,10 @@
 #include "InstrumentSession.h"
+#include "Utils/InstrumentMapper.h"
 
 const std::vector<MidiCache::CachedNote> InstrumentSession::emptyNotes;
 const TrackTextEvents InstrumentSession::emptyTextEvents;
 const DiscoFlipState InstrumentSession::emptyDiscoFlip;
+const StarPowerState InstrumentSession::emptyStarPower;
 
 InstrumentSession::InstrumentSession(std::unique_ptr<TrackDiscovery> disc,
                                      std::unique_ptr<TrackNoteProvider> prov)
@@ -81,6 +83,13 @@ const DiscoFlipState& InstrumentSession::getDiscoFlipState(int trackIdx) const
     return trackData[trackIdx].discoFlipState;
 }
 
+const StarPowerState& InstrumentSession::getStarPowerState(int trackIdx) const
+{
+    if (trackIdx < 0 || trackIdx >= (int)trackData.size())
+        return emptyStarPower;
+    return trackData[trackIdx].starPowerState;
+}
+
 void InstrumentSession::setDiscovery(std::unique_ptr<TrackDiscovery> newDiscovery)
 {
     discovery = std::move(newDiscovery);
@@ -92,6 +101,7 @@ void InstrumentSession::fetchTrackData(int idx)
     td.notes = provider->fetchNotes(tracks[idx]);
     td.textEvents = provider->fetchTextEvents(tracks[idx]);
     td.discoFlipState.buildFromTextEvents(td.textEvents);
+    td.starPowerState.buildFromNotes(td.notes, InstrumentMapper::starPowerPitch(tracks[idx].part));
     td.lastHash = provider->getTrackHash(tracks[idx]);
 }
 

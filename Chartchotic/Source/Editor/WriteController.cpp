@@ -107,7 +107,9 @@ void WriteController::recomputeGhost()
             // in time only; left/right arrows are the only way to move it
             // across lanes, via shiftStampLanes.
             for (const auto& sn : stamp)
-                overlayState.stampGhosts.push_back({ sn.lane, sn.qnOffset, sn.duration, sn.gem });
+                overlayState.stampGhosts.push_back({
+                    sn.lane, sn.qnOffset, sn.duration,
+                    resolveCapturedWrapper(sn.lane, sn.velocity, sn.markerMask, qn + sn.qnOffset) });
         }
         else if (altKickArmed)
         {
@@ -369,8 +371,7 @@ void WriteController::onFrameTick([[maybe_unused]] double currentProjectQN,
             uint32_t mask = captureMarkerMask(stampCaptureTrackIdx, cn.note.startQN, cn.lane);
             notes.push_back({ cn.lane, cn.note.startQN - minQN,
                               cn.note.endQN - cn.note.startQN,
-                              cn.note.velocity, mask,
-                              resolveCapturedGem(cn.lane, cn.note.velocity, mask) });
+                              cn.note.velocity, mask });
         }
         if (notes.size() >= 2)
             setStamp(std::move(notes));

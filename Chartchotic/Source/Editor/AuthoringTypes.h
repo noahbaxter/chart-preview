@@ -152,10 +152,8 @@ struct OverlayState
 class OptimisticPatchBuffer
 {
 public:
-    // `gem` is what the add renders as for the few frames before the reparse lands. It has to
-    // be everything the note will parse back as, or the preview flashes the wrong art and
-    // snaps: a bare Gem dropped star power, so an SP note blinked coloured before turning
-    // white. Same GemWrapper the hover ghost and the parsed note carry.
+    // `gem` is what the add renders as for the few frames before the reparse lands, so it has
+    // to be everything the note will parse back as or the preview flashes and snaps.
     struct Patch {
         int    lane = -1;
         double startQN = 0.0;

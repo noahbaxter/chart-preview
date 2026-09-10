@@ -121,12 +121,25 @@ protected:
         return barModeFlag ? resolveBarPitch(laneIndex) : resolvePitch(laneIndex);
     }
 
+    // Backend track id, for anything going out to the MIDI provider (findNote, writes).
     int resolveTrackIdx() const
     {
         if (instrumentSession == nullptr) return -1;
         for (const auto& info : instrumentSession->getTracks())
             if (info.part == currentActivePart)
                 return info.sourceTrackIndex;
+        return -1;
+    }
+
+    // Position in the session's track vector, what getNotes / getStarPowerState index by. NOT
+    // interchangeable with resolveTrackIdx: both are ints, and mixing them fails silently.
+    int resolveSessionTrackIdx() const
+    {
+        if (instrumentSession == nullptr) return -1;
+        const auto& tracks = instrumentSession->getTracks();
+        for (int i = 0; i < (int)tracks.size(); ++i)
+            if (tracks[i].part == currentActivePart)
+                return i;
         return -1;
     }
 
@@ -407,21 +420,27 @@ protected:
         }
     }
 
-    // findNote, not InstrumentSession::getNotes: getNotes indexes trackData by position while
-    // resolveTrackIdx returns a REAPER track index, so it reads the wrong track. findNote
-    // takes the REAPER index and matches inside a note body, which is the phrase test.
-    bool isStarPowerAt(double qn)
+    // Cheap enough to ask per note per frame.
+    bool isStarPowerAt(double qn) const
     {
-        int trackIdx = resolveTrackIdx();
-        if (trackIdx < 0) return false;
-        // Elite keeps SP at 104; guitar and the other kits use 116.
-        int spPitch = isElite() ? (int)MidiPitchDefinitions::EliteDrums::SP
-                                : (int)MidiPitchDefinitions::Guitar::SP;
-        return findNote(trackIdx, qn, spPitch).noteIndex >= 0;
+        if (instrumentSession == nullptr) return false;
+        int idx = resolveSessionTrackIdx();
+        if (idx < 0) return false;
+        return instrumentSession->getStarPowerState(idx).isActiveAt(PPQ(qn));
+    }
+
+    // Moved or pasted note: gem and flam from the captured note, star power from where it is
+    // LANDING. Elite's marker list holds only the flam, so bit 0 is it.
+    GemWrapper resolveCapturedWrapper(int lane, int velocity, uint32_t markerMask, double qn) const
+    {
+        GemWrapper g(resolveCapturedGem(lane, velocity, markerMask));
+        g.starPower = isStarPowerAt(qn);
+        g.flam = eliteFlamMarkerPitch(lane) >= 0 && (markerMask & 1u) != 0;
+        return g;
     }
 
     // Everything the hover previews, so the ghost and the placement can't disagree.
-    GemWrapper resolveGhostWrapper(int lane, double qn)
+    GemWrapper resolveGhostWrapper(int lane, double qn) const
     {
         GemWrapper g(resolveGhostGem(lane));
         g.starPower = isStarPowerAt(qn);
