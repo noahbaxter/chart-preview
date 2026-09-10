@@ -314,7 +314,7 @@ void EditController::handleContinueMove(const AuthoringPoint& p)
         int newLane = juce::jlimit(0, maxLane(), n.lane + deltaLane);
         double newQN = snapQN(n.startQN + deltaQN);
         if (newQN < 0.0) newQN = 0.0;
-        int newPitch = resolvePitch(newLane, isDrums());
+        int newPitch = resolvePitch(newLane);
         auto info = findNote(n.trackIdx, n.startQN, n.pitch);
         double duration = (info.noteIndex >= 0) ? (info.endQN - info.startQN) : kShortNoteDurationQN;
         // Velocity and markers come from the source note, resolved against the
@@ -356,7 +356,7 @@ void EditController::handleCommitMove(const AuthoringPoint& p)
 
         double duration = found.endQN - found.startQN;
         double newEndQN = newStartQN + duration;
-        int newPitch = resolvePitch(newLane, isDrums());
+        int newPitch = resolvePitch(newLane);
 
         moveNote(n.trackIdx, n.startQN, n.pitch, n.lane,
                  newStartQN, newEndQN, newPitch, newLane);
@@ -394,8 +394,8 @@ void EditController::handleDoubleClick(const AuthoringPoint& p)
     }
     else if (p.overExistingNote)
     {
-        int pitch = resolvePitch(p.laneIndex, drums);
-        eraseNote(trackIdx, p.hitNoteStartQN, pitch, drums, p.laneIndex, currentActiveSkill);
+        int pitch = resolvePitch(p.laneIndex);
+        eraseNote(trackIdx, p.hitNoteStartQN, pitch, p.laneIndex, currentActiveSkill);
         selection.erase(
             std::remove_if(selection.begin(), selection.end(),
                 [&](const SelectedNote& n) {
@@ -407,10 +407,10 @@ void EditController::handleDoubleClick(const AuthoringPoint& p)
     else
     {
         double qn = snapQN(p.rawProjectQN);
-        int pitch = resolvePitch(p.laneIndex, drums);
+        int pitch = resolvePitch(p.laneIndex);
         auto existing = findNote(trackIdx, qn, pitch);
         if (existing.noteIndex >= 0)
-            eraseNote(trackIdx, qn, pitch, drums, p.laneIndex, currentActiveSkill);
+            eraseNote(trackIdx, qn, pitch, p.laneIndex, currentActiveSkill);
         else
         {
             placeNote(trackIdx, qn, pitch, p.laneIndex, resolveVelocity());
@@ -436,7 +436,7 @@ void EditController::handleDeleteSelection()
         if (n.sustainOnly)
             truncateNote(n.trackIdx, n.startQN, n.pitch);
         else
-            eraseNote(n.trackIdx, n.startQN, n.pitch, isDrums(), n.lane, currentActiveSkill);
+            eraseNote(n.trackIdx, n.startQN, n.pitch, n.lane, currentActiveSkill);
     }
     endBatch();
 
@@ -479,7 +479,7 @@ void EditController::updateArrowPreview()
         // forever. snapQN is a no-op while snap is disabled.
         double newQN = snapQN(n.startQN + arrowDeltaQN);
         if (newQN < 0.0) newQN = 0.0;
-        int newPitch = resolvePitch(newLane, isDrums());
+        int newPitch = resolvePitch(newLane);
         double duration = n.endQN - n.startQN;
         auto info = findNote(n.trackIdx, n.startQN, n.pitch);
         uint32_t mask = captureMarkerMask(n.trackIdx, n.startQN, n.lane);
@@ -508,7 +508,7 @@ void EditController::commitArrowMoves()
         if (newStartQN < 0.0) newStartQN = 0.0;
         double duration = found.endQN - found.startQN;
         double newEndQN = newStartQN + duration;
-        int newPitch = resolvePitch(newLane, isDrums());
+        int newPitch = resolvePitch(newLane);
 
         moveNote(n.trackIdx, n.startQN, n.pitch, n.lane,
                  newStartQN, newEndQN, newPitch, newLane);

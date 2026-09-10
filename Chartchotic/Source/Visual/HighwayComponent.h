@@ -148,6 +148,13 @@ public:
 private:
     static constexpr int rebuildDebounceMs = 500;
 
+    // The one place the active lane table is chosen. Everything that needs to agree with the
+    // drawn columns (lane lines, hit testing, marquee) goes through these, so nothing can pick
+    // the 4-lane table for elite or read the static constants while the renderer reads the
+    // debug-tunable copies. isDrumLike() is true for elite, so elite must be tested first.
+    const PositionConstants::NormalizedCoordinates* activeLaneCoords() const;
+    int activeLaneCount() const;
+
     Part activePart = Part::GUITAR;
     Part pendingPart = Part::GUITAR;
     void commitPendingPart();

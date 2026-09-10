@@ -152,14 +152,17 @@ struct OverlayState
 class OptimisticPatchBuffer
 {
 public:
+    // `gem` is what the add renders as for the few frames before the reparse lands. It has to
+    // be the gem the note will parse back as, or the preview draws at gemZ and jumps to cymZ.
     struct Patch {
         int    lane = -1;
         double startQN = 0.0;
         int    framesLeft = 0;
+        Gem    gem = Gem::NOTE;
     };
 
     void addRemove(int lane, double qn) { removes.push_back({ lane, qn, kFrames }); }
-    void addAdd(int lane, double qn)    { adds.push_back({ lane, qn, kFrames }); }
+    void addAdd(int lane, double qn, Gem gem) { adds.push_back({ lane, qn, kFrames, gem }); }
 
     void tick()
     {

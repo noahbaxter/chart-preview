@@ -130,7 +130,7 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     float opacity, sustainWidth;
     DrawOrder sustainDrawOrder;
-    bool isKickCol = isDrumKick(sustain.gemColumn);
+    bool isKickCol = isDrumKick(sustain.gemColumn, activePart);
     switch (sustain.sustainType) {
         case SustainType::LANE:
             opacity = LANE_OPACITY;

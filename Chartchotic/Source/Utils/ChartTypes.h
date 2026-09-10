@@ -37,14 +37,24 @@ constexpr int DRUM_KICK_2X_COLUMN  = 6;   // 4-lane: 2x kick shares the kick lan
 constexpr int ELITE_KICK_2X_COLUMN = 9;   // elite: col 6 is a real hand lane (Tom 3), so 2x kick moves to a virtual column
 constexpr int ELITE_HIHAT_COLUMN   = 2;   // elite: the yellow cymbal lane, the only lane with open/closed/indifferent state
 
-inline bool isDrumKick(uint gemColumn, Part part = Part::DRUMS)
+// `part` is deliberately NOT defaulted. A default of Part::DRUMS silently answers the
+// 4-lane question for elite, where column 6 is Tom 3 rather than the 2x kick, and every
+// caller that forgot it became a bug (kick split, sustain widths, marquee rects, note
+// pitches). Making it explicit means the compiler finds the next one.
+inline bool isDrumKick(uint gemColumn, Part part)
 {
     if (part == Part::ELITE_DRUMS)
         return gemColumn == DRUM_KICK_COLUMN || gemColumn == ELITE_KICK_2X_COLUMN;
     return gemColumn == DRUM_KICK_COLUMN || gemColumn == DRUM_KICK_2X_COLUMN;
 }
 
-inline uint drumColumnIndex(uint gemColumn, Part part = Part::DRUMS)
+// The 2x kick's own column, whichever one this part puts it on.
+inline bool isDrum2xKick(uint gemColumn, Part part)
+{
+    return isDrumKick(gemColumn, part) && gemColumn != (uint)DRUM_KICK_COLUMN;
+}
+
+inline uint drumColumnIndex(uint gemColumn, Part part)
 {
     if (part == Part::ELITE_DRUMS)
         return (gemColumn == ELITE_KICK_2X_COLUMN) ? DRUM_KICK_COLUMN : gemColumn;
@@ -57,6 +67,17 @@ inline uint drumColumnIndex(uint gemColumn, Part part = Part::DRUMS)
 inline bool isEliteCymbalLane(uint gemColumn)
 {
     return gemColumn == 2 || gemColumn == 3 || gemColumn == 7 || gemColumn == 8;
+}
+
+// Whether authoring on `lane` writes a cymbal. Elite is fixed by lane and ignores the Cym
+// toggle; 4-lane/5-lane put cymbals on 2..4 behind it. The write path MUST agree with what
+// TrackResolver decides on parse, or the ghost preview draws with gemZ while the note it
+// places lands on cymZ. AuthoringConfig::hasCymbalToggle is the same fact from the other
+// direction: no toggle means the lane decides.
+inline bool authorsCymbal(uint lane, Part part, bool cymbalToggle)
+{
+    if (part == Part::ELITE_DRUMS) return isEliteCymbalLane(lane);
+    return lane >= 2 && lane <= 4 && cymbalToggle;
 }
 
 // The elite Hi-Hat lane (yellow cymbal) — the only lane that carries Open/Closed/Indifferent
