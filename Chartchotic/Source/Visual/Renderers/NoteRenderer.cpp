@@ -209,15 +209,34 @@ NoteRenderer::SharedFrameContext NoteRenderer::buildFrameContext(float position)
 }
 
 void NoteRenderer::renderGhost(DrawCallMap& drawCallMap, int lane, float position,
-                                juce::Image* image, float opacity, Gem gem,
+                                juce::Image* image, float opacity, const GemWrapper& gem,
                                 bool selected)
 {
     auto ctx = buildFrameContext(position);
-    GemWrapper dummy;
-    dummy.gem = gem;
+    ghostPass = true;
 
     Render::Frame frame;
-    appendGemSprites(lane, dummy, position, 0.0, ctx, frame, image, opacity);
+    // A kick flam is both kicks at once, so preview the pair, not one lane split.
+    bool kickFlam = gem.flam && isDrumLike(activePart) && isDrumKick((uint)lane, activePart);
+    if (kickFlam)
+    {
+        ctx.kickFlam = true;
+        uint kick2x = (activePart == Part::ELITE_DRUMS) ? (uint)ELITE_KICK_2X_COLUMN
+                                                        : (uint)DRUM_KICK_2X_COLUMN;
+        appendGemSprites((uint)DRUM_KICK_COLUMN, gem, position, 0.0, ctx, frame, image, opacity);
+        appendGemSprites(kick2x, gem, position, 0.0, ctx, frame, image, opacity);
+    }
+    else if (gem.flam)
+    {
+        appendGemSprites(lane, gem, position, 0.0, ctx, frame, image, opacity, FlamHalf::Left);
+        appendGemSprites(lane, gem, position, 0.0, ctx, frame, image, opacity, FlamHalf::Right);
+    }
+    else
+    {
+        appendGemSprites(lane, gem, position, 0.0, ctx, frame, image, opacity);
+    }
+
+    ghostPass = false;
 
     for (auto& s : frame.sprites)
     {
@@ -594,7 +613,11 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
     // Capture hit box from final gem sprite (uses same transform as drawFrame).
     // A flam is two sprites but one note: the box comes off the left copy only, widened back
     // out to the full lane so the seam between the halves isn't a dead zone.
-    if (imageOverride == nullptr && flamHalf != FlamHalf::Right)
+    // Box follows KICK mode, not the drawn clip: a split kick flam should still be grabbable
+    // anywhere along the bar.
+    Render::ClipHalf hitBoxClip = resolveBarKickClip(activePart, barModeDim < 1.0f,
+                                                     /*kickFlam=*/false, gemColumn);
+    if (!ghostPass && flamHalf != FlamHalf::Right)
     {
         const auto& gs = outFrame.sprites[gemIdx];
         bool flam = (flamHalf != FlamHalf::None);
@@ -604,9 +627,9 @@ void NoteRenderer::appendGemSprites(uint gemColumn, const GemWrapper& gemWrapper
                  * ctx.frameScale.x;
         float sh = gs.height * ctx.frameScale.y;
         auto hbRect = juce::Rectangle<float>(cx - sw * 0.5f, cy - sh * 0.5f, sw, sh);
-        if (barClipHalf == Render::ClipHalf::Left)
+        if (hitBoxClip == Render::ClipHalf::Left)
             hbRect = hbRect.withWidth(hbRect.getWidth() * 0.5f);
-        else if (barClipHalf == Render::ClipHalf::Right)
+        else if (hitBoxClip == Render::ClipHalf::Right)
             hbRect = hbRect.withX(hbRect.getCentreX()).withWidth(hbRect.getWidth() * 0.5f);
         hitBoxes.push_back({ (int)gemColumn, frameTime, hbRect });
     }
@@ -752,11 +775,16 @@ void NoteRenderer::drawGemBemani(uint gemColumn, const GemWrapper& gemWrapper, f
     float sh = gs.height;
     auto hbRect = juce::Rectangle<float>(bemaniAnchor.x - sw * 0.5f,
                                           bemaniAnchor.y - sh * 0.5f, sw, sh);
-    if (bemaniClipHalf == Render::ClipHalf::Left)
+    // Box follows KICK mode, not the drawn clip. See the perspective path for why.
+    auto bemaniHitClip = barNote ? resolveBarKickClip(activePart, barModeDim < 1.0f,
+                                                      /*kickFlam=*/false, gemColumn)
+                                 : Render::ClipHalf::None;
+    if (bemaniHitClip == Render::ClipHalf::Left)
         hbRect = hbRect.withWidth(hbRect.getWidth() * 0.5f);
-    else if (bemaniClipHalf == Render::ClipHalf::Right)
+    else if (bemaniHitClip == Render::ClipHalf::Right)
         hbRect = hbRect.withX(hbRect.getCentreX()).withWidth(hbRect.getWidth() * 0.5f);
-    hitBoxes.push_back({ (int)gemColumn, frameTime, hbRect });
+    if (!ghostPass)
+        hitBoxes.push_back({ (int)gemColumn, frameTime, hbRect });
 }
 
 float NoteRenderer::getColumnDistFromCenter(int column, bool isDrums)

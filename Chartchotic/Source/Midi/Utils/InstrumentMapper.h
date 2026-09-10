@@ -219,6 +219,13 @@ public:
         }
     }
 
+    // Elite keeps SP at 104; 116 is Tom 3's roll lane there, not star power.
+    static int starPowerPitch(Part part)
+    {
+        return part == Part::ELITE_DRUMS ? (int)MidiPitchDefinitions::EliteDrums::SP
+                                         : (int)MidiPitchDefinitions::Guitar::SP;
+    }
+
     // Inverse of eliteFlamSkillIndex: the flam marker pitch to write at this difficulty.
     static int eliteFlamPitch(SkillLevel skill)
     {

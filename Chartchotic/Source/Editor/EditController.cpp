@@ -321,7 +321,7 @@ void EditController::handleContinueMove(const AuthoringPoint& p)
         // lane it is moving to, so the drag preview looks like the real note.
         uint32_t mask = captureMarkerMask(n.trackIdx, n.startQN, n.lane);
         overlayState.movePreviewNotes.push_back({ newLane, newQN, newQN + duration, newPitch,
-                                                  resolveCapturedGem(newLane, info.velocity, mask) });
+                                                  resolveCapturedWrapper(newLane, info.velocity, mask, newQN) });
     }
 
     if (onStateChanged) onStateChanged();
@@ -484,7 +484,7 @@ void EditController::updateArrowPreview()
         auto info = findNote(n.trackIdx, n.startQN, n.pitch);
         uint32_t mask = captureMarkerMask(n.trackIdx, n.startQN, n.lane);
         overlayState.movePreviewNotes.push_back({ newLane, newQN, newQN + duration, newPitch,
-                                                  resolveCapturedGem(newLane, info.velocity, mask) });
+                                                  resolveCapturedWrapper(newLane, info.velocity, mask, newQN) });
     }
     notifyChanged();
 }

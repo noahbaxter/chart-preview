@@ -21,8 +21,9 @@ public:
         double   qnOffset;
         double   duration;
         int      velocity   = 100;
+        // Velocity and mask are the whole note; the preview resolves its art from them at the
+        // position it would land on, so it picks up the destination's star power.
         uint32_t markerMask = 0;
-        Gem      gem        = Gem::NOTE;   // preview art, derived at capture
     };
     void setStamp(std::vector<StampNote> s);
     void clearStamp();

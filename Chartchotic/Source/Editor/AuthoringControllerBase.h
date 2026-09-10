@@ -121,12 +121,25 @@ protected:
         return barModeFlag ? resolveBarPitch(laneIndex) : resolvePitch(laneIndex);
     }
 
+    // Backend track id, for anything going out to the MIDI provider (findNote, writes).
     int resolveTrackIdx() const
     {
         if (instrumentSession == nullptr) return -1;
         for (const auto& info : instrumentSession->getTracks())
             if (info.part == currentActivePart)
                 return info.sourceTrackIndex;
+        return -1;
+    }
+
+    // Position in the session's track vector, what getNotes / getStarPowerState index by. NOT
+    // interchangeable with resolveTrackIdx: both are ints, and mixing them fails silently.
+    int resolveSessionTrackIdx() const
+    {
+        if (instrumentSession == nullptr) return -1;
+        const auto& tracks = instrumentSession->getTracks();
+        for (int i = 0; i < (int)tracks.size(); ++i)
+            if (tracks[i].part == currentActivePart)
+                return i;
         return -1;
     }
 
@@ -162,7 +175,7 @@ protected:
             DBG("createNote: noteEditor rejected QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
             return false;
         }
-        patchAdd(lane, qn, resolveGhostGem(lane));
+        patchAdd(lane, qn, resolveGhostWrapper(lane, qn));
         ensureChartDynamics(trackIdx, velocity);
         ensureEnhancedOpens(trackIdx, lane);
         return true;
@@ -281,7 +294,7 @@ protected:
         // SelectedNote carries no gem, so the moved note's own dynamic isn't available here.
         // The lane still decides cymbal-ness, which is what sets the Z offset, so the preview
         // lands at the right height; only a moved ghost/accent previews as the toolbar's.
-        patchAdd(newLane, newQN, resolveGhostGem(newLane));
+        patchAdd(newLane, newQN, resolveGhostWrapper(newLane, newQN));
         return true;
     }
 
@@ -405,6 +418,42 @@ protected:
             case 4: return (int)Drums::TOM_GREEN;
             default: return -1;
         }
+    }
+
+    // Cheap enough to ask per note per frame.
+    bool isStarPowerAt(double qn) const
+    {
+        if (instrumentSession == nullptr) return false;
+        int idx = resolveSessionTrackIdx();
+        if (idx < 0) return false;
+        return instrumentSession->getStarPowerState(idx).isActiveAt(PPQ(qn));
+    }
+
+    // Moved or pasted note: gem and flam from the captured note, star power from where it is
+    // LANDING. Elite's marker list holds only the flam, so bit 0 is it.
+    GemWrapper resolveCapturedWrapper(int lane, int velocity, uint32_t markerMask, double qn) const
+    {
+        GemWrapper g(resolveCapturedGem(lane, velocity, markerMask));
+        g.starPower = isStarPowerAt(qn);
+        g.flam = eliteFlamMarkerPitch(lane) >= 0 && (markerMask & 1u) != 0;
+        return g;
+    }
+
+    // Everything the hover previews, so the ghost and the placement can't disagree.
+    GemWrapper resolveGhostWrapper(int lane, double qn) const
+    {
+        GemWrapper g(resolveGhostGem(lane));
+        g.starPower = isStarPowerAt(qn);
+        g.flam = flamModeFlag && canFlamLane(lane);
+        return g;
+    }
+
+    // Marker on a hand lane, stacked 1x + 2x on a kick. The kick form needs the 2x enabled.
+    bool canFlamLane(int lane) const
+    {
+        if (eliteFlamMarkerPitch(lane) >= 0) return true;
+        const auto* cfg = authoring();
+        return isElite() && kick2xEnabled && cfg != nullptr && isDrumKick((uint)lane, currentActivePart);
     }
 
     // Flam marker for this lane, or -1 where a flam cannot go. Elite only, and never on a
@@ -560,7 +609,7 @@ protected:
     OverlayState            overlayState;
 
 private:
-    void patchAdd(int lane, double qn, Gem gem) { if (patchBuffer) patchBuffer->addAdd(lane, qn, gem); }
+    void patchAdd(int lane, double qn, const GemWrapper& gem) { if (patchBuffer) patchBuffer->addAdd(lane, qn, gem); }
     void patchRemove(int lane, double qn) { if (patchBuffer) patchBuffer->addRemove(lane, qn); }
 
     NoteEditor              noteEditor;
