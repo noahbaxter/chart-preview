@@ -173,18 +173,27 @@ TEST_CASE("OptimisticPatchBuffer - adds carry their gem", "[patch_buffer]")
 
     SECTION("the gem survives the round trip")
     {
-        buf.addAdd(7, 4.0, Gem::CYM);
+        buf.addAdd(7, 4.0, GemWrapper(Gem::CYM));
         REQUIRE(buf.getAdds().size() == 1);
         REQUIRE(buf.getAdds()[0].lane == 7);
         REQUIRE(buf.getAdds()[0].startQN == 4.0);
-        REQUIRE(buf.getAdds()[0].gem == Gem::CYM);
+        REQUIRE(buf.getAdds()[0].gem.gem == Gem::CYM);
+    }
+
+    SECTION("the rest of the wrapper survives too")
+    {
+        // The buffer carries a GemWrapper, not a Gem, so a just-placed open hat or flam
+        // previews as itself instead of snapping when the reparse lands.
+        buf.addAdd(2, 0.0, GemWrapper(Gem::CYM, false, HiHatState::Open, /*flam=*/true));
+        REQUIRE(buf.getAdds()[0].gem.hihat == HiHatState::Open);
+        REQUIRE(buf.getAdds()[0].gem.flam);
     }
 
     SECTION("each add keeps its own gem")
     {
-        buf.addAdd(1, 0.0, Gem::NOTE);
-        buf.addAdd(2, 0.0, Gem::CYM_ACCENT);
-        REQUIRE(buf.getAdds()[0].gem == Gem::NOTE);
-        REQUIRE(buf.getAdds()[1].gem == Gem::CYM_ACCENT);
+        buf.addAdd(1, 0.0, GemWrapper(Gem::NOTE));
+        buf.addAdd(2, 0.0, GemWrapper(Gem::CYM_ACCENT));
+        REQUIRE(buf.getAdds()[0].gem.gem == Gem::NOTE);
+        REQUIRE(buf.getAdds()[1].gem.gem == Gem::CYM_ACCENT);
     }
 }
