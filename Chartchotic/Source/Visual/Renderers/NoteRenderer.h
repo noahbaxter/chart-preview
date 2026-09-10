@@ -86,9 +86,15 @@ public:
 
     // Render a single ghost sprite through the same pipeline as real notes.
     // Call AFTER populate() so internal state (curvature, scales, etc.) is configured.
+    // Takes a whole GemWrapper: a bare Gem silently drops star power and flam, and the ghost
+    // has to preview EXACTLY what placing would draw.
     void renderGhost(DrawCallMap& drawCallMap, int lane, float position,
-                     juce::Image* image, float opacity, Gem gem = Gem::NOTE,
+                     juce::Image* image, float opacity, const GemWrapper& gem = GemWrapper(),
                      bool selected = false);
+
+    // Suppresses hitBoxes while renderGhost runs, or the cursor invents a note under itself.
+    // Used to key off a null imageOverride, which broke when every ghost started passing one.
+    bool ghostPass = false;
 
     struct SelectedGem { int lane; double time; };
     std::vector<SelectedGem> selectedGems;
