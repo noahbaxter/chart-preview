@@ -222,6 +222,11 @@ static FakeScene makeEliteScene(float farEnd)
         s.sustains.push_back({ rollStart * BEAT, rollEnd * BEAT, (uint)lane,
                                SustainType::LANE, GemWrapper(gemFor(lane, NORMAL)) });
 
+    // The 108 Stomp/Splash lane, in the same band so its pedal-zone span reads against the
+    // hand lanes it covers.
+    s.sustains.push_back({ rollStart * BEAT, rollEnd * BEAT, (uint)ELITE_STOMP_COLUMN,
+                           SustainType::LANE, GemWrapper(Gem::NOTE) });
+
     // Gridlines from the same beat index -> notes sit exactly on them.
     for (int b = 0; b * BEAT <= farEnd; ++b)
         s.gridlines.push_back({ b * BEAT, (b % 4 == 0) ? Gridline::MEASURE : Gridline::BEAT });

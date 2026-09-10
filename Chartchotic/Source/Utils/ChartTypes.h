@@ -63,6 +63,13 @@ inline uint drumColumnIndex(uint gemColumn, Part part)
     return (gemColumn == DRUM_KICK_2X_COLUMN) ? DRUM_KICK_COLUMN : gemColumn;
 }
 
+// Elite pedal columns are virtual: they have no lane coords, so anything drawn on them has to
+// borrow the hi-hat's and span the pedal zone.
+inline bool isElitePedalColumn(uint gemColumn)
+{
+    return gemColumn == (uint)ELITE_STOMP_COLUMN || gemColumn == (uint)ELITE_SPLASH_COLUMN;
+}
+
 // Elite hand lanes that are cymbals (Hi-Hat, L-Crash, Ride, R-Crash); the rest
 // (Snare, Toms) are drums. Each lane is drum XOR cymbal, fixed by lane, so this is
 // the chart-side source for gem type (mirrors ELITE_LANE_STYLES.cymbal on the visual side).

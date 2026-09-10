@@ -622,3 +622,59 @@ TEST_CASE("TrackResolver - hi-hat sustains stay off non-elite drums", "[track_re
 
     REQUIRE(hihatSustains(TrackResolver::resolve(shared, cfg)).empty());
 }
+
+TEST_CASE("TrackResolver - the 108 lane resolves onto the pedal column",
+          "[track_resolver][elite]")
+{
+    // 108 is the Stomp/Splash roll lane. It sits below the contiguous 110-118 block, so it
+    // used to fall through the roll branch entirely and emit nothing.
+    auto shared = extractElite(oneNote((uint)EliteDrums::ROLL_STOMP, 1.0, 3.0));
+    REQUIRE(shared.lanes.size() == 1);
+
+    // Hold the PartWindow: forSkill() hands back a reference into it, so binding straight off
+    // the temporary dangles.
+    auto pw = TrackResolver::resolve(shared, eliteConfig());
+    const auto& sw = pw.forSkill(SkillLevel::EXPERT).sustainWindow;
+
+    int pedalLanes = 0;
+    for (const auto& s : sw)
+        if (s.sustainType == SustainType::LANE && s.gemColumn == (uint)ELITE_STOMP_COLUMN)
+            ++pedalLanes;
+    REQUIRE(pedalLanes == 1);
+}
+
+TEST_CASE("TrackResolver - the 108 lane stays a note off elite", "[track_resolver][guitar]")
+{
+    // 108 is Guitar::EXPERT_ORANGE's neighbourhood on a normal track, so it must not become
+    // a lane when the track is not elite.
+    auto shared = TrackResolver::extract(oneNote((uint)EliteDrums::ROLL_STOMP, 1.0, 3.0),
+                                         PPQ(0.0), PPQ(16.0), PPQ(16.0), false, /*isElite=*/false);
+    REQUIRE(shared.lanes.empty());
+}
+
+TEST_CASE("TrackResolver - elite roll lanes resolve onto their own column",
+          "[track_resolver][elite]")
+{
+    // The existing roll-lane tests only checked extraction, so nothing covered the resolve
+    // half. Each pitch owns a column outright, no inference from the notes underneath.
+    struct Case { uint pitch; uint column; };
+    const Case cases[] = {
+        { (uint)EliteDrums::ROLL_KICK,   0 },
+        { (uint)EliteDrums::ROLL_SNARE,  1 },
+        { (uint)EliteDrums::ROLL_HIHAT,  2 },
+        { (uint)EliteDrums::ROLL_RCRASH, 8 },
+    };
+
+    for (const auto& c : cases)
+    {
+        auto pw = TrackResolver::resolve(extractElite(oneNote(c.pitch, 1.0, 3.0)), eliteConfig());
+        const auto& sw = pw.forSkill(SkillLevel::EXPERT).sustainWindow;
+
+        int lanes = 0;
+        for (const auto& s : sw)
+            if (s.sustainType == SustainType::LANE && s.gemColumn == c.column)
+                ++lanes;
+        INFO("pitch " << c.pitch << " -> column " << c.column);
+        REQUIRE(lanes == 1);
+    }
+}

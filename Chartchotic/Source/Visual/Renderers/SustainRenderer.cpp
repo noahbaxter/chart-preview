@@ -52,6 +52,12 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     bool isLane = (sustain.sustainType == SustainType::LANE);
 
+    // The 108 roll lane sits on a virtual pedal column, which has no lane coords of its own, so
+    // it borrows the hi-hat's and spans the pedal zone like the bars it covers.
+    bool pedalLane = isLane && getRenderType(activePart) == RenderType::ELITE_DRUMS
+                            && isElitePedalColumn(sustain.gemColumn);
+    uint drawColumn = pedalLane ? (uint)ELITE_HIHAT_COLUMN : sustain.gemColumn;
+
     // Gate by render toggle
     if (isLane && !showLanes) return;
     if (!isLane && !showSustains) return;
@@ -124,7 +130,7 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
 
     bool starPowerActive = state.getProperty("starPower");
     bool shouldBeWhite = starPowerActive && sustain.gemType.starPower;
-    auto colour = assetManager.getLaneColour(sustain.gemColumn, isGuitarLike(activePart) ? Part::GUITAR : activePart, shouldBeWhite);
+    auto colour = assetManager.getLaneColour(drawColumn, isGuitarLike(activePart) ? Part::GUITAR : activePart, shouldBeWhite);
 
     for (const auto& ts : tintedSustains)
     {
@@ -141,7 +147,9 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     switch (sustain.sustainType) {
         case SustainType::LANE:
             opacity = LANE_OPACITY;
-            sustainWidth = isKickCol ? LANE_OPEN_WIDTH : LANE_WIDTH;
+            if (pedalLane)      sustainWidth = HIHAT_SUSTAIN_LANE_SPAN / PositionConstants::GEM_SIZE;
+            else if (isKickCol) sustainWidth = LANE_OPEN_WIDTH;
+            else                sustainWidth = LANE_WIDTH;
             sustainDrawOrder = DrawOrder::LANE;
             break;
         case SustainType::SUSTAIN:
@@ -152,8 +160,8 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
             break;
     }
 
-    (*currentDrawCallMap)[static_cast<int>(sustainDrawOrder)][sustain.gemColumn].push_back([=](juce::Graphics& g) {
-        this->drawSustainBody(g, sustain.gemColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane);
+    (*currentDrawCallMap)[static_cast<int>(sustainDrawOrder)][drawColumn].push_back([=](juce::Graphics& g) {
+        this->drawSustainBody(g, drawColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane);
     });
 }
 
