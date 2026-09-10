@@ -150,6 +150,7 @@ PartWindow TrackResolver::resolve(const SharedWindow& shared, const Config& cfg)
     resolveHiHatPedalGems(result, shared, cfg, diffs);   // after notes: reads the resolved hat state
     resolveSustains(result, shared, cfg, diffs);
     resolveLanes(result, shared, cfg, diffs);
+    resolveHiHatSustains(result, shared, cfg, diffs);   // after pedal gems: reads Open-hat + Splash gems
     return result;
 }
 
@@ -476,6 +477,130 @@ void TrackResolver::resolveHiHatPedalGems(PartWindow& result,
 
             const uint col = splash ? (uint)ELITE_SPLASH_COLUMN : (uint)ELITE_STOMP_COLUMN;
             tw[pedal.startPPQ][col] = GemWrapper(splash ? Gem::SPLASH : Gem::STOMP);
+        }
+    }
+}
+
+//==============================================================================
+// Hi-hat sustains (ringing zones from Open Hi-Hat / Splash gems)
+//==============================================================================
+
+void TrackResolver::resolveHiHatSustains(PartWindow& result,
+                                         const SharedWindow& shared,
+                                         const Config& cfg,
+                                         const std::array<DiffContext, 4>& diffs)
+{
+    if (getRenderType(cfg.part) != RenderType::ELITE_DRUMS) return;
+
+    const PPQ SIXTEENTH(0.25), EIGHTH(0.5), QUARTER(1.0), DOTTED_QUARTER(1.5);
+    const PPQ NEVER(1e12);
+
+    for (auto& dc : diffs)
+    {
+        auto& diffWindow = result.forSkill(dc.skill);
+        auto& tw = diffWindow.trackWindow;
+
+        // Note-offs sit one tick short (NoteProcessor::addNoteToMap). The 1/8 rule boundary is an
+        // equality test, so the length has to come back exact.
+        const PPQ oneTick(1);
+        auto noteLenAtColumn = [&](PPQ pos, uint wantCol) -> PPQ {
+            for (const auto& sus : shared.sustains)
+            {
+                if (sus.startPPQ != pos) continue;
+                bool playable = std::find(dc.playablePitches.begin(), dc.playablePitches.end(),
+                                          (uint)sus.pitch) != dc.playablePitches.end();
+                if (!playable) continue;
+                if (InstrumentMapper::getEliteDrumColumn(sus.pitch, dc.skill, cfg.kick2x) == wantCol)
+                    return sus.endPPQ - sus.startPPQ + oneTick;
+            }
+            return PPQ(0.0);
+        };
+        auto pedalLenAt = [&](PPQ pos) -> PPQ {
+            for (const auto& p : shared.hihatPedalNotes[dc.idx])
+                if (p.startPPQ == pos) return p.endPPQ - p.startPPQ + oneTick;
+            return PPQ(0.0);
+        };
+
+        struct Gen { PPQ start; PPQ len; bool splash; };
+        std::vector<Gen> gens;
+        std::vector<PPQ> terminators;
+
+        for (const auto& [pos, frame] : tw)
+        {
+            const GemWrapper& hat = frame[ELITE_HIHAT_COLUMN];
+            bool openHat   = (hat.gem != Gem::NONE && hat.hihat == HiHatState::Open);
+            bool closedHat = (hat.gem != Gem::NONE && hat.hihat == HiHatState::Closed);
+
+            if (openHat)
+                gens.push_back({pos, noteLenAtColumn(pos, (uint)ELITE_HIHAT_COLUMN), false});
+            if (frame[ELITE_SPLASH_COLUMN].gem == Gem::SPLASH)
+                gens.push_back({pos, pedalLenAt(pos), true});
+            if (openHat || closedHat)
+                terminators.push_back(pos);
+        }
+        // Velocity 1 draws no gem but still terminates.
+        for (const auto& p : shared.hihatPedalNotes[dc.idx])
+            terminators.push_back(p.startPPQ);
+
+        if (gens.empty()) continue;
+        std::sort(gens.begin(), gens.end(), [](const Gen& a, const Gen& b) { return a.start < b.start; });
+        std::sort(terminators.begin(), terminators.end());
+
+        auto firstTerminatorAfter = [&](PPQ s) -> PPQ {
+            auto it = std::upper_bound(terminators.begin(), terminators.end(), s);
+            return (it != terminators.end()) ? *it : NEVER;
+        };
+
+        struct Seg { PPQ start; PPQ end; PPQ fadeStart; bool splash; };
+        std::vector<Seg> segs;
+        for (const auto& g : gens)
+        {
+            PPQ term = firstTerminatorAfter(g.start);
+            Seg seg;
+            seg.start = g.start;
+            seg.splash = g.splash;
+            if (g.len >= EIGHTH)
+            {
+                // Manual: match the notated length, last 1/8 fades. An interior terminator cuts clean.
+                PPQ notated = g.start + g.len;
+                if (term < notated) { seg.end = term;    seg.fadeStart = term; }
+                else                { seg.end = notated; seg.fadeStart = notated - EIGHTH; }
+            }
+            else
+            {
+                // Default: look a dotted 1/4 ahead for a terminator, else 1/4 solid + 1/8 fade.
+                if (term <= g.start + DOTTED_QUARTER) { seg.end = term;                     seg.fadeStart = term; }
+                else                                  { seg.end = g.start + DOTTED_QUARTER; seg.fadeStart = g.start + QUARTER; }
+            }
+            segs.push_back(seg);
+        }
+
+        // Renewed segments are one ring, so the 1/16 floor applies to the whole run.
+        auto& sw = diffWindow.sustainWindow;
+        size_t i = 0;
+        while (i < segs.size())
+        {
+            size_t j = i;
+            while (j + 1 < segs.size()
+                   && segs[j].fadeStart == segs[j].end
+                   && segs[j].end == segs[j + 1].start)
+                ++j;
+
+            if (segs[j].end - segs[i].start > SIXTEENTH)
+            {
+                for (size_t k = i; k <= j; ++k)
+                {
+                    SustainEvent e;
+                    e.startPPQ = segs[k].start;
+                    e.endPPQ = segs[k].end;
+                    e.gemColumn = (uint)ELITE_HIHAT_COLUMN;
+                    e.sustainType = SustainType::HIHAT;
+                    e.gemType = GemWrapper(segs[k].splash ? Gem::SPLASH : Gem::NOTE);
+                    e.fadeStartPPQ = segs[k].fadeStart;
+                    sw.push_back(e);
+                }
+            }
+            i = j + 1;
         }
     }
 }

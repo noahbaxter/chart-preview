@@ -182,8 +182,17 @@ static FakeScene makeEliteScene(float farEnd)
     // an empty beat, so both reads are in one frame.
     s.track[4 * BEAT][ELITE_SPLASH_COLUMN]  = GemWrapper(Gem::SPLASH);
     s.track[6 * BEAT][ELITE_STOMP_COLUMN]   = GemWrapper(Gem::STOMP);
-    s.track[10 * BEAT][ELITE_SPLASH_COLUMN] = GemWrapper(Gem::SPLASH);
-    s.track[12 * BEAT][ELITE_STOMP_COLUMN]  = GemWrapper(Gem::STOMP);
+    s.track[10 * BEAT][ELITE_STOMP_COLUMN]  = GemWrapper(Gem::STOMP);
+    s.track[12 * BEAT][ELITE_SPLASH_COLUMN] = GemWrapper(Gem::SPLASH);
+
+    // Hi-hat ringing zones, charted as the resolver would emit them for the hats above: beat 3
+    // cut clean by beat 5 (no tail), beat 5 and the beat 12 splash on the default 1/4 + 1/8 fade.
+    s.sustains.push_back({ 3 * BEAT,  5 * BEAT,    (uint)ELITE_HIHAT_COLUMN,
+                           SustainType::HIHAT, GemWrapper(Gem::NOTE),   5 * BEAT });
+    s.sustains.push_back({ 5 * BEAT,  6.5 * BEAT,  (uint)ELITE_HIHAT_COLUMN,
+                           SustainType::HIHAT, GemWrapper(Gem::NOTE),   6 * BEAT });
+    s.sustains.push_back({ 12 * BEAT, 13.5 * BEAT, (uint)ELITE_HIHAT_COLUMN,
+                           SustainType::HIHAT, GemWrapper(Gem::SPLASH), 13 * BEAT });
 
     // Permutation matrix, one chord per row so every combination is easy to compare:
     //   row = one dynamic across ALL 8 hand lanes + a kick;

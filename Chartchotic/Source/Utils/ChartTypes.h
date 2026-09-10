@@ -177,7 +177,8 @@ enum class SustainType
     SUSTAIN,
     LANE,
     SOLO,
-    BRE
+    BRE,
+    HIHAT       // elite hi-hat ringing zone
 };
 
 struct SustainEvent
@@ -187,6 +188,7 @@ struct SustainEvent
     uint gemColumn;
     SustainType sustainType;
     GemWrapper gemType;
+    PPQ fadeStartPPQ = PPQ(0.0);   // HIHAT only; equal to endPPQ means no fade tail
 };
 
 //==============================================================================

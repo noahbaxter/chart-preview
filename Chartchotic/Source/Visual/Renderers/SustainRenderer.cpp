@@ -11,6 +11,7 @@
 
 #include "SustainRenderer.h"
 #include "../Geometry/RenderTypeConfig.h"
+#include "../Art/BarGemArt.h"
 #include "../../Editor/AuthoringTypes.h"
 
 using namespace PositionConstants;
@@ -41,6 +42,12 @@ void SustainRenderer::populate(DrawCallMap& drawCallMap, const TimeBasedSustainW
 
 void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime)
 {
+    if (sustain.sustainType == SustainType::HIHAT)
+    {
+        drawHiHatSustain(sustain, windowStartTime, windowEndTime);
+        return;
+    }
+
     double windowTimeSpan = windowEndTime - windowStartTime;
 
     bool isLane = (sustain.sustainType == SustainType::LANE);
@@ -148,6 +155,41 @@ void SustainRenderer::drawSustain(const TimeBasedSustainEvent& sustain, double w
     (*currentDrawCallMap)[static_cast<int>(sustainDrawOrder)][sustain.gemColumn].push_back([=](juce::Graphics& g) {
         this->drawSustainBody(g, sustain.gemColumn, startPosition, endPosition, opacity, sustainWidth, colour, isLane);
     });
+}
+
+void SustainRenderer::drawHiHatSustain(const TimeBasedSustainEvent& sustain, double windowStartTime, double windowEndTime)
+{
+    if (!showSustains) return;
+
+    const uint col = (uint)ELITE_HIHAT_COLUMN;
+    double windowTimeSpan = windowEndTime - windowStartTime;
+    double clipTime = HIGHWAY_POS_START * windowTimeSpan;
+    if (sustain.endTime < clipTime) return;
+
+    auto toPos = [&](double t) {
+        return (float)((std::max(clipTime, t) - windowStartTime) / windowTimeSpan);
+    };
+    float startPos = std::max((float)HIGHWAY_POS_START, toPos(sustain.startTime));
+    float endPos   = std::min(farFadeEnd, toPos(sustain.endTime));
+    float fadePos  = juce::jlimit(startPos, endPos, toPos(sustain.fadeStartTime));
+
+    if (endPos <= (float)HIGHWAY_POS_START || startPos >= farFadeEnd) return;
+
+    // One colour for every generator: a ring means the hat is open, however it got opened. Under
+    // strict an Open hat and a Splash both fire on one tick, and two colours there just stack.
+    const juce::Colour body = GemArt::kStompBarFace;
+
+    // drawSustainBody measures off a GEM_SIZE-scaled lane, so divide it back out for a true span.
+    const float w = HIHAT_SUSTAIN_LANE_SPAN / PositionConstants::GEM_SIZE;
+
+    if (fadePos > startPos)
+        (*currentDrawCallMap)[(int)DrawOrder::LANE][col].push_back([=](juce::Graphics& g) {
+            this->drawSustainBody(g, col, startPos, fadePos, HIHAT_SUSTAIN_OPACITY, w, body, true);
+        });
+    if (endPos > fadePos)
+        (*currentDrawCallMap)[(int)DrawOrder::LANE][col].push_back([=](juce::Graphics& g) {
+            this->drawSustainBody(g, col, fadePos, endPos, HIHAT_SUSTAIN_FADE_OPACITY, w, body, true);
+        });
 }
 
 void SustainRenderer::drawSustainBody(juce::Graphics& g, uint gemColumn, float startPosition, float endPosition, float opacity, float sustainWidth, juce::Colour colour, bool isLane)

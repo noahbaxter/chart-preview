@@ -80,6 +80,12 @@ private:
                                       const Config& cfg,
                                       const std::array<DiffContext, 4>& diffs);
 
+    // Elite Open Hi-Hat / Splash gems → HIHAT ringing sustains. Generators are the resolved gems.
+    static void resolveHiHatSustains(PartWindow& result,
+                                     const SharedWindow& shared,
+                                     const Config& cfg,
+                                     const std::array<DiffContext, 4>& diffs);
+
     // Disco flip: replace cymbal/tom flag while preserving dynamic
     static Gem swapCymbalFlag(Gem gem, bool cymbal);
 
