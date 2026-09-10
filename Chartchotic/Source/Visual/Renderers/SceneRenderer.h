@@ -68,7 +68,7 @@ class SceneRenderer
             GemWrapper gem;   // whole wrapper: the ghost previews SP and flam too
             juce::String positionLabel;    // "37.2" style label shown in write mode
             juce::String modeLabel;        // transient mode hint, drawn opposite the position
-            struct StampGhostEntry { int lane; float position; Gem gem = Gem::NOTE; };
+            struct StampGhostEntry { int lane; float position; GemWrapper gem; };
             std::vector<StampGhostEntry> stampGhosts;
         };
         GhostCursor ghostCursor;
@@ -78,7 +78,7 @@ class SceneRenderer
         {
             int   lane = -1;
             float position = 0.0f;
-            Gem   gem = Gem::NOTE;
+            GemWrapper gem;
             bool  selected = false;
         };
         std::vector<GhostPosition> movePreviewGhosts;

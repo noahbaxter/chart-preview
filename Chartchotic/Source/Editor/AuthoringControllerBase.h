@@ -162,7 +162,7 @@ protected:
             DBG("createNote: noteEditor rejected QN=" + juce::String(qn, 4) + " pitch=" + juce::String(pitch));
             return false;
         }
-        patchAdd(lane, qn, resolveGhostGem(lane));
+        patchAdd(lane, qn, resolveGhostWrapper(lane, qn));
         ensureChartDynamics(trackIdx, velocity);
         ensureEnhancedOpens(trackIdx, lane);
         return true;
@@ -281,7 +281,7 @@ protected:
         // SelectedNote carries no gem, so the moved note's own dynamic isn't available here.
         // The lane still decides cymbal-ness, which is what sets the Z offset, so the preview
         // lands at the right height; only a moved ghost/accent previews as the toolbar's.
-        patchAdd(newLane, newQN, resolveGhostGem(newLane));
+        patchAdd(newLane, newQN, resolveGhostWrapper(newLane, newQN));
         return true;
     }
 
@@ -590,7 +590,7 @@ protected:
     OverlayState            overlayState;
 
 private:
-    void patchAdd(int lane, double qn, Gem gem) { if (patchBuffer) patchBuffer->addAdd(lane, qn, gem); }
+    void patchAdd(int lane, double qn, const GemWrapper& gem) { if (patchBuffer) patchBuffer->addAdd(lane, qn, gem); }
     void patchRemove(int lane, double qn) { if (patchBuffer) patchBuffer->addRemove(lane, qn); }
 
     NoteEditor              noteEditor;

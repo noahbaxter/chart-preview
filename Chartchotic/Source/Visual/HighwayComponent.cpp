@@ -216,8 +216,8 @@ void HighwayComponent::paint(juce::Graphics& g)
                     // Start from what the note actually is. Auto-HOPO may only
                     // upgrade a plain note, since an explicit force marker
                     // wins, matching GemCalculator's priority order.
-                    Gem gem = pn.gem;
-                    if (autoHopo && gem == Gem::NOTE && secondsToProjectQN)
+                    GemWrapper gem = pn.gem;
+                    if (autoHopo && gem.gem == Gem::NOTE && secondsToProjectQN)
                     {
                         double qn = secondsToProjectQN(sec);
                         auto it = frameData.trackWindow.lower_bound(sec);
@@ -234,7 +234,7 @@ void HighwayComponent::paint(juce::Graphics& g)
                             bool prevChord = (prevLaneCount >= 2);
                             if (dist > PPQ(0.0) && dist <= hopoThreshold
                                 && !prevChord && pn.lane != prevLane)
-                                gem = Gem::HOPO_GHOST;
+                                gem.gem = Gem::HOPO_GHOST;
                         }
                     }
 
