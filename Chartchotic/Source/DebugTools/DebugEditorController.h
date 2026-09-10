@@ -7,6 +7,7 @@
 #include "DebugMidiFilePlayer.h"
 #include "FrameProfileLogger.h"
 #include "../Midi/DiscoFlipState.h"
+#include "../Midi/StrictHatPedalState.h"
 #include "../Visual/HighwayComponent.h"
 #include "../Visual/Utils/RenderTiming.h"
 #include "../Visual/Utils/DrawingConstants.h"
@@ -120,6 +121,7 @@ private:
     TempoTimeSignatureMap debugMidiTempoMap;
     double debugChartLengthInBeats = 0.0;
     DiscoFlipState discoFlipState;
+    StrictHatPedalState strictHatPedalState;
     void loadDebugChart(int index);
     void scanMidiDirectory();
 

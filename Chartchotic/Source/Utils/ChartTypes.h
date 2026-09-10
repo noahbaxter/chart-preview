@@ -36,6 +36,8 @@ constexpr int DRUM_KICK_COLUMN     = 0;
 constexpr int DRUM_KICK_2X_COLUMN  = 6;   // 4-lane: 2x kick shares the kick lane
 constexpr int ELITE_KICK_2X_COLUMN = 9;   // elite: col 6 is a real hand lane (Tom 3), so 2x kick moves to a virtual column
 constexpr int ELITE_HIHAT_COLUMN   = 2;   // elite: the yellow cymbal lane, the only lane with open/closed/indifferent state
+constexpr int ELITE_STOMP_COLUMN   = 10;  // elite: virtual lanes for the pedal bars, drawn over the hi-hat zone
+constexpr int ELITE_SPLASH_COLUMN  = 11;
 
 // `part` is deliberately NOT defaulted. A default of Part::DRUMS silently answers the
 // 4-lane question for elite, where column 6 is Tom 3 rather than the 2x kick, and every

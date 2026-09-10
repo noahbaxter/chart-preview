@@ -15,6 +15,7 @@
 #include "../Providers/REAPER/MidiCache.h"
 #include "../Providers/REAPER/ReaperMidiProvider.h"
 #include "../DiscoFlipState.h"
+#include "../StrictHatPedalState.h"
 #include "../../Utils/ChartTypes.h"
 
 class ReaperMidiPipeline : public MidiPipeline
@@ -50,6 +51,7 @@ public:
     void fetchAllTextEvents();
 
     const DiscoFlipState* getDiscoFlipState() const { return discoFlipState.hasRegions() ? &discoFlipState : nullptr; }
+    const StrictHatPedalState* getStrictHatPedalState() const { return strictHatPedalState.hasFlag() ? &strictHatPedalState : nullptr; }
 
 private:
     void processCachedNotesIntoState(PPQ currentPos);
@@ -66,6 +68,7 @@ private:
     std::vector<MidiCache::CachedNote> allNotes;
     TrackTextEvents textEvents;
     DiscoFlipState discoFlipState;
+    StrictHatPedalState strictHatPedalState;
 
     int targetTrackIndex = -1;
 

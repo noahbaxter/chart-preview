@@ -35,6 +35,16 @@ namespace
         return cfg;
     }
 
+    // A config whose [STRICT_HAT_PEDAL_STATE] latches from the very start of the chart.
+    StrictHatPedalState strictFromZero()
+    {
+        TrackTextEvents events;
+        events.push_back({PPQ(0.0), "[STRICT_HAT_PEDAL_STATE]"});
+        StrictHatPedalState s;
+        s.buildFromTextEvents(events);
+        return s;
+    }
+
     // The Expert frame at `onQN`, or nullptr if nothing resolved there.
     const TrackFrame* expertFrameAt(const PartWindow& pw, double onQN)
     {
@@ -249,4 +259,186 @@ TEST_CASE("TrackResolver - a roll lane on another column doesn't suppress the fl
     const auto* frame = expertFrameAt(pw, 1.0);
     REQUIRE(frame != nullptr);
     REQUIRE((*frame)[1].flam);
+}
+
+// ============================================================================
+// Elite hi-hat pedal gems (Stomp / Splash).
+// ============================================================================
+
+TEST_CASE("TrackResolver - pedal velocity picks the gem", "[track_resolver][elite]")
+{
+    struct Case { uint8_t velocity; Gem gem; int column; const char* what; };
+    const Case cases[] = {
+        { 2,   Gem::STOMP,  ELITE_STOMP_COLUMN,  "lowest stomp velocity" },
+        { 100, Gem::STOMP,  ELITE_STOMP_COLUMN,  "ordinary stomp" },
+        { 126, Gem::STOMP,  ELITE_STOMP_COLUMN,  "highest stomp velocity" },
+        { 127, Gem::SPLASH, ELITE_SPLASH_COLUMN, "splash" },
+    };
+
+    for (const auto& c : cases)
+    {
+        INFO(c.what);
+        auto pw = TrackResolver::resolve(
+            extractElite(oneNote((uint)EliteDrums::EXPERT_PEDAL, 1.0, 1.1, c.velocity)),
+            eliteConfig());
+
+        const auto* frame = expertFrameAt(pw, 1.0);
+        REQUIRE(frame != nullptr);
+        REQUIRE((*frame)[(uint)c.column].gem == c.gem);
+    }
+}
+
+TEST_CASE("TrackResolver - pedal velocity 1 draws no gem", "[track_resolver][elite]")
+{
+    // Velocity 1 is a hi-hat sustain terminator only, so nothing lands on either pedal lane.
+    auto pw = TrackResolver::resolve(
+        extractElite(oneNote((uint)EliteDrums::EXPERT_PEDAL, 1.0, 1.1, 1)), eliteConfig());
+
+    const auto* frame = expertFrameAt(pw, 1.0);
+    if (frame != nullptr)
+    {
+        REQUIRE((*frame)[(uint)ELITE_STOMP_COLUMN].gem == Gem::NONE);
+        REQUIRE((*frame)[(uint)ELITE_SPLASH_COLUMN].gem == Gem::NONE);
+    }
+}
+
+TEST_CASE("TrackResolver - pedal gems land on every difficulty's own pitch",
+          "[track_resolver][elite]")
+{
+    struct Case { uint pitch; SkillLevel skill; };
+    const Case cases[] = {
+        { (uint)EliteDrums::EASY_PEDAL,   SkillLevel::EASY },
+        { (uint)EliteDrums::MEDIUM_PEDAL, SkillLevel::MEDIUM },
+        { (uint)EliteDrums::HARD_PEDAL,   SkillLevel::HARD },
+        { (uint)EliteDrums::EXPERT_PEDAL, SkillLevel::EXPERT },
+    };
+
+    for (const auto& c : cases)
+    {
+        auto pw = TrackResolver::resolve(extractElite(oneNote(c.pitch, 1.0, 1.1)), eliteConfig());
+        const auto& tw = pw.forSkill(c.skill).trackWindow;
+        auto it = tw.find(PPQ(1.0));
+        REQUIRE(it != tw.end());
+        REQUIRE(it->second[(uint)ELITE_STOMP_COLUMN].gem == Gem::STOMP);
+    }
+}
+
+TEST_CASE("TrackResolver - a coincident yellow suppresses the pedal gem",
+          "[track_resolver][elite]")
+{
+    // The pedal under a Yellow closes the hat; the bar itself is suppressed.
+    NoteStateMapArray notes;
+    addNote(notes, (uint)EliteDrums::EXPERT_HIHAT, 1.0, 1.1);
+    addNote(notes, (uint)EliteDrums::EXPERT_PEDAL, 1.0, 1.1);
+
+    auto pw = TrackResolver::resolve(extractElite(notes), eliteConfig());
+    const auto* frame = expertFrameAt(pw, 1.0);
+    REQUIRE(frame != nullptr);
+    REQUIRE((*frame)[(uint)ELITE_HIHAT_COLUMN].hihat == HiHatState::Closed);
+    REQUIRE((*frame)[(uint)ELITE_STOMP_COLUMN].gem == Gem::NONE);
+}
+
+TEST_CASE("TrackResolver - a yellow on another tick doesn't suppress", "[track_resolver][elite]")
+{
+    NoteStateMapArray notes;
+    addNote(notes, (uint)EliteDrums::EXPERT_HIHAT, 2.0, 2.1);
+    addNote(notes, (uint)EliteDrums::EXPERT_PEDAL, 1.0, 1.1);
+
+    auto pw = TrackResolver::resolve(extractElite(notes), eliteConfig());
+    const auto* frame = expertFrameAt(pw, 1.0);
+    REQUIRE(frame != nullptr);
+    REQUIRE((*frame)[(uint)ELITE_STOMP_COLUMN].gem == Gem::STOMP);
+}
+
+TEST_CASE("TrackResolver - an indifferent yellow never suppresses", "[track_resolver][elite]")
+{
+    NoteStateMapArray notes;
+    addNote(notes, (uint)EliteDrums::EXPERT_HIHAT,        1.0, 1.1);
+    addNote(notes, (uint)EliteDrums::EXPERT_INDIFFERENT,  1.0, 1.1);
+    addNote(notes, (uint)EliteDrums::EXPERT_PEDAL,        1.0, 1.1);
+
+    auto pw = TrackResolver::resolve(extractElite(notes), eliteConfig());
+    const auto* frame = expertFrameAt(pw, 1.0);
+    REQUIRE(frame != nullptr);
+    REQUIRE((*frame)[(uint)ELITE_HIHAT_COLUMN].hihat == HiHatState::Indifferent);
+    REQUIRE((*frame)[(uint)ELITE_STOMP_COLUMN].gem == Gem::STOMP);
+}
+
+TEST_CASE("TrackResolver - strict hat pedal state waives suppression",
+          "[track_resolver][elite]")
+{
+    auto strict = strictFromZero();
+    auto cfg = eliteConfig();
+    cfg.strictHatPedalState = &strict;
+
+    SECTION("closed hat and stomp render together")
+    {
+        NoteStateMapArray notes;
+        addNote(notes, (uint)EliteDrums::EXPERT_HIHAT, 1.0, 1.1);
+        addNote(notes, (uint)EliteDrums::EXPERT_PEDAL, 1.0, 1.1);
+
+        auto pw = TrackResolver::resolve(extractElite(notes), cfg);
+        const auto* frame = expertFrameAt(pw, 1.0);
+        REQUIRE(frame != nullptr);
+        REQUIRE((*frame)[(uint)ELITE_HIHAT_COLUMN].hihat == HiHatState::Closed);
+        REQUIRE((*frame)[(uint)ELITE_STOMP_COLUMN].gem == Gem::STOMP);
+    }
+
+    SECTION("open hat and splash render together")
+    {
+        NoteStateMapArray notes;
+        addNote(notes, (uint)EliteDrums::EXPERT_HIHAT, 1.0, 1.1);
+        addNote(notes, (uint)EliteDrums::EXPERT_PEDAL, 1.0, 1.1, 127);
+
+        auto pw = TrackResolver::resolve(extractElite(notes), cfg);
+        const auto* frame = expertFrameAt(pw, 1.0);
+        REQUIRE(frame != nullptr);
+        REQUIRE((*frame)[(uint)ELITE_HIHAT_COLUMN].hihat == HiHatState::Open);
+        REQUIRE((*frame)[(uint)ELITE_SPLASH_COLUMN].gem == Gem::SPLASH);
+    }
+}
+
+TEST_CASE("TrackResolver - strict only applies from its own position onward",
+          "[track_resolver][elite]")
+{
+    TrackTextEvents events;
+    events.push_back({PPQ(4.0), "[STRICT_HAT_PEDAL_STATE]"});
+    StrictHatPedalState strict;
+    strict.buildFromTextEvents(events);
+
+    auto cfg = eliteConfig();
+    cfg.strictHatPedalState = &strict;
+
+    NoteStateMapArray notes;
+    addNote(notes, (uint)EliteDrums::EXPERT_HIHAT, 1.0, 1.1);
+    addNote(notes, (uint)EliteDrums::EXPERT_PEDAL, 1.0, 1.1);
+    addNote(notes, (uint)EliteDrums::EXPERT_HIHAT, 5.0, 5.1);
+    addNote(notes, (uint)EliteDrums::EXPERT_PEDAL, 5.0, 5.1);
+
+    auto pw = TrackResolver::resolve(extractElite(notes), cfg);
+
+    const auto* before = expertFrameAt(pw, 1.0);
+    REQUIRE(before != nullptr);
+    REQUIRE((*before)[(uint)ELITE_STOMP_COLUMN].gem == Gem::NONE);
+
+    const auto* after = expertFrameAt(pw, 5.0);
+    REQUIRE(after != nullptr);
+    REQUIRE((*after)[(uint)ELITE_STOMP_COLUMN].gem == Gem::STOMP);
+}
+
+TEST_CASE("TrackResolver - pedal gems stay off non-elite drums", "[track_resolver][elite]")
+{
+    // EXPERT_PEDAL is 72, an ordinary 4-lane pitch. Off elite nothing may reach col 10/11.
+    auto shared = TrackResolver::extract(oneNote((uint)EliteDrums::EXPERT_PEDAL, 1.0, 1.1),
+                                         PPQ(0.0), PPQ(16.0), PPQ(16.0), false, /*isElite=*/false);
+    TrackResolver::Config cfg;
+    cfg.part = Part::DRUMS;
+
+    auto pw = TrackResolver::resolve(shared, cfg);
+    const auto* frame = expertFrameAt(pw, 1.0);
+    if (frame != nullptr)
+    {
+        REQUIRE((*frame)[(uint)ELITE_STOMP_COLUMN].gem == Gem::NONE);
+        REQUIRE((*frame)[(uint)ELITE_SPLASH_COLUMN].gem == Gem::NONE);
+    }
 }

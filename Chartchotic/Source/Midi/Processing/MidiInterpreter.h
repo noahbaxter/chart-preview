@@ -15,6 +15,7 @@
 #include "../Utils/MidiTypes.h"
 #include "../Utils/InstrumentMapper.h"
 #include "../DiscoFlipState.h"
+#include "../StrictHatPedalState.h"
 #include "PartWindow.h"
 #include "TrackResolver.h"
 
@@ -29,6 +30,10 @@ class MidiInterpreter
 
 		void setDiscoFlipState(const DiscoFlipState* flipState) { discoFlip = flipState; }
 		const DiscoFlipState* getDiscoFlipState() const { return discoFlip; }
+
+		void setStrictHatPedalState(const StrictHatPedalState* s) { strictHatPedal = s; }
+		const StrictHatPedalState* getStrictHatPedalState() const { return strictHatPedal; }
+
 		const juce::ValueTree& getState() const { return state; }
 
 		NoteStateMapArray &noteStateMapArray;
@@ -40,4 +45,5 @@ class MidiInterpreter
 	private:
 		juce::ValueTree &state;
 		const DiscoFlipState* discoFlip = nullptr;
+		const StrictHatPedalState* strictHatPedal = nullptr;
 };

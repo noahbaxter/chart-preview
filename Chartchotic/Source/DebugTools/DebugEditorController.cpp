@@ -318,6 +318,9 @@ void DebugEditorController::buildStandaloneFrameData(HighwayFrameData& out,
     bool isDrumSlot = midiInterpreter.instrumentPart == Part::DRUMS;
     midiInterpreter.setDiscoFlipState(isDrumSlot && discoFlipState.hasRegions() ? &discoFlipState : nullptr);
 
+    bool isEliteSlot = midiInterpreter.instrumentPart == Part::ELITE_DRUMS;
+    midiInterpreter.setStrictHatPedalState(isEliteSlot && strictHatPedalState.hasFlag() ? &strictHatPedalState : nullptr);
+
     PPQ trackWindowStartPPQ = playbackController.getCurrentPPQ();
     PPQ trackWindowEndPPQ = trackWindowStartPPQ + PPQ(displaySizeInPPQ);
     PPQ extendedStart = trackWindowStartPPQ - PPQ(displaySizeInPPQ);
@@ -464,6 +467,13 @@ void DebugEditorController::loadDebugChart(int index)
         discoFlipState.buildFromTextEvents(drumTextIt->second);
     else
         discoFlipState = DiscoFlipState();
+
+    // [STRICT_HAT_PEDAL_STATE] lives on the elite track, not PART DRUMS
+    auto eliteTextIt = result.trackTextEvents.find("PART ELITE_DRUMS");
+    if (eliteTextIt != result.trackTextEvents.end())
+        strictHatPedalState.buildFromTextEvents(eliteTextIt->second);
+    else
+        strictHatPedalState = StrictHatPedalState();
 
     // Notify editor with full chart data — each slot processes its own track
     if (onChartLoaded)

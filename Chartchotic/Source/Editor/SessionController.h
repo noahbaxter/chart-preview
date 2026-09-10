@@ -51,6 +51,7 @@ public:
         std::shared_ptr<NoteStateMapArray> noteStateMapArray = std::make_shared<NoteStateMapArray>();
         std::shared_ptr<juce::CriticalSection> noteStateMapLock = std::make_shared<juce::CriticalSection>();
         const DiscoFlipState* discoFlipState = nullptr;
+        const StrictHatPedalState* strictHatPedalState = nullptr;
     };
 
 private:

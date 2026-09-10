@@ -31,11 +31,13 @@ SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
         if (isMod)
         {
             PPQ onPPQ = PPQ(-1.0);
+            uint8_t onVelocity = 0;
             for (auto it = nsm.begin(); it != nsm.end(); ++it)
             {
                 if (it->second.velocity > 0)
                 {
                     onPPQ = it->first;
+                    onVelocity = it->second.velocity;
                 }
                 else if (onPPQ >= PPQ(0.0))
                 {
@@ -61,7 +63,12 @@ SharedWindow TrackResolver::extract(const NoteStateMapArray& notes,
                         uint8_t laneVel = (onIt != nsm.end()) ? onIt->second.velocity : 100;
                         shared.lanes.push_back({extStart, it->first, (uint8_t)pitch, laneVel});
                     }
-                    else if (hatPedal >= 0)  shared.modifiers.hihatPedal[hatPedal].push_back(range);
+                    else if (hatPedal >= 0)
+                    {
+                        // The range drives closed-hat detection, the note keeps the velocity.
+                        shared.modifiers.hihatPedal[hatPedal].push_back(range);
+                        shared.hihatPedalNotes[hatPedal].push_back({onPPQ, it->first, onVelocity});
+                    }
                     else if (hatIndiff >= 0) shared.modifiers.hihatIndifferent[hatIndiff].push_back(range);
                     else if (flamSkill >= 0) shared.modifiers.flam[flamSkill].push_back(range);
                     else if (pitch == (uint)Guitar::SP || pitch == (uint)Drums::SP
@@ -140,6 +147,7 @@ PartWindow TrackResolver::resolve(const SharedWindow& shared, const Config& cfg)
 
     PartWindow result;
     resolveNotes(result, shared, cfg, diffs);
+    resolveHiHatPedalGems(result, shared, cfg, diffs);   // after notes: reads the resolved hat state
     resolveSustains(result, shared, cfg, diffs);
     resolveLanes(result, shared, cfg, diffs);
     return result;
@@ -427,6 +435,47 @@ void TrackResolver::resolveLanes(PartWindow& result,
                 laneEvent.gemType = GemWrapper(Gem::NOTE, false);
                 sw.push_back(laneEvent);
             }
+        }
+    }
+}
+
+//==============================================================================
+// Hi-hat pedal gems (Stomp / Splash)
+//==============================================================================
+
+void TrackResolver::resolveHiHatPedalGems(PartWindow& result,
+                                          const SharedWindow& shared,
+                                          const Config& cfg,
+                                          const std::array<DiffContext, 4>& diffs)
+{
+    if (getRenderType(cfg.part) != RenderType::ELITE_DRUMS) return;
+
+    for (auto& dc : diffs)
+    {
+        auto& tw = result.forSkill(dc.skill).trackWindow;
+
+        for (const auto& pedal : shared.hihatPedalNotes[dc.idx])
+        {
+            // Velocity 1 draws nothing but still terminates a hi-hat sustain, so it is kept.
+            if (pedal.velocity <= 1) continue;
+            const bool splash = (pedal.velocity == 127);
+
+            const bool strict = cfg.strictHatPedalState
+                             && cfg.strictHatPedalState->isStrictAt(pedal.startPPQ);
+
+            auto fit = tw.find(pedal.startPPQ);
+            GemWrapper* hat = (fit != tw.end()) ? &fit->second[ELITE_HIHAT_COLUMN] : nullptr;
+            const bool nonIndifferentYellow = hat && hat->gem != Gem::NONE
+                                           && hat->hihat != HiHatState::Indifferent;
+
+            if (!strict && nonIndifferentYellow) continue;
+
+            // Strict pairs Splash with an Open hat, but resolveNotes closed it off this pedal.
+            if (strict && splash && hat && hat->hihat == HiHatState::Closed)
+                hat->hihat = HiHatState::Open;
+
+            const uint col = splash ? (uint)ELITE_SPLASH_COLUMN : (uint)ELITE_STOMP_COLUMN;
+            tw[pedal.startPPQ][col] = GemWrapper(splash ? Gem::SPLASH : Gem::STOMP);
         }
     }
 }

@@ -7,6 +7,7 @@
 #include "Providers/TrackNoteProvider.h"
 #include "DiscoFlipState.h"
 #include "StarPowerState.h"
+#include "StrictHatPedalState.h"
 
 class InstrumentSession
 {
@@ -26,6 +27,7 @@ public:
     const TrackTextEvents& getTextEvents(int trackIdx) const;
     const DiscoFlipState& getDiscoFlipState(int trackIdx) const;
     const StarPowerState& getStarPowerState(int trackIdx) const;
+    const StrictHatPedalState& getStrictHatPedalState(int trackIdx) const;
 
     int getTrackCount() const { return (int)tracks.size(); }
     bool isEmpty() const { return tracks.empty(); }
@@ -43,6 +45,7 @@ private:
         TrackTextEvents textEvents;
         DiscoFlipState discoFlipState;
         StarPowerState starPowerState;
+        StrictHatPedalState strictHatPedalState;
         std::string lastHash;
     };
 
@@ -58,4 +61,5 @@ private:
     static const TrackTextEvents emptyTextEvents;
     static const DiscoFlipState emptyDiscoFlip;
     static const StarPowerState emptyStarPower;
+    static const StrictHatPedalState emptyStrictHatPedal;
 };

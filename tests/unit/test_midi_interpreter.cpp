@@ -240,15 +240,20 @@ TEST_CASE("resolveAllDifficulties - elite hi-hat pedal state", "[resolve][elite]
         REQUIRE(dw.trackWindow[PPQ(2.0)][HH].hihat == HiHatState::Open);
     }
 
-    SECTION("Pedal Down / Indifferent modifiers are not themselves rendered as gems")
+    SECTION("Pedal Down / Indifferent modifiers never become hand or kick gems")
     {
+        // A lone Pedal Down does draw its own Stomp bar on the pedal lane, but neither
+        // modifier may ever put a gem on a playable lane.
         f.addModifier((uint)ED::EXPERT_PEDAL, PPQ(2.0), PPQ(2.5));
         f.addModifier((uint)ED::EXPERT_INDIFFERENT, PPQ(3.0), PPQ(3.5));
 
         auto dw = resolveExpert(f, PPQ(0.0), PPQ(4.0));
         for (auto& [ppq, frame] : dw.trackWindow)
             for (uint col = 0; col < LANE_COUNT; col++)
-                REQUIRE(frame[col].gem == Gem::NONE);
+                if (col != (uint)ELITE_STOMP_COLUMN && col != (uint)ELITE_SPLASH_COLUMN)
+                    REQUIRE(frame[col].gem == Gem::NONE);
+
+        REQUIRE(dw.trackWindow[PPQ(2.0)][(uint)ELITE_STOMP_COLUMN].gem == Gem::STOMP);
     }
 }
 

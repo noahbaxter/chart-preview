@@ -49,6 +49,7 @@ PartWindow MidiInterpreter::resolveAllDifficulties(PPQ windowStart, PPQ windowEn
     cfg.starPower = (bool)state.getProperty("starPower");
     cfg.bemaniMode = PositionMath::bemaniMode;
     cfg.discoFlipState = discoFlip;
+    cfg.strictHatPedalState = strictHatPedal;
 
     int thresholdIndex = (int)state.getProperty("hopoThresh", HOPO_THRESHOLD_DEFAULT);
     if (cfg.autoHopo)
