@@ -16,6 +16,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "../Utils/LaneColours.h"
 
 namespace GemArt
 {
@@ -52,14 +53,26 @@ namespace GemArt
     inline juce::Rectangle<int> barCanvas()        { return { 0, 0, 2432, 152 }; }
     inline juce::Rectangle<int> barContentBounds() { return { 86, 0, 2260, 152 }; }
 
-    // Elite Stomp/Splash pedal bar: a flat white plane with a raised pseudo-3D box, flat greys
-    // (no gradients). Symmetric and parabolically arced so it sits along the highway's curved
+    // Elite Stomp/Splash pedal bar: a flat plane with a raised pseudo-3D box, flat shades (no
+    // gradients). Symmetric and parabolically arced so it sits along the highway's curved
     // gridlines. Self-contained (defines its own canvas). `arch` sets the arc depth in content px
     // (caller derives it from the shared curvature constant); `thickness` scales the vertical
     // extent. The content canvas is kStompBarWidth wide, so arch = |curvature| * kStompBarWidth *
     // spanFraction matches the gridline curvature over the bar's span.
+    // `face` tints the whole bar: it IS the top-face shade, and the front / end-cap shades are
+    // scaled off it. `edgeWidth` > 0 adds a keyline of `edge` around the outer silhouette,
+    // leaving the body filled.
     constexpr int kStompBarWidth = 2432;
-    juce::Image bakeStompBar(float arch = 0.0f, float thickness = 1.0f);
+    juce::Image bakeStompBar(float arch = 0.0f, float thickness = 1.0f,
+                             juce::Colour face = juce::Colour(0xffffffff),
+                             juce::Colour edge = juce::Colour(0x00000000),
+                             float edgeWidth = 0.0f);
+
+    // The hi-hat lane's own yellow. Stomp (the foot click) fills with it flat; Splash keeps the
+    // white body and takes it as a gold keyline.
+    inline const juce::Colour kStompBarFace = LaneColours::bright(LaneColours::yellow);
+    inline const juce::Colour kStompBarBody = juce::Colour(0xffffffff);
+    constexpr float kStompBarEdgeWidth = 20.0f;
 
     // Procedural gridline marker: a thin flat-grey parallelogram (diagonal-cut ends) bowed by
     // the SAME parabola the notes / stomp bar use. The caller derives `arch` from

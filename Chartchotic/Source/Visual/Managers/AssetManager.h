@@ -42,8 +42,9 @@ public:
     juce::Image* getBarKickAccentImage()   { return &barKickAccentImage; }
     juce::Image* getBarKick2xAccentImage() { return &barKick2xAccentImage; }
     juce::Image* getBarWhiteAccentImage()  { return &barWhiteAccentImage; }
-    // Elite pedal/stomp bar (extracted). Loaded but not yet drawn: col 10/11 stomp lane is unmapped.
+    // Elite hi-hat pedal bars, drawn on cols 10 / 11.
     juce::Image* getBarStompImage() { return &barStompImage; }
+    juce::Image* getBarSplashImage() { return &barSplashImage; }
 
     // Cymbal notes
     juce::Image* getCymBlueImage() { return &cymBlueImage; }
@@ -171,7 +172,8 @@ private:
     juce::Image barKickAccentImage;     // Elite accent kicks: double thickness + centre line
     juce::Image barKick2xAccentImage;
     juce::Image barWhiteAccentImage;
-    juce::Image barStompImage;           // Extracted elite pedal/stomp bar (col 10/11 still unmapped)
+    juce::Image barStompImage;           // Elite hi-hat pedal bar, solid yellow (col 10)
+    juce::Image barSplashImage;          // Elite hi-hat pedal bar, white body + gold keyline (col 11)
 
     // Cymbal notes
     juce::Image cymBlueImage;

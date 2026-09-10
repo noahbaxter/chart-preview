@@ -213,17 +213,22 @@ BarRamp barRampOpen()
         { 0.866f, 0xff7c0bd6 }, { 0.938f, 0xff7503d4 }, { 1.000f, 0xff7200d3 } });
 }
 
-juce::Image bakeStompBar(float arch, float thickness)
+juce::Image bakeStompBar(float arch, float thickness, juce::Colour face,
+                         juce::Colour edge, float edgeWidth)
 {
-    // Flat pseudo-3D model measured off the source: a flat white PLANE (full-width thin
-    // trapezoid, tapered ends) with a raised BOX on centre. Two flat greys, NO gradients:
-    //   white (255) = plane + box top face; grey (190) = box front; darker grey = box side.
+    // Flat pseudo-3D model measured off the source: a flat PLANE (full-width thin trapezoid,
+    // tapered ends) with a raised BOX on centre. Three flat shades, NO gradients, scaled off
+    // `face` at the source's 255 / 190 / 128 levels so a tint keeps the same read.
     // `thickness` scales vertical extent; `arch` bows the whole profile down at the ends
     // (parabola) so it follows the curved gridlines.
     constexpr int   W     = 2432;
-    const juce::Colour WHITE (0xffffffff);   // plane + box top face  (source 255)
-    const juce::Colour GREY  (0xffbebebe);   // box front face        (source 190)
-    const juce::Colour CAP   (0xff808080);   // box left/right end caps (source 128)
+    auto shade = [](juce::Colour c, float f) {
+        return juce::Colour::fromFloatRGBA(c.getFloatRed() * f, c.getFloatGreen() * f,
+                                           c.getFloatBlue() * f, c.getFloatAlpha());
+    };
+    const juce::Colour WHITE = face;                         // plane + box top face
+    const juce::Colour GREY  = shade(face, 190.0f / 255.0f); // box front face
+    const juce::Colour CAP   = shade(face, 128.0f / 255.0f); // box left/right end caps
 
     // Box geometry (content px): a uniform ~0.70x scale of the measured source (3469x187) so the
     // box keeps its true wide/flat proportion. The box sits ON the flat plane and spans the
@@ -248,7 +253,7 @@ juce::Image bakeStompBar(float arch, float thickness)
     // negative once thickness > 1, since sy scales about the plane centreline). Shift content so
     // the top sits at `pad`, with symmetric padding, so the box top never clips and the content
     // stays centred in the image (thickness = 1 -> yShift 0, identical to the old bake).
-    const float pad    = 8.0f;
+    const float pad    = 8.0f + edgeWidth * 0.5f;   // headroom for the edge stroke's outer half
     const float yShift = pad - topBack;
     const int   H = (int) std::ceil((planeBot - topBack) + std::abs(arch) + 2.0f * pad);
 
@@ -278,6 +283,30 @@ juce::Image bakeStompBar(float arch, float thickness)
     quad(GREY, cx - hw, frontTop, cx + hw, frontTop, cx + hw, planeBot, cx - hw, planeBot);
     // Top face (white trapezoid: front edge -> splayed, raised back edge).
     quad(WHITE, cx - hw, frontTop, cx + hw, frontTop, cx + hw + capW, topBack, cx - hw - capW, topBack);
+
+    // Keyline around the OUTER silhouette only (never the internal box seams, which would read
+    // as a wireframe over the body). Traced by hand: plane back edge out to where the box
+    // interrupts it, up and over the box, back along the plane, then the plane's diagonal ends.
+    if (edgeWidth > 0.0f)
+    {
+        auto pt = [&](float x, float y) { return juce::Point<float>(x, y + yShift + arc(x)); };
+        const float boxL = cx - hw - capW, boxR = cx + hw + capW;
+
+        juce::Path s;
+        s.startNewSubPath(pt(0.0f, planeTop));
+        s.lineTo(pt(boxL, planeTop));
+        s.lineTo(pt(boxL, topBack));
+        s.lineTo(pt(boxR, topBack));
+        s.lineTo(pt(boxR, planeTop));
+        s.lineTo(pt((float) W, planeTop));
+        s.lineTo(pt((float) W - depth, planeBot));
+        s.lineTo(pt(depth, planeBot));
+        s.closeSubPath();
+
+        g.setColour(edge);
+        g.strokePath(s, juce::PathStrokeType(edgeWidth, juce::PathStrokeType::curved,
+                                             juce::PathStrokeType::square));
+    }
 
     return img;
 }

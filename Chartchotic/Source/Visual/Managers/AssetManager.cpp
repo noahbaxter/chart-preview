@@ -108,7 +108,11 @@ void AssetManager::initAssets()
     // Elite Stomp/Splash pedal bar: procedurally baked FLAT (like the kick bars). The highway
     // curve is applied at render time (over the bar's off-centre span) so it matches the tilted
     // gridline exactly, rather than baking a symmetric bow that can't tilt.
-    barStompImage = GemArt::bakeStompBar(0.0f, PositionConstants::ELITE_PEDAL_THICKNESS);
+    barStompImage  = GemArt::bakeStompBar(0.0f, PositionConstants::ELITE_PEDAL_THICKNESS,
+                                          GemArt::kStompBarFace);
+    barSplashImage = GemArt::bakeStompBar(0.0f, PositionConstants::ELITE_PEDAL_THICKNESS,
+                                          GemArt::kStompBarBody, GemArt::kStompBarFace,
+                                          GemArt::kStompBarEdgeWidth);
 
     // Cymbals: one greyscale metallic master (the blue cymbal collapsed to luminance) drives
     // every lane colour through a LaneColours tint ramp, presets AND any custom hue alike, so
@@ -264,7 +268,7 @@ void AssetManager::initAssets()
         {&barWhiteEliteImage, barWhiteEliteImage, FULL},
         {&barKickAccentImage, barKickAccentImage, FULL}, {&barKick2xAccentImage, barKick2xAccentImage, FULL},
         {&barWhiteAccentImage, barWhiteAccentImage, FULL},
-        {&barStompImage, barStompImage, FULL},
+        {&barStompImage, barStompImage, FULL}, {&barSplashImage, barSplashImage, FULL},
         // Overlays
         {&overlayCymAccentImage, overlayCymAccentImage}, {&overlayCymGhostImage, overlayCymGhostImage},
         {&overlayNoteAccentImage, overlayNoteAccentImage}, {&overlayNoteGhostImage, overlayNoteGhostImage},
@@ -480,11 +484,11 @@ juce::Image* AssetManager::getDrumGlyphImage(const GemWrapper& gemWrapper, uint 
 
     if (elite)
     {
-        // Hi-hat pedal bars (Stomp / Splash): the raised-white mini kick-bar art. Same art
-        // for both (spec: both render as miniature kick bars); the renderer positions it
-        // centered on the hi-hat lane. Identified by gem type, not column.
-        if (gemWrapper.gem == Gem::STOMP || gemWrapper.gem == Gem::SPLASH)
-            return getBarStompImage();
+        // Hi-hat pedal bars: the raised mini kick-bar art in the hi-hat yellow, solid for the
+        // Stomp foot click and hollow for the Splash. Identified by gem type, not column; the
+        // renderer centres it on the hi-hat lane.
+        if (gemWrapper.gem == Gem::STOMP)  return getBarStompImage();
+        if (gemWrapper.gem == Gem::SPLASH) return getBarSplashImage();
 
         // Elite: each hand lane is drum XOR cymbal, and its colour comes from the shared
         // ELITE_LANE_STYLES table (same source the strikeline pads use), so the gem and

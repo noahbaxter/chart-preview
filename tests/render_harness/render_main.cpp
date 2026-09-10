@@ -177,10 +177,13 @@ static FakeScene makeEliteScene(float farEnd)
     s.track[8 * BEAT][0]                      = GemWrapper(Gem::NOTE);
     s.track[8 * BEAT][ELITE_KICK_2X_COLUMN]   = GemWrapper(Gem::NOTE);
 
-    // Stomp (col 10) and Splash (col 11) pedal bars: mini kick-bars centered on the hi-hat.
-    // Kept clear of the front hi-hat cluster (beats 1-13) and the permutation block (beat 14+).
-    s.track[15 * BEAT][10] = GemWrapper(Gem::STOMP);
-    s.track[17 * BEAT][11] = GemWrapper(Gem::SPLASH);
+    // Stomp and Splash pedal bars: mini kick-bars centered on the hi-hat. Charted twice each,
+    // once sharing a kick beat above (the worst case for telling pedal from kick) and once on
+    // an empty beat, so both reads are in one frame.
+    s.track[4 * BEAT][ELITE_SPLASH_COLUMN]  = GemWrapper(Gem::SPLASH);
+    s.track[6 * BEAT][ELITE_STOMP_COLUMN]   = GemWrapper(Gem::STOMP);
+    s.track[10 * BEAT][ELITE_SPLASH_COLUMN] = GemWrapper(Gem::SPLASH);
+    s.track[12 * BEAT][ELITE_STOMP_COLUMN]  = GemWrapper(Gem::STOMP);
 
     // Permutation matrix, one chord per row so every combination is easy to compare:
     //   row = one dynamic across ALL 8 hand lanes + a kick;
